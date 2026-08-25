@@ -1,6 +1,18 @@
+import { EditIcon, FolderIcon, ItemIcon } from './Icons';
 import type { Folder } from './types';
 import { ITEM_TYPES } from './types';
-import { FolderIcon, EditIcon, ItemIcon } from './Icons';
+
+const EMPTY_SLOT_KEYS = [
+  'slot-1',
+  'slot-2',
+  'slot-3',
+  'slot-4',
+  'slot-5',
+  'slot-6',
+  'slot-7',
+  'slot-8',
+  'slot-9',
+];
 
 interface FolderDetailPanelProps {
   folder: Folder | null;
@@ -35,7 +47,10 @@ export function FolderDetailPanel({ folder, onEdit }: FolderDetailPanelProps) {
   const remainingCount = folder.items.length - (maxPreview - 1);
 
   // Fill up empty slots to keep a tidy 3x3 layout when items are 1-8
-  const emptySlotsCount = Math.max(0, 9 - (previewItems.length + (hasMore ? 1 : 0)));
+  const emptySlotsCount = Math.max(
+    0,
+    9 - (previewItems.length + (hasMore ? 1 : 0))
+  );
 
   return (
     <aside className="w-[360px] shrink-0 bg-[var(--surface,oklch(1_0_0))] border-l border-[var(--border,oklch(0.9_0.004_286.32))] p-7 flex flex-col overflow-y-auto max-h-[calc(100vh-60px)] sticky top-[60px]">
@@ -70,7 +85,11 @@ export function FolderDetailPanel({ folder, onEdit }: FolderDetailPanelProps) {
           描述
         </div>
         <div className="text-xs text-[var(--foreground,oklch(0.21_0.006_285.89))] leading-relaxed">
-          {folder.desc || <span className="text-[var(--muted-foreground,oklch(0.55_0.014_285.94))]">暂无描述</span>}
+          {folder.desc || (
+            <span className="text-[var(--muted-foreground,oklch(0.55_0.014_285.94))]">
+              暂无描述
+            </span>
+          )}
         </div>
       </div>
 
@@ -90,7 +109,7 @@ export function FolderDetailPanel({ folder, onEdit }: FolderDetailPanelProps) {
           <div className="grid grid-cols-3 gap-2">
             {previewItems.map((item, index) => (
               <div
-                key={index}
+                key={item.id || `${item.name}-${index}`}
                 title={item.name}
                 className="group aspect-square rounded-xl bg-[var(--surface-secondary,oklch(0.96_0.001_286.37))] hover:bg-[var(--accent-soft,rgba(99,102,241,0.15))] hover:scale-[1.03] transition-all flex flex-col items-center justify-center p-1.5 cursor-pointer text-center"
               >
@@ -110,9 +129,9 @@ export function FolderDetailPanel({ folder, onEdit }: FolderDetailPanelProps) {
               </div>
             )}
 
-            {Array.from({ length: emptySlotsCount }).map((_, i) => (
+            {EMPTY_SLOT_KEYS.slice(0, emptySlotsCount).map((slotKey) => (
               <div
-                key={`empty-${i}`}
+                key={slotKey}
                 className="aspect-square rounded-xl border border-dashed border-[var(--border,oklch(0.9_0.004_286.32))] opacity-30"
               />
             ))}
@@ -133,10 +152,13 @@ export function FolderDetailPanel({ folder, onEdit }: FolderDetailPanelProps) {
         ) : (
           <div className="space-y-1">
             {folder.items.map((item, index) => {
-              const typeInfo = ITEM_TYPES[item.type] || { label: '其他', color: 'currentColor' };
+              const typeInfo = ITEM_TYPES[item.type] || {
+                label: '其他',
+                color: 'currentColor',
+              };
               return (
                 <div
-                  key={index}
+                  key={item.id || `${item.name}-${index}`}
                   className="flex items-center gap-3 p-2 rounded-xl hover:bg-[var(--surface-secondary,oklch(0.96_0.001_286.37))] transition-colors cursor-pointer group"
                 >
                   <div className="w-8 h-8 rounded-lg bg-[var(--accent-soft,rgba(99,102,241,0.12))] flex items-center justify-center shrink-0">
