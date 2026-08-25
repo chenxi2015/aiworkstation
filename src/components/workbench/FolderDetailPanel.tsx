@@ -1,3 +1,4 @@
+import { Button } from '@heroui/react';
 import { EditIcon, FolderIcon, ItemIcon } from './Icons';
 import type { Folder } from './types';
 import { ITEM_TYPES } from './types';
@@ -22,14 +23,14 @@ interface FolderDetailPanelProps {
 export function FolderDetailPanel({ folder, onEdit }: FolderDetailPanelProps) {
   if (!folder) {
     return (
-      <aside className="w-[360px] shrink-0 bg-[var(--surface,oklch(1_0_0))] border-l border-[var(--border,oklch(0.9_0.004_286.32))] p-7 flex flex-col items-center justify-center text-center">
-        <div className="w-16 h-16 rounded-2xl bg-[var(--surface-secondary,oklch(0.96_0.001_286.37))] flex items-center justify-center text-[var(--muted-foreground,oklch(0.55_0.014_285.94))] mb-4 opacity-40">
+      <aside className="w-[360px] shrink-0 bg-[var(--surface,oklch(1_0_0))] border-l border-[var(--border,oklch(90%_0.004_286.32))] p-7 flex flex-col items-center justify-center text-center">
+        <div className="w-16 h-16 rounded-2xl bg-[var(--surface-secondary,oklch(0.9524_0.0013_286.37))] flex items-center justify-center text-[var(--muted,oklch(0.5517_0.0138_285.94))] mb-4 opacity-40">
           <FolderIcon className="w-8 h-8" />
         </div>
-        <h3 className="text-sm font-semibold text-[var(--foreground,oklch(0.21_0.006_285.89))] mb-1.5">
+        <h3 className="text-sm font-semibold text-[var(--foreground,oklch(0.2103_0.0059_285.89))] mb-1.5">
           选择一个文件夹
         </h3>
-        <p className="text-xs text-[var(--muted-foreground,oklch(0.55_0.014_285.94))] leading-relaxed max-w-[220px]">
+        <p className="text-xs text-[var(--muted,oklch(0.5517_0.0138_285.94))] leading-relaxed max-w-[220px]">
           点击左侧任意文件夹卡片
           <br />
           查看其中归集的工具与内容
@@ -53,20 +54,22 @@ export function FolderDetailPanel({ folder, onEdit }: FolderDetailPanelProps) {
   );
 
   return (
-    <aside className="w-[360px] shrink-0 bg-[var(--surface,oklch(1_0_0))] border-l border-[var(--border,oklch(0.9_0.004_286.32))] p-7 flex flex-col overflow-y-auto max-h-[calc(100vh-60px)] sticky top-[60px]">
+    <aside className="w-[360px] shrink-0 bg-[var(--surface,oklch(1_0_0))] border-l border-[var(--border,oklch(90%_0.004_286.32))] p-7 flex flex-col overflow-y-auto max-h-[calc(100vh-60px)] sticky top-[60px]">
       {/* Header */}
       <div className="flex items-start justify-between gap-3 mb-6">
-        <h2 className="text-xl font-bold text-[var(--foreground,oklch(0.21_0.006_285.89))] tracking-tight leading-snug break-all">
+        <h2 className="text-xl font-bold text-[var(--foreground,oklch(0.2103_0.0059_285.89))] tracking-tight leading-snug break-all">
           {folder.name}
         </h2>
-        <button
-          type="button"
-          onClick={() => onEdit(folder)}
-          title="编辑文件夹"
-          className="shrink-0 w-8 h-8 rounded-full border border-[var(--border,oklch(0.9_0.004_286.32))] bg-[var(--surface,oklch(1_0_0))] text-[var(--muted-foreground,oklch(0.55_0.014_285.94))] hover:text-[var(--accent,oklch(0.62_0.195_253.83))] hover:bg-[var(--surface-secondary,oklch(0.96_0.001_286.37))] hover:border-[var(--border-secondary,oklch(0.8_0.004_286.32))] flex items-center justify-center transition-all cursor-pointer"
+        <Button
+          isIconOnly
+          variant="ghost"
+          size="sm"
+          onPress={() => onEdit(folder)}
+          aria-label="编辑文件夹"
+          className="rounded-full shrink-0"
         >
-          <EditIcon className="w-3.5 h-3.5" />
-        </button>
+          <EditIcon className="w-4 h-4" />
+        </Button>
       </div>
 
       {/* Creation Time */}

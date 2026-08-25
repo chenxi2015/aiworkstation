@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { Button } from "@heroui/react";
 import { FolderCard } from "../components/workbench/FolderCard";
 import { FolderDetailPanel } from "../components/workbench/FolderDetailPanel";
 import { FolderModal } from "../components/workbench/FolderModal";
@@ -16,7 +17,7 @@ export const Route = createFileRoute("/")({
 	component: WorkbenchHome,
 });
 
-export function WorkbenchHome() {
+function WorkbenchHome() {
 	const [folders, setFolders] = useState<Folder[]>(INITIAL_FOLDERS);
 	const [activeCategory, setActiveCategory] = useState<Category>("工作台");
 	const [selectedFolderId, setSelectedFolderId] = useState<number | null>(1);
@@ -161,10 +162,11 @@ export function WorkbenchHome() {
 
 				{/* Right: Actions */}
 				<div className="flex items-center gap-2 shrink-0">
-					<button
-						type="button"
-						onClick={handleOpenCreateModal}
-						className="inline-flex items-center gap-1.5 h-8.5 px-4 rounded-full text-xs font-medium bg-[var(--accent,oklch(0.62_0.195_253.83))] text-[var(--accent-foreground,#ffffff)] hover:opacity-90 active:scale-97 shadow-sm transition-all cursor-pointer whitespace-nowrap"
+					<Button
+						variant="primary"
+						size="sm"
+						className="rounded-full"
+						onPress={handleOpenCreateModal}
 					>
 						<svg
 							role="img"
@@ -179,7 +181,7 @@ export function WorkbenchHome() {
 							<path d="M12 5v14M5 12h14" />
 						</svg>
 						新建文件夹
-					</button>
+					</Button>
 				</div>
 			</header>
 
@@ -189,36 +191,37 @@ export function WorkbenchHome() {
 				<main className="flex-1 p-8 lg:p-9 min-w-0">
 					{/* Header Title & Count */}
 					<div className="flex items-baseline justify-between mb-1.5">
-						<h1 className="text-2xl font-bold tracking-tight text-[var(--foreground,oklch(0.21_0.006_285.89))]">
+						<h1 className="text-2xl font-bold tracking-tight text-[var(--foreground,oklch(0.2103_0.0059_285.89))]">
 							{activeCategory}
 						</h1>
-						<span className="text-xs font-medium text-[var(--muted-foreground,oklch(0.55_0.014_285.94))]">
+						<span className="text-xs font-medium text-[var(--muted,oklch(0.5517_0.0138_285.94))]">
 							{filteredFolders.length > 0
 								? `${filteredFolders.length} 个文件夹`
 								: ""}
 						</span>
 					</div>
 
-					<p className="text-xs text-[var(--muted-foreground,oklch(0.55_0.014_285.94))] mb-7 max-w-xl leading-relaxed">
+					<p className="text-xs text-[var(--muted,oklch(0.5517_0.0138_285.94))] mb-7 max-w-xl leading-relaxed">
 						这些文件夹会将你收藏的工具和内容按某项工作进行归集，点击任意文件夹查看详情。
 					</p>
 
 					{/* Folder Cards Grid */}
 					{filteredFolders.length === 0 ? (
-						<div className="py-20 flex flex-col items-center justify-center text-center border border-dashed border-[var(--border,oklch(0.9_0.004_286.32))] rounded-3xl bg-[var(--surface,oklch(1_0_0))] p-8">
-							<div className="w-14 h-14 rounded-2xl bg-[var(--surface-secondary,oklch(0.96_0.001_286.37))] flex items-center justify-center text-[var(--muted-foreground,oklch(0.55_0.014_285.94))] mb-3.5 opacity-50">
+						<div className="py-20 flex flex-col items-center justify-center text-center border border-dashed border-[var(--border,oklch(90%_0.004_286.32))] rounded-3xl bg-[var(--surface,oklch(1_0_0))] p-8">
+							<div className="w-14 h-14 rounded-2xl bg-[var(--surface-secondary,oklch(0.9524_0.0013_286.37))] flex items-center justify-center text-[var(--muted,oklch(0.5517_0.0138_285.94))] mb-3.5 opacity-50">
 								<FolderIcon className="w-7 h-7" />
 							</div>
-							<p className="text-xs text-[var(--muted-foreground,oklch(0.55_0.014_285.94))] mb-4">
+							<p className="text-xs text-[var(--muted,oklch(0.5517_0.0138_285.94))] mb-4">
 								该分类下还没有文件夹，点击下方按钮开始归集
 							</p>
-							<button
-								type="button"
-								onClick={handleOpenCreateModal}
-								className="px-4 py-2 rounded-full text-xs font-medium bg-[var(--accent,oklch(0.62_0.195_253.83))] text-[var(--accent-foreground,#ffffff)] hover:opacity-90 transition-all cursor-pointer shadow-xs"
+							<Button
+								variant="primary"
+								size="sm"
+								className="rounded-full"
+								onPress={handleOpenCreateModal}
 							>
 								新建文件夹
-							</button>
+							</Button>
 						</div>
 					) : (
 						<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
