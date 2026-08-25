@@ -1,6 +1,7 @@
+import { Toast } from "@heroui/react";
 import { TanStackDevtools } from "@tanstack/react-devtools";
-import { QueryClientProvider } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import {
 	createRootRouteWithContext,
 	HeadContent,
@@ -54,7 +55,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 				<script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
 				<HeadContent />
 			</head>
-			<body className="font-sans antialiased [overflow-wrap:anywhere] selection:bg-[var(--accent-soft,rgba(99,102,241,0.2))]">
+			<body className="font-sans antialiased [overflow-wrap:anywhere] selection:bg-accent-soft selection:text-accent-soft-foreground">
 				<QueryClientProvider client={queryClient}>
 					{!isHome && <Header />}
 					{children}
@@ -71,6 +72,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 							TanStackQueryDevtools,
 						]}
 					/>
+					<Toast.Provider placement="bottom" />
 				</QueryClientProvider>
 				<Scripts />
 			</body>

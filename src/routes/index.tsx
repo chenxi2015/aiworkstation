@@ -1,11 +1,11 @@
+import { Button, EmptyState, toast } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Button } from "@heroui/react";
+import ThemeToggle from "../components/ThemeToggle";
 import { FolderCard } from "../components/workbench/FolderCard";
 import { FolderDetailPanel } from "../components/workbench/FolderDetailPanel";
 import { FolderModal } from "../components/workbench/FolderModal";
 import { FolderIcon, WorkbenchLogoIcon } from "../components/workbench/Icons";
-import { Toast } from "../components/workbench/Toast";
 import {
 	CATEGORIES,
 	type Category,
@@ -28,15 +28,6 @@ function WorkbenchHome() {
 		isOpen: false,
 		folder: null,
 	});
-	const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-	// Show a toast message with auto-dismiss
-	const showToast = (msg: string) => {
-		setToastMessage(msg);
-		setTimeout(() => {
-			setToastMessage((current) => (current === msg ? null : current));
-		}, 2400);
-	};
 
 	// Filter folders by active category
 	const filteredFolders = useMemo(() => {
@@ -95,7 +86,7 @@ function WorkbenchHome() {
 						: f,
 				),
 			);
-			showToast("已保存修改");
+			toast.success("已保存修改");
 		} else {
 			// Create new folder
 			const newId = Date.now();
@@ -108,9 +99,9 @@ function WorkbenchHome() {
 				items: [],
 			};
 			setFolders((prev) => [...prev, newFolder]);
-			setActiveCategory(data.category);
+			setActiveCategory(data.category as Category);
 			setSelectedFolderId(newId);
-			showToast("文件夹已创建");
+			toast.success("文件夹已创建");
 		}
 		handleCloseModal();
 	};
@@ -122,19 +113,19 @@ function WorkbenchHome() {
 			setSelectedFolderId(null);
 		}
 		handleCloseModal();
-		showToast("文件夹已删除");
+		toast.danger("文件夹已删除");
 	};
 
 	return (
-		<div className="min-h-screen bg-[var(--background,oklch(0.97_0_0))] text-[var(--foreground,oklch(0.21_0.006_285.89))] flex flex-col selection:bg-[var(--accent-soft,rgba(99,102,241,0.2))]">
+		<div className="min-h-screen bg-background text-foreground flex flex-col selection:bg-accent-soft selection:text-accent-soft-foreground">
 			{/* Topbar Navigation */}
-			<header className="sticky top-0 z-40 bg-[var(--surface,oklch(1_0_0))] border-b border-[var(--border,oklch(0.9_0.004_286.32))] px-6 h-15 flex items-center gap-4 justify-between backdrop-blur-md">
+			<header className="sticky top-0 z-40 bg-surface/80 border-b border-border px-6 h-15 flex items-center gap-4 justify-between backdrop-blur-md">
 				{/* Left: Brand */}
 				<div className="flex items-center gap-2.5 shrink-0 pr-4">
-					<div className="w-8 h-8 rounded-xl bg-[var(--accent,oklch(0.62_0.195_253.83))] flex items-center justify-center shadow-xs">
+					<div className="w-8 h-8 rounded-xl bg-accent text-accent-foreground flex items-center justify-center shadow-sm">
 						<WorkbenchLogoIcon className="w-4 h-4" />
 					</div>
-					<span className="font-semibold text-sm tracking-tight text-[var(--foreground,oklch(0.21_0.006_285.89))]">
+					<span className="font-semibold text-sm tracking-tight text-foreground">
 						AI 工作台
 					</span>
 				</div>
@@ -150,8 +141,8 @@ function WorkbenchHome() {
 								onClick={() => handleCategoryChange(cat)}
 								className={`px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-150 cursor-pointer ${
 									isActive
-										? "bg-[var(--accent-soft,rgba(99,102,241,0.12))] text-[var(--accent,oklch(0.62_0.195_253.83))] font-semibold shadow-xs"
-										: "text-[var(--muted-foreground,oklch(0.55_0.014_285.94))] hover:text-[var(--foreground,oklch(0.21_0.006_285.89))] hover:bg-[var(--surface-secondary,oklch(0.96_0.001_286.37))]"
+										? "bg-accent-soft text-accent font-semibold shadow-xs"
+										: "text-muted hover:text-foreground hover:bg-surface-secondary"
 								}`}
 							>
 								{cat}
@@ -161,7 +152,8 @@ function WorkbenchHome() {
 				</nav>
 
 				{/* Right: Actions */}
-				<div className="flex items-center gap-2 shrink-0">
+				<div className="flex items-center gap-2.5 shrink-0">
+					<ThemeToggle />
 					<Button
 						variant="primary"
 						size="sm"
@@ -191,27 +183,27 @@ function WorkbenchHome() {
 				<main className="flex-1 p-8 lg:p-9 min-w-0">
 					{/* Header Title & Count */}
 					<div className="flex items-baseline justify-between mb-1.5">
-						<h1 className="text-2xl font-bold tracking-tight text-[var(--foreground,oklch(0.2103_0.0059_285.89))]">
+						<h1 className="text-2xl font-bold tracking-tight text-foreground">
 							{activeCategory}
 						</h1>
-						<span className="text-xs font-medium text-[var(--muted,oklch(0.5517_0.0138_285.94))]">
+						<span className="text-xs font-medium text-muted">
 							{filteredFolders.length > 0
 								? `${filteredFolders.length} 个文件夹`
 								: ""}
 						</span>
 					</div>
 
-					<p className="text-xs text-[var(--muted,oklch(0.5517_0.0138_285.94))] mb-7 max-w-xl leading-relaxed">
+					<p className="text-xs text-muted mb-7 max-w-xl leading-relaxed">
 						这些文件夹会将你收藏的工具和内容按某项工作进行归集，点击任意文件夹查看详情。
 					</p>
 
 					{/* Folder Cards Grid */}
 					{filteredFolders.length === 0 ? (
-						<div className="py-20 flex flex-col items-center justify-center text-center border border-dashed border-[var(--border,oklch(90%_0.004_286.32))] rounded-3xl bg-[var(--surface,oklch(1_0_0))] p-8">
-							<div className="w-14 h-14 rounded-2xl bg-[var(--surface-secondary,oklch(0.9524_0.0013_286.37))] flex items-center justify-center text-[var(--muted,oklch(0.5517_0.0138_285.94))] mb-3.5 opacity-50">
+						<EmptyState className="py-20 flex flex-col items-center justify-center text-center border border-dashed border-border rounded-3xl bg-surface p-8">
+							<div className="w-14 h-14 rounded-2xl bg-surface-secondary flex items-center justify-center text-muted mb-3.5 opacity-50">
 								<FolderIcon className="w-7 h-7" />
 							</div>
-							<p className="text-xs text-[var(--muted,oklch(0.5517_0.0138_285.94))] mb-4">
+							<p className="text-xs text-muted mb-4">
 								该分类下还没有文件夹，点击下方按钮开始归集
 							</p>
 							<Button
@@ -222,7 +214,7 @@ function WorkbenchHome() {
 							>
 								新建文件夹
 							</Button>
-						</div>
+						</EmptyState>
 					) : (
 						<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
 							{filteredFolders.map((folder) => (
@@ -253,9 +245,6 @@ function WorkbenchHome() {
 				onSave={handleSave}
 				onDelete={handleDelete}
 			/>
-
-			{/* Action Toast */}
-			<Toast message={toastMessage} />
 		</div>
 	);
 }
