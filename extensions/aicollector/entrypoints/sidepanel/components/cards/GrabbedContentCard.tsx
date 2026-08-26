@@ -18,6 +18,7 @@ import type { CollectPayload } from '../../../../src/services/workbench';
 import { SafeImage } from '../common/SafeImage';
 import { CopyButton } from '../common/CopyButton';
 import { downloadImage, downloadImagesAsZip } from '../../../../src/utils/imageDownloader';
+import { GrabActionToolbar } from '../actions/GrabActionToolbar';
 
 interface GrabbedContentCardProps {
   grabbedContent: GrabbedContent;
@@ -309,6 +310,9 @@ export const GrabbedContentCard: React.FC<GrabbedContentCardProps> = ({
               </div>
             </div>
           )}
+
+          {/* Modular 12-Action Toolbox */}
+          <GrabActionToolbar grabbedContent={grabbedContent} />
 
           {/* Push to workbench button */}
           <Button
