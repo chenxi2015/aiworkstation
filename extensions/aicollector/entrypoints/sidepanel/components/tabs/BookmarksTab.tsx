@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button, Input } from '@heroui/react';
+import { Button, InputGroup } from '@heroui/react';
 import { Search, RefreshCw, Send, Calendar } from 'lucide-react';
 import type { FlattenedBookmark } from '../../hooks/useBookmarks';
 import type { CollectPayload } from '../../../../src/services/workbench';
@@ -55,44 +55,52 @@ export const BookmarksTab: React.FC<BookmarksTabProps> = ({
 
   return (
     <div className="p-0 outline-none flex flex-col gap-2.5">
-      {/* Search Bar */}
-      <div className="relative">
-        <Input
-          type="text"
-          placeholder="搜索书签标题、URL 或目录名称..."
-          value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
-          className="w-full"
-        />
-        <Search className="w-3.5 h-3.5 text-muted absolute left-2.5 top-2.5" />
-        {searchQuery && (
-          <button
-            onClick={() => onSearchChange('')}
-            className="absolute right-2.5 top-2 text-xs text-muted hover:text-foreground cursor-pointer"
-          >
-            ✕
-          </button>
-        )}
-      </div>
+      {/* Sticky Header with downward gradient fade */}
+      <div className="sticky top-0 z-20 -mx-3 px-3 pt-1 pb-3 bg-gradient-to-b from-background via-background via-80% to-transparent flex flex-col gap-2">
+        {/* Search Bar */}
+        <InputGroup className="w-full h-8 text-xs">
+          <InputGroup.Prefix className="pl-2">
+            <Search className="w-3 h-3 text-muted" />
+          </InputGroup.Prefix>
+          <InputGroup.Input
+            type="text"
+            placeholder="搜索书签标题、URL 或目录名称..."
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            className="text-xs h-7"
+          />
+          {searchQuery && (
+            <InputGroup.Suffix className="pr-1.5">
+              <button
+                type="button"
+                onClick={() => onSearchChange('')}
+                className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[10px] text-muted hover:text-foreground cursor-pointer"
+              >
+                ✕
+              </button>
+            </InputGroup.Suffix>
+          )}
+        </InputGroup>
 
-      {/* Header toolbar */}
-      <div className="flex justify-between items-center px-0.5">
-        <span className="text-[11px] text-muted">
-          共找到 {bookmarks.length} 个书签
-        </span>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-6 text-[11px] px-2 cursor-pointer"
-          onClick={onRefresh}
-        >
-          <RefreshCw className="w-3 h-3 mr-1" />
-          刷新
-        </Button>
+        {/* Header toolbar */}
+        <div className="flex justify-between items-center px-0.5">
+          <span className="text-[11px] text-muted">
+            共找到 {bookmarks.length} 个书签
+          </span>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 text-[11px] px-2 cursor-pointer"
+            onClick={onRefresh}
+          >
+            <RefreshCw className="w-3 h-3 mr-1" />
+            刷新
+          </Button>
+        </div>
       </div>
 
       {/* Bookmarks List */}
-      <div className="flex flex-col gap-1.5 max-h-[calc(100vh-170px)] overflow-y-auto">
+      <div className="flex flex-col gap-1.5">
         {bookmarks.slice(0, 100).map((bm) => (
           <div
             key={bm.id}

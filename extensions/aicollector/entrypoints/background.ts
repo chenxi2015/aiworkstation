@@ -137,29 +137,13 @@ export default defineBackground(() => {
     await appendSyncLog(log);
   });
 
-  // 4. Background image fetch proxy with dynamic site referer
+  // 4. Background image fetch proxy with no-referrer bypass
   chrome.runtime.onMessage.addListener((message: any, _sender: any, sendResponse: (response?: any) => void) => {
     if (message.type === 'FETCH_IMAGE_DATA' && message.url) {
-      const { url, pageUrl } = message;
-
-      let referer = '';
-      try {
-        if (pageUrl) {
-          referer = new URL(pageUrl).origin + '/';
-        } else {
-          referer = new URL(url).origin + '/';
-        }
-      } catch {
-        referer = '';
-      }
+      const { url } = message;
 
       fetch(url, {
-        headers: referer
-          ? {
-              'Referer': referer,
-              'User-Agent': navigator.userAgent,
-            }
-          : undefined,
+        referrerPolicy: 'no-referrer',
       })
         .then((res) => {
           if (!res.ok) throw new Error(`HTTP ${res.status}`);

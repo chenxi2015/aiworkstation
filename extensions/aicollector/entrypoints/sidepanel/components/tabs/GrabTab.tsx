@@ -30,15 +30,17 @@ export const GrabTab: React.FC<GrabTabProps> = ({
 }) => {
   return (
     <div className="p-0 outline-none flex flex-col gap-3">
-      {/* Visual Grab Button */}
-      <Button
-        variant="primary"
-        className="w-full font-semibold shadow-md cursor-pointer sticky top-0 z-10"
-        onClick={onStartGrab}
-      >
-        <MousePointerClick className="w-4 h-4 mr-2" />
-        {isGrabbing ? '正在网页中选择目标区域...' : '选择网页区域 (Visual Grab)'}
-      </Button>
+      {/* Visual Grab Button (Sticky Header with downward gradient fade) */}
+      <div className="sticky top-0 z-20 -mx-3 px-3 bg-gradient-to-b from-background via-background via-80% to-transparent pointer-events-auto">
+        <Button
+          variant="ghost"
+          className="w-full border border-dashed border-2 border-blue-400 text-blue-500"
+          onClick={onStartGrab}
+        >
+          <MousePointerClick className="w-4 h-4 mr-2" />
+          {isGrabbing ? '正在网页中选择目标区域...' : '选择网页区域 (Visual Grab)'}
+        </Button>
+      </div>
 
       {/* Grabbed Content Card */}
       {grabbedContent && (

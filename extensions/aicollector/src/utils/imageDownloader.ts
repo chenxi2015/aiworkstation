@@ -84,11 +84,44 @@ function dataUrlToBinary(dataUrl: string): { bytes: Uint8Array; ext: string } {
 }
 
 /**
+ * Convert Blob to Base64 Data URL
+ */
+export function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+      } else {
+        reject(new Error('Failed to read blob as data URL'));
+      }
+    };
+    reader.onerror = () => reject(new Error('FileReader error'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+/**
  * Trigger file download via chrome.downloads or DOM fallback
  */
 export async function triggerBlobDownload(blob: Blob, filename: string): Promise<void> {
-  const objectUrl = URL.createObjectURL(blob);
+  // If chrome.downloads is available, try data URL download first (most reliable in extension context)
+  if (chrome?.downloads?.download) {
+    try {
+      const dataUrl = await blobToDataUrl(blob);
+      await chrome.downloads.download({
+        url: dataUrl,
+        filename,
+        conflictAction: 'uniquify',
+        saveAs: false,
+      });
+      return;
+    } catch (err) {
+      console.warn('chrome.downloads via dataUrl failed, fallback to objectUrl/DOM:', err);
+    }
+  }
 
+  const objectUrl = URL.createObjectURL(blob);
   if (chrome?.downloads?.download) {
     try {
       await chrome.downloads.download({
@@ -100,7 +133,7 @@ export async function triggerBlobDownload(blob: Blob, filename: string): Promise
       setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
       return;
     } catch (err) {
-      console.warn('chrome.downloads.download failed, fallback to <a> click:', err);
+      console.warn('chrome.downloads via objectUrl failed, fallback to <a> click:', err);
     }
   }
 
@@ -127,17 +160,52 @@ export async function downloadImage(
   const filename = customFilename || `image_${Date.now()}.${ext}`;
 
   if (dataUrl.startsWith('data:')) {
+    if (chrome?.downloads?.download) {
+      try {
+        await chrome.downloads.download({
+          url: dataUrl,
+          filename,
+          conflictAction: 'uniquify',
+          saveAs: false,
+        });
+        return;
+      } catch (err) {
+        console.warn('chrome.downloads failed for dataUrl, fallback to binary blob:', err);
+      }
+    }
     const { bytes } = dataUrlToBinary(dataUrl);
     const blob = new Blob([bytes.buffer as ArrayBuffer]);
     await triggerBlobDownload(blob, filename);
   } else {
-    // If regular URL
-    const link = document.createElement('a');
-    link.href = dataUrl;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // If regular HTTP/HTTPS URL
+    if (chrome?.downloads?.download) {
+      try {
+        await chrome.downloads.download({
+          url: dataUrl,
+          filename,
+          conflictAction: 'uniquify',
+          saveAs: false,
+        });
+        return;
+      } catch (err) {
+        console.warn('chrome.downloads failed for URL, attempting direct fetch:', err);
+      }
+    }
+
+    try {
+      const res = await fetch(dataUrl, { referrerPolicy: 'no-referrer' });
+      const blob = await res.blob();
+      await triggerBlobDownload(blob, filename);
+    } catch (err) {
+      console.warn('Direct fetch failed, falling back to anchor click:', err);
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = filename;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   }
 }
 

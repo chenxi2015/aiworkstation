@@ -76,10 +76,30 @@ export const GrabbedContentCard: React.FC<GrabbedContentCardProps> = ({
   const [downloading, setDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
+  const [singleDownloading, setSingleDownloading] = useState(false);
+  const [singleDownloadSuccess, setSingleDownloadSuccess] = useState(false);
 
   const images = grabbedContent.images || [];
   const maxInitialVisible = 4;
   const displayedImages = isExpanded ? images : images.slice(0, maxInitialVisible);
+
+  // Keyboard navigation support for image preview lightbox
+  React.useEffect(() => {
+    if (previewIndex === null) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setPreviewIndex(null);
+      } else if (e.key === 'ArrowLeft' && images.length > 1) {
+        setPreviewIndex((prev) => (prev !== null ? (prev - 1 + images.length) % images.length : null));
+      } else if (e.key === 'ArrowRight' && images.length > 1) {
+        setPreviewIndex((prev) => (prev !== null ? (prev + 1) % images.length : null));
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [previewIndex, images.length]);
 
   const hasText = Boolean(grabbedContent.selectedText && grabbedContent.selectedText.trim());
   const hasHtml = Boolean(grabbedContent.selectedHtml && grabbedContent.selectedHtml.trim());
@@ -126,11 +146,16 @@ export const GrabbedContentCard: React.FC<GrabbedContentCardProps> = ({
 
   const handleDownloadSingleImage = async (src: string | undefined, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!src) return;
+    if (!src || singleDownloading) return;
     try {
+      setSingleDownloading(true);
       await downloadImage(src, grabbedContent.url);
+      setSingleDownloadSuccess(true);
+      setTimeout(() => setSingleDownloadSuccess(false), 2000);
     } catch (err) {
       console.error('Failed to download single image:', err);
+    } finally {
+      setSingleDownloading(false);
     }
   };
 
@@ -316,7 +341,7 @@ export const GrabbedContentCard: React.FC<GrabbedContentCardProps> = ({
 
           {/* Push to workbench button */}
           <Button
-            variant="primary"
+            variant="outline"
             size="sm"
             className="w-full mt-1 font-medium cursor-pointer"
             onClick={handlePush}
@@ -330,7 +355,7 @@ export const GrabbedContentCard: React.FC<GrabbedContentCardProps> = ({
       {/* Image Preview Lightbox Modal */}
       {previewIndex !== null && images[previewIndex] && (
         <div
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex flex-col items-center justify-center p-4 animate-in fade-in duration-150"
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-xs flex flex-col items-center justify-center p-4 animate-in fade-in duration-150 select-none"
           onClick={() => setPreviewIndex(null)}
         >
           {/* Header controls */}
@@ -338,77 +363,85 @@ export const GrabbedContentCard: React.FC<GrabbedContentCardProps> = ({
             className="absolute top-3 left-3 right-3 flex items-center justify-between text-white text-xs z-10"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="bg-black/60 px-2.5 py-1 rounded-full text-[11px] font-medium backdrop-blur-xs">
+            <div className="bg-black/60 px-2.5 py-1 rounded-full text-[11px] font-medium backdrop-blur-xs border border-white/10">
               {previewIndex + 1} / {images.length}
             </div>
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                className="p-1.5 rounded-full bg-black/60 hover:bg-black/80 text-white transition-colors cursor-pointer"
+                className="p-1.5 rounded-full bg-black/60 hover:bg-black/80 text-white transition-all cursor-pointer border border-white/10"
                 onClick={(e) => handleDownloadSingleImage(images[previewIndex], e)}
+                disabled={singleDownloading}
                 title="下载此原图"
               >
-                <Download className="w-4 h-4" />
+                {singleDownloading ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-accent" />
+                ) : singleDownloadSuccess ? (
+                  <Check className="w-4 h-4 text-emerald-400" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
               </button>
               <a
                 href={images[previewIndex]}
                 target="_blank"
                 rel="noreferrer"
-                className="p-1.5 rounded-full bg-black/60 hover:bg-black/80 text-white transition-colors cursor-pointer"
+                className="p-1.5 rounded-full bg-black/60 hover:bg-black/80 text-white transition-all cursor-pointer border border-white/10"
                 title="在浏览器新标签页打开原图"
               >
                 <ExternalLink className="w-4 h-4" />
               </a>
               <button
                 type="button"
-                className="p-1.5 rounded-full bg-black/60 hover:bg-black/80 text-white transition-colors cursor-pointer"
+                className="p-1.5 rounded-full bg-black/60 hover:bg-black/80 text-white transition-all cursor-pointer border border-white/10"
                 onClick={() => setPreviewIndex(null)}
-                title="关闭"
+                title="关闭 (Esc)"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
           </div>
 
-          {/* Main Image */}
+          {/* Main Image Container */}
           <div
-            className="relative max-w-full max-h-[75vh] flex items-center justify-center"
+            className="relative max-w-full max-h-[75vh] flex items-center justify-center px-8"
             onClick={(e) => e.stopPropagation()}
           >
             <SafeImage
               src={images[previewIndex]}
               pageUrl={grabbedContent.url}
               alt={`preview-${previewIndex}`}
-              className="max-w-full max-h-[72vh] object-contain rounded shadow-2xl border border-white/10"
+              className="max-w-full max-h-[72vh] object-contain rounded shadow-2xl border border-white/10 pointer-events-auto"
             />
-
-            {/* Prev / Next controls */}
-            {images.length > 1 && (
-              <>
-                <button
-                  type="button"
-                  onClick={handlePrevPreview}
-                  className="absolute -left-3 p-2 rounded-full bg-black/70 hover:bg-black/90 text-white shadow-lg transition-colors cursor-pointer"
-                  title="上一张"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={handleNextPreview}
-                  className="absolute -right-3 p-2 rounded-full bg-black/70 hover:bg-black/90 text-white shadow-lg transition-colors cursor-pointer"
-                  title="下一张"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </>
-            )}
           </div>
+
+          {/* Prev / Next controls fixed strictly to the left & right viewport sides */}
+          {images.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={handlePrevPreview}
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 z-20 p-2.5 rounded-full bg-black/65 hover:bg-black/90 text-white/90 hover:text-white backdrop-blur-xs border border-white/15 shadow-xl transition-all cursor-pointer hover:scale-105 active:scale-95"
+                title="上一张 (←)"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <button
+                type="button"
+                onClick={handleNextPreview}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 z-20 p-2.5 rounded-full bg-black/65 hover:bg-black/90 text-white/90 hover:text-white backdrop-blur-xs border border-white/15 shadow-xl transition-all cursor-pointer hover:scale-105 active:scale-95"
+                title="下一张 (→)"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </>
+          )}
 
           {/* Footer URL hint */}
           <div
-            className="mt-3 text-[11px] text-white/70 max-w-xs truncate text-center"
+            className="mt-3 text-[11px] text-white/70 max-w-xs truncate text-center font-mono px-2 py-0.5 rounded bg-black/40 border border-white/5"
             onClick={(e) => e.stopPropagation()}
+            title={images[previewIndex]}
           >
             {images[previewIndex]}
           </div>

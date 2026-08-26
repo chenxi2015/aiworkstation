@@ -30,7 +30,6 @@ export const Header: React.FC<HeaderProps> = ({
 
       <div className="flex items-center gap-2">
         <Chip
-          size="sm"
           variant="soft"
           color={isOnline ? 'success' : 'danger'}
         >

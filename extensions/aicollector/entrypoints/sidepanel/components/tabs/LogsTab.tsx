@@ -40,7 +40,8 @@ export const LogsTab: React.FC<LogsTabProps> = ({ logs, onClearLogs }) => {
 
   return (
     <div className="p-0 outline-none flex flex-col gap-2.5">
-      <div className="flex justify-between items-center px-0.5">
+      {/* Sticky Header with downward gradient fade */}
+      <div className="sticky top-0 z-20 -mx-3 px-3 pt-1 pb-3 bg-gradient-to-b from-background via-background via-80% to-transparent flex justify-between items-center px-0.5">
         <span className="text-xs font-semibold text-foreground">
           变动与采集监听 ({logs.length})
         </span>
@@ -64,7 +65,7 @@ export const LogsTab: React.FC<LogsTabProps> = ({ logs, onClearLogs }) => {
           </div>
         </div>
       ) : (
-        <div className="flex flex-col gap-2 max-h-[calc(100vh-170px)] overflow-y-auto">
+        <div className="flex flex-col gap-2">
           {logs.map((log) => (
             <div
               key={log.id}

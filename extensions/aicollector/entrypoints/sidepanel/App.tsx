@@ -55,33 +55,36 @@ export default function App() {
         onSelectionChange={(key) => setActiveTab(key as TabKey)}
         className="flex-1 flex flex-col min-h-0 w-full"
       >
-        <Tabs.ListContainer className="mx-3 mt-2">
-          <Tabs.List aria-label="侧边栏导航" className="w-full grid grid-cols-4">
-            <Tabs.Tab id="grab">
-              <MousePointerClick className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate">选区采集</span>
-              <Tabs.Indicator />
-            </Tabs.Tab>
-            <Tabs.Tab id="bookmarks">
-              <Bookmark className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate">书签 ({flattenedBookmarks.length})</span>
-              <Tabs.Indicator />
-            </Tabs.Tab>
-            <Tabs.Tab id="logs">
-              <Activity className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate">变动日志</span>
-              <Tabs.Indicator />
-            </Tabs.Tab>
-            <Tabs.Tab id="settings">
-              <Settings className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate">设置</span>
-              <Tabs.Indicator />
-            </Tabs.Tab>
-          </Tabs.List>
-        </Tabs.ListContainer>
+        {/* Sticky Tab Bar Container with solid background */}
+        <div className="bg-background px-3 pt-2 pb-1 shrink-0 z-30">
+          <Tabs.ListContainer className="w-full">
+            <Tabs.List aria-label="侧边栏导航" className="w-full grid grid-cols-4">
+              <Tabs.Tab id="grab">
+                <MousePointerClick className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">选区采集</span>
+                <Tabs.Indicator />
+              </Tabs.Tab>
+              <Tabs.Tab id="bookmarks">
+                <Bookmark className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">书签 ({flattenedBookmarks.length})</span>
+                <Tabs.Indicator />
+              </Tabs.Tab>
+              <Tabs.Tab id="logs">
+                <Activity className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">变动日志</span>
+                <Tabs.Indicator />
+              </Tabs.Tab>
+              <Tabs.Tab id="settings">
+                <Settings className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">设置</span>
+                <Tabs.Indicator />
+              </Tabs.Tab>
+            </Tabs.List>
+          </Tabs.ListContainer>
+        </div>
 
         {/* Main Tab Content */}
-        <main className="flex-1 overflow-y-auto p-3 flex flex-col gap-3">
+        <main className="flex-1 overflow-y-auto px-3 pb-3 pt-0 flex flex-col gap-3 min-h-0">
           <Tabs.Panel id="grab" className="p-0 outline-none">
             <GrabTab
               isGrabbing={isGrabbing}
