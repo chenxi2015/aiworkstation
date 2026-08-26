@@ -56,7 +56,7 @@ export const BookmarksTab: React.FC<BookmarksTabProps> = ({
   return (
     <div className="p-0 outline-none flex flex-col gap-2.5">
       {/* Sticky Header with downward gradient fade */}
-      <div className="sticky top-0 z-20 -mx-3 px-3 pt-1 pb-3 bg-gradient-to-b from-background via-background via-80% to-transparent flex flex-col gap-2">
+      <div className="sticky top-0 z-20 -mx-3 px-3 pt-2 pb-2 bg-gradient-to-b from-background via-background via-80% to-transparent flex flex-col gap-2">
         {/* Search Bar */}
         <InputGroup className="w-full h-8 text-xs">
           <InputGroup.Prefix className="pl-2">

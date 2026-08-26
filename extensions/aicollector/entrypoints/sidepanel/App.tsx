@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Tabs } from '@heroui/react';
+import { Tabs, Toast } from '@heroui/react';
 import { MousePointerClick, Bookmark, Activity, Settings } from 'lucide-react';
 
 import { useTheme } from './hooks/useTheme';
@@ -22,10 +22,11 @@ export type TabKey = 'grab' | 'bookmarks' | 'logs' | 'settings';
  */
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('grab');
+  const [isScrolled, setIsScrolled] = useState(false);
 
   // Business hooks
   const { themeMode, toggleTheme, setSpecificTheme } = useTheme();
-  const { isOnline, pushStatus, checkWorkbenchStatus, pushToWorkbench } = useWorkbench();
+  const { isOnline, checkWorkbenchStatus, pushToWorkbench } = useWorkbench();
   const { currentTdk, refreshCurrentPageTDK } = useCurrentTdk();
   const { syncLogs, clearSyncLogs } = useSyncLogs();
   const {
@@ -40,6 +41,10 @@ export default function App() {
     setActiveTab('grab');
   });
 
+  const handleScroll = (e: React.UIEvent<HTMLElement>) => {
+    setIsScrolled(e.currentTarget.scrollTop > 2);
+  };
+
   return (
     <div className="flex flex-col h-screen w-full bg-background text-foreground font-sans antialiased text-[13px] select-none">
       {/* Header */}
@@ -52,29 +57,32 @@ export default function App() {
       {/* HeroUI Tabs */}
       <Tabs
         selectedKey={activeTab}
-        onSelectionChange={(key) => setActiveTab(key as TabKey)}
-        className="flex-1 flex flex-col min-h-0 w-full"
+        onSelectionChange={(key) => {
+          setActiveTab(key as TabKey);
+          setIsScrolled(false);
+        }}
+        className="flex-1 flex flex-col min-h-0 w-full bg-white dark:bg-background"
       >
-        {/* Sticky Tab Bar Container with solid background */}
-        <div className="bg-background px-3 pt-2 pb-1 shrink-0 z-30">
+        {/* Sticky Tab Bar Container */}
+        <div className="px-3 pt-2 shrink-0 z-30">
           <Tabs.ListContainer className="w-full">
             <Tabs.List aria-label="侧边栏导航" className="w-full grid grid-cols-4">
-              <Tabs.Tab id="grab">
+              <Tabs.Tab id="grab" className="px-1 text-xs min-w-0">
                 <MousePointerClick className="w-3.5 h-3.5 shrink-0" />
                 <span className="truncate">选区采集</span>
                 <Tabs.Indicator />
               </Tabs.Tab>
-              <Tabs.Tab id="bookmarks">
+              <Tabs.Tab id="bookmarks" className="px-1 text-xs min-w-0">
                 <Bookmark className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate">书签 ({flattenedBookmarks.length})</span>
+                <span className="truncate">书签{flattenedBookmarks.length > 0 ? ` (${flattenedBookmarks.length})` : ''}</span>
                 <Tabs.Indicator />
               </Tabs.Tab>
-              <Tabs.Tab id="logs">
+              <Tabs.Tab id="logs" className="px-1 text-xs min-w-0">
                 <Activity className="w-3.5 h-3.5 shrink-0" />
                 <span className="truncate">变动日志</span>
                 <Tabs.Indicator />
               </Tabs.Tab>
-              <Tabs.Tab id="settings">
+              <Tabs.Tab id="settings" className="px-1 text-xs min-w-0">
                 <Settings className="w-3.5 h-3.5 shrink-0" />
                 <span className="truncate">设置</span>
                 <Tabs.Indicator />
@@ -84,13 +92,16 @@ export default function App() {
         </div>
 
         {/* Main Tab Content */}
-        <main className="flex-1 overflow-y-auto px-3 pb-3 pt-0 flex flex-col gap-3 min-h-0">
+        <main
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto px-3 pb-3 pt-0 flex flex-col gap-3 min-h-0 bg-background"
+        >
           <Tabs.Panel id="grab" className="p-0 outline-none">
             <GrabTab
               isGrabbing={isGrabbing}
               grabbedContent={grabbedContent}
               currentTdk={currentTdk}
-              pushStatus={pushStatus}
+              isScrolled={isScrolled}
               onStartGrab={startGrab}
               onRefreshTdk={refreshCurrentPageTDK}
               onPushToWorkbench={pushToWorkbench}
@@ -118,11 +129,14 @@ export default function App() {
             <SettingsTab
               themeMode={themeMode}
               onSetTheme={setSpecificTheme}
-              onCheckWorkbenchStatus={checkWorkbenchStatus}
+              onCheckWorkbenchStatus={() => checkWorkbenchStatus(true)}
             />
           </Tabs.Panel>
         </main>
       </Tabs>
+
+      {/* Unified Global Toast Notification System */}
+      <Toast.Provider placement="bottom" />
     </div>
   );
 }

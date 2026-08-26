@@ -29,7 +29,7 @@ export class WorkbenchService {
   /**
    * Push collected article/link/selection to workbench
    */
-  static async pushContent(payload: CollectPayload): Promise<{ success: boolean; message: string }> {
+  static async pushContent(payload: CollectPayload): Promise<{ success: boolean; offline?: boolean; message: string }> {
     try {
       const response = await fetch(WORKBENCH_COLLECT_API, {
         method: 'POST',
@@ -45,11 +45,11 @@ export class WorkbenchService {
       });
 
       if (response.ok) {
-        return { success: true, message: '✅ 已成功归集到本地工作台' };
+        return { success: true, message: '已成功归集到本地工作台' };
       }
-      return { success: false, message: '❌ 同步失败，服务返回异常' };
+      return { success: false, message: '同步失败，服务返回异常' };
     } catch {
-      return { success: false, message: '⚠️ 工作台未启动，已存入本地离线队列' };
+      return { success: false, offline: true, message: '工作台未启动，已存入本地离线队列' };
     }
   }
 }

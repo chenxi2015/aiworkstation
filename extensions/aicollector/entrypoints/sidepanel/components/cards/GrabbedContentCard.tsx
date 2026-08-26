@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Card, Chip, Separator, Button } from '@heroui/react';
+import { Card, Chip, Separator, Button, toast } from '@heroui/react';
 import {
   Layers,
   Send,
@@ -135,9 +135,17 @@ export const GrabbedContentCard: React.FC<GrabbedContentCardProps> = ({
         },
       );
       setDownloadSuccess(true);
+      toast.success('图片已打包下载', {
+        description: `共 ${images.length} 张图片已打包为 ZIP`,
+        timeout: 2500,
+      });
       setTimeout(() => setDownloadSuccess(false), 2000);
     } catch (err) {
       console.error('Failed to download images as ZIP:', err);
+      toast.danger('图片打包下载失败', {
+        description: String(err),
+        timeout: 3000,
+      });
     } finally {
       setDownloading(false);
       setDownloadProgress(0);
@@ -151,9 +159,16 @@ export const GrabbedContentCard: React.FC<GrabbedContentCardProps> = ({
       setSingleDownloading(true);
       await downloadImage(src, grabbedContent.url);
       setSingleDownloadSuccess(true);
+      toast.success('图片已开始下载', {
+        timeout: 2000,
+      });
       setTimeout(() => setSingleDownloadSuccess(false), 2000);
     } catch (err) {
       console.error('Failed to download single image:', err);
+      toast.danger('图片下载失败', {
+        description: String(err),
+        timeout: 3000,
+      });
     } finally {
       setSingleDownloading(false);
     }
@@ -175,8 +190,8 @@ export const GrabbedContentCard: React.FC<GrabbedContentCardProps> = ({
 
   return (
     <>
-      <Card className="bg-surface shadow-sm">
-        <Card.Header className="flex flex-row items-center justify-between w-full pb-2">
+      <Card>
+        <Card.Header className="flex flex-row items-center justify-between w-full">
           <div className="flex items-center gap-2">
             <Layers className="w-4 h-4 text-accent shrink-0" />
             <Card.Title className="text-xs font-semibold leading-none">已捕获区域</Card.Title>
@@ -336,9 +351,6 @@ export const GrabbedContentCard: React.FC<GrabbedContentCardProps> = ({
             </div>
           )}
 
-          {/* Modular 12-Action Toolbox */}
-          <GrabActionToolbar grabbedContent={grabbedContent} />
-
           {/* Push to workbench button */}
           <Button
             variant="outline"
@@ -349,6 +361,10 @@ export const GrabbedContentCard: React.FC<GrabbedContentCardProps> = ({
             <Send className="w-3.5 h-3.5 mr-1" />
             归集此区域到工作台
           </Button>
+
+          {/* Modular 12-Action Toolbox */}
+          <GrabActionToolbar grabbedContent={grabbedContent} />
+
         </Card.Content>
       </Card>
 

@@ -1,15 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { Button } from '@heroui/react';
-import { X, Download, Copy, Check, Loader2, Sparkles } from 'lucide-react';
-import { generatePosterDataUrl, type PosterOptions } from '../../../../src/utils/posterGenerator';
+import { X, Download, Copy, Check, Loader2, Image as ImageIcon } from 'lucide-react';
+import type { GrabbedContent } from '../../../../src/types';
+import { generateContentImageDataUrl } from '../../../../src/utils/contentImageGenerator';
 
-interface PosterModalProps {
-  options: PosterOptions;
+interface ContentImageModalProps {
+  grabbedContent: GrabbedContent;
   onClose: () => void;
 }
 
-export const PosterModal: React.FC<PosterModalProps> = ({ options, onClose }) => {
-  const [posterUrl, setPosterUrl] = useState<string | null>(null);
+export const ContentImageModal: React.FC<ContentImageModalProps> = ({
+  grabbedContent,
+  onClose,
+}) => {
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
 
@@ -17,37 +21,38 @@ export const PosterModal: React.FC<PosterModalProps> = ({ options, onClose }) =>
     let isMounted = true;
     setLoading(true);
 
-    generatePosterDataUrl(options)
+    generateContentImageDataUrl(grabbedContent)
       .then((url) => {
         if (isMounted) {
-          setPosterUrl(url);
+          setImageUrl(url);
           setLoading(false);
         }
       })
       .catch((err) => {
-        console.error('Failed to generate poster:', err);
+        console.error('Failed to generate content image:', err);
         if (isMounted) setLoading(false);
       });
 
     return () => {
       isMounted = false;
     };
-  }, [options]);
+  }, [grabbedContent]);
 
   const handleDownload = () => {
-    if (!posterUrl) return;
+    if (!imageUrl) return;
     const a = document.createElement('a');
-    a.href = posterUrl;
-    a.download = `poster_${Date.now()}.png`;
+    a.href = imageUrl;
+    const title = (grabbedContent.tdk.title || 'content').slice(0, 25).trim();
+    a.download = `image_${title}_${Date.now()}.png`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
   };
 
   const handleCopyImage = async () => {
-    if (!posterUrl) return;
+    if (!imageUrl) return;
     try {
-      const resp = await fetch(posterUrl);
+      const resp = await fetch(imageUrl);
       const blob = await resp.blob();
       await navigator.clipboard.write([
         new ClipboardItem({
@@ -73,8 +78,8 @@ export const PosterModal: React.FC<PosterModalProps> = ({ options, onClose }) =>
         {/* Modal Header */}
         <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-border">
           <div className="flex items-center gap-1.5">
-            <Sparkles className="w-4 h-4 text-blue-500" />
-            <h3 className="text-xs font-semibold text-foreground">分享精美海报生成</h3>
+            <ImageIcon className="w-4 h-4 text-indigo-500" />
+            <h3 className="text-xs font-semibold text-foreground">选区内容快照生成</h3>
           </div>
           <button
             type="button"
@@ -86,21 +91,21 @@ export const PosterModal: React.FC<PosterModalProps> = ({ options, onClose }) =>
           </button>
         </div>
 
-        {/* Poster Preview Container */}
+        {/* Image Preview Container */}
         <div className="p-3.5 flex-1 flex flex-col items-center justify-center min-h-[380px] max-h-[66vh] overflow-y-auto bg-zinc-900/10 dark:bg-black/30">
           {loading ? (
             <div className="flex flex-col items-center gap-2 text-muted py-12">
-              <Loader2 className="w-7 h-7 animate-spin text-blue-500" />
-              <span className="text-xs font-medium text-zinc-500">正在生成高清分享海报...</span>
+              <Loader2 className="w-7 h-7 animate-spin text-indigo-500" />
+              <span className="text-xs font-medium text-zinc-500">正在生成高清快照卡片...</span>
             </div>
-          ) : posterUrl ? (
+          ) : imageUrl ? (
             <img
-              src={posterUrl}
-              alt="Generated Poster"
+              src={imageUrl}
+              alt="Generated Content Preview"
               className="max-h-full max-w-full object-contain rounded-lg shadow-lg border border-border/60 transition-all hover:scale-[1.01]"
             />
           ) : (
-            <div className="text-xs text-muted">海报生成失败，请重试</div>
+            <div className="text-xs text-muted">图片生成失败，请重试</div>
           )}
         </div>
 
@@ -110,22 +115,22 @@ export const PosterModal: React.FC<PosterModalProps> = ({ options, onClose }) =>
             size="sm"
             variant="secondary"
             onClick={handleCopyImage}
-            isDisabled={!posterUrl || loading}
+            isDisabled={!imageUrl || loading}
             className="text-xs cursor-pointer"
           >
             {copied ? <Check className="w-3.5 h-3.5 text-success mr-1" /> : <Copy className="w-3.5 h-3.5 mr-1" />}
-            {copied ? '已复制图片' : '复制海报'}
+            {copied ? '已复制图片' : '复制图片'}
           </Button>
 
           <Button
             size="sm"
             variant="primary"
             onClick={handleDownload}
-            isDisabled={!posterUrl || loading}
-            className="text-xs cursor-pointer bg-blue-600 hover:bg-blue-700 text-white font-medium"
+            isDisabled={!imageUrl || loading}
+            className="text-xs cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
           >
             <Download className="w-3.5 h-3.5 mr-1" />
-            下载海报 PNG
+            下载 PNG
           </Button>
         </div>
       </div>

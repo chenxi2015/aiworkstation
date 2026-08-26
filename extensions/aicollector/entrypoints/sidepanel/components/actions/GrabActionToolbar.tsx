@@ -1,12 +1,10 @@
 import React, { useState } from 'react';
+import { toast } from '@heroui/react';
 import {
-  FileText,
   FileCode,
-  Download,
   FileSpreadsheet,
   Printer,
   Sparkles,
-  Link,
   ShieldCheck,
   Image as ImageIcon,
   Archive,
@@ -14,6 +12,9 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  Camera,
+  Loader2,
+  FileJson,
 } from 'lucide-react';
 import type { GrabbedContent } from '../../../../src/types';
 import { cleanUrl } from '../../../../src/utils/urlCleaner';
@@ -23,11 +24,14 @@ import {
   exportMarkdownWithImages,
   exportWord,
   exportPdf,
+  exportJson,
+  createStructuredContentJson,
 } from '../../../../src/utils/documentExporter';
 import { extractCover, extractSummary } from '../../../../src/utils/contentSummarizer';
 import { MarkdownEditModal } from '../modals/MarkdownEditModal';
 import { PosterModal } from '../modals/PosterModal';
 import { SummaryCoverModal } from '../modals/SummaryCoverModal';
+import { ContentImageModal } from '../modals/ContentImageModal';
 
 interface GrabActionToolbarProps {
   grabbedContent: GrabbedContent;
@@ -37,12 +41,14 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPosterModal, setShowPosterModal] = useState(false);
   const [showSummaryModal, setShowSummaryModal] = useState(false);
+  const [showContentImageModal, setShowContentImageModal] = useState(false);
   const [isActionsExpanded, setIsActionsExpanded] = useState(true);
 
   // Toast / feedback states
   const [copiedState, setCopiedState] = useState<string | null>(null);
   const [isBundling, setIsBundling] = useState(false);
   const [bundlePercent, setBundlePercent] = useState(0);
+  const [isExportingWord, setIsExportingWord] = useState(false);
 
   const title = grabbedContent.tdk.title || '选区内容';
   const rawUrl = grabbedContent.url;
@@ -62,17 +68,26 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
   // 3. Clean URL copy
   const handleCopyCleanUrl = () => {
     triggerCopyFeedback('clean_url', sanitizedUrl);
+    toast.success('已净化并复制链接', {
+      description: sanitizedUrl,
+      timeout: 2200,
+    });
   };
 
-  // 4. Raw URL copy
-  const handleCopyRawUrl = () => {
-    triggerCopyFeedback('raw_url', rawUrl);
+  // 4. Generate Content Image Modal
+  const handleGenerateImage = () => {
+    setShowContentImageModal(true);
   };
 
-  // 5. Parse Markdown to clipboard
-  const handleParseMarkdown = () => {
-    const md = htmlToMarkdown(grabbedContent.selectedHtml, grabbedContent.url);
-    triggerCopyFeedback('parse_md', md);
+  // 5. Export Structured JSON (.json)
+  const handleExportJson = () => {
+    const data = createStructuredContentJson(grabbedContent);
+    const filename = `${title.slice(0, 30).trim() || 'data'}_${Date.now()}.json`;
+    exportJson(data, filename);
+    toast.success('已导出结构化 JSON', {
+      description: filename,
+      timeout: 2200,
+    });
   };
 
   // 6. Edit Markdown Modal
@@ -80,11 +95,15 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
     setShowEditModal(true);
   };
 
-  // 7. Download Markdown (.md)
-  const handleDownloadMarkdown = () => {
+  // 7. Generate / Download Markdown (.md)
+  const handleGenerateMarkdown = () => {
     const md = htmlToMarkdown(grabbedContent.selectedHtml, grabbedContent.url);
     const filename = `${title.slice(0, 30).trim() || 'document'}_${Date.now()}.md`;
     exportMarkdown(md, filename);
+    toast.success('已生成并下载 Markdown', {
+      description: filename,
+      timeout: 2200,
+    });
   };
 
   // 8. Bundle ZIP (MD + Images)
@@ -104,8 +123,16 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
           setBundlePercent(progress.percent);
         },
       );
+      toast.success('MD 与图片打包完成', {
+        description: zipName,
+        timeout: 2500,
+      });
     } catch (err) {
       console.error('Failed to bundle MD + Images:', err);
+      toast.danger('打包下载失败', {
+        description: String(err),
+        timeout: 3000,
+      });
     } finally {
       setIsBundling(false);
       setBundlePercent(0);
@@ -114,19 +141,30 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
 
   // 9. Download PDF (Print View)
   const handleExportPdf = () => {
-    exportPdf(title, grabbedContent.selectedHtml);
+    exportPdf(title, grabbedContent.selectedHtml, grabbedContent.url);
+    toast.info('已开启打印 / 导出 PDF 视图', {
+      description: '请在打印窗口中选择「另存为 PDF」',
+      timeout: 2500,
+    });
   };
 
-  // 10. Download Word (.docx)
-  const [isExportingWord, setIsExportingWord] = useState(false);
+  // 10. Download Word (.docx/.doc)
   const handleExportWord = async () => {
     if (isExportingWord) return;
+    const filename = `${title.slice(0, 30).trim() || 'document'}_${Date.now()}.docx`;
     try {
       setIsExportingWord(true);
-      const filename = `${title.slice(0, 30).trim() || 'document'}_${Date.now()}.docx`;
-      await exportWord(title, grabbedContent.selectedHtml, filename);
+      await exportWord(title, grabbedContent.selectedHtml, filename, grabbedContent.url);
+      toast.success('Word 文档导出成功', {
+        description: filename,
+        timeout: 2500,
+      });
     } catch (err) {
       console.error('Failed to export docx:', err);
+      toast.danger('导出 Word 失败', {
+        description: String(err),
+        timeout: 3000,
+      });
     } finally {
       setIsExportingWord(false);
     }
@@ -142,149 +180,129 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
   const summaryInfo = extractSummary(grabbedContent);
   const currentMarkdown = htmlToMarkdown(grabbedContent.selectedHtml, grabbedContent.url);
 
+  // Configuration for the 3x3 tool grid
+  const toolActions = [
+    {
+      id: 'cover_summary',
+      label: '封面 / 摘要',
+      icon: <ImageIcon className="w-4 h-4 text-blue-500 group-hover:scale-110 transition-transform" />,
+      onClick: handleOpenSummaryCover,
+    },
+    {
+      id: 'clean_url',
+      label: copiedState === 'clean_url' ? '已复制' : '净化链接',
+      icon:
+        copiedState === 'clean_url' ? (
+          <Check className="w-4 h-4 text-success" />
+        ) : (
+          <ShieldCheck className="w-4 h-4 text-emerald-500 group-hover:scale-110 transition-transform" />
+        ),
+      onClick: handleCopyCleanUrl,
+    },
+    {
+      id: 'content_image',
+      label: '生成图片',
+      icon: <Camera className="w-4 h-4 text-indigo-500 group-hover:scale-110 transition-transform" />,
+      onClick: handleGenerateImage,
+    },
+    {
+      id: 'export_json',
+      label: '导出 JSON',
+      icon: <FileJson className="w-4 h-4 text-amber-500 group-hover:scale-110 transition-transform" />,
+      onClick: handleExportJson,
+    },
+    {
+      id: 'edit_md',
+      label: '编辑 MD',
+      icon: <Edit3 className="w-4 h-4 text-purple-500 group-hover:scale-110 transition-transform" />,
+      onClick: handleEditMarkdown,
+    },
+    {
+      id: 'generate_md',
+      label: '生成 Markdown',
+      icon: <FileCode className="w-4 h-4 text-cyan-500 group-hover:scale-110 transition-transform" />,
+      onClick: handleGenerateMarkdown,
+    },
+    {
+      id: 'bundle_zip',
+      label: isBundling ? `${bundlePercent}% 打包中` : 'MD+图片打包',
+      icon: isBundling ? (
+        <Loader2 className="w-4 h-4 text-rose-500 animate-spin" />
+      ) : (
+        <Archive className="w-4 h-4 text-rose-500 group-hover:scale-110 transition-transform" />
+      ),
+      disabled: isBundling,
+      onClick: handleDownloadBundleZip,
+    },
+    {
+      id: 'download_pdf',
+      label: '下载 PDF',
+      icon: <Printer className="w-4 h-4 text-orange-500 group-hover:scale-110 transition-transform" />,
+      onClick: handleExportPdf,
+    },
+    {
+      id: 'download_word',
+      label: isExportingWord ? '生成中...' : '下载 Word',
+      icon: isExportingWord ? (
+        <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
+      ) : (
+        <FileSpreadsheet className="w-4 h-4 text-blue-600 group-hover:scale-110 transition-transform" />
+      ),
+      disabled: isExportingWord,
+      onClick: handleExportWord,
+    },
+  ];
+
   return (
-    <div className="flex flex-col gap-2 bg-surface-secondary/60 p-2.5 rounded-lg border border-border/80">
+    <div className="flex flex-col gap-2 bg-zinc-50/70 dark:bg-zinc-900/60 p-2.5 rounded-xl border border-zinc-200/80 dark:border-zinc-800/80 transition-all">
       {/* Header with collapse toggle */}
       <div
-        className="flex items-center justify-between cursor-pointer select-none"
+        className="flex items-center justify-between cursor-pointer select-none px-0.5"
         onClick={() => setIsActionsExpanded(!isActionsExpanded)}
       >
-        <span className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
-          <Sparkles className="w-3.5 h-3.5 text-accent" />
-          快捷工具箱 (12项扩展功能)
-        </span>
+        <div className="flex items-center gap-1.5">
+          <Sparkles className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+          <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-100">
+            快捷工具箱 (10项功能)
+          </span>
+        </div>
         <button
           type="button"
-          className="text-muted hover:text-foreground transition-colors p-0.5"
+          className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors p-0.5 rounded cursor-pointer"
+          aria-label={isActionsExpanded ? '折叠工具箱' : '展开工具箱'}
         >
           {isActionsExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
         </button>
       </div>
 
       {isActionsExpanded && (
-        <div className="grid grid-cols-3 gap-1.5 pt-1">
-          {/* 1 & 2: Cover & Summary */}
-          <button
-            type="button"
-            onClick={handleOpenSummaryCover}
-            className="flex flex-col items-center justify-center p-1.5 rounded-md bg-surface hover:bg-surface-tertiary border border-border/70 hover:border-accent/60 transition-all text-center gap-1 cursor-pointer group"
-          >
-            <ImageIcon className="w-3.5 h-3.5 text-blue-500 group-hover:scale-110 transition-transform" />
-            <span className="text-[10px] font-medium text-foreground">封面 / 摘要</span>
-          </button>
+        <div className="flex flex-col gap-2 pt-0.5">
+          {/* 3x3 Grid of Action Cards */}
+          <div className="grid grid-cols-3 gap-1.5">
+            {toolActions.map((action) => (
+              <button
+                key={action.id}
+                type="button"
+                onClick={action.onClick}
+                disabled={action.disabled}
+                className="flex flex-col items-center justify-center py-2 px-1 rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200/80 dark:border-zinc-700/70 shadow-[0_1px_2px_rgba(0,0,0,0.03)] hover:border-blue-400/70 dark:hover:border-blue-500/70 hover:shadow-sm hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all text-center gap-1 cursor-pointer group disabled:opacity-50 disabled:pointer-events-none"
+              >
+                {action.icon}
+                <span className="text-[10px] font-medium text-zinc-700 dark:text-zinc-200 group-hover:text-foreground tracking-tight leading-tight select-none">
+                  {action.label}
+                </span>
+              </button>
+            ))}
+          </div>
 
-          {/* 3: Clean URL */}
-          <button
-            type="button"
-            onClick={handleCopyCleanUrl}
-            className="flex flex-col items-center justify-center p-1.5 rounded-md bg-surface hover:bg-surface-tertiary border border-border/70 hover:border-accent/60 transition-all text-center gap-1 cursor-pointer group"
-          >
-            {copiedState === 'clean_url' ? (
-              <Check className="w-3.5 h-3.5 text-success" />
-            ) : (
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 group-hover:scale-110 transition-transform" />
-            )}
-            <span className="text-[10px] font-medium text-foreground">
-              {copiedState === 'clean_url' ? '已复制' : '净化链接'}
-            </span>
-          </button>
-
-          {/* 4: Raw URL */}
-          <button
-            type="button"
-            onClick={handleCopyRawUrl}
-            className="flex flex-col items-center justify-center p-1.5 rounded-md bg-surface hover:bg-surface-tertiary border border-border/70 hover:border-accent/60 transition-all text-center gap-1 cursor-pointer group"
-          >
-            {copiedState === 'raw_url' ? (
-              <Check className="w-3.5 h-3.5 text-success" />
-            ) : (
-              <Link className="w-3.5 h-3.5 text-indigo-500 group-hover:scale-110 transition-transform" />
-            )}
-            <span className="text-[10px] font-medium text-foreground">
-              {copiedState === 'raw_url' ? '已复制' : '原始链接'}
-            </span>
-          </button>
-
-          {/* 5: Parse Markdown */}
-          <button
-            type="button"
-            onClick={handleParseMarkdown}
-            className="flex flex-col items-center justify-center p-1.5 rounded-md bg-surface hover:bg-surface-tertiary border border-border/70 hover:border-accent/60 transition-all text-center gap-1 cursor-pointer group"
-          >
-            {copiedState === 'parse_md' ? (
-              <Check className="w-3.5 h-3.5 text-success" />
-            ) : (
-              <FileCode className="w-3.5 h-3.5 text-amber-500 group-hover:scale-110 transition-transform" />
-            )}
-            <span className="text-[10px] font-medium text-foreground">
-              {copiedState === 'parse_md' ? '已复制 MD' : '解析 Markdown'}
-            </span>
-          </button>
-
-          {/* 6: Edit Markdown */}
-          <button
-            type="button"
-            onClick={handleEditMarkdown}
-            className="flex flex-col items-center justify-center p-1.5 rounded-md bg-surface hover:bg-surface-tertiary border border-border/70 hover:border-accent/60 transition-all text-center gap-1 cursor-pointer group"
-          >
-            <Edit3 className="w-3.5 h-3.5 text-purple-500 group-hover:scale-110 transition-transform" />
-            <span className="text-[10px] font-medium text-foreground">编辑 MD</span>
-          </button>
-
-          {/* 7: Download Markdown */}
-          <button
-            type="button"
-            onClick={handleDownloadMarkdown}
-            className="flex flex-col items-center justify-center p-1.5 rounded-md bg-surface hover:bg-surface-tertiary border border-border/70 hover:border-accent/60 transition-all text-center gap-1 cursor-pointer group"
-          >
-            <Download className="w-3.5 h-3.5 text-cyan-500 group-hover:scale-110 transition-transform" />
-            <span className="text-[10px] font-medium text-foreground">下载 MD</span>
-          </button>
-
-          {/* 8: Bundle ZIP (MD + Images) */}
-          <button
-            type="button"
-            onClick={handleDownloadBundleZip}
-            disabled={isBundling}
-            className="flex flex-col items-center justify-center p-1.5 rounded-md bg-surface hover:bg-surface-tertiary border border-border/70 hover:border-accent/60 transition-all text-center gap-1 cursor-pointer group disabled:opacity-60"
-          >
-            <Archive className="w-3.5 h-3.5 text-rose-500 group-hover:scale-110 transition-transform" />
-            <span className="text-[10px] font-medium text-foreground truncate max-w-full">
-              {isBundling ? `${bundlePercent}% 打包中` : 'MD+图片打包'}
-            </span>
-          </button>
-
-          {/* 9: Download PDF */}
-          <button
-            type="button"
-            onClick={handleExportPdf}
-            className="flex flex-col items-center justify-center p-1.5 rounded-md bg-surface hover:bg-surface-tertiary border border-border/70 hover:border-accent/60 transition-all text-center gap-1 cursor-pointer group"
-          >
-            <Printer className="w-3.5 h-3.5 text-orange-500 group-hover:scale-110 transition-transform" />
-            <span className="text-[10px] font-medium text-foreground">下载 PDF</span>
-          </button>
-
-          {/* 10: Download Word (.docx) */}
-          <button
-            type="button"
-            onClick={handleExportWord}
-            disabled={isExportingWord}
-            className="flex flex-col items-center justify-center p-1.5 rounded-md bg-surface hover:bg-surface-tertiary border border-border/70 hover:border-accent/60 transition-all text-center gap-1 cursor-pointer group disabled:opacity-60"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-blue-600 group-hover:scale-110 transition-transform" />
-            <span className="text-[10px] font-medium text-foreground">
-              {isExportingWord ? '生成中...' : '下载 Word'}
-            </span>
-          </button>
-
-          {/* 12: Generate Poster (Spans last row nicely) */}
+          {/* Featured Action: Generate Poster */}
           <button
             type="button"
             onClick={handleGeneratePoster}
-            className="col-span-3 flex items-center justify-center gap-2 p-1.5 rounded-md bg-accent/10 hover:bg-accent/20 border border-accent/30 text-accent transition-all cursor-pointer font-medium"
+            className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-blue-50/90 hover:bg-blue-100/90 dark:bg-blue-950/40 dark:hover:bg-blue-900/50 border border-blue-200/80 dark:border-blue-800/60 text-blue-600 dark:text-blue-400 font-medium text-xs shadow-xs hover:shadow-sm transition-all cursor-pointer active:scale-[0.99] group"
           >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span className="text-[11px]">生成分享精美海报</span>
+            <Sparkles className="w-3.5 h-3.5 group-hover:rotate-12 transition-transform" />
+            <span>生成分享精美海报</span>
           </button>
         </div>
       )}
@@ -318,6 +336,15 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
           onClose={() => setShowSummaryModal(false)}
         />
       )}
+
+      {showContentImageModal && (
+        <ContentImageModal
+          grabbedContent={grabbedContent}
+          onClose={() => setShowContentImageModal(false)}
+        />
+      )}
     </div>
   );
 };
+
+

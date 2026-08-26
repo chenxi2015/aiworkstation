@@ -28,8 +28,8 @@ export const PageTdkCard: React.FC<PageTdkCardProps> = ({
   };
 
   return (
-    <Card className="bg-surface shadow-sm">
-      <Card.Header className="flex flex-row items-center justify-between w-full pb-2">
+    <Card>
+      <Card.Header className="flex flex-row items-center justify-between w-full">
         <div className="flex items-center gap-2">
           <Globe className="w-4 h-4 text-accent shrink-0" />
           <Card.Title className="text-xs font-semibold leading-none">当前网页 TDK 元信息</Card.Title>
