@@ -127,3 +127,42 @@ body,
   animation-duration: 1.2s;
 }
 
+/* Toast container & text ellipsis optimization */
+.toast-region,
+[data-slot="toast-region"] {
+  max-width: calc(100vw - 24px);
+}
+
+.toast,
+[data-slot="toast"] {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.toast__content,
+[data-slot="toast-content"] {
+  min-width: 0;
+  flex: 1 1 0%;
+  overflow: hidden;
+}
+
+.toast__title,
+[data-slot="toast-title"] {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toast__description,
+[data-slot="toast-description"] {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
+

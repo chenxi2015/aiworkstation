@@ -8,7 +8,6 @@ import {
   ShieldCheck,
   Image as ImageIcon,
   Archive,
-  Edit3,
   Check,
   ChevronDown,
   ChevronUp,
@@ -20,7 +19,6 @@ import type { GrabbedContent } from '../../../../src/types';
 import { cleanUrl } from '../../../../src/utils/urlCleaner';
 import { htmlToMarkdown } from '../../../../src/utils/markdownConverter';
 import {
-  exportMarkdown,
   exportMarkdownWithImages,
   exportWord,
   exportPdf,
@@ -39,7 +37,7 @@ interface GrabActionToolbarProps {
 }
 
 export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedContent }) => {
-  const [showEditModal, setShowEditModal] = useState(false);
+  const [showMarkdownModal, setShowMarkdownModal] = useState(false);
   const [showPosterModal, setShowPosterModal] = useState(false);
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [showContentImageModal, setShowContentImageModal] = useState(false);
@@ -61,12 +59,12 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
     setTimeout(() => setCopiedState(null), 2000);
   };
 
-  // 1 & 2. Cover & Summary Modal Trigger
+  // 1. Cover & Summary Modal Trigger
   const handleOpenSummaryCover = () => {
     setShowSummaryModal(true);
   };
 
-  // 3. Clean URL copy
+  // 2. Clean URL copy
   const handleCopyCleanUrl = () => {
     triggerCopyFeedback('clean_url', sanitizedUrl);
     toast.success('已净化并复制链接', {
@@ -75,12 +73,12 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
     });
   };
 
-  // 4. Generate Content Image Modal
+  // 3. Generate Content Image Modal
   const handleGenerateImage = () => {
     setShowContentImageModal(true);
   };
 
-  // 5. Export Structured JSON (.json)
+  // 4. Export Structured JSON (.json)
   const handleExportJson = () => {
     const data = createStructuredContentJson(grabbedContent);
     const filename = `${title.slice(0, 30).trim() || 'data'}_${Date.now()}.json`;
@@ -91,23 +89,17 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
     });
   };
 
-  // 6. Edit Markdown Modal
-  const handleEditMarkdown = () => {
-    setShowEditModal(true);
-  };
-
-  // 7. Generate / Download Markdown (.md)
+  // 5. Generate / Edit Markdown Modal
   const handleGenerateMarkdown = () => {
-    const md = htmlToMarkdown(grabbedContent.selectedHtml, grabbedContent.url);
-    const filename = `${title.slice(0, 30).trim() || 'document'}_${Date.now()}.md`;
-    exportMarkdown(md, filename);
-    toast.success('已生成并下载 Markdown', {
-      description: filename,
-      timeout: 2200,
-    });
+    setShowMarkdownModal(true);
   };
 
-  // 8. Bundle ZIP (MD + Images)
+  // 6. Generate Poster Modal
+  const handleGeneratePoster = () => {
+    setShowPosterModal(true);
+  };
+
+  // 7. Bundle ZIP (MD + Images)
   const handleDownloadBundleZip = async () => {
     if (isBundling) return;
     try {
@@ -140,7 +132,7 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
     }
   };
 
-  // 9. Download PDF (Print View)
+  // 8. Download PDF (Print View)
   const handleExportPdf = () => {
     exportPdf(title, grabbedContent.selectedHtml, grabbedContent.url, grabbedContent);
     toast.info('已开启打印 / 导出 PDF 视图', {
@@ -149,7 +141,7 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
     });
   };
 
-  // 10. Download Word (.docx/.doc)
+  // 9. Download Word (.docx/.doc)
   const handleExportWord = async () => {
     if (isExportingWord) return;
     const filename = `${title.slice(0, 30).trim() || 'document'}_${Date.now()}.docx`;
@@ -171,17 +163,12 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
     }
   };
 
-  // 12. Poster Modal
-  const handleGeneratePoster = () => {
-    setShowPosterModal(true);
-  };
-
   // Summary & Cover metadata
   const coverInfo = extractCover(grabbedContent);
   const summaryInfo = extractSummary(grabbedContent);
   const currentMarkdown = htmlToMarkdown(grabbedContent.selectedHtml, grabbedContent.url);
 
-  // Configuration for the 3x3 tool grid
+  // Configuration for the 3x3 tool grid (9 actions)
   const toolActions = [
     {
       id: 'cover_summary',
@@ -213,16 +200,16 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
       onClick: handleExportJson,
     },
     {
-      id: 'edit_md',
-      label: '编辑 MD',
-      icon: <Edit3 className="w-4 h-4 text-purple-500 group-hover:scale-110 transition-transform" />,
-      onClick: handleEditMarkdown,
-    },
-    {
       id: 'generate_md',
       label: '生成 Markdown',
       icon: <FileCode className="w-4 h-4 text-cyan-500 group-hover:scale-110 transition-transform" />,
       onClick: handleGenerateMarkdown,
+    },
+    {
+      id: 'generate_poster',
+      label: '生成海报',
+      icon: <Sparkles className="w-4 h-4 text-pink-500 group-hover:scale-110 transition-transform" />,
+      onClick: handleGeneratePoster,
     },
     {
       id: 'bundle_zip',
@@ -264,7 +251,7 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
         <div className="flex items-center gap-1.5">
           <Sparkles className="w-3.5 h-3.5 text-blue-500 shrink-0" />
           <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-100">
-            快捷工具箱 (10项功能)
+            快捷工具箱 (9项功能)
           </span>
         </div>
         <button
@@ -295,25 +282,15 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
               </button>
             ))}
           </div>
-
-          {/* Featured Action: Generate Poster */}
-          <button
-            type="button"
-            onClick={handleGeneratePoster}
-            className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-blue-50/90 hover:bg-blue-100/90 dark:bg-blue-950/40 dark:hover:bg-blue-900/50 border border-blue-200/80 dark:border-blue-800/60 text-blue-600 dark:text-blue-400 font-medium text-xs shadow-xs hover:shadow-sm transition-all cursor-pointer active:scale-[0.99] group"
-          >
-            <Sparkles className="w-3.5 h-3.5 group-hover:rotate-12 transition-transform" />
-            <span>生成分享精美海报</span>
-          </button>
         </div>
       )}
 
       {/* Modals */}
-      {showEditModal && (
+      {showMarkdownModal && (
         <MarkdownEditModal
           initialMarkdown={currentMarkdown}
           title={title}
-          onClose={() => setShowEditModal(false)}
+          onClose={() => setShowMarkdownModal(false)}
         />
       )}
 

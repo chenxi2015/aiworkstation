@@ -45,7 +45,7 @@ export const MarkdownEditModal: React.FC<MarkdownEditModalProps> = ({
         <div className="flex items-center justify-between px-3 py-2.5 border-b border-border">
           <div className="flex items-center gap-1.5">
             <FileText className="w-4 h-4 text-accent" />
-            <h3 className="text-xs font-semibold text-foreground">编辑 / 查看 Markdown</h3>
+            <h3 className="text-xs font-semibold text-foreground">生成 / 编辑 Markdown</h3>
           </div>
           <button
             type="button"
