@@ -37,7 +37,7 @@ export default function App() {
     filteredBookmarks,
   } = useBookmarks();
 
-  const { isGrabbing, grabbedContent, startGrab } = useVisualGrabber(() => {
+  const { isGrabbing, grabbedContent, startGrab, clearGrabbedContent } = useVisualGrabber(() => {
     setActiveTab('grab');
   });
 
@@ -74,7 +74,7 @@ export default function App() {
               </Tabs.Tab>
               <Tabs.Tab id="bookmarks" className="px-1 text-xs min-w-0">
                 <Bookmark className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate">书签{flattenedBookmarks.length > 0 ? ` (${flattenedBookmarks.length})` : ''}</span>
+                <span className="truncate">书签</span>
                 <Tabs.Indicator />
               </Tabs.Tab>
               <Tabs.Tab id="logs" className="px-1 text-xs min-w-0">
@@ -103,6 +103,7 @@ export default function App() {
               currentTdk={currentTdk}
               isScrolled={isScrolled}
               onStartGrab={startGrab}
+              onClearGrabbed={clearGrabbedContent}
               onRefreshTdk={refreshCurrentPageTDK}
               onPushToWorkbench={pushToWorkbench}
             />

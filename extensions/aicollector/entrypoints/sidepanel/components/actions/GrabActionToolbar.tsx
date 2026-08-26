@@ -26,6 +26,7 @@ import {
   exportPdf,
   exportJson,
   createStructuredContentJson,
+  cleanDocumentTitle,
 } from '../../../../src/utils/documentExporter';
 import { extractCover, extractSummary } from '../../../../src/utils/contentSummarizer';
 import { MarkdownEditModal } from '../modals/MarkdownEditModal';
@@ -50,7 +51,7 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
   const [bundlePercent, setBundlePercent] = useState(0);
   const [isExportingWord, setIsExportingWord] = useState(false);
 
-  const title = grabbedContent.tdk.title || '选区内容';
+  const title = cleanDocumentTitle(grabbedContent.tdk.title || '选区内容');
   const rawUrl = grabbedContent.url;
   const sanitizedUrl = cleanUrl(rawUrl);
 
@@ -141,7 +142,7 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
 
   // 9. Download PDF (Print View)
   const handleExportPdf = () => {
-    exportPdf(title, grabbedContent.selectedHtml, grabbedContent.url);
+    exportPdf(title, grabbedContent.selectedHtml, grabbedContent.url, grabbedContent);
     toast.info('已开启打印 / 导出 PDF 视图', {
       description: '请在打印窗口中选择「另存为 PDF」',
       timeout: 2500,

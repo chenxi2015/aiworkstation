@@ -69,10 +69,15 @@ export function useVisualGrabber(onGrabbed?: (content: GrabbedContent) => void) 
     };
   }, [onGrabbed]);
 
+  const clearGrabbedContent = useCallback(() => {
+    setGrabbedContent(null);
+  }, []);
+
   return {
     isGrabbing,
     grabbedContent,
     setGrabbedContent,
+    clearGrabbedContent,
     startGrab,
     cancelGrab,
   };

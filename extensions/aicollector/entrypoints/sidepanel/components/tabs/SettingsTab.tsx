@@ -19,9 +19,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   onCheckWorkbenchStatus,
 }) => {
   return (
-    <div className="p-0 outline-none flex flex-col gap-3">
+    <div className="p-0 outline-none flex flex-col gap-3 pt-2">
       {/* Theme Preference Card */}
-      <Card className="bg-surface border border-border shadow-sm">
+      <Card className="bg-surface">
         <Card.Header className="pb-2">
           <Card.Title className="text-xs font-semibold">界面主题外观</Card.Title>
         </Card.Header>
@@ -60,7 +60,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       </Card>
 
       {/* Workbench Connection Card */}
-      <Card className="bg-surface border border-border shadow-sm">
+      <Card className="bg-surface">
         <Card.Header className="pb-2">
           <Card.Title className="text-xs font-semibold">本地 AI 工作台连接</Card.Title>
         </Card.Header>
@@ -93,7 +93,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       </Card>
 
       {/* Mechanics / Help Card */}
-      <Card className="bg-surface border border-border shadow-sm">
+      <Card className="bg-surface">
         <Card.Header className="pb-2">
           <Card.Title className="text-xs font-semibold">机制说明</Card.Title>
         </Card.Header>
