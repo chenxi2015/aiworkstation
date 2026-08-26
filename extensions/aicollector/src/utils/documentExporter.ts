@@ -1,20 +1,8 @@
 /**
- * Document exporter utility for Markdown, Word (.docx), PDF, and ZIP (MD + Images)
+ * Document exporter utility for Markdown, Word, PDF, and ZIP (MD + Images)
  */
 
 import JSZip from 'jszip';
-import {
-  Document,
-  Packer,
-  Paragraph,
-  TextRun,
-  HeadingLevel,
-  Table,
-  TableRow,
-  TableCell,
-  WidthType,
-  BorderStyle,
-} from 'docx';
 
 /**
  * Trigger browser file download from a Blob
@@ -44,242 +32,131 @@ export function exportMarkdown(content: string, filename = 'document.md'): void 
 }
 
 /**
- * Convert inline DOM nodes to docx TextRuns
+ * Export HTML content as a Microsoft Word document with maximum CSS & layout styling preserved
  */
-function extractInlineTextRuns(
-  element: Element,
-  inheritedStyles: { bold?: boolean; italics?: boolean; strike?: boolean; color?: string } = {},
-): TextRun[] {
-  const runs: TextRun[] = [];
-
-  element.childNodes.forEach((node) => {
-    if (node.nodeType === Node.TEXT_NODE) {
-      const text = node.textContent;
-      if (text) {
-        runs.push(
-          new TextRun({
-            text,
-            bold: inheritedStyles.bold,
-            italics: inheritedStyles.italics,
-            strike: inheritedStyles.strike,
-            color: inheritedStyles.color,
-          }),
-        );
-      }
-    } else if (node.nodeType === Node.ELEMENT_NODE) {
-      const childEl = node as Element;
-      const tag = childEl.tagName.toLowerCase();
-
-      const newStyles = { ...inheritedStyles };
-      if (tag === 'b' || tag === 'strong') newStyles.bold = true;
-      if (tag === 'i' || tag === 'em') newStyles.italics = true;
-      if (tag === 's' || tag === 'del') newStyles.strike = true;
-      if (tag === 'a') {
-        newStyles.color = '0066CC';
-      }
-
-      if (tag === 'br') {
-        runs.push(new TextRun({ break: 1 }));
-      } else {
-        runs.push(...extractInlineTextRuns(childEl, newStyles));
-      }
-    }
-  });
-
-  return runs;
-}
-
-/**
- * Convert an HTML table element to a docx Table
- */
-function convertHtmlTableToDocx(tableEl: HTMLElement): Table {
-  const rows: TableRow[] = [];
-  const trElements = Array.from(tableEl.querySelectorAll('tr'));
-
-  trElements.forEach((tr) => {
-    const cells: TableCell[] = [];
-    const cellElements = Array.from(tr.querySelectorAll('th, td'));
-
-    cellElements.forEach((cell) => {
-      const isHeader = cell.tagName.toLowerCase() === 'th';
-      const textRuns = extractInlineTextRuns(cell, { bold: isHeader });
-
-      cells.push(
-        new TableCell({
-          children: [
-            new Paragraph({
-              children: textRuns.length > 0 ? textRuns : [new TextRun({ text: '' })],
-            }),
-          ],
-          borders: {
-            top: { style: BorderStyle.SINGLE, size: 1, color: 'CCCCCC' },
-            bottom: { style: BorderStyle.SINGLE, size: 1, color: 'CCCCCC' },
-            left: { style: BorderStyle.SINGLE, size: 1, color: 'CCCCCC' },
-            right: { style: BorderStyle.SINGLE, size: 1, color: 'CCCCCC' },
-          },
-          shading: isHeader ? { fill: 'F2F2F2' } : undefined,
-        }),
-      );
-    });
-
-    if (cells.length > 0) {
-      rows.push(new TableRow({ children: cells }));
-    }
-  });
-
-  return new Table({
-    rows: rows.length > 0 ? rows : [new TableRow({ children: [new TableCell({ children: [] })] })],
-    width: { size: 100, type: WidthType.PERCENTAGE },
-  });
-}
-
-/**
- * Export HTML content as a true native Microsoft Word (.docx) file
- */
-export async function exportWord(
+export function exportWord(
   title: string,
   htmlContent: string,
-  filename = 'document.docx',
-): Promise<void> {
-  const finalName = filename.endsWith('.docx') ? filename : `${filename.replace(/\.doc$/, '')}.docx`;
+  filename = 'document.doc',
+): void {
+  const finalName = filename.endsWith('.doc') || filename.endsWith('.docx') ? filename : `${filename}.doc`;
 
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(htmlContent || '', 'text/html');
-
-  const children: (Paragraph | Table)[] = [];
-
-  // Title Header
-  children.push(
-    new Paragraph({
-      text: title,
-      heading: HeadingLevel.TITLE,
-      spacing: { after: 200 },
-    }),
-  );
-
-  // Process body nodes
-  doc.body.childNodes.forEach((node) => {
-    if (node.nodeType === Node.TEXT_NODE) {
-      const text = (node.textContent || '').trim();
-      if (text) {
-        children.push(new Paragraph({ children: [new TextRun(text)], spacing: { after: 120 } }));
-      }
-    } else if (node.nodeType === Node.ELEMENT_NODE) {
-      const el = node as HTMLElement;
-      const tag = el.tagName.toLowerCase();
-
-      switch (tag) {
-        case 'h1':
-          children.push(
-            new Paragraph({
-              text: el.textContent?.trim() || '',
-              heading: HeadingLevel.HEADING_1,
-              spacing: { before: 240, after: 120 },
-            }),
-          );
-          break;
-        case 'h2':
-          children.push(
-            new Paragraph({
-              text: el.textContent?.trim() || '',
-              heading: HeadingLevel.HEADING_2,
-              spacing: { before: 200, after: 100 },
-            }),
-          );
-          break;
-        case 'h3':
-          children.push(
-            new Paragraph({
-              text: el.textContent?.trim() || '',
-              heading: HeadingLevel.HEADING_3,
-              spacing: { before: 160, after: 80 },
-            }),
-          );
-          break;
-        case 'h4':
-        case 'h5':
-        case 'h6':
-          children.push(
-            new Paragraph({
-              text: el.textContent?.trim() || '',
-              heading: HeadingLevel.HEADING_4,
-              spacing: { before: 120, after: 60 },
-            }),
-          );
-          break;
-        case 'blockquote':
-          children.push(
-            new Paragraph({
-              children: extractInlineTextRuns(el, { italics: true }),
-              indent: { left: 720 },
-              spacing: { after: 120 },
-            }),
-          );
-          break;
-        case 'pre':
-        case 'code':
-          children.push(
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: el.textContent || '',
-                  font: 'Consolas',
-                  size: 20,
-                }),
-              ],
-              shading: { fill: 'F4F4F4' },
-              spacing: { after: 120 },
-            }),
-          );
-          break;
-        case 'ul':
-        case 'ol': {
-          const isOrdered = tag === 'ol';
-          const items = Array.from(el.querySelectorAll('li'));
-          items.forEach((li, idx) => {
-            const prefix = isOrdered ? `${idx + 1}. ` : '• ';
-            const runs = extractInlineTextRuns(li);
-            children.push(
-              new Paragraph({
-                children: [new TextRun(prefix), ...runs],
-                indent: { left: 360 },
-                spacing: { after: 60 },
-              }),
-            );
-          });
-          break;
+  // Standard Word XML HTML document wrapper that preserves all rich text and typography in Word & WPS
+  const wordTemplate = `
+    <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+    <head>
+      <meta charset="utf-8">
+      <title>${title}</title>
+      <!--[if gte mso 9]>
+      <xml>
+        <w:WordDocument>
+          <w:View>Print</w:View>
+          <w:Zoom>100</w:Zoom>
+          <w:DoNotOptimizeForBrowser/>
+        </w:WordDocument>
+      </xml>
+      <![endif]-->
+      <style>
+        body {
+          font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", Calibri, Arial, sans-serif;
+          font-size: 11pt;
+          line-height: 1.6;
+          color: #222222;
         }
-        case 'table':
-          children.push(convertHtmlTableToDocx(el));
-          children.push(new Paragraph({ spacing: { after: 120 } }));
-          break;
-        default: {
-          const textRuns = extractInlineTextRuns(el);
-          if (textRuns.length > 0) {
-            children.push(
-              new Paragraph({
-                children: textRuns,
-                spacing: { after: 120 },
-              }),
-            );
-          }
-          break;
+        h1 {
+          font-size: 20pt;
+          font-weight: bold;
+          color: #0f172a;
+          margin-bottom: 12pt;
+          padding-bottom: 6pt;
+          border-bottom: 2pt solid #3b82f6;
         }
-      }
-    }
-  });
+        h2 {
+          font-size: 15pt;
+          font-weight: bold;
+          color: #1e293b;
+          margin-top: 14pt;
+          margin-bottom: 8pt;
+        }
+        h3 {
+          font-size: 13pt;
+          font-weight: bold;
+          color: #334155;
+          margin-top: 10pt;
+          margin-bottom: 6pt;
+        }
+        p {
+          margin-bottom: 8pt;
+          text-align: justify;
+        }
+        img {
+          max-width: 100%;
+          height: auto;
+          display: block;
+          margin: 10pt 0;
+        }
+        table {
+          border-collapse: collapse;
+          width: 100%;
+          margin: 10pt 0;
+        }
+        th, td {
+          border: 1pt solid #cbd5e1;
+          padding: 6pt 8pt;
+          text-align: left;
+        }
+        th {
+          background-color: #f1f5f9;
+          font-weight: bold;
+        }
+        blockquote {
+          border-left: 3pt solid #3b82f6;
+          margin: 8pt 0;
+          padding-left: 10pt;
+          color: #475569;
+          background-color: #f8fafc;
+        }
+        code {
+          background-color: #f1f5f9;
+          padding: 2pt 4pt;
+          font-family: Consolas, "Courier New", monospace;
+          font-size: 9.5pt;
+          color: #d97706;
+        }
+        pre {
+          background-color: #f1f5f9;
+          padding: 8pt 10pt;
+          font-family: Consolas, "Courier New", monospace;
+          font-size: 9.5pt;
+          border-radius: 4pt;
+          margin: 8pt 0;
+        }
+        a {
+          color: #2563eb;
+          text-decoration: underline;
+        }
+        ul, ol {
+          margin: 6pt 0;
+          padding-left: 20pt;
+        }
+        li {
+          margin-bottom: 4pt;
+        }
+      </style>
+    </head>
+    <body>
+      <h1>${title}</h1>
+      <div>
+        ${htmlContent}
+      </div>
+    </body>
+    </html>
+  `;
 
-  const wordDoc = new Document({
-    sections: [
-      {
-        properties: {},
-        children,
-      },
-    ],
+  const blob = new Blob(['\ufeff', wordTemplate], {
+    type: 'application/msword;charset=utf-8',
   });
-
-  const docxBlob = await Packer.toBlob(wordDoc);
-  downloadBlob(docxBlob, finalName);
+  downloadBlob(blob, finalName);
 }
 
 /**

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button } from '@heroui/react';
+import { Button, Input } from '@heroui/react';
 import { Search, RefreshCw, Send, Calendar } from 'lucide-react';
 import type { FlattenedBookmark } from '../../hooks/useBookmarks';
 import type { CollectPayload } from '../../../../src/services/workbench';
@@ -57,12 +57,12 @@ export const BookmarksTab: React.FC<BookmarksTabProps> = ({
     <div className="p-0 outline-none flex flex-col gap-2.5">
       {/* Search Bar */}
       <div className="relative">
-        <input
+        <Input
           type="text"
           placeholder="搜索书签标题、URL 或目录名称..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="w-full bg-surface-secondary border border-border rounded-lg px-8 py-1.5 text-xs text-foreground placeholder:text-muted focus:outline-none focus:border-accent"
+          className="w-full"
         />
         <Search className="w-3.5 h-3.5 text-muted absolute left-2.5 top-2.5" />
         {searchQuery && (

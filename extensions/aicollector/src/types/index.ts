@@ -67,6 +67,7 @@ export interface SyncLogItem {
 export type ExtensionMessage =
   | { type: 'START_VISUAL_GRAB' }
   | { type: 'CANCEL_VISUAL_GRAB' }
+  | { type: 'VISUAL_GRAB_CANCELLED' }
   | { type: 'GET_PAGE_TDK' }
   | { type: 'PAGE_TDK_RESULT'; payload: PageTDK }
   | { type: 'ELEMENT_GRABBED'; payload: GrabbedContent }

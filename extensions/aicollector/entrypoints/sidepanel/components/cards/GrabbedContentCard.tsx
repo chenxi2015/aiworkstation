@@ -151,12 +151,12 @@ export const GrabbedContentCard: React.FC<GrabbedContentCardProps> = ({
   return (
     <>
       <Card className="bg-surface shadow-sm">
-        <Card.Header className="flex justify-between items-center pb-2">
+        <Card.Header className="flex flex-row items-center justify-between w-full pb-2">
           <div className="flex items-center gap-2">
-            <Layers className="w-4 h-4 text-accent" />
-            <Card.Title className="text-xs font-semibold">已捕获区域</Card.Title>
+            <Layers className="w-4 h-4 text-accent shrink-0" />
+            <Card.Title className="text-xs font-semibold leading-none">已捕获区域</Card.Title>
           </div>
-          <Chip size="sm" variant="soft" color="accent">
+          <Chip size="sm" variant="soft" color="accent" className="shrink-0 font-mono">
             {grabbedContent.tag} ({grabbedContent.dimensions.width}×{grabbedContent.dimensions.height})
           </Chip>
         </Card.Header>
@@ -195,8 +195,8 @@ export const GrabbedContentCard: React.FC<GrabbedContentCardProps> = ({
               </div>
               <div
                 className={`bg-surface-tertiary p-2 rounded-md font-mono text-[11px] text-foreground ${
-                  isHtmlExpanded ? 'max-h-72' : 'max-h-24'
-                } overflow-y-auto mt-0.5 whitespace-pre-wrap break-all leading-relaxed transition-all select-text`}
+                  isHtmlExpanded ? 'max-h-72 overflow-y-auto' : 'max-h-24 overflow-hidden'
+                } mt-0.5 whitespace-pre-wrap break-all leading-relaxed transition-all select-text`}
               >
                 {grabbedContent.selectedHtml}
               </div>
@@ -221,8 +221,8 @@ export const GrabbedContentCard: React.FC<GrabbedContentCardProps> = ({
               </div>
               <div
                 className={`bg-surface-tertiary p-2 rounded-md font-mono text-[11px] text-foreground ${
-                  isTextExpanded ? 'max-h-72' : 'max-h-24'
-                } overflow-y-auto mt-0.5 whitespace-pre-wrap leading-relaxed transition-all select-text`}
+                  isTextExpanded ? 'max-h-72 overflow-y-auto' : 'max-h-24 overflow-hidden'
+                } mt-0.5 whitespace-pre-wrap leading-relaxed transition-all select-text`}
               >
                 {grabbedContent.selectedText}
               </div>

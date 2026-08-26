@@ -33,7 +33,7 @@ export const GrabTab: React.FC<GrabTabProps> = ({
       {/* Visual Grab Button */}
       <Button
         variant="primary"
-        className="w-full h-11 font-semibold shadow-md cursor-pointer"
+        className="w-full font-semibold shadow-md cursor-pointer sticky top-0 z-10"
         onClick={onStartGrab}
       >
         <MousePointerClick className="w-4 h-4 mr-2" />
