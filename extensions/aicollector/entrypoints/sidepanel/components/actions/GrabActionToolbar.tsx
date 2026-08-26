@@ -154,7 +154,7 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
     const filename = `${title.slice(0, 30).trim() || 'document'}_${Date.now()}.docx`;
     try {
       setIsExportingWord(true);
-      await exportWord(title, grabbedContent.selectedHtml, filename, grabbedContent.url);
+      await exportWord(title, grabbedContent.selectedHtml, filename, grabbedContent.url, grabbedContent);
       toast.success('Word 文档导出成功', {
         description: filename,
         timeout: 2500,
