@@ -4,7 +4,6 @@ import {
   Card,
   Chip,
   Separator,
-  ScrollShadow,
 } from '@heroui/react';
 import {
   Sparkles,
@@ -20,8 +19,17 @@ import {
   Layers,
   Clock,
   Globe,
+  Sun,
+  Moon,
+  Monitor,
 } from 'lucide-react';
 import type { PageTDK, GrabbedContent, SyncLogItem } from '../../src/types';
+import {
+  type ThemeMode,
+  applyThemeMode,
+  getSavedThemeMode,
+  saveThemeMode,
+} from '../../src/utils/theme';
 
 const WORKBENCH_API = 'http://localhost:3000/api/collect';
 
@@ -35,6 +43,35 @@ export default function App() {
   const [syncLogs, setSyncLogs] = useState<SyncLogItem[]>([]);
   const [isOnline, setIsOnline] = useState(false);
   const [pushStatus, setPushStatus] = useState<string | null>(null);
+  const [themeMode, setThemeMode] = useState<ThemeMode>('dark');
+
+  // Initialize theme mode
+  useEffect(() => {
+    getSavedThemeMode().then((mode) => {
+      setThemeMode(mode);
+      applyThemeMode(mode);
+    });
+
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const onChange = () => {
+      getSavedThemeMode().then((m) => {
+        if (m === 'auto') applyThemeMode('auto');
+      });
+    };
+    media.addEventListener('change', onChange);
+    return () => media.removeEventListener('change', onChange);
+  }, []);
+
+  const handleToggleTheme = () => {
+    const nextMode: ThemeMode = themeMode === 'light' ? 'dark' : themeMode === 'dark' ? 'auto' : 'light';
+    setThemeMode(nextMode);
+    saveThemeMode(nextMode);
+  };
+
+  const handleSetSpecificTheme = (mode: ThemeMode) => {
+    setThemeMode(mode);
+    saveThemeMode(mode);
+  };
 
   // Check backend health
   const checkWorkbenchStatus = useCallback(async () => {
@@ -214,57 +251,73 @@ export default function App() {
           </div>
         </div>
 
-        <Chip
-          size="sm"
-          variant="soft"
-          color={isOnline ? 'success' : 'danger'}
-        >
-          <span
-            className={`w-1.5 h-1.5 rounded-full mr-1 inline-block ${isOnline ? 'bg-success' : 'bg-danger'}`}
-          />
-          {isOnline ? '工作台在线' : '离线模式'}
-        </Chip>
+        <div className="flex items-center gap-2">
+          <Chip
+            size="sm"
+            variant="soft"
+            color={isOnline ? 'success' : 'danger'}
+          >
+            <span
+              className={`w-1.5 h-1.5 rounded-full mr-1 inline-block ${isOnline ? 'bg-success' : 'bg-danger'}`}
+            />
+            {isOnline ? '在线' : '离线'}
+          </Chip>
+
+          {/* Theme Mode Toggle Button */}
+          <div title={`当前主题: ${themeMode === 'light' ? '明亮模式' : themeMode === 'dark' ? '暗黑模式' : '跟随系统'}`}>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 w-7 p-0 cursor-pointer"
+              onClick={handleToggleTheme}
+            >
+              {themeMode === 'light' && <Sun className="w-4 h-4 text-amber-500" />}
+              {themeMode === 'dark' && <Moon className="w-4 h-4 text-indigo-400" />}
+              {themeMode === 'auto' && <Monitor className="w-4 h-4 text-muted" />}
+            </Button>
+          </div>
+        </div>
       </header>
 
-      {/* HeroUI Navigation Pills */}
-      <div className="flex items-center gap-1 px-3 py-2 bg-surface-secondary border-b border-border overflow-x-auto no-scrollbar">
+      {/* HeroUI Navigation Tabs (4 Equal Columns) */}
+      <nav className="grid grid-cols-4 gap-1 p-2 bg-surface-secondary border-b border-border">
         <Button
           size="sm"
           variant={activeTab === 'grab' ? 'primary' : 'ghost'}
-          className="h-8 text-xs font-medium"
+          className="h-8 text-xs font-medium w-full px-1 justify-center cursor-pointer"
           onClick={() => setActiveTab('grab')}
         >
-          <MousePointerClick className="w-3.5 h-3.5 mr-1" />
-          页面与选区
+          <MousePointerClick className="w-3.5 h-3.5 mr-1 shrink-0" />
+          <span className="truncate">选区采集</span>
         </Button>
         <Button
           size="sm"
           variant={activeTab === 'bookmarks' ? 'primary' : 'ghost'}
-          className="h-8 text-xs font-medium"
+          className="h-8 text-xs font-medium w-full px-1 justify-center cursor-pointer"
           onClick={() => setActiveTab('bookmarks')}
         >
-          <Bookmark className="w-3.5 h-3.5 mr-1" />
-          书签 ({flattenedBookmarks.length})
+          <Bookmark className="w-3.5 h-3.5 mr-1 shrink-0" />
+          <span className="truncate">书签 ({flattenedBookmarks.length})</span>
         </Button>
         <Button
           size="sm"
           variant={activeTab === 'logs' ? 'primary' : 'ghost'}
-          className="h-8 text-xs font-medium"
+          className="h-8 text-xs font-medium w-full px-1 justify-center cursor-pointer"
           onClick={() => setActiveTab('logs')}
         >
-          <Activity className="w-3.5 h-3.5 mr-1" />
-          监控
+          <Activity className="w-3.5 h-3.5 mr-1 shrink-0" />
+          <span className="truncate">变动日志</span>
         </Button>
         <Button
           size="sm"
           variant={activeTab === 'settings' ? 'primary' : 'ghost'}
-          className="h-8 text-xs font-medium"
+          className="h-8 text-xs font-medium w-full px-1 justify-center cursor-pointer"
           onClick={() => setActiveTab('settings')}
         >
-          <Settings className="w-3.5 h-3.5 mr-1" />
-          设置
+          <Settings className="w-3.5 h-3.5 mr-1 shrink-0" />
+          <span className="truncate">设置</span>
         </Button>
-      </div>
+      </nav>
 
       {/* Main Tab Content */}
       <main className="flex-1 overflow-y-auto p-3 flex flex-col gap-3">
@@ -331,7 +384,7 @@ export default function App() {
                   <Button
                     variant="primary"
                     size="sm"
-                    className="w-full mt-1 font-medium"
+                    className="w-full mt-1 font-medium cursor-pointer"
                     onClick={() =>
                       handlePushToWorkbench({
                         title: grabbedContent.tdk.title || '选区内容',
@@ -364,7 +417,7 @@ export default function App() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-7 w-7 p-0"
+                    className="h-7 w-7 p-0 cursor-pointer"
                     onClick={refreshCurrentPageTDK}
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
@@ -412,7 +465,7 @@ export default function App() {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="w-full mt-1"
+                      className="w-full mt-1 cursor-pointer"
                       onClick={() =>
                         handlePushToWorkbench({
                           title: currentTdk.title,
@@ -456,7 +509,7 @@ export default function App() {
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-2 text-xs text-muted hover:text-foreground"
+                  className="absolute right-2.5 top-2 text-xs text-muted hover:text-foreground cursor-pointer"
                 >
                   ✕
                 </button>
@@ -470,7 +523,7 @@ export default function App() {
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-6 text-[11px] px-2"
+                className="h-6 text-[11px] px-2 cursor-pointer"
                 onClick={loadBookmarks}
               >
                 <RefreshCw className="w-3 h-3 mr-1" />
@@ -505,7 +558,7 @@ export default function App() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="shrink-0 ml-1 h-7 w-7 p-0"
+                      className="shrink-0 ml-1 h-7 w-7 p-0 cursor-pointer"
                       onClick={(e) => {
                         e.stopPropagation();
                         handlePushToWorkbench({
@@ -534,7 +587,7 @@ export default function App() {
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-6 text-[11px] px-2 text-danger hover:text-danger"
+                className="h-6 text-[11px] px-2 text-danger hover:text-danger cursor-pointer"
                 onClick={async () => {
                   await chrome.storage.local.set({ sync_logs: [] });
                   setSyncLogs([]);
@@ -594,6 +647,46 @@ export default function App() {
         {/* Tab 4: Settings */}
         {activeTab === 'settings' && (
           <div className="flex flex-col gap-3">
+            {/* Theme Preference Card */}
+            <Card className="bg-surface border border-border shadow-sm">
+              <Card.Header className="pb-2">
+                <Card.Title className="text-xs font-semibold">界面主题外观</Card.Title>
+              </Card.Header>
+              <Separator />
+              <Card.Content className="py-3 flex flex-col gap-2">
+                <div className="grid grid-cols-3 gap-2">
+                  <Button
+                    size="sm"
+                    variant={themeMode === 'light' ? 'primary' : 'outline'}
+                    className="h-8 text-xs cursor-pointer"
+                    onClick={() => handleSetSpecificTheme('light')}
+                  >
+                    <Sun className="w-3.5 h-3.5 mr-1 text-amber-500" />
+                    明亮模式
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={themeMode === 'dark' ? 'primary' : 'outline'}
+                    className="h-8 text-xs cursor-pointer"
+                    onClick={() => handleSetSpecificTheme('dark')}
+                  >
+                    <Moon className="w-3.5 h-3.5 mr-1 text-indigo-400" />
+                    暗黑模式
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={themeMode === 'auto' ? 'primary' : 'outline'}
+                    className="h-8 text-xs cursor-pointer"
+                    onClick={() => handleSetSpecificTheme('auto')}
+                  >
+                    <Monitor className="w-3.5 h-3.5 mr-1" />
+                    跟随系统
+                  </Button>
+                </div>
+              </Card.Content>
+            </Card>
+
+            {/* Workbench Connection Card */}
             <Card className="bg-surface border border-border shadow-sm">
               <Card.Header className="pb-2">
                 <Card.Title className="text-xs font-semibold">本地 AI 工作台连接</Card.Title>
@@ -617,7 +710,7 @@ export default function App() {
                 <Button
                   size="sm"
                   variant="outline"
-                  className="w-full mt-1"
+                  className="w-full mt-1 cursor-pointer"
                   onClick={checkWorkbenchStatus}
                 >
                   <RefreshCw className="w-3.5 h-3.5 mr-1" />

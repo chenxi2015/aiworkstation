@@ -11,6 +11,7 @@ import {
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import Footer from "../components/Footer";
 import Header from "../components/Header";
+import NotFound from "../components/NotFound";
 import TanStackQueryDevtools from "../integrations/tanstack-query/devtools";
 import appCss from "../styles.css?url";
 
@@ -41,6 +42,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 			},
 		],
 	}),
+	notFoundComponent: NotFound,
 	shellComponent: RootDocument,
 });
 
@@ -55,7 +57,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 				<script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
 				<HeadContent />
 			</head>
-			<body className="font-sans antialiased [overflow-wrap:anywhere] selection:bg-accent-soft selection:text-accent-soft-foreground">
+			<body
+				suppressHydrationWarning
+				className="font-sans antialiased [overflow-wrap:anywhere] selection:bg-accent-soft selection:text-accent-soft-foreground"
+			>
 				<QueryClientProvider client={queryClient}>
 					{!isHome && <Header />}
 					{children}

@@ -3,6 +3,48 @@
 @import '@heroui/styles';
 
 :root,
+.light,
+.default,
+[data-theme="light"],
+[data-theme="default"] {
+  color-scheme: light;
+  /* Theme Colors (Light Mode) */
+  --accent: oklch(52.82% 0.2628 262.87);
+  --accent-foreground: oklch(99.11% 0 0);
+  --background: oklch(97.02% 0.0020 262.87);
+  --border: oklch(90.00% 0.0020 262.87);
+  --danger: oklch(65.32% 0.2337 26.82);
+  --danger-foreground: oklch(99.11% 0 0);
+  --default: oklch(94.00% 0.0020 262.87);
+  --default-foreground: oklch(21.03% 0.0059 262.87);
+  --field-background: oklch(100.00% 0.0010 262.87);
+  --field-border: transparent;
+  --field-foreground: oklch(21.03% 0.0020 262.87);
+  --field-placeholder: oklch(55.17% 0.0040 262.87);
+  --focus: oklch(52.82% 0.2628 262.87);
+  --foreground: oklch(21.03% 0.0020 262.87);
+  --muted: oklch(55.17% 0.0040 262.87);
+  --overlay: oklch(100.00% 0.0006 262.87);
+  --overlay-foreground: oklch(21.03% 0.0020 262.87);
+  --scrollbar: oklch(87.10% 0.0020 262.87);
+  --segment: oklch(100.00% 0.0020 262.87);
+  --segment-foreground: oklch(21.03% 0.0020 262.87);
+  --separator: oklch(92.00% 0.0020 262.87);
+  --success: oklch(73.29% 0.1943 151.89);
+  --success-foreground: oklch(21.03% 0.0059 151.89);
+  --surface: oklch(100.00% 0.0010 262.87);
+  --surface-foreground: oklch(21.03% 0.0020 262.87);
+  --surface-secondary: oklch(95.24% 0.0016 262.87);
+  --surface-secondary-foreground: oklch(21.03% 0.0020 262.87);
+  --surface-tertiary: oklch(93.73% 0.0016 262.87);
+  --surface-tertiary-foreground: oklch(21.03% 0.0020 262.87);
+  --warning: oklch(78.19% 0.1591 73.41);
+  --warning-foreground: oklch(21.03% 0.0059 73.41);
+
+  --radius: 0.5rem;
+  --field-radius: 0.5rem;
+}
+
 .dark,
 [data-theme="dark"] {
   color-scheme: dark;
@@ -38,12 +80,13 @@
   --surface-tertiary-foreground: oklch(99.11% 0.0020 262.87);
   --warning: oklch(82.03% 0.1394 77.42);
   --warning-foreground: oklch(21.03% 0.0059 77.42);
-
-  --radius: 0.5rem;
-  --field-radius: 0.5rem;
 }
 
-body {
+html,
+body,
+#root {
+  min-width: 380px;
+  width: 100%;
   margin: 0;
   color: var(--foreground);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -51,6 +94,16 @@ body {
   min-height: 100vh;
   overflow-x: hidden;
   user-select: none;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Hide scrollbar utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 ::-webkit-scrollbar {
@@ -61,9 +114,9 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(150, 150, 150, 0.25);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(150, 150, 150, 0.4);
 }
