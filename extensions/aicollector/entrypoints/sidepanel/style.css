@@ -120,3 +120,22 @@ body,
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(150, 150, 150, 0.4);
 }
+
+/* Animated dashed border (marching ants effect) */
+@keyframes marching-ants {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -40;
+  }
+}
+
+.animate-marching-ants {
+  animation: marching-ants 2.5s linear infinite;
+}
+
+.group:hover .animate-marching-ants {
+  animation-duration: 1.2s;
+}
+
