@@ -1,0 +1,69 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import 'tailwindcss';
+@import '@heroui/styles';
+
+:root,
+.dark,
+[data-theme="dark"] {
+  color-scheme: dark;
+  /* Theme Colors (Dark Mode) */
+  --accent: oklch(52.82% 0.2628 262.87);
+  --accent-foreground: oklch(99.11% 0 0);
+  --background: oklch(12.00% 0.0020 262.87);
+  --border: oklch(28.00% 0.0020 262.87);
+  --danger: oklch(59.40% 0.1975 25.71);
+  --danger-foreground: oklch(99.11% 0 0);
+  --default: oklch(27.40% 0.0020 262.87);
+  --default-foreground: oklch(99.11% 0 0);
+  --field-background: oklch(21.03% 0.0040 262.87);
+  --field-border: transparent;
+  --field-foreground: oklch(99.11% 0.0020 262.87);
+  --field-placeholder: oklch(70.50% 0.0040 262.87);
+  --focus: oklch(52.82% 0.2628 262.87);
+  --foreground: oklch(99.11% 0.0020 262.87);
+  --muted: oklch(70.50% 0.0040 262.87);
+  --overlay: oklch(21.03% 0.0040 262.87);
+  --overlay-foreground: oklch(99.11% 0.0020 262.87);
+  --scrollbar: oklch(70.50% 0.0020 262.87);
+  --segment: oklch(39.64% 0.0020 262.87);
+  --segment-foreground: oklch(99.11% 0.0020 262.87);
+  --separator: oklch(25.00% 0.0020 262.87);
+  --success: oklch(73.29% 0.1943 151.89);
+  --success-foreground: oklch(21.03% 0.0059 151.89);
+  --surface: oklch(21.03% 0.0040 262.87);
+  --surface-foreground: oklch(99.11% 0.0020 262.87);
+  --surface-secondary: oklch(25.70% 0.0030 262.87);
+  --surface-secondary-foreground: oklch(99.11% 0.0020 262.87);
+  --surface-tertiary: oklch(27.21% 0.0030 262.87);
+  --surface-tertiary-foreground: oklch(99.11% 0.0020 262.87);
+  --warning: oklch(82.03% 0.1394 77.42);
+  --warning-foreground: oklch(21.03% 0.0059 77.42);
+
+  --radius: 0.5rem;
+  --field-radius: 0.5rem;
+}
+
+body {
+  margin: 0;
+  color: var(--foreground);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: var(--background);
+  min-height: 100vh;
+  overflow-x: hidden;
+  user-select: none;
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}

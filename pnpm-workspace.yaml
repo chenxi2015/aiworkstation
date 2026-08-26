@@ -1,3 +1,7 @@
+packages:
+  - '.'
+  - 'extensions/*'
+
 allowBuilds:
   '@google/genai': true
   esbuild: true
@@ -5,4 +9,5 @@ allowBuilds:
   protobufjs: true
   sharp: true
   workerd: true
+
 
