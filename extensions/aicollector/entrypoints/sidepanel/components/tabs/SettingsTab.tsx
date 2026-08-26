@@ -108,7 +108,11 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             在网页内悬浮选择，按 ↑/↓ 导航 DOM 层级，按 Esc 退出。
           </div>
           <div>
-            <strong className="text-foreground">3. 本地离线队列：</strong>
+            <strong className="text-foreground">3. 自动防盗链穿透：</strong>
+            智能提取当前网站根域名动态穿透图片防盗链，支持全网任意站点 WebP/高清大图无缝预览。
+          </div>
+          <div>
+            <strong className="text-foreground">4. 本地离线队列：</strong>
             工作台离线时自动在本地安全暂存。
           </div>
         </Card.Content>
@@ -116,3 +120,4 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     </div>
   );
 };
+

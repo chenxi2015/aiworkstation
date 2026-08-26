@@ -5,6 +5,8 @@ export interface FlattenedBookmark {
   title: string;
   url: string;
   parentTitle?: string;
+  folderPath?: string;
+  dateAdded?: number;
 }
 
 /**
@@ -30,31 +32,39 @@ export function useBookmarks() {
   const flattenedBookmarks = useMemo(() => {
     const result: FlattenedBookmark[] = [];
 
-    function traverse(nodes: chrome.bookmarks.BookmarkTreeNode[], parentName = '') {
+    function traverse(nodes: chrome.bookmarks.BookmarkTreeNode[], pathSegments: string[] = []) {
       for (const node of nodes) {
         if (node.url) {
           result.push({
             id: node.id,
             title: node.title || node.url,
             url: node.url,
-            parentTitle: parentName,
+            parentTitle: pathSegments[pathSegments.length - 1] || '',
+            folderPath: pathSegments.join(' / '),
+            dateAdded: node.dateAdded,
           });
         }
         if (node.children && node.children.length > 0) {
-          traverse(node.children, node.title || parentName);
+          const nextSegments = node.title ? [...pathSegments, node.title] : pathSegments;
+          traverse(node.children, nextSegments);
         }
       }
     }
 
     traverse(bookmarkTree);
-    return result;
+    // Sort chronologically descending (newest bookmarks first)
+    return result.sort((a, b) => (b.dateAdded || 0) - (a.dateAdded || 0));
   }, [bookmarkTree]);
 
   const filteredBookmarks = useMemo(() => {
     if (!searchQuery.trim()) return flattenedBookmarks;
     const q = searchQuery.toLowerCase();
     return flattenedBookmarks.filter(
-      (b) => b.title.toLowerCase().includes(q) || b.url.toLowerCase().includes(q)
+      (b) =>
+        b.title.toLowerCase().includes(q) ||
+        b.url.toLowerCase().includes(q) ||
+        (b.parentTitle && b.parentTitle.toLowerCase().includes(q)) ||
+        (b.folderPath && b.folderPath.toLowerCase().includes(q))
     );
   }, [flattenedBookmarks, searchQuery]);
 

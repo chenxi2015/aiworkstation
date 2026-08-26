@@ -1,5 +1,7 @@
 import type { GrabbedContent } from '../types';
 import { extractPageTDK } from './tdk';
+import { extractImagesFromElement } from './imageExtractor';
+import { normalizeHtml } from './htmlNormalizer';
 
 /**
  * Visual Element Grabber (inspired by react-grab)
@@ -271,16 +273,14 @@ export class VisualGrabber {
     const rect = el.getBoundingClientRect();
     const tdk = extractPageTDK(document);
 
-    // Extract images inside element
-    const images: string[] = [];
-    el.querySelectorAll('img').forEach((img) => {
-      if (img.src && !images.includes(img.src)) {
-        images.push(img.src);
-      }
-    });
+    // Extract images inside element using modular utility
+    const images = extractImagesFromElement(el, window.location.href);
 
-    // Extract links inside element
+    // Extract links inside element (including root element if it is an anchor)
     const links: string[] = [];
+    if (el.tagName.toLowerCase() === 'a' && (el as HTMLAnchorElement).href) {
+      links.push((el as HTMLAnchorElement).href);
+    }
     el.querySelectorAll('a').forEach((a) => {
       if (a.href && !links.includes(a.href)) {
         links.push(a.href);
@@ -291,7 +291,7 @@ export class VisualGrabber {
       id: `grab_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       url: window.location.href,
       tdk,
-      selectedHtml: el.outerHTML,
+      selectedHtml: normalizeHtml(el, window.location.href),
       selectedText: el.innerText || el.textContent || '',
       selector: this.generateSelector(el),
       tag: el.tagName.toLowerCase(),

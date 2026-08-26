@@ -136,4 +136,49 @@ export default defineBackground(() => {
 
     await appendSyncLog(log);
   });
+
+  // 4. Background image fetch proxy with dynamic site referer
+  chrome.runtime.onMessage.addListener((message: any, _sender: any, sendResponse: (response?: any) => void) => {
+    if (message.type === 'FETCH_IMAGE_DATA' && message.url) {
+      const { url, pageUrl } = message;
+
+      let referer = '';
+      try {
+        if (pageUrl) {
+          referer = new URL(pageUrl).origin + '/';
+        } else {
+          referer = new URL(url).origin + '/';
+        }
+      } catch {
+        referer = '';
+      }
+
+      fetch(url, {
+        headers: referer
+          ? {
+              'Referer': referer,
+              'User-Agent': navigator.userAgent,
+            }
+          : undefined,
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.blob();
+        })
+        .then((blob) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            sendResponse({ success: true, dataUrl: reader.result });
+          };
+          reader.onerror = () => sendResponse({ success: false });
+          reader.readAsDataURL(blob);
+        })
+        .catch((err) => {
+          console.warn('[AI Collector] Background image fetch error:', err);
+          sendResponse({ success: false, error: String(err) });
+        });
+
+      return true; // Keep async response channel open
+    }
+  });
 });

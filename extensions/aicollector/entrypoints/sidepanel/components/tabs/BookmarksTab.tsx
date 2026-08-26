@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from '@heroui/react';
-import { Search, RefreshCw, Send } from 'lucide-react';
+import { Search, RefreshCw, Send, Calendar } from 'lucide-react';
 import type { FlattenedBookmark } from '../../hooks/useBookmarks';
 import type { CollectPayload } from '../../../../src/services/workbench';
 
@@ -11,6 +11,18 @@ interface BookmarksTabProps {
   onRefresh: () => void;
   onPushToWorkbench: (payload: CollectPayload) => void;
 }
+
+/**
+ * Format timestamp to YYYY-MM-DD
+ */
+const formatDate = (timestamp?: number): string => {
+  if (!timestamp) return '';
+  const d = new Date(timestamp);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 /**
  * Tab panel for searching, browsing, and collecting Chrome bookmarks
@@ -31,7 +43,13 @@ export const BookmarksTab: React.FC<BookmarksTabProps> = ({
     onPushToWorkbench({
       title: bm.title,
       url: bm.url,
-      meta: { source: 'bookmark_explorer' },
+      meta: {
+        source: 'bookmark_explorer',
+        folder: bm.parentTitle || '',
+        folderPath: bm.folderPath || '',
+        dateAdded: bm.dateAdded,
+        bookmarkedAt: bm.dateAdded ? new Date(bm.dateAdded).toISOString() : undefined,
+      },
     });
   };
 
@@ -41,7 +59,7 @@ export const BookmarksTab: React.FC<BookmarksTabProps> = ({
       <div className="relative">
         <input
           type="text"
-          placeholder="搜索全量书签标题或 URL..."
+          placeholder="搜索书签标题、URL 或目录名称..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           className="w-full bg-surface-secondary border border-border rounded-lg px-8 py-1.5 text-xs text-foreground placeholder:text-muted focus:outline-none focus:border-accent"
@@ -80,7 +98,7 @@ export const BookmarksTab: React.FC<BookmarksTabProps> = ({
             key={bm.id}
             onClick={() => handleOpenBookmark(bm.url)}
             className="flex items-center justify-between p-2 rounded-lg bg-surface hover:bg-surface-secondary border border-border transition-colors cursor-pointer"
-            title={`点击打开: ${bm.url}`}
+            title={`点击打开: ${bm.url}\n路径: ${bm.folderPath || '根目录'}`}
           >
             <div className="flex items-center gap-2 overflow-hidden flex-1">
               <img
@@ -91,9 +109,25 @@ export const BookmarksTab: React.FC<BookmarksTabProps> = ({
                   (e.target as HTMLElement).style.display = 'none';
                 }}
               />
-              <div className="overflow-hidden">
+              <div className="overflow-hidden flex-1">
                 <div className="text-xs font-medium text-foreground truncate">{bm.title}</div>
-                <div className="text-[11px] text-muted truncate">{bm.url}</div>
+                <div className="flex items-center gap-1.5 text-[10px] text-muted truncate mt-0.5">
+                  {bm.dateAdded && (
+                    <span className="shrink-0 font-mono text-[10px] text-muted bg-surface-secondary px-1 py-0.5 rounded border border-border flex items-center gap-0.5">
+                      <Calendar className="w-2.5 h-2.5 opacity-70" />
+                      {formatDate(bm.dateAdded)}
+                    </span>
+                  )}
+                  {bm.parentTitle && (
+                    <span
+                      className="shrink-0 text-muted/80 truncate max-w-[90px]"
+                      title={`完整路径: ${bm.folderPath || bm.parentTitle}`}
+                    >
+                      📁 {bm.parentTitle}
+                    </span>
+                  )}
+                  <span className="truncate opacity-75">{bm.url}</span>
+                </div>
               </div>
             </div>
 

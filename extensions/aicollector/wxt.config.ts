@@ -19,6 +19,7 @@ export default defineConfig({
       'scripting',
       'storage',
       'tabs',
+      'downloads',
     ],
     host_permissions: ['<all_urls>'],
     action: {
