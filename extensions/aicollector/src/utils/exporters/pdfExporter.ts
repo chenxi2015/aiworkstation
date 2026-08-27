@@ -5,11 +5,13 @@
 
 import type { GrabbedContent } from '../../types';
 import { cleanDocumentTitle, escapeHtml } from './exportUtils';
+import { parseHtmlToAst } from '../ast/parser';
+import { applyTransforms } from '../ast/transforms/pipeline';
+import { defaultAstTransforms } from '../ast';
+import { renderAstToHtml } from '../ast/renderers/astToHtml';
 
 /**
- * Sanitizes and cleans extracted HTML snippet for PDF / print rendering
- * Eliminates dark-mode light-on-white text issues, removes interactive widgets,
- * resolves relative image & link URLs, and ensures proper spacing.
+ * Sanitizes and cleans extracted HTML snippet for PDF / print rendering via Document AST
  */
 export function prepareHtmlForPdf(
   rawHtml: string,
@@ -29,114 +31,16 @@ export function prepareHtmlForPdf(
   }
 
   try {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(rawHtml, 'text/html');
-
-    // 1. Remove non-printable or noisy interactive elements
-    const unwantedSelectors = [
-      'script',
-      'style',
-      'noscript',
-      'iframe',
-      'svg',
-      'canvas',
-      'button',
-      'input',
-      'select',
-      'textarea',
-      'form',
-      'nav',
-      'dialog',
-      '.no-print',
-    ];
-    unwantedSelectors.forEach((sel) => {
-      doc.body.querySelectorAll(sel).forEach((el) => el.remove());
-    });
-
-    // 2. Process all elements to strip problematic styles and normalize attributes
-    const allElements = Array.from(doc.body.querySelectorAll('*'));
-    allElements.forEach((el) => {
-      // Remove inline event listeners
-      Array.from(el.attributes).forEach((attr) => {
-        if (attr.name.startsWith('on')) {
-          el.removeAttribute(attr.name);
-        }
-      });
-
-      // Strip colors, backgrounds, and font overrides from style attribute
-      const styleAttr = el.getAttribute('style');
-      if (styleAttr) {
-        const cleanedStyle = styleAttr
-          .replace(
-            /(color|background|background-color|background-image|opacity|font-family|font-size|line-height|text-shadow|filter)\s*:\s*[^;]+;?/gi,
-            '',
-          )
-          .trim();
-        if (cleanedStyle) {
-          el.setAttribute('style', cleanedStyle);
-        } else {
-          el.removeAttribute('style');
-        }
-      }
-
-      // Remove classes to prevent external CSS interference (e.g. dark mode classes)
-      el.removeAttribute('class');
-
-      // Normalize images
-      if (el.tagName.toLowerCase() === 'img') {
-        const img = el as HTMLImageElement;
-        const rawSrc =
-          img.getAttribute('data-src') ||
-          img.getAttribute('data-original') ||
-          img.getAttribute('data-actualsrc') ||
-          img.getAttribute('src') ||
-          '';
-
-        if (rawSrc) {
-          try {
-            img.src = pageUrl ? new URL(rawSrc, pageUrl).href : rawSrc;
-          } catch {
-            img.src = rawSrc;
-          }
-        }
-        img.removeAttribute('data-src');
-        img.removeAttribute('data-original');
-        img.removeAttribute('data-actualsrc');
-        img.removeAttribute('loading');
-      }
-
-      // Normalize hyperlinks
-      if (el.tagName.toLowerCase() === 'a') {
-        const anchor = el as HTMLAnchorElement;
-        const href = anchor.getAttribute('href');
-        if (href && pageUrl && !href.startsWith('http://') && !href.startsWith('https://') && !href.startsWith('mailto:')) {
-          try {
-            anchor.href = new URL(href, pageUrl).href;
-          } catch {
-            // keep raw href
-          }
-        }
-        anchor.setAttribute('target', '_blank');
-        anchor.setAttribute('rel', 'noopener noreferrer');
-      }
-    });
-
-    const result = doc.body.innerHTML.trim();
-    if (!result && grabbedContent?.selectedText) {
-      return grabbedContent.selectedText
-        .split('\n\n')
-        .map((p) => p.trim())
-        .filter(Boolean)
-        .map((p) => `<p>${escapeHtml(p)}</p>`)
-        .join('\n');
-    }
-
-    return result || '<p class="empty-content">（暂无正文内容）</p>';
+    const rawAst = parseHtmlToAst(rawHtml, pageUrl);
+    const cleanAst = applyTransforms(rawAst, ...defaultAstTransforms);
+    const rendered = renderAstToHtml(cleanAst);
+    return rendered || '<p class="empty-content">（暂无正文内容）</p>';
   } catch (err) {
-    console.warn('Failed to prepare HTML for PDF:', err);
+    console.warn('Failed to prepare HTML for PDF via AST:', err);
     return rawHtml;
   }
 }
+
 
 /**
  * Compact CSS stylesheet for high-contrast PDF export and paper simulation

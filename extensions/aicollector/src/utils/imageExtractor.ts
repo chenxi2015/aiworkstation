@@ -153,12 +153,13 @@ export function extractImagesFromElement(
     addImage(svgImg.getAttribute('href') || svgImg.getAttribute('xlink:href'));
   });
 
-  // 4. Process <video poster="...">
+  // 4. Process video elements and player poster attributes (tt-poster, data-poster, etc.)
+  const posterAttrs = ['poster', 'tt-poster', 'data-poster', 'data-cover', 'data-poster-url'];
   if (el.tagName.toLowerCase() === 'video') {
-    addImage(el.getAttribute('poster'));
+    posterAttrs.forEach((attr) => addImage(el.getAttribute(attr)));
   }
-  el.querySelectorAll('video[poster]').forEach((video) => {
-    addImage(video.getAttribute('poster'));
+  el.querySelectorAll('video, [tt-poster], [data-poster], [data-cover], [data-poster-url]').forEach((videoLike) => {
+    posterAttrs.forEach((attr) => addImage(videoLike.getAttribute(attr)));
   });
 
   // 5. Process CSS background-image and data-bg attributes

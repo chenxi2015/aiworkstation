@@ -6,3 +6,4 @@
  */
 
 export * from './exporters';
+export * from './ast';

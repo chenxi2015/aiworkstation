@@ -1,6 +1,7 @@
-import type { GrabbedContent } from '../types';
+import type { GrabbedContent, GrabbedVideo } from '../types';
 import { extractPageTDK } from './tdk';
 import { extractImagesFromElement } from './imageExtractor';
+import { extractVideosFromElement } from './videoExtractor';
 import { normalizeHtml } from './htmlNormalizer';
 
 interface SelectionBoxRect {
@@ -513,6 +514,7 @@ export class VisualGrabber {
     const rect = el.getBoundingClientRect();
     const tdk = extractPageTDK(document);
     const images = extractImagesFromElement(el, window.location.href);
+    const videos = extractVideosFromElement(el, window.location.href);
 
     const links: string[] = [];
     if (el.tagName.toLowerCase() === 'a' && (el as HTMLAnchorElement).href) {
@@ -532,6 +534,7 @@ export class VisualGrabber {
       tag: el.tagName.toLowerCase(),
       dimensions: { width: Math.round(rect.width), height: Math.round(rect.height) },
       images,
+      videos,
       links,
       createdAt: Date.now(),
     };
@@ -593,7 +596,26 @@ export class VisualGrabber {
 
     // 1. Direct scan for all image / media elements intersecting the selection area
     const allImages: string[] = [];
-    const mediaElements = Array.from(document.querySelectorAll<HTMLElement>('img, picture, figure, svg image, video[poster], [data-bg], [data-background]'));
+    const allVideos: GrabbedVideo[] = [];
+    const addedVideoUrls = new Set<string>();
+
+    const addExtractedVideos = (videos: GrabbedVideo[]) => {
+      for (const v of videos) {
+        if (!addedVideoUrls.has(v.src)) {
+          addedVideoUrls.add(v.src);
+          allVideos.push(v);
+          if (v.poster && !allImages.includes(v.poster)) {
+            allImages.push(v.poster);
+          }
+        }
+      }
+    };
+
+    const mediaElements = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        'img, picture, figure, svg image, video, [tt-videoid], [data-video-url], [data-poster], [tt-poster], [data-bg], [data-background]',
+      ),
+    );
     for (const mediaEl of mediaElements) {
       if (this.isInternalElement(mediaEl)) continue;
       const elPage = getElementPageRect(mediaEl);
@@ -602,12 +624,15 @@ export class VisualGrabber {
 
       // If center is in box or has visible overlap
       if (info.centerInBox || info.overlapRatio >= 0.05 || info.intersectArea >= 30) {
-        const extracted = extractImagesFromElement(mediaEl, window.location.href);
-        for (const imgUrl of extracted) {
+        const extractedImgs = extractImagesFromElement(mediaEl, window.location.href);
+        for (const imgUrl of extractedImgs) {
           if (!allImages.includes(imgUrl)) {
             allImages.push(imgUrl);
           }
         }
+
+        const extractedVids = extractVideosFromElement(mediaEl, window.location.href);
+        addExtractedVideos(extractedVids);
       }
     }
 
@@ -687,7 +712,7 @@ export class VisualGrabber {
       return 0;
     });
 
-    // 6. Aggregate text, HTML, images and links
+    // 6. Aggregate text, HTML, images, videos and links
     const textPieces: string[] = [];
     const htmlPieces: string[] = [];
     const allLinks: string[] = [];
@@ -706,6 +731,9 @@ export class VisualGrabber {
           allImages.push(img);
         }
       });
+
+      // Extract videos from selected subtree
+      addExtractedVideos(extractVideosFromElement(el, window.location.href));
 
       if (el.tagName.toLowerCase() === 'a' && (el as HTMLAnchorElement).href) {
         const href = (el as HTMLAnchorElement).href;
@@ -726,6 +754,7 @@ export class VisualGrabber {
       tag: selectedElements.length === 1 ? selectedElements[0]!.tagName.toLowerCase() : 'selection-area',
       dimensions: { width: Math.round(rect.width), height: Math.round(rect.height) },
       images: allImages,
+      videos: allVideos,
       links: allLinks,
       createdAt: Date.now(),
     };

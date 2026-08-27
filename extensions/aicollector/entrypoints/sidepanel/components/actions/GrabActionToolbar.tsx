@@ -25,6 +25,8 @@ import {
   exportJson,
   createStructuredContentJson,
   cleanDocumentTitle,
+  convertGrabbedToAst,
+  exportAstJson,
 } from '../../../../src/utils/documentExporter';
 import { extractCover, extractSummary } from '../../../../src/utils/contentSummarizer';
 import { MarkdownEditModal } from '../modals/MarkdownEditModal';
@@ -78,15 +80,23 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
     setShowContentImageModal(true);
   };
 
-  // 4. Export Structured JSON (.json)
+  // 4. Export Document AST JSON (.json)
   const handleExportJson = () => {
-    const data = createStructuredContentJson(grabbedContent);
-    const filename = `${title.slice(0, 30).trim() || 'data'}_${Date.now()}.json`;
-    exportJson(data, filename);
-    toast.success('已导出结构化 JSON', {
-      description: filename,
-      timeout: 2200,
-    });
+    try {
+      const ast = convertGrabbedToAst(grabbedContent);
+      const filename = `${title.slice(0, 30).trim() || 'data'}_ast_${Date.now()}.json`;
+      exportAstJson(ast, filename);
+      toast.success('已导出 Document AST 语法树', {
+        description: `${filename} (${ast.metadata.stats.blockCount} 块, ${ast.metadata.stats.wordCount} 字)`,
+        timeout: 2500,
+      });
+    } catch (err) {
+      console.error('Failed to export AST:', err);
+      toast.danger('导出 JSON 失败', {
+        description: String(err),
+        timeout: 3000,
+      });
+    }
   };
 
   // 5. Generate / Edit Markdown Modal
@@ -168,7 +178,7 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
   const summaryInfo = extractSummary(grabbedContent);
   const currentMarkdown = htmlToMarkdown(grabbedContent.selectedHtml, grabbedContent.url);
 
-  // Configuration for the 3x3 tool grid (9 actions)
+  // Configuration for the tool grid (9 actions)
   const toolActions = [
     {
       id: 'cover_summary',
@@ -195,7 +205,7 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
     },
     {
       id: 'export_json',
-      label: '导出 JSON',
+      label: '导出 JSON (AST)',
       icon: <FileJson className="w-4 h-4 text-amber-500 group-hover:scale-110 transition-transform" />,
       onClick: handleExportJson,
     },
@@ -205,6 +215,7 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
       icon: <FileCode className="w-4 h-4 text-cyan-500 group-hover:scale-110 transition-transform" />,
       onClick: handleGenerateMarkdown,
     },
+
     {
       id: 'generate_poster',
       label: '生成海报',
@@ -251,9 +262,10 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
         <div className="flex items-center gap-1.5">
           <Sparkles className="w-3.5 h-3.5 text-blue-500 shrink-0" />
           <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-100">
-            快捷工具箱 (9项功能)
+            快捷工具箱 ({toolActions.length}项功能)
           </span>
         </div>
+
         <button
           type="button"
           className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors p-0.5 rounded cursor-pointer"

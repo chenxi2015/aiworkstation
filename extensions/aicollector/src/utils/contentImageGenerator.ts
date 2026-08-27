@@ -91,121 +91,54 @@ export interface ImageBlock extends BaseBlock {
 
 export type FlowBlock = TextBlock | ImageBlock;
 
+import { parseHtmlToAst } from './ast/parser';
+import { applyTransforms } from './ast/transforms/pipeline';
+import { defaultAstTransforms } from './ast';
+import { renderInlineToPlainText, renderBlockToPlainText } from './ast/renderers/astToPlainText';
+import type { BlockNode } from './ast/types';
+
 /**
- * Recursively extracts content nodes in natural document order
+ * Converts a single AST block node into FlowBlock(s)
  */
-function extractBlocksFromNode(node: Node, blocks: FlowBlock[]): void {
-  if (node.nodeType === Node.TEXT_NODE) {
-    const text = (node.textContent || '').trim();
-    if (text) {
-      // Append text block if meaningful
-      blocks.push({ type: 'paragraph', text });
+function convertAstBlockToFlowBlocks(block: BlockNode): FlowBlock[] {
+  switch (block.type) {
+    case 'heading': {
+      const text = block.children.map(renderInlineToPlainText).join('').trim();
+      return text ? [{ type: 'heading', level: block.level, text }] : [];
     }
-    return;
-  }
-
-  if (node.nodeType !== Node.ELEMENT_NODE) return;
-
-  const el = node as HTMLElement;
-  const tag = el.tagName.toLowerCase();
-
-  // 1. Skip non-content tags
-  if (['script', 'style', 'noscript', 'svg', 'canvas'].includes(tag)) {
-    return;
-  }
-
-  // 2. Direct Image element
-  if (tag === 'img') {
-    let src =
-      (el as HTMLImageElement).src ||
-      el.getAttribute('src') ||
-      el.getAttribute('data-src') ||
-      el.getAttribute('data-original') ||
-      el.getAttribute('data-actualsrc') ||
-      '';
-
-    if (src && (src.startsWith('data:image/svg+xml') || src.startsWith('data:image/gif') || src.includes('spacer.gif'))) {
-      src =
-        el.getAttribute('data-src') ||
-        el.getAttribute('data-original') ||
-        el.getAttribute('data-actualsrc') ||
-        '';
+    case 'paragraph': {
+      const text = block.children.map(renderInlineToPlainText).join('').trim();
+      return text ? [{ type: 'paragraph', text }] : [];
     }
-
-    if (src && !src.startsWith('data:image/svg+xml') && !src.includes('spacer.gif')) {
-      blocks.push({
-        type: 'image',
-        src,
-        alt: (el as HTMLImageElement).alt || '',
-      });
+    case 'blockquote': {
+      const text = renderBlockToPlainText(block);
+      return text ? [{ type: 'blockquote', text }] : [];
     }
-    return;
-  }
-
-  // 3. Headings
-  if (/^h[1-6]$/.test(tag)) {
-    const text = (el.innerText || el.textContent || '').trim();
-    if (text) {
-      blocks.push({
-        type: 'heading',
-        level: parseInt(tag[1] || '2', 10),
-        text,
-      });
+    case 'list': {
+      return block.items
+        .map((item) => {
+          const text = renderBlockToPlainText(item);
+          return { type: 'list-item' as const, text };
+        })
+        .filter((item) => item.text.length > 0);
     }
-    return;
-  }
-
-  // 4. Blockquotes
-  if (tag === 'blockquote') {
-    const text = (el.innerText || el.textContent || '').trim();
-    if (text) {
-      blocks.push({
-        type: 'blockquote',
-        text,
-      });
+    case 'image': {
+      return [{ type: 'image', src: block.src, alt: block.alt || '' }];
     }
-    return;
-  }
-
-  // 5. List items
-  if (tag === 'li') {
-    const hasImg = el.querySelector('img');
-    if (!hasImg) {
-      const text = (el.innerText || el.textContent || '').trim();
-      if (text) {
-        blocks.push({
-          type: 'list-item',
-          text,
-        });
-      }
-      return;
+    case 'code': {
+      return [{ type: 'paragraph', text: block.code }];
     }
-  }
-
-  // 6. Paragraph or container elements
-  const hasImages = el.querySelector('img') !== null;
-  if (!hasImages && ['p', 'pre', 'code'].includes(tag)) {
-    const text = (el.innerText || el.textContent || '').trim();
-    if (text) {
-      blocks.push({
-        type: 'paragraph',
-        text,
-      });
+    case 'table': {
+      const text = renderBlockToPlainText(block);
+      return text ? [{ type: 'paragraph', text }] : [];
     }
-    return;
-  }
-
-  // 7. For containers or mixed elements with child nodes, traverse childNodes sequentially
-  for (let i = 0; i < el.childNodes.length; i++) {
-    const child = el.childNodes[i];
-    if (child) {
-      extractBlocksFromNode(child, blocks);
-    }
+    default:
+      return [];
   }
 }
 
 /**
- * Parses selected HTML into an ordered sequence of flow blocks
+ * Parses selected HTML into an ordered sequence of flow blocks via Document AST
  */
 export function parseHtmlToFlowBlocks(
   html: string,
@@ -216,16 +149,13 @@ export function parseHtmlToFlowBlocks(
 
   if (html && html.trim()) {
     try {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, 'text/html');
-      for (let i = 0; i < doc.body.childNodes.length; i++) {
-        const child = doc.body.childNodes[i];
-        if (child) {
-          extractBlocksFromNode(child, blocks);
-        }
+      const rawAst = parseHtmlToAst(html);
+      const cleanAst = applyTransforms(rawAst, ...defaultAstTransforms);
+      for (const astBlock of cleanAst.children) {
+        blocks.push(...convertAstBlockToFlowBlocks(astBlock));
       }
-    } catch {
-      // Fall through to fallback
+    } catch (err) {
+      console.warn('Failed to parse HTML to AST in parseHtmlToFlowBlocks, falling back:', err);
     }
   }
 
@@ -257,6 +187,7 @@ export function parseHtmlToFlowBlocks(
       });
     }
   }
+
 
   return mergedBlocks;
 }

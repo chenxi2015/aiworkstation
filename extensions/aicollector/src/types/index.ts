@@ -15,6 +15,15 @@ export interface PageTDK {
 }
 
 /**
+ * Extracted video item metadata
+ */
+export interface GrabbedVideo {
+  src: string;
+  poster?: string;
+  title?: string;
+}
+
+/**
  * Visual DOM element grab payload
  */
 export interface GrabbedContent {
@@ -30,6 +39,7 @@ export interface GrabbedContent {
     height: number;
   };
   images: string[];
+  videos?: GrabbedVideo[];
   links: string[];
   createdAt: number;
 }

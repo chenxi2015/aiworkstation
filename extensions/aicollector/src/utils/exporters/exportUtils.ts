@@ -78,70 +78,24 @@ export function exportJson(data: unknown, filename = 'document.json'): void {
   downloadBlob(blob, finalName);
 }
 
-export interface StructuredContentExport {
-  metadata: {
-    title: string;
-    url: string;
-    cleanUrl: string;
-    exportedAt: string;
-    selector: string;
-    tag: string;
-    dimensions: { width: number; height: number };
-    tdk: GrabbedContent['tdk'];
-  };
-  blocks: Array<{
-    type: 'heading' | 'paragraph' | 'blockquote' | 'list-item' | 'image';
-    text?: string;
-    level?: number;
-    src?: string;
-    alt?: string;
-  }>;
-  markdown: string;
-  images: string[];
-  rawText: string;
-}
+import type { DocumentAST } from '../ast/types';
+import { convertGrabbedToAst } from '../ast';
 
 /**
- * Build clean, serializable structured JSON dataset from grabbed DOM element
+ * Build clean, serializable structured JSON dataset from grabbed DOM element via Document AST
  */
 export function createStructuredContentJson(
   grabbedContent: GrabbedContent,
-): StructuredContentExport {
-  const rawBlocks = parseHtmlToFlowBlocks(
-    grabbedContent.selectedHtml,
-    grabbedContent.selectedText,
-    grabbedContent.images || [],
-  );
-
-  const blocks = rawBlocks.map((block) => {
-    if (block.type === 'image') {
-      return {
-        type: block.type,
-        src: block.src,
-        alt: block.alt || '',
-      };
-    }
-    return {
-      type: block.type,
-      text: block.text,
-      ...(block.level !== undefined ? { level: block.level } : {}),
-    };
-  });
-
-  return {
-    metadata: {
-      title: cleanDocumentTitle(grabbedContent.tdk.title || '选区内容'),
-      url: grabbedContent.url,
-      cleanUrl: cleanUrl(grabbedContent.url),
-      exportedAt: new Date().toISOString(),
-      selector: grabbedContent.selector,
-      tag: grabbedContent.tag,
-      dimensions: grabbedContent.dimensions,
-      tdk: grabbedContent.tdk,
-    },
-    blocks,
-    markdown: htmlToMarkdown(grabbedContent.selectedHtml, grabbedContent.url),
-    images: grabbedContent.images || [],
-    rawText: grabbedContent.selectedText,
-  };
+): DocumentAST {
+  return convertGrabbedToAst(grabbedContent);
 }
+
+/**
+ * Export Document AST as a structured .json file
+ */
+export function exportAstJson(astData: unknown, filename = 'document.ast.json'): void {
+  const finalName = filename.endsWith('.json') ? filename : `${filename}.json`;
+  exportJson(astData, finalName);
+}
+
+
