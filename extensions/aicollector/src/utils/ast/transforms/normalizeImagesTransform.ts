@@ -18,17 +18,26 @@ export const normalizeImagesTransform: ASTTransform = (ast: DocumentAST): Docume
       if (block.type === 'image') {
         const imageNode = block as ImageBlock;
 
-        // Filter out spacer gifs and tiny tracking gifs
+        // Filter out spacer gifs, tiny tracking gifs, and extension internal assets
         if (
+          !imageNode.src ||
           imageNode.src.includes('spacer.gif') ||
           imageNode.src.includes('blank.gif') ||
-          imageNode.src.startsWith('data:image/svg+xml')
+          imageNode.src.startsWith('data:image/svg+xml') ||
+          imageNode.src.startsWith('chrome-extension://') ||
+          imageNode.src.startsWith('moz-extension://') ||
+          imageNode.src.startsWith('edge-extension://') ||
+          imageNode.src.startsWith('extension://')
         ) {
           return false; // Remove block
         }
 
         const normalized = normalizeImageUrl(imageNode.src, pageUrl);
-        if (normalized && normalized !== imageNode.src) {
+        if (!normalized) {
+          return false; // Remove invalid image URL block
+        }
+
+        if (normalized !== imageNode.src) {
           return {
             ...imageNode,
             src: normalized,

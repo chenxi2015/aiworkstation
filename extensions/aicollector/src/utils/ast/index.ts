@@ -11,6 +11,7 @@ import {
   cleanLinksTransform,
   normalizeImagesTransform,
   pruneEmptyTransform,
+  cleanNoiseTransform,
 } from './transforms';
 
 export * from './types';
@@ -23,6 +24,7 @@ export * from './renderers';
  * Standard default transform pipeline
  */
 export const defaultAstTransforms: ASTTransform[] = [
+  cleanNoiseTransform,
   normalizeImagesTransform,
   cleanLinksTransform,
   pruneEmptyTransform,

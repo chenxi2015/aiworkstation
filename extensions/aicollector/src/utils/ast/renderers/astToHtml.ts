@@ -110,12 +110,14 @@ export function renderBlockToHtml(block: BlockNode): string {
     case 'image': {
       const altAttr = block.alt ? ` alt="${escapeHtml(block.alt)}"` : '';
       const titleAttr = block.title ? ` title="${escapeHtml(block.title)}"` : '';
-      return `<img src="${escapeHtml(block.src)}"${altAttr}${titleAttr} loading="lazy" />`;
+      const captionHtml = block.title ? `<figcaption class="ast-image-caption">${escapeHtml(block.title)}</figcaption>` : '';
+      return `<figure class="ast-image-card"><img src="${escapeHtml(block.src)}"${altAttr}${titleAttr} loading="lazy" />${captionHtml}</figure>`;
     }
 
     case 'video': {
       const posterAttr = block.poster ? ` poster="${escapeHtml(block.poster)}"` : '';
-      return `<video src="${escapeHtml(block.src)}"${posterAttr} controls></video>`;
+      const captionHtml = block.title ? `<div class="ast-video-caption">${escapeHtml(block.title)}</div>` : '';
+      return `<div class="ast-video-card"><video src="${escapeHtml(block.src)}"${posterAttr} controls preload="metadata"></video>${captionHtml}</div>`;
     }
 
     case 'table': {

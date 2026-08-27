@@ -10,7 +10,16 @@
 function isPlaceholder(url: string): boolean {
   if (!url) return true;
   const trimmed = url.trim();
-  if (!trimmed || trimmed === '#' || trimmed === 'about:blank' || trimmed.startsWith('javascript:')) {
+  if (
+    !trimmed ||
+    trimmed === '#' ||
+    trimmed === 'about:blank' ||
+    trimmed.startsWith('javascript:') ||
+    trimmed.startsWith('chrome-extension://') ||
+    trimmed.startsWith('moz-extension://') ||
+    trimmed.startsWith('edge-extension://') ||
+    trimmed.startsWith('extension://')
+  ) {
     return true;
   }
   // Filter out tiny 1x1 transparent gif / svg placeholder data URLs
@@ -47,7 +56,15 @@ export function normalizeImageUrl(rawUrl: string, baseHref: string = window.loca
   }
 
   try {
-    return new URL(trimmed, baseHref).href;
+    const resolved = new URL(trimmed, baseHref).href;
+    if (
+      resolved.startsWith('chrome-extension://') ||
+      resolved.startsWith('moz-extension://') ||
+      resolved.startsWith('edge-extension://')
+    ) {
+      return null;
+    }
+    return resolved;
   } catch {
     return trimmed;
   }

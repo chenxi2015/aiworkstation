@@ -1,6 +1,6 @@
 /**
- * Word (.docx) document exporter with deep DOM tree traversal,
- * stylish table conversions, responsive image formatting, and typography styling.
+ * Word (.docx) document exporter powered by Document AST Engine
+ * Transforms structured, clean DocumentAST blocks into Microsoft Word (.docx) documents.
  */
 
 import {
@@ -20,7 +20,22 @@ import {
   ExternalHyperlink,
 } from 'docx';
 import type { GrabbedContent } from '../../types';
-import { parseHtmlToFlowBlocks, type FlowBlock } from '../contentImageGenerator';
+import type {
+  DocumentAST,
+  BlockNode,
+  InlineNode,
+  HeadingBlock,
+  ParagraphBlock,
+  QuoteBlock,
+  CodeBlock,
+  ListBlock,
+  ListItemBlock,
+  ImageBlock,
+  VideoBlock,
+  TableBlock,
+  DividerBlock,
+} from '../ast/types';
+import { convertGrabbedToAst, parseHtmlToAst, applyTransforms, defaultAstTransforms } from '../ast';
 import { fetchImageDataUrl } from '../imageDownloader';
 import { downloadBlob, cleanDocumentTitle } from './exportUtils';
 
@@ -36,176 +51,131 @@ interface InlineFormatOptions {
 }
 
 /**
- * Recursively extracts formatted text runs and hyperlinks from an inline DOM element
+ * Converts AST inline node into docx TextRun or ExternalHyperlink
  */
-function extractInlineNodes(
-  node: Node,
+function convertInlineNodeToRuns(
+  node: InlineNode,
   format: InlineFormatOptions = {},
 ): (TextRun | ExternalHyperlink)[] {
-  const runs: (TextRun | ExternalHyperlink)[] = [];
+  if (node.type === 'text') {
+    if (!node.value) return [];
+    return [
+      new TextRun({
+        text: node.value,
+        bold: format.bold,
+        italics: format.italics,
+        strike: format.strike,
+        underline: format.underline ? {} : undefined,
+        color: format.color,
+        font: format.font || 'PingFang SC',
+        size: format.size || 22, // 11pt
+        shading: format.highlight
+          ? {
+              type: ShadingType.CLEAR,
+              fill: format.highlight,
+              color: 'auto',
+            }
+          : undefined,
+      }),
+    ];
+  }
 
-  if (node.nodeType === Node.TEXT_NODE) {
-    const text = node.textContent || '';
-    if (text) {
-      runs.push(
-        new TextRun({
-          text,
-          bold: format.bold,
-          italics: format.italics,
-          strike: format.strike,
-          underline: format.underline ? {} : undefined,
-          color: format.color,
-          font: format.font || 'PingFang SC',
-          size: format.size || 22, // 11pt in half-points
-          shading: format.highlight
-            ? {
-                type: ShadingType.CLEAR,
-                fill: format.highlight,
-                color: 'auto',
-              }
-            : undefined,
-        }),
-      );
+  if (node.type === 'inline_code') {
+    return [
+      new TextRun({
+        text: node.value,
+        font: 'Consolas',
+        color: '0284C7',
+        size: 20,
+        shading: {
+          type: ShadingType.CLEAR,
+          fill: 'F1F5F9',
+          color: 'auto',
+        },
+      }),
+    ];
+  }
+
+  if (node.type === 'formatted') {
+    const nextFormat: InlineFormatOptions = {
+      ...format,
+      bold: node.bold !== undefined ? node.bold : format.bold,
+      italics: node.italic !== undefined ? node.italic : format.italics,
+      strike: node.strikethrough !== undefined ? node.strikethrough : format.strike,
+    };
+    const runs: (TextRun | ExternalHyperlink)[] = [];
+    for (const child of node.children) {
+      runs.push(...convertInlineNodeToRuns(child, nextFormat));
     }
     return runs;
   }
 
-  if (node.nodeType === Node.ELEMENT_NODE) {
-    const el = node as HTMLElement;
-    const tag = el.tagName.toLowerCase();
-
-    // Skip invisible tags
-    if (['script', 'style', 'noscript', 'svg', 'canvas'].includes(tag)) {
-      return runs;
-    }
-
-    if (tag === 'br') {
-      runs.push(new TextRun({ text: '\n', break: 1 }));
-      return runs;
-    }
-
-    if (tag === 'a') {
-      const href = el.getAttribute('href');
-      const innerRuns: TextRun[] = [];
-      el.childNodes.forEach((child) => {
-        const childNodes = extractInlineNodes(child, {
-          ...format,
-          color: '2563EB',
-          underline: true,
-        });
-        childNodes.forEach((n) => {
-          if (n instanceof TextRun) innerRuns.push(n);
-        });
+  if (node.type === 'link') {
+    const linkRuns: TextRun[] = [];
+    const linkFormat: InlineFormatOptions = {
+      ...format,
+      color: '2563EB',
+      underline: true,
+    };
+    for (const child of node.children) {
+      const childRuns = convertInlineNodeToRuns(child, linkFormat);
+      childRuns.forEach((r) => {
+        if (r instanceof TextRun) linkRuns.push(r);
       });
-
-      if (href && (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('mailto:'))) {
-        runs.push(
-          new ExternalHyperlink({
-            children: innerRuns.length > 0 ? innerRuns : [new TextRun({ text: href, color: '2563EB', underline: {} })],
-            link: href,
-          }),
-        );
-      } else {
-        runs.push(...innerRuns);
-      }
-      return runs;
     }
 
-    const nextFormat: InlineFormatOptions = { ...format };
-    if (tag === 'strong' || tag === 'b') nextFormat.bold = true;
-    if (tag === 'em' || tag === 'i') nextFormat.italics = true;
-    if (tag === 's' || tag === 'del' || tag === 'strike') nextFormat.strike = true;
-    if (tag === 'u') nextFormat.underline = true;
-    if (tag === 'mark') nextFormat.highlight = 'FEF08A';
-    if (tag === 'code') {
-      nextFormat.font = 'Consolas';
-      nextFormat.color = '0284C7';
-      nextFormat.size = format.size ? format.size - 2 : 20;
+    if (
+      node.url &&
+      (node.url.startsWith('http://') || node.url.startsWith('https://') || node.url.startsWith('mailto:'))
+    ) {
+      return [
+        new ExternalHyperlink({
+          children:
+            linkRuns.length > 0
+              ? linkRuns
+              : [new TextRun({ text: node.url, color: '2563EB', underline: {} })],
+          link: node.url,
+        }),
+      ];
     }
-
-    el.childNodes.forEach((child) => {
-      runs.push(...extractInlineNodes(child, nextFormat));
-    });
+    return linkRuns;
   }
 
+  return [];
+}
+
+/**
+ * Converts an array of AST InlineNodes into docx runs
+ */
+function convertInlines(
+  inlines: InlineNode[],
+  format: InlineFormatOptions = {},
+): (TextRun | ExternalHyperlink)[] {
+  const runs: (TextRun | ExternalHyperlink)[] = [];
+  for (const inline of inlines) {
+    runs.push(...convertInlineNodeToRuns(inline, format));
+  }
   return runs;
 }
 
 /**
- * Converts an HTML Table Element to a Docx Table with stylish borders & shading
+ * Extracts inline text/formatting recursively from quote content blocks
  */
-function convertHtmlTableToDocx(tableEl: HTMLElement): Table {
-  const rows: TableRow[] = [];
-  const trElements = Array.from(tableEl.querySelectorAll('tr'));
-
-  const borderStyle = {
-    style: BorderStyle.SINGLE,
-    size: 1,
-    color: 'CBD5E1',
-  };
-
-  trElements.forEach((tr, rowIndex) => {
-    const cells: TableCell[] = [];
-    const cellElements = Array.from(tr.querySelectorAll('th, td'));
-
-    cellElements.forEach((cell) => {
-      const isHeader = cell.tagName.toLowerCase() === 'th' || rowIndex === 0;
-      const textRuns = extractInlineNodes(cell, { bold: isHeader });
-
-      cells.push(
-        new TableCell({
-          children: [
-            new Paragraph({
-              children: textRuns.length > 0 ? textRuns : [new TextRun('')],
-              spacing: { before: 80, after: 80 },
-            }),
-          ],
-          shading: isHeader
-            ? {
-                type: ShadingType.CLEAR,
-                fill: 'F1F5F9',
-                color: 'auto',
-              }
-            : rowIndex % 2 === 1
-            ? {
-                type: ShadingType.CLEAR,
-                fill: 'FAFAFA',
-                color: 'auto',
-              }
-            : undefined,
-          borders: {
-            top: borderStyle,
-            bottom: borderStyle,
-            left: borderStyle,
-            right: borderStyle,
-          },
-          margins: {
-            top: 120,
-            bottom: 120,
-            left: 160,
-            right: 160,
-          },
-        }),
-      );
-    });
-
-    if (cells.length > 0) {
-      rows.push(
-        new TableRow({
-          children: cells,
-          tableHeader: rowIndex === 0,
-        }),
-      );
+function extractQuoteInlines(children: (BlockNode | InlineNode)[]): InlineNode[] {
+  const inlines: InlineNode[] = [];
+  for (const item of children) {
+    if (
+      item.type === 'text' ||
+      item.type === 'link' ||
+      item.type === 'formatted' ||
+      item.type === 'inline_code'
+    ) {
+      inlines.push(item as InlineNode);
+    } else if (item.type === 'paragraph') {
+      inlines.push(...(item as ParagraphBlock).children);
     }
-  });
-
-  return new Table({
-    rows: rows.length > 0 ? rows : [new TableRow({ children: [new TableCell({ children: [] })] })],
-    width: {
-      size: 100,
-      type: WidthType.PERCENTAGE,
-    },
-  });
+  }
+  return inlines;
 }
 
 interface ProcessedDocxImage {
@@ -224,10 +194,13 @@ async function fetchImageForDocx(
   maxWidth = 520,
   maxHeight = 460,
 ): Promise<ProcessedDocxImage | null> {
-  if (!src) return null;
+  if (!src || src.startsWith('chrome-extension://') || src.startsWith('moz-extension://')) {
+    return null;
+  }
+
   try {
     let resolvedUrl = src;
-    if (pageUrl && !src.startsWith('http://') && !src.startsWith('https://') && !src.startsWith('data:') && !src.startsWith('blob:')) {
+    if (pageUrl && !src.startsWith('http://') && !src.startsWith('https://') && !src.startsWith('data:')) {
       try {
         resolvedUrl = new URL(src, pageUrl).toString();
       } catch {
@@ -237,7 +210,7 @@ async function fetchImageForDocx(
 
     const dataUrl = await fetchImageDataUrl(resolvedUrl, pageUrl);
 
-    // 1. Get natural dimensions via Image object
+    // Get natural dimensions via Image object
     const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
       const img = new Image();
       img.crossOrigin = 'anonymous';
@@ -247,232 +220,74 @@ async function fetchImageForDocx(
     });
 
     if (dimensions.width < 16 || dimensions.height < 16) {
-      return null; // Skip tiny tracking pixels / spacers
+      return null;
     }
 
-    // 2. Scale aspect ratio
-    const aspect = dimensions.width / dimensions.height;
-    let targetWidth = dimensions.width;
-    let targetHeight = dimensions.height;
-
-    if (targetWidth > maxWidth) {
-      targetWidth = maxWidth;
-      targetHeight = Math.round(maxWidth / aspect);
+    // Scale proportionally
+    let renderWidth = dimensions.width;
+    let renderHeight = dimensions.height;
+    if (renderWidth > maxWidth) {
+      const ratio = maxWidth / renderWidth;
+      renderWidth = maxWidth;
+      renderHeight = Math.round(renderHeight * ratio);
     }
-    if (targetHeight > maxHeight) {
-      targetHeight = maxHeight;
-      targetWidth = Math.round(maxHeight * aspect);
-    }
-
-    // 3. Determine image MIME format
-    let type: 'png' | 'jpg' | 'gif' = 'png';
-    if (dataUrl.startsWith('data:image/jpeg') || dataUrl.startsWith('data:image/jpg') || resolvedUrl.match(/\.(jpe?g)/i)) {
-      type = 'jpg';
-    } else if (dataUrl.startsWith('data:image/gif') || resolvedUrl.match(/\.gif/i)) {
-      type = 'gif';
+    if (renderHeight > maxHeight) {
+      const ratio = maxHeight / renderHeight;
+      renderHeight = maxHeight;
+      renderWidth = Math.round(renderWidth * ratio);
     }
 
-    // 4. Convert dataUrl or URL to Uint8Array
-    let buffer: Uint8Array;
-    if (dataUrl.startsWith('data:')) {
-      const base64 = dataUrl.split(',')[1] || '';
-      const binaryString = atob(base64);
-      buffer = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        buffer[i] = binaryString.charCodeAt(i);
-      }
-    } else {
-      const res = await fetch(dataUrl);
-      const arrayBuf = await res.arrayBuffer();
-      buffer = new Uint8Array(arrayBuf);
+    const base64Data = dataUrl.split(',')[1] || '';
+    const binaryString = atob(base64Data);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
     }
+
+    let imgType: 'png' | 'jpg' | 'gif' = 'png';
+    if (dataUrl.includes('image/jpeg') || dataUrl.includes('image/jpg')) imgType = 'jpg';
+    else if (dataUrl.includes('image/gif')) imgType = 'gif';
 
     return {
-      buffer,
-      width: targetWidth,
-      height: targetHeight,
-      type,
+      buffer: bytes,
+      width: Math.max(renderWidth, 50),
+      height: Math.max(renderHeight, 30),
+      type: imgType,
     };
   } catch (err) {
-    console.warn('Failed to process image for Word export:', src, err);
+    console.warn(`Docx image loader skipped: ${src}`, err);
     return null;
   }
 }
 
 /**
- * Creates image paragraph for Docx document with optional caption
+ * Converts AST TableBlock into docx Table
  */
-function createImageDocxParagraphs(imgData: ProcessedDocxImage, altText?: string): Paragraph[] {
-  const paragraphs: Paragraph[] = [];
+function convertTableBlockToDocx(table: TableBlock): Table {
+  const rows: TableRow[] = [];
+  const borderStyle = {
+    style: BorderStyle.SINGLE,
+    size: 1,
+    color: 'CBD5E1',
+  };
 
-  paragraphs.push(
-    new Paragraph({
-      children: [
-        new ImageRun({
-          data: imgData.buffer,
-          transformation: {
-            width: imgData.width,
-            height: imgData.height,
-          },
-          type: imgData.type,
-        }),
-      ],
-      alignment: AlignmentType.CENTER,
-      spacing: { before: 180, after: altText ? 60 : 180 },
-    }),
-  );
-
-  if (altText && altText.trim() && altText.length < 80 && !altText.startsWith('http')) {
-    paragraphs.push(
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: altText.trim(),
-            italics: true,
-            size: 18, // 9pt
-            color: '64748B',
-            font: 'PingFang SC',
-          }),
-        ],
-        alignment: AlignmentType.CENTER,
-        spacing: { after: 180 },
-      }),
-    );
-  }
-
-  return paragraphs;
-}
-
-/**
- * Recursively converts DOM elements into structured docx Paragraphs, Tables, and Images
- */
-async function convertHtmlNodeToDocxElements(
-  node: Node,
-  pageUrl?: string,
-): Promise<(Paragraph | Table)[]> {
-  const elements: (Paragraph | Table)[] = [];
-
-  if (node.nodeType === Node.TEXT_NODE) {
-    const text = (node.textContent || '').trim();
-    if (text) {
-      elements.push(
-        new Paragraph({
+  // Header row
+  if (table.headers.length > 0) {
+    const headerCells = table.headers.map(
+      (headerText) =>
+        new TableCell({
           children: [
-            new TextRun({
-              text,
-              font: 'PingFang SC',
-              size: 22,
-              color: '1E293B',
-            }),
-          ],
-          spacing: { after: 140, line: 360 },
-        }),
-      );
-    }
-    return elements;
-  }
-
-  if (node.nodeType !== Node.ELEMENT_NODE) {
-    return elements;
-  }
-
-  const el = node as HTMLElement;
-  const tag = el.tagName.toLowerCase();
-
-  // 1. Skip non-content tags
-  if (['script', 'style', 'noscript', 'svg', 'canvas'].includes(tag)) {
-    return elements;
-  }
-
-  // 2. Direct Image
-  if (tag === 'img') {
-    const src = (el as HTMLImageElement).src || el.getAttribute('src') || '';
-    const alt = (el as HTMLImageElement).alt || el.getAttribute('alt') || el.getAttribute('title') || '';
-    if (src) {
-      const imgData = await fetchImageForDocx(src, pageUrl);
-      if (imgData) {
-        elements.push(...createImageDocxParagraphs(imgData, alt));
-      }
-    }
-    return elements;
-  }
-
-  // 3. Headings (h1 - h6)
-  if (/^h[1-6]$/.test(tag)) {
-    const levelNum = parseInt(tag[1] || '2', 10);
-    const headingLevels = [
-      HeadingLevel.HEADING_1,
-      HeadingLevel.HEADING_2,
-      HeadingLevel.HEADING_3,
-      HeadingLevel.HEADING_4,
-      HeadingLevel.HEADING_5,
-      HeadingLevel.HEADING_6,
-    ];
-    const sizes = [32, 28, 24, 22, 20, 20]; // 16pt, 14pt, 12pt, 11pt, 10pt, 10pt
-    const beforeSpacings = [240, 200, 160, 120, 100, 100];
-    const afterSpacings = [120, 100, 80, 60, 60, 60];
-
-    const inlineRuns = extractInlineNodes(el, {
-      bold: true,
-      size: sizes[levelNum - 1],
-      color: levelNum === 1 ? '0F172A' : levelNum === 2 ? '1E293B' : '334155',
-    });
-
-    if (inlineRuns.length > 0) {
-      elements.push(
-        new Paragraph({
-          children: inlineRuns,
-          heading: headingLevels[levelNum - 1] || HeadingLevel.HEADING_2,
-          spacing: {
-            before: beforeSpacings[levelNum - 1] || 160,
-            after: afterSpacings[levelNum - 1] || 80,
-          },
-        }),
-      );
-    }
-    return elements;
-  }
-
-  // 4. Blockquote
-  if (tag === 'blockquote') {
-    const inlineRuns = extractInlineNodes(el, { italics: true, color: '334155' });
-    if (inlineRuns.length > 0) {
-      elements.push(
-        new Paragraph({
-          children: inlineRuns,
-          indent: { left: 480 },
-          border: {
-            left: {
-              style: BorderStyle.SINGLE,
-              size: 16,
-              color: '3B82F6',
-              space: 8,
-            },
-          },
-          shading: {
-            type: ShadingType.CLEAR,
-            fill: 'F8FAFC',
-            color: 'auto',
-          },
-          spacing: { before: 120, after: 160, line: 340 },
-        }),
-      );
-    }
-    return elements;
-  }
-
-  // 5. Code Block
-  if (tag === 'pre') {
-    const rawCode = el.textContent || '';
-    if (rawCode.trim()) {
-      elements.push(
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: rawCode,
-              font: 'Consolas',
-              size: 19,
-              color: '0F172A',
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: headerText,
+                  bold: true,
+                  font: 'PingFang SC',
+                  size: 22,
+                  color: '1E293B',
+                }),
+              ],
+              spacing: { before: 80, after: 80 },
             }),
           ],
           shading: {
@@ -480,278 +295,273 @@ async function convertHtmlNodeToDocxElements(
             fill: 'F1F5F9',
             color: 'auto',
           },
-          indent: { left: 240, right: 240 },
-          spacing: { before: 100, after: 140 },
-        }),
-      );
-    }
-    return elements;
-  }
-
-  // 6. Lists (ul, ol)
-  if (tag === 'ul' || tag === 'ol') {
-    const isOrdered = tag === 'ol';
-    const items = Array.from(el.children).filter((c) => c.tagName.toLowerCase() === 'li');
-
-    for (let idx = 0; idx < items.length; idx++) {
-      const li = items[idx];
-      if (!li) continue;
-
-      const imgInLi = li.querySelector('img');
-      if (imgInLi) {
-        const src = imgInLi.src || imgInLi.getAttribute('src') || '';
-        const alt = imgInLi.alt || imgInLi.getAttribute('alt') || '';
-        if (src) {
-          const imgData = await fetchImageForDocx(src, pageUrl);
-          if (imgData) {
-            elements.push(...createImageDocxParagraphs(imgData, alt));
-          }
-        }
-      }
-
-      const prefix = isOrdered ? `${idx + 1}. ` : '• ';
-      const runs = extractInlineNodes(li);
-      if (runs.length > 0) {
-        elements.push(
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: prefix,
-                bold: isOrdered,
-                font: 'PingFang SC',
-                size: 22,
-                color: isOrdered ? '2563EB' : '64748B',
-              }),
-              ...runs,
-            ],
-            indent: { left: 400 },
-            spacing: { after: 100, line: 340 },
-          }),
-        );
-      }
-    }
-    return elements;
-  }
-
-  // 7. Table
-  if (tag === 'table') {
-    elements.push(convertHtmlTableToDocx(el));
-    elements.push(new Paragraph({ spacing: { after: 140 } }));
-    return elements;
-  }
-
-  // 8. Horizontal Rule (hr)
-  if (tag === 'hr') {
-    elements.push(
-      new Paragraph({
-        border: {
-          bottom: {
-            style: BorderStyle.SINGLE,
-            size: 2,
-            color: 'E2E8F0',
-            space: 4,
+          borders: {
+            top: borderStyle,
+            bottom: borderStyle,
+            left: borderStyle,
+            right: borderStyle,
           },
-        },
-        spacing: { before: 160, after: 160 },
-      }),
-    );
-    return elements;
-  }
-
-  // 9. Paragraph (<p>)
-  if (tag === 'p') {
-    const imagesInP = Array.from(el.querySelectorAll('img'));
-    if (imagesInP.length > 0) {
-      for (const imgEl of imagesInP) {
-        const src = imgEl.src || imgEl.getAttribute('src') || '';
-        const alt = imgEl.alt || imgEl.getAttribute('alt') || '';
-        if (src) {
-          const imgData = await fetchImageForDocx(src, pageUrl);
-          if (imgData) {
-            elements.push(...createImageDocxParagraphs(imgData, alt));
-          }
-        }
-      }
-
-      const clone = el.cloneNode(true) as HTMLElement;
-      clone.querySelectorAll('img').forEach((img) => img.remove());
-      const remainingRuns = extractInlineNodes(clone);
-      if (remainingRuns.length > 0 && clone.textContent?.trim()) {
-        elements.push(
-          new Paragraph({
-            children: remainingRuns,
-            spacing: { after: 140, line: 360 },
-          }),
-        );
-      }
-      return elements;
-    }
-
-    const inlineRuns = extractInlineNodes(el);
-    if (inlineRuns.length > 0) {
-      elements.push(
-        new Paragraph({
-          children: inlineRuns,
-          spacing: { after: 140, line: 360 },
+          margins: { top: 120, bottom: 120, left: 160, right: 160 },
         }),
-      );
-    }
-    return elements;
-  }
-
-  // 10. Container elements (div, section, article, main, figure, aside, header, footer, etc.)
-  const containerTags = [
-    'div',
-    'section',
-    'article',
-    'main',
-    'figure',
-    'figcaption',
-    'aside',
-    'header',
-    'footer',
-    'form',
-    'fieldset',
-    'details',
-    'summary',
-  ];
-
-  if (containerTags.includes(tag) || el.children.length > 0) {
-    for (let i = 0; i < el.childNodes.length; i++) {
-      const child = el.childNodes[i];
-      if (child) {
-        const childElements = await convertHtmlNodeToDocxElements(child, pageUrl);
-        elements.push(...childElements);
-      }
-    }
-    return elements;
-  }
-
-  // 11. Fallback for leaf inline elements
-  const leafRuns = extractInlineNodes(el);
-  if (leafRuns.length > 0) {
-    elements.push(
-      new Paragraph({
-        children: leafRuns,
-        spacing: { after: 140, line: 360 },
-      }),
     );
+    rows.push(new TableRow({ children: headerCells, tableHeader: true }));
   }
 
-  return elements;
+  // Data rows
+  table.rows.forEach((rowCells, rowIndex) => {
+    const cells = rowCells.map(
+      (cellText) =>
+        new TableCell({
+          children: [
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: cellText,
+                  font: 'PingFang SC',
+                  size: 22,
+                  color: '334155',
+                }),
+              ],
+              spacing: { before: 80, after: 80 },
+            }),
+          ],
+          shading:
+            rowIndex % 2 === 1
+              ? {
+                  type: ShadingType.CLEAR,
+                  fill: 'FAFAFA',
+                  color: 'auto',
+                }
+              : undefined,
+          borders: {
+            top: borderStyle,
+            bottom: borderStyle,
+            left: borderStyle,
+            right: borderStyle,
+          },
+          margins: { top: 120, bottom: 120, left: 160, right: 160 },
+        }),
+    );
+
+    if (cells.length > 0) {
+      rows.push(new TableRow({ children: cells }));
+    }
+  });
+
+  return new Table({
+    rows: rows.length > 0 ? rows : [new TableRow({ children: [new TableCell({ children: [] })] })],
+    width: {
+      size: 100,
+      type: WidthType.PERCENTAGE,
+    },
+  });
 }
 
 /**
- * Converts structured FlowBlocks into Docx elements as fallback or direct source
+ * Converts DocumentAST into docx content elements
  */
-async function convertFlowBlocksToDocxElements(
-  blocks: FlowBlock[],
+async function convertAstToDocxElements(
+  ast: DocumentAST,
   pageUrl?: string,
 ): Promise<(Paragraph | Table)[]> {
   const elements: (Paragraph | Table)[] = [];
 
-  for (const block of blocks) {
+  for (const block of ast.children) {
     if (block.type === 'heading') {
-      const level = block.level || 2;
-      const headingLevels = [
-        HeadingLevel.HEADING_1,
-        HeadingLevel.HEADING_2,
-        HeadingLevel.HEADING_3,
-        HeadingLevel.HEADING_4,
-        HeadingLevel.HEADING_5,
-        HeadingLevel.HEADING_6,
-      ];
-      const sizes = [32, 28, 24, 22, 20, 20];
-      elements.push(
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: block.text,
-              bold: true,
-              size: sizes[level - 1] || 24,
-              color: level === 1 ? '0F172A' : '1E293B',
-              font: 'PingFang SC',
-            }),
-          ],
-          heading: headingLevels[level - 1] || HeadingLevel.HEADING_2,
-          spacing: { before: 180, after: 90 },
+      const headingBlock = block as HeadingBlock;
+      let headingLevel: (typeof HeadingLevel)[keyof typeof HeadingLevel] = HeadingLevel.HEADING_1;
+      let fontSize = 32;
+
+      switch (headingBlock.level) {
+        case 1:
+          headingLevel = HeadingLevel.HEADING_1;
+          fontSize = 32; // 16pt
+          break;
+        case 2:
+          headingLevel = HeadingLevel.HEADING_2;
+          fontSize = 28; // 14pt
+          break;
+        case 3:
+          headingLevel = HeadingLevel.HEADING_3;
+          fontSize = 24; // 12pt
+          break;
+        default:
+          headingLevel = HeadingLevel.HEADING_4;
+          fontSize = 22; // 11pt
+      }
+
+      const runs = convertInlines(headingBlock.children, {
+        bold: true,
+        size: fontSize,
+        color: '0F172A',
+      });
+
+      if (runs.length > 0) {
+        elements.push(
+          new Paragraph({
+            heading: headingLevel,
+            children: runs,
+            spacing: { before: 240, after: 120 },
+          }),
+        );
+      }
+      continue;
+    }
+
+    if (block.type === 'paragraph') {
+      const runs = convertInlines((block as ParagraphBlock).children);
+      if (runs.length > 0) {
+        elements.push(
+          new Paragraph({
+            children: runs,
+            spacing: { after: 140, line: 360 },
+          }),
+        );
+      }
+      continue;
+    }
+
+    if (block.type === 'blockquote') {
+      const quoteInlines = extractQuoteInlines((block as QuoteBlock).children);
+      const runs = convertInlines(quoteInlines, {
+        color: '475569',
+        italics: true,
+      });
+
+      if (runs.length > 0) {
+        elements.push(
+          new Paragraph({
+            children: runs,
+            indent: { left: 720 },
+            border: {
+              left: {
+                style: BorderStyle.SINGLE,
+                size: 24,
+                color: '3B82F6',
+                space: 12,
+              },
+            },
+            spacing: { before: 140, after: 140, line: 340 },
+          }),
+        );
+      }
+      continue;
+    }
+
+    if (block.type === 'code') {
+      const codeBlock = block as CodeBlock;
+      const lines = codeBlock.code.split('\n');
+      const textRuns = lines.map((line, idx) =>
+        new TextRun({
+          text: line,
+          font: 'Consolas',
+          size: 19,
+          color: '0F172A',
+          break: idx < lines.length - 1 ? 1 : 0,
         }),
       );
-    } else if (block.type === 'paragraph') {
-      const lines = block.text.split('\n');
-      for (const line of lines) {
-        if (line.trim()) {
-          elements.push(
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: line.trim(),
-                  font: 'PingFang SC',
-                  size: 22,
-                  color: '1E293B',
-                }),
-              ],
-              spacing: { after: 140, line: 360 },
-            }),
-          );
-        }
-      }
-    } else if (block.type === 'blockquote') {
+
       elements.push(
         new Paragraph({
-          children: [
-            new TextRun({
-              text: block.text,
-              italics: true,
-              color: '334155',
-              font: 'PingFang SC',
-              size: 22,
-            }),
-          ],
-          indent: { left: 480 },
-          border: {
-            left: {
-              style: BorderStyle.SINGLE,
-              size: 16,
-              color: '3B82F6',
-              space: 8,
-            },
-          },
+          children: textRuns,
           shading: {
             type: ShadingType.CLEAR,
             fill: 'F8FAFC',
             color: 'auto',
           },
-          spacing: { before: 120, after: 160 },
+          border: {
+            top: { style: BorderStyle.SINGLE, size: 1, color: 'E2E8F0', space: 6 },
+            bottom: { style: BorderStyle.SINGLE, size: 1, color: 'E2E8F0', space: 6 },
+            left: { style: BorderStyle.SINGLE, size: 1, color: 'E2E8F0', space: 8 },
+            right: { style: BorderStyle.SINGLE, size: 1, color: 'E2E8F0', space: 8 },
+          },
+          spacing: { before: 160, after: 160 },
         }),
       );
-    } else if (block.type === 'list-item') {
+      continue;
+    }
+
+    if (block.type === 'list') {
+      const listBlock = block as ListBlock;
+      listBlock.items.forEach((item) => {
+        const itemInlines = extractQuoteInlines(item.children);
+        const runs = convertInlines(itemInlines);
+
+        if (runs.length > 0) {
+          elements.push(
+            new Paragraph({
+              children: runs,
+              bullet: listBlock.ordered ? undefined : { level: 0 },
+              spacing: { after: 80, line: 320 },
+            }),
+          );
+        }
+      });
+      continue;
+    }
+
+    if (block.type === 'table') {
+      elements.push(convertTableBlockToDocx(block as TableBlock));
+      continue;
+    }
+
+    if (block.type === 'image') {
+      const imgBlock = block as ImageBlock;
+      const imgData = await fetchImageForDocx(imgBlock.src, pageUrl || ast.metadata.url);
+      if (imgData) {
+        elements.push(
+          new Paragraph({
+            children: [
+              new ImageRun({
+                data: imgData.buffer,
+                transformation: {
+                  width: imgData.width,
+                  height: imgData.height,
+                },
+                type: imgData.type,
+              }),
+            ],
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 160, after: 160 },
+          }),
+        );
+      }
+      continue;
+    }
+
+    if (block.type === 'video') {
+      const videoBlock = block as VideoBlock;
       elements.push(
         new Paragraph({
           children: [
             new TextRun({
-              text: '• ',
-              bold: true,
+              text: `🎥 视频：${videoBlock.title || videoBlock.src}`,
               color: '2563EB',
+              underline: {},
               font: 'PingFang SC',
               size: 22,
-            }),
-            new TextRun({
-              text: block.text,
-              font: 'PingFang SC',
-              size: 22,
-              color: '1E293B',
             }),
           ],
-          indent: { left: 400 },
-          spacing: { after: 80 },
+          spacing: { before: 120, after: 120 },
         }),
       );
-    } else if (block.type === 'image' && block.src) {
-      const imgData = await fetchImageForDocx(block.src, pageUrl);
-      if (imgData) {
-        elements.push(...createImageDocxParagraphs(imgData, block.alt));
-      }
+      continue;
+    }
+
+    if (block.type === 'divider') {
+      elements.push(
+        new Paragraph({
+          border: {
+            bottom: {
+              style: BorderStyle.SINGLE,
+              size: 6,
+              color: 'E2E8F0',
+              space: 1,
+            },
+          },
+          spacing: { before: 180, after: 180 },
+        }),
+      );
     }
   }
 
@@ -759,7 +569,7 @@ async function convertFlowBlocksToDocxElements(
 }
 
 /**
- * Export HTML content and structured data as a rich Microsoft Word (.docx) document
+ * High-level exporter: Converts HTML snippet / GrabbedContent into a Word (.docx) file via Document AST
  */
 export async function exportWord(
   title: string,
@@ -768,137 +578,87 @@ export async function exportWord(
   pageUrl?: string,
   grabbedContent?: GrabbedContent,
 ): Promise<void> {
-  const cleanTitle = cleanDocumentTitle(title);
+  const cleanTitle = cleanDocumentTitle(title || grabbedContent?.tdk.title || '选区文档');
   const finalName = filename.endsWith('.docx') ? filename : `${filename}.docx`;
-  const exportDate = new Date().toLocaleDateString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 
-  const children: (Paragraph | Table)[] = [];
+  // 1. Build or normalize DocumentAST
+  let ast: DocumentAST;
+  if (grabbedContent) {
+    ast = convertGrabbedToAst(grabbedContent);
+  } else if (htmlContent && htmlContent.trim()) {
+    const rawAst = parseHtmlToAst(htmlContent, pageUrl);
+    ast = applyTransforms(rawAst, ...defaultAstTransforms);
+  } else {
+    ast = {
+      version: '1.0',
+      metadata: {
+        title: cleanTitle,
+        url: pageUrl || '',
+        capturedAt: Date.now(),
+        stats: { wordCount: 0, imageCount: 0, videoCount: 0, linkCount: 0, blockCount: 0 },
+      },
+      children: [
+        {
+          type: 'paragraph',
+          children: [{ type: 'text', value: '（暂无正文内容）' }],
+        },
+      ],
+    };
+  }
 
-  // 1. Document Title Header
-  children.push(
+  // 2. Build Document Header (Title + Metadata Banner)
+  const children: (Paragraph | Table)[] = [
     new Paragraph({
+      heading: HeadingLevel.TITLE,
       children: [
         new TextRun({
-          text: cleanTitle || '选区文档',
+          text: cleanTitle,
           bold: true,
-          size: 36, // 18pt
-          color: '0F172A',
           font: 'PingFang SC',
+          size: 40, // 20pt
+          color: '0F172A',
         }),
       ],
-      heading: HeadingLevel.TITLE,
-      spacing: { before: 100, after: 120 },
+      spacing: { after: 120 },
     }),
-  );
+  ];
 
-  // 2. Metadata (Source URL & Export Time)
-  const metaRuns: (TextRun | ExternalHyperlink)[] = [];
-  if (pageUrl) {
-    metaRuns.push(
-      new TextRun({
-        text: '来源网页: ',
-        size: 18, // 9pt
-        color: '64748B',
-        font: 'PingFang SC',
-      }),
-    );
-    metaRuns.push(
-      new ExternalHyperlink({
+  if (pageUrl || ast.metadata.url) {
+    const docUrl = pageUrl || ast.metadata.url;
+    children.push(
+      new Paragraph({
         children: [
           new TextRun({
-            text: pageUrl,
-            size: 18,
-            color: '2563EB',
-            underline: {},
+            text: `来源：${docUrl}   |   采集时间：${new Date(ast.metadata.capturedAt || Date.now()).toLocaleString()}`,
+            color: '64748B',
             font: 'PingFang SC',
+            size: 18, // 9pt
           }),
         ],
-        link: pageUrl,
-      }),
-    );
-    metaRuns.push(
-      new TextRun({
-        text: '   |   ',
-        size: 18,
-        color: 'CBD5E1',
-        font: 'PingFang SC',
-      }),
-    );
-  }
-
-  metaRuns.push(
-    new TextRun({
-      text: `采集时间: ${exportDate}`,
-      size: 18,
-      color: '64748B',
-      font: 'PingFang SC',
-    }),
-  );
-
-  children.push(
-    new Paragraph({
-      children: metaRuns,
-      spacing: { after: 260 },
-      border: {
-        bottom: {
-          style: BorderStyle.SINGLE,
-          size: 6,
-          color: '3B82F6',
-          space: 8,
+        spacing: { after: 200 },
+        border: {
+          bottom: {
+            style: BorderStyle.SINGLE,
+            size: 6,
+            color: '3B82F6',
+            space: 8,
+          },
         },
-      },
-    }),
-  );
-
-  // 3. Process Content Body via Deep DOM Traversal
-  let contentElements: (Paragraph | Table)[] = [];
-
-  if (htmlContent && htmlContent.trim()) {
-    try {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(htmlContent, 'text/html');
-      for (let i = 0; i < doc.body.childNodes.length; i++) {
-        const node = doc.body.childNodes[i];
-        if (node) {
-          const subElements = await convertHtmlNodeToDocxElements(node, pageUrl);
-          contentElements.push(...subElements);
-        }
-      }
-    } catch (err) {
-      console.warn('DOM parser failed for exportWord, falling back to FlowBlocks:', err);
-    }
+      }),
+    );
   }
 
-  // 4. Fallback to Structured FlowBlocks if HTML produced few or empty elements
-  if (contentElements.length === 0) {
-    if (grabbedContent) {
-      const flowBlocks = parseHtmlToFlowBlocks(
-        grabbedContent.selectedHtml,
-        grabbedContent.selectedText,
-        grabbedContent.images || [],
-      );
-      contentElements = await convertFlowBlocksToDocxElements(flowBlocks, pageUrl);
-    } else if (htmlContent) {
-      const flowBlocks = parseHtmlToFlowBlocks(htmlContent, '', []);
-      contentElements = await convertFlowBlocksToDocxElements(flowBlocks, pageUrl);
-    }
-  }
-
+  // 3. Convert AST Blocks to docx Elements
+  const contentElements = await convertAstToDocxElements(ast, pageUrl || ast.metadata.url);
   children.push(...contentElements);
 
-  // Fallback if still empty
+  // Fallback if empty
   if (children.length <= 2) {
     children.push(
       new Paragraph({
         children: [
           new TextRun({
-            text: grabbedContent?.selectedText || '（暂无正文内容）',
+            text: '（暂无正文内容）',
             font: 'PingFang SC',
             size: 22,
             color: '64748B',
@@ -908,6 +668,7 @@ export async function exportWord(
     );
   }
 
+  // 4. Assemble Word Document
   const wordDoc = new Document({
     sections: [
       {

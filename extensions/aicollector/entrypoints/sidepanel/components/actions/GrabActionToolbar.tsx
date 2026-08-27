@@ -33,6 +33,7 @@ import { MarkdownEditModal } from '../modals/MarkdownEditModal';
 import { PosterModal } from '../modals/PosterModal';
 import { SummaryCoverModal } from '../modals/SummaryCoverModal';
 import { ContentImageModal } from '../modals/ContentImageModal';
+import { ScreenshotModal } from '../modals/ScreenshotModal';
 
 interface GrabActionToolbarProps {
   grabbedContent: GrabbedContent;
@@ -43,6 +44,7 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
   const [showPosterModal, setShowPosterModal] = useState(false);
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [showContentImageModal, setShowContentImageModal] = useState(false);
+  const [showScreenshotModal, setShowScreenshotModal] = useState(false);
   const [isActionsExpanded, setIsActionsExpanded] = useState(true);
 
   // Toast / feedback states
@@ -75,12 +77,17 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
     });
   };
 
-  // 3. Generate Content Image Modal
+  // 3. Open Area Screenshot Modal
+  const handleOpenScreenshot = () => {
+    setShowScreenshotModal(true);
+  };
+
+  // 4. Generate Content Image Modal
   const handleGenerateImage = () => {
     setShowContentImageModal(true);
   };
 
-  // 4. Export Document AST JSON (.json)
+  // 5. Export Document AST JSON (.json)
   const handleExportJson = () => {
     try {
       const ast = convertGrabbedToAst(grabbedContent);
@@ -145,9 +152,9 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
   // 8. Download PDF (Print View)
   const handleExportPdf = () => {
     exportPdf(title, grabbedContent.selectedHtml, grabbedContent.url, grabbedContent);
-    toast.info('已开启打印 / 导出 PDF 视图', {
-      description: '请在打印窗口中选择「另存为 PDF」',
-      timeout: 2500,
+    toast.info('已开启 PDF 预览页面', {
+      description: '请在顶部点击「立即打印 / 另存为 PDF」完成保存',
+      timeout: 3000,
     });
   };
 
@@ -198,9 +205,15 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
       onClick: handleCopyCleanUrl,
     },
     {
+      id: 'area_screenshot',
+      label: '区域截图',
+      icon: <Camera className="w-4 h-4 text-emerald-500 group-hover:scale-110 transition-transform" />,
+      onClick: handleOpenScreenshot,
+    },
+    {
       id: 'content_image',
       label: '生成图片',
-      icon: <Camera className="w-4 h-4 text-indigo-500 group-hover:scale-110 transition-transform" />,
+      icon: <ImageIcon className="w-4 h-4 text-indigo-500 group-hover:scale-110 transition-transform" />,
       onClick: handleGenerateImage,
     },
     {
@@ -331,6 +344,13 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
         <ContentImageModal
           grabbedContent={grabbedContent}
           onClose={() => setShowContentImageModal(false)}
+        />
+      )}
+
+      {showScreenshotModal && (
+        <ScreenshotModal
+          grabbedContent={grabbedContent}
+          onClose={() => setShowScreenshotModal(false)}
         />
       )}
     </div>

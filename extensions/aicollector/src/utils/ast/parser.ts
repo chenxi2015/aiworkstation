@@ -36,6 +36,68 @@ const IGNORED_TAGS = new Set([
   'select',
 ]);
 
+const NOISE_CLASS_PATTERNS = [
+  /player-ctrl/i,
+  /player-control/i,
+  /video-control/i,
+  /video-ctrl/i,
+  /video-source/i,
+  /wx[-_]?video/i,
+  /bpx-player-ctrl/i,
+  /bpx-player-control/i,
+  /txp_controls/i,
+  /dplayer-controller/i,
+  /prism-controlbar/i,
+  /xgplayer-controls/i,
+  /vjs-control/i,
+  /plyr__controls/i,
+  /play-rate/i,
+  /playback-rate/i,
+  /quality-menu/i,
+  /danmaku/i,
+  /volume-panel/i,
+  /progress[-_]?bar/i,
+  /time[-_]?panel/i,
+  /time[-_]?total/i,
+  /time[-_]?current/i,
+];
+
+/**
+ * Checks if an element is a video player control or interactive floating noise
+ */
+function isNoiseElement(el: HTMLElement): boolean {
+  const className = typeof el.className === 'string' ? el.className : '';
+  const id = el.id || '';
+  if (NOISE_CLASS_PATTERNS.some((pattern) => pattern.test(className) || pattern.test(id))) {
+    return true;
+  }
+
+  // Check accessibility and ARIA noise labels (e.g. progress bars, player buttons)
+  const ariaLabel = el.getAttribute('aria-label') || '';
+  if (ariaLabel && /进度条|播放|暂停|全屏|音量|倍速|弹幕|清晰度|重播|分享/i.test(ariaLabel)) {
+    return true;
+  }
+
+  const role = el.getAttribute('role');
+  if (role === 'slider' || role === 'progressbar') {
+    return true;
+  }
+
+  // Check live visual visibility if element is connected to active DOM
+  if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function' && el.isConnected) {
+    try {
+      const style = window.getComputedStyle(el);
+      if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+        return true;
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  return false;
+}
+
 const LAZY_IMAGE_ATTRS = [
   'data-src',
   'data-original',
@@ -46,7 +108,10 @@ const LAZY_IMAGE_ATTRS = [
   'data-origin-src',
   'data-echo',
   'data-zoom-src',
+  'data-croporisrc',
   'data-pic',
+  'data-cover',
+  'data-img-url',
   'data-url',
   'src',
 ];
@@ -58,12 +123,114 @@ function resolveImageSource(img: HTMLImageElement, pageUrl?: string): string {
   const dataType = img.getAttribute('data-type');
   for (const attr of LAZY_IMAGE_ATTRS) {
     const val = img.getAttribute(attr);
-    if (val && !val.startsWith('data:image/svg') && !val.includes('spacer.gif')) {
+    if (
+      val &&
+      !val.startsWith('data:image/svg') &&
+      !val.includes('spacer.gif') &&
+      !val.startsWith('chrome-extension://') &&
+      !val.startsWith('moz-extension://')
+    ) {
       const normalized = normalizeImageUrl(val, pageUrl, dataType);
       if (normalized) return normalized;
     }
   }
-  return img.src ? normalizeImageUrl(img.src, pageUrl, dataType) || '' : '';
+  if (!img.src || img.src.startsWith('chrome-extension://') || img.src.startsWith('moz-extension://')) {
+    return '';
+  }
+  return normalizeImageUrl(img.src, pageUrl, dataType) || '';
+}
+
+/**
+ * Recursively parses nodes that might contain inline text interleaved with media blocks (img, video)
+ */
+function parseNodesWithMedia(nodes: NodeListOf<ChildNode> | Node[], pageUrl?: string): BlockNode[] {
+  const blocks: BlockNode[] = [];
+  let currentInlines: InlineNode[] = [];
+
+  const flushInlines = () => {
+    if (currentInlines.length > 0) {
+      const hasContent = currentInlines.some((node) => {
+        if (node.type === 'text') return node.value.trim().length > 0;
+        return true;
+      });
+      if (hasContent) {
+        blocks.push({ type: 'paragraph', children: [...currentInlines] });
+      }
+      currentInlines = [];
+    }
+  };
+
+  for (const node of Array.from(nodes)) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent || '';
+      if (text) {
+        currentInlines.push({ type: 'text', value: text });
+      }
+      continue;
+    }
+
+    if (node.nodeType !== Node.ELEMENT_NODE) {
+      continue;
+    }
+
+    const el = node as HTMLElement;
+    const tag = el.tagName.toLowerCase();
+
+    if (IGNORED_TAGS.has(tag) || isNoiseElement(el)) {
+      continue;
+    }
+
+    if (tag === 'img') {
+      flushInlines();
+      const src = resolveImageSource(el as HTMLImageElement, pageUrl);
+      if (src) {
+        blocks.push({
+          type: 'image',
+          src,
+          alt: (el as HTMLImageElement).alt || undefined,
+          title: el.getAttribute('title') || undefined,
+        });
+      }
+      continue;
+    }
+
+    if (tag === 'video') {
+      flushInlines();
+      const videoEl = el as HTMLVideoElement;
+      const src = videoEl.currentSrc || videoEl.src || videoEl.querySelector('source')?.src || '';
+      if (src) {
+        blocks.push({
+          type: 'video',
+          src,
+          poster: videoEl.poster || undefined,
+          title: el.getAttribute('title') || undefined,
+        });
+      }
+      continue;
+    }
+
+    // Check if this container has nested images or videos (e.g. <span><img /></span>)
+    const hasMedia = el.querySelector('img, video') !== null;
+    if (hasMedia) {
+      const childBlocks = parseNodesWithMedia(el.childNodes, pageUrl);
+      for (const childBlock of childBlocks) {
+        if (childBlock.type === 'paragraph') {
+          currentInlines.push(...childBlock.children);
+        } else {
+          flushInlines();
+          blocks.push(childBlock);
+        }
+      }
+      continue;
+    }
+
+    // Pure inline container (e.g. span, strong, a, em) without media
+    const inlines = parseInlineNodes(el, pageUrl);
+    currentInlines.push(...inlines);
+  }
+
+  flushInlines();
+  return blocks;
 }
 
 /**
@@ -83,7 +250,7 @@ export function parseInlineNodes(node: Node, pageUrl?: string): InlineNode[] {
   const el = node as HTMLElement;
   const tag = el.tagName.toLowerCase();
 
-  if (IGNORED_TAGS.has(tag)) {
+  if (IGNORED_TAGS.has(tag) || isNoiseElement(el)) {
     return [];
   }
 
@@ -245,7 +412,7 @@ export function parseElementToBlocks(element: HTMLElement, pageUrl?: string): Bl
   const blocks: BlockNode[] = [];
   const tag = element.tagName.toLowerCase();
 
-  if (IGNORED_TAGS.has(tag)) {
+  if (IGNORED_TAGS.has(tag) || isNoiseElement(element)) {
     return [];
   }
 
@@ -323,6 +490,10 @@ export function parseElementToBlocks(element: HTMLElement, pageUrl?: string): Bl
 
   // 9. Paragraph (<p>)
   if (tag === 'p') {
+    const hasMedia = element.querySelector('img, video') !== null;
+    if (hasMedia) {
+      return parseNodesWithMedia(element.childNodes, pageUrl);
+    }
     const inlines = parseInlineNodes(element, pageUrl);
     if (inlines.length > 0) {
       blocks.push({ type: 'paragraph', children: inlines });
@@ -330,7 +501,30 @@ export function parseElementToBlocks(element: HTMLElement, pageUrl?: string): Bl
     return blocks;
   }
 
-  // 10. Container Elements (div, article, section, main, etc.)
+  // 10. Container Elements (div, article, section, main, figure, etc.)
+  // Check if container is a video player wrapper: extract clean video and isolate from UI noise
+  const isVideoWrapper =
+    /wx[-_]?video[-_]?(?:wrap|player|box)|video[-_]?player[-_]?(?:wrap|box|container)|bpx-player-container|dplayer|xgplayer|plyr|video-js|feed[-_]?video/i.test(
+      element.className || '',
+    ) || element.getAttribute('data-role') === 'video-player';
+
+  if (isVideoWrapper) {
+    const videoEl = element.querySelector('video');
+    if (videoEl) {
+      const src = videoEl.currentSrc || videoEl.src || videoEl.querySelector('source')?.src || '';
+      if (src) {
+        return [
+          {
+            type: 'video',
+            src,
+            poster: videoEl.poster || undefined,
+            title: videoEl.getAttribute('title') || element.getAttribute('title') || undefined,
+          },
+        ];
+      }
+    }
+  }
+
   // Check if container contains nested block-level elements
   const hasNestedBlocks = Array.from(element.children).some((child) =>
     /^(div|p|h[1-6]|ul|ol|pre|blockquote|table|section|article|figure)$/i.test(child.tagName),
@@ -341,10 +535,15 @@ export function parseElementToBlocks(element: HTMLElement, pageUrl?: string): Bl
       blocks.push(...parseElementToBlocks(child as HTMLElement, pageUrl));
     }
   } else {
-    // Leaf container: treat as paragraph if containing meaningful text/elements
-    const inlines = parseInlineNodes(element, pageUrl);
-    if (inlines.length > 0) {
-      blocks.push({ type: 'paragraph', children: inlines });
+    // Leaf container: may contain text, inlines, or direct/nested images & videos
+    const hasMedia = element.querySelector('img, video') !== null;
+    if (hasMedia) {
+      blocks.push(...parseNodesWithMedia(element.childNodes, pageUrl));
+    } else {
+      const inlines = parseInlineNodes(element, pageUrl);
+      if (inlines.length > 0) {
+        blocks.push({ type: 'paragraph', children: inlines });
+      }
     }
   }
 

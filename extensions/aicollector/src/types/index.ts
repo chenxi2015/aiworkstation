@@ -41,6 +41,13 @@ export interface GrabbedContent {
   images: string[];
   videos?: GrabbedVideo[];
   links: string[];
+  screenshot?: string;
+  pageRect?: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  };
   createdAt: number;
 }
 
@@ -81,5 +88,10 @@ export type ExtensionMessage =
   | { type: 'GET_PAGE_TDK' }
   | { type: 'PAGE_TDK_RESULT'; payload: PageTDK }
   | { type: 'ELEMENT_GRABBED'; payload: GrabbedContent }
+  | { type: 'CAPTURE_VISIBLE_TAB' }
+  | {
+      type: 'CAPTURE_AREA_SCREENSHOT';
+      payload: { pageRect: { left: number; top: number; width: number; height: number } };
+    }
   | { type: 'SYNC_BOOKMARK_EVENT'; payload: { action: 'create' | 'remove'; item: BookmarkItem } }
   | { type: 'SYNC_LOG_UPDATE'; payload: SyncLogItem };

@@ -35,6 +35,18 @@ export function extractCover(grabbedContent: GrabbedContent): CoverInfo | null {
     };
   }
 
+  // 2.5 Video poster in the grabbed element selection
+  if (
+    grabbedContent.videos &&
+    grabbedContent.videos.length > 0 &&
+    grabbedContent.videos[0]?.poster
+  ) {
+    return {
+      url: grabbedContent.videos[0].poster,
+      source: 'selection',
+    };
+  }
+
   // 3. Favicon as fallback if available
   if (grabbedContent.tdk.favicon) {
     return {

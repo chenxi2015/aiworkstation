@@ -137,8 +137,24 @@ export default defineBackground(() => {
     await appendSyncLog(log);
   });
 
-  // 4. Background image fetch proxy with no-referrer bypass
-  chrome.runtime.onMessage.addListener((message: any, _sender: any, sendResponse: (response?: any) => void) => {
+  // 4. Background image fetch proxy with no-referrer bypass & Tab capture proxy
+  chrome.runtime.onMessage.addListener((message: any, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
+    if (message.type === 'CAPTURE_VISIBLE_TAB') {
+      const windowId = sender.tab?.windowId ?? chrome.windows?.WINDOW_ID_CURRENT;
+      chrome.tabs.captureVisibleTab(windowId, { format: 'png' }, (dataUrl) => {
+        if (chrome.runtime.lastError || !dataUrl) {
+          console.warn('[AI Collector] Capture visible tab error:', chrome.runtime.lastError);
+          sendResponse({
+            success: false,
+            error: chrome.runtime.lastError?.message || 'Failed to capture visible tab',
+          });
+        } else {
+          sendResponse({ success: true, dataUrl });
+        }
+      });
+      return true; // Keep async response channel open
+    }
+
     if (message.type === 'FETCH_IMAGE_DATA' && message.url) {
       const { url } = message;
 

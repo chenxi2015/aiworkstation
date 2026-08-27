@@ -3,6 +3,7 @@ import { extractPageTDK } from './tdk';
 import { extractImagesFromElement } from './imageExtractor';
 import { extractVideosFromElement } from './videoExtractor';
 import { normalizeHtml } from './htmlNormalizer';
+import { captureAndCropArea, type AreaPageRect } from './screenshotHelper';
 
 interface SelectionBoxRect {
   left: number;
@@ -470,18 +471,82 @@ export class VisualGrabber {
 
   // ── Confirm & Submit ────────────────────────────────────────────
 
-  private confirmGrab(el: HTMLElement): void {
+  private async confirmGrab(el: HTMLElement): Promise<void> {
+    const clientRect = el.getBoundingClientRect();
+    const pageRect: AreaPageRect = {
+      left: clientRect.left + window.scrollX,
+      top: clientRect.top + window.scrollY,
+      width: clientRect.width,
+      height: clientRect.height,
+    };
+
+    // Temporarily hide overlay UI
+    if (this.container) {
+      this.container.style.display = 'none';
+    }
+
+    // Only capture immediately if fully visible in current viewport without scrolling.
+    // For long / cross-screen elements, defer multi-screen scrolling capture until user clicks "区域截图".
+    const viewportW = window.innerWidth || document.documentElement.clientWidth || 1;
+    const viewportH = window.innerHeight || document.documentElement.clientHeight || 1;
+    const isFullyVisibleInViewport =
+      pageRect.height <= viewportH &&
+      pageRect.width <= viewportW &&
+      clientRect.top >= 0 &&
+      clientRect.bottom <= viewportH &&
+      clientRect.left >= 0 &&
+      clientRect.right <= viewportW;
+
+    let screenshot: string | undefined = undefined;
+    if (isFullyVisibleInViewport) {
+      await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 30)));
+      screenshot = await captureAndCropArea(pageRect);
+    }
+
+    const content = this.extractContent(el, screenshot, pageRect);
+
     chrome.runtime.sendMessage({
       type: 'ELEMENT_GRABBED',
-      payload: this.extractContent(el),
+      payload: content,
     });
     this.stop(false);
   }
 
-  private confirmAreaGrab(rect: SelectionBoxRect): void {
+  private async confirmAreaGrab(rect: SelectionBoxRect): Promise<void> {
+    const pageRect: AreaPageRect = {
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+    };
+
+    // Temporarily hide overlay UI
+    if (this.container) {
+      this.container.style.display = 'none';
+    }
+
+    // Only capture immediately if fully visible in current viewport without scrolling
+    const viewportW = window.innerWidth || document.documentElement.clientWidth || 1;
+    const viewportH = window.innerHeight || document.documentElement.clientHeight || 1;
+    const isFullyVisibleInViewport =
+      rect.height <= viewportH &&
+      rect.width <= viewportW &&
+      rect.top >= window.scrollY &&
+      rect.top + rect.height <= window.scrollY + viewportH &&
+      rect.left >= window.scrollX &&
+      rect.left + rect.width <= window.scrollX + viewportW;
+
+    let screenshot: string | undefined = undefined;
+    if (isFullyVisibleInViewport) {
+      await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 30)));
+      screenshot = await captureAndCropArea(pageRect);
+    }
+
+    const content = this.extractAreaContent(rect, screenshot, pageRect);
+
     chrome.runtime.sendMessage({
       type: 'ELEMENT_GRABBED',
-      payload: this.extractAreaContent(rect),
+      payload: content,
     });
     this.stop(false);
   }
@@ -510,7 +575,11 @@ export class VisualGrabber {
 
   // ── Content Extraction ──────────────────────────────────────────
 
-  private extractContent(el: HTMLElement): GrabbedContent {
+  private extractContent(
+    el: HTMLElement,
+    screenshot?: string,
+    pageRect?: AreaPageRect,
+  ): GrabbedContent {
     const rect = el.getBoundingClientRect();
     const tdk = extractPageTDK(document);
     const images = extractImagesFromElement(el, window.location.href);
@@ -536,6 +605,15 @@ export class VisualGrabber {
       images,
       videos,
       links,
+      screenshot,
+      pageRect: pageRect
+        ? {
+            left: Math.round(pageRect.left),
+            top: Math.round(pageRect.top),
+            width: Math.round(pageRect.width),
+            height: Math.round(pageRect.height),
+          }
+        : undefined,
       createdAt: Date.now(),
     };
   }
@@ -545,7 +623,11 @@ export class VisualGrabber {
    *
    * Evaluates all elements in document/page coordinates for scroll-independent accuracy.
    */
-  private extractAreaContent(rect: SelectionBoxRect): GrabbedContent {
+  private extractAreaContent(
+    rect: SelectionBoxRect,
+    screenshot?: string,
+    pageRect?: AreaPageRect,
+  ): GrabbedContent {
     const tdk = extractPageTDK(document);
     const allElements = Array.from(document.querySelectorAll<HTMLElement>('body *'));
     const selectionArea = rect.width * rect.height;
@@ -756,6 +838,7 @@ export class VisualGrabber {
       images: allImages,
       videos: allVideos,
       links: allLinks,
+      screenshot,
       createdAt: Date.now(),
     };
   }

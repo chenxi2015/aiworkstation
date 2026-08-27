@@ -28,11 +28,65 @@ const LAZY_ATTRS = [
 ];
 
 /**
- * Normalizes HTML by resolving relative URLs and restoring lazy-loaded image sources
+ * Checks if a live DOM element is visually hidden, zero-dimension, or invisible overlay
+ */
+export function isVisuallyHidden(el: HTMLElement): boolean {
+  if (typeof window === 'undefined' || typeof window.getComputedStyle !== 'function') {
+    return false;
+  }
+
+  // Never filter out core media containers or media items directly
+  const tag = el.tagName.toLowerCase();
+  if (tag === 'video' || tag === 'audio' || tag === 'source') {
+    return false;
+  }
+
+  try {
+    const style = window.getComputedStyle(el);
+    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+      return true;
+    }
+
+    // Check for aria-hidden screen-reader or zero-dimension floating overlay (excluding images/videos)
+    if (el.getAttribute('aria-hidden') === 'true' && !el.querySelector('img, video')) {
+      return true;
+    }
+
+    // Positioned zero-dimension elements without media children
+    if (
+      style.position === 'absolute' &&
+      el.offsetWidth === 0 &&
+      el.offsetHeight === 0 &&
+      !el.querySelector('img, video')
+    ) {
+      return true;
+    }
+  } catch {
+    // Ignore error on detached elements
+  }
+
+  return false;
+}
+
+/**
+ * Normalizes HTML by resolving relative URLs, removing invisible DOM clutter, and restoring lazy images
  */
 export function normalizeHtml(element: HTMLElement, baseUrl: string): string {
   // Clone element to prevent mutations on active DOM
   const clone = element.cloneNode(true) as HTMLElement;
+
+  // 0. Remove visually hidden and zero-dimension noise nodes from live tree
+  if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
+    const liveChildren = Array.from(element.querySelectorAll<HTMLElement>('*'));
+    const cloneChildren = Array.from(clone.querySelectorAll<HTMLElement>('*'));
+    for (let i = 0; i < liveChildren.length; i++) {
+      const liveNode = liveChildren[i];
+      const cloneNode = cloneChildren[i];
+      if (liveNode && cloneNode && isVisuallyHidden(liveNode)) {
+        cloneNode.remove();
+      }
+    }
+  }
 
   // 1. Remove dangerous script and iframe elements
   const hazardousElements = clone.querySelectorAll('script, noscript, iframe');
