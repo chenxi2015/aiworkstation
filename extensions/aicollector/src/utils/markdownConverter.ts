@@ -1,3 +1,5 @@
+import { normalizeImageUrl } from './imageExtractor';
+
 /**
  * Lightweight HTML to Markdown converter utility
  */
@@ -91,17 +93,27 @@ function nodeToMarkdown(node: Node, pageUrl?: string): string {
     }
 
     case 'img': {
+      const dataType = element.getAttribute('data-type');
       let src =
         element.getAttribute('src') ||
         element.getAttribute('data-src') ||
         element.getAttribute('data-original') ||
+        element.getAttribute('data-actualsrc') ||
+        element.getAttribute('data-lazy-src') ||
+        element.getAttribute('data-origin-src') ||
         '';
-      if (src && pageUrl && !src.startsWith('http') && !src.startsWith('//') && !src.startsWith('data:')) {
-        try {
-          src = new URL(src, pageUrl).toString();
-        } catch {
-          // ignore
-        }
+
+      if (src && (src.startsWith('data:image/svg+xml') || src.startsWith('data:image/gif'))) {
+        src =
+          element.getAttribute('data-src') ||
+          element.getAttribute('data-original') ||
+          element.getAttribute('data-actualsrc') ||
+          '';
+      }
+
+      if (src && pageUrl) {
+        const normalized = normalizeImageUrl(src, pageUrl, dataType);
+        if (normalized) src = normalized;
       }
       const alt = element.getAttribute('alt') || 'image';
       return src ? `\n\n![${alt}](${src})\n\n` : '';

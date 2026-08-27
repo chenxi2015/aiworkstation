@@ -13,29 +13,38 @@ interface SelectionBoxRect {
 }
 
 /**
- * Visual Element Grabber
+ * Visual Element Grabber with Two-Point (Start + End) Range Selection
  *
- * - Hover: mouse movement highlights elements
- * - Click: immediately grabs the highlighted element
- * - Drag: hold mouse and drag to draw a selection box, grabs area content on release
- * - Arrow keys: ↑ expand to parent, ↓ shrink to child
- * - Esc: exit grab mode
+ * Core Selection Flow:
+ * 1. Click Point 1 (Start Point): Locks the start position in document coordinates.
+ * 2. Move Mouse: Live selection box stretches smoothly from Start Point to current cursor.
+ * 3. Click Point 2 (End Point): Immediately grabs all elements, paragraphs, and images enclosed in the rectangle.
+ * 4. Drag & Release: Also supported natively (press & drag over any area).
+ * 5. Esc: Cancel start point or exit.
  */
 export class VisualGrabber {
   private active = false;
-  private currentElement: HTMLElement | null = null;
-  private container: HTMLDivElement | null = null;
-  private overlayBox: HTMLDivElement | null = null;
-  private badge: HTMLDivElement | null = null;
-  private banner: HTMLDivElement | null = null;
-  private dragBox: HTMLDivElement | null = null;
-  private dragBadge: HTMLDivElement | null = null;
+  private currentHoverElement: HTMLElement | null = null;
 
-  // Drag state
+  // Two-Point Selection State
+  private startPoint: { x: number; y: number; el?: HTMLElement } | null = null;
+  private lastMousePage = { x: 0, y: 0 };
+  private lastClientY = 0;
+
+  // Drag state (for mouse hold & drag)
   private isMouseDown = false;
   private isDragging = false;
-  private dragStart = { x: 0, y: 0 };
-  private dragCurrent = { x: 0, y: 0 };
+  private dragStartPage = { x: 0, y: 0 };
+  private autoScrollTimer: number | null = null;
+
+  // DOM Elements
+  private container: HTMLDivElement | null = null;
+  private hoverOverlayBox: HTMLDivElement | null = null;
+  private hoverBadge: HTMLDivElement | null = null;
+  private startMarker: HTMLDivElement | null = null;
+  private selectionBox: HTMLDivElement | null = null;
+  private selectionBadge: HTMLDivElement | null = null;
+  private banner: HTMLDivElement | null = null;
 
   constructor() {
     this.handleMouseMove = this.handleMouseMove.bind(this);
@@ -44,11 +53,13 @@ export class VisualGrabber {
     this.handleClick = this.handleClick.bind(this);
     this.handleKeyDown = this.handleKeyDown.bind(this);
     this.handleScroll = this.handleScroll.bind(this);
+    this.handleNativeDragStart = this.handleNativeDragStart.bind(this);
   }
 
   public start(): void {
     if (this.active) return;
     this.active = true;
+    this.startPoint = null;
     this.createOverlay();
     this.attachEvents();
     try {
@@ -60,10 +71,12 @@ export class VisualGrabber {
 
   public stop(notifyCancel = true): void {
     if (!this.active) return;
+    this.stopAutoScroll();
     this.active = false;
     this.detachEvents();
     this.removeOverlay();
-    this.currentElement = null;
+    this.currentHoverElement = null;
+    this.startPoint = null;
     this.isMouseDown = false;
     this.isDragging = false;
     document.body.style.userSelect = '';
@@ -77,7 +90,7 @@ export class VisualGrabber {
     return this.active;
   }
 
-  // ── Overlay ─────────────────────────────────────────────────────
+  // ── Overlay UI Creation ─────────────────────────────────────────
 
   private createOverlay(): void {
     this.container = document.createElement('div');
@@ -90,21 +103,20 @@ export class VisualGrabber {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     `;
 
-    // Highlight bounding box
-    this.overlayBox = document.createElement('div');
-    this.overlayBox.style.cssText = `
+    // 1. Hover Highlight Box
+    this.hoverOverlayBox = document.createElement('div');
+    this.hoverOverlayBox.style.cssText = `
       position: absolute;
       border: 2px solid #6366f1;
-      background-color: rgba(99, 102, 241, 0.10);
+      background-color: rgba(99, 102, 241, 0.08);
       border-radius: 4px;
-      transition: all 0.08s ease-out;
+      transition: all 0.06s ease-out;
       pointer-events: none;
       box-shadow: 0 0 0 1px rgba(255,255,255,0.6), 0 4px 20px rgba(99,102,241,0.25);
       display: none;
     `;
-
-    this.badge = document.createElement('div');
-    this.badge.style.cssText = `
+    this.hoverBadge = document.createElement('div');
+    this.hoverBadge.style.cssText = `
       position: absolute; top: -28px; left: 0;
       background: #4f46e5; color: #fff;
       padding: 3px 8px; border-radius: 4px;
@@ -112,32 +124,48 @@ export class VisualGrabber {
       white-space: nowrap; pointer-events: none;
       box-shadow: 0 2px 6px rgba(0,0,0,0.2);
     `;
-    this.overlayBox.appendChild(this.badge);
+    this.hoverOverlayBox.appendChild(this.hoverBadge);
 
-    // Drag rubberband box
-    this.dragBox = document.createElement('div');
-    this.dragBox.style.cssText = `
+    // 2. Start Point Marker Badge (🚩 起点)
+    this.startMarker = document.createElement('div');
+    this.startMarker.style.cssText = `
       position: absolute;
-      border: 2px dashed #6366f1;
-      background-color: rgba(99, 102, 241, 0.15);
+      background: #16a34a; color: #fff;
+      padding: 3px 10px; border-radius: 12px;
+      font-size: 11px; font-weight: 700;
+      white-space: nowrap; pointer-events: none;
+      box-shadow: 0 0 0 2px #fff, 0 4px 12px rgba(22,163,74,0.4);
+      z-index: 2147483647;
+      display: none;
+      transform: translate(-50%, -100%);
+      margin-top: -6px;
+    `;
+    this.startMarker.textContent = '🚩 起点';
+
+    // 3. Selection Rubberband Box (Live Stretched from Start to Cursor)
+    this.selectionBox = document.createElement('div');
+    this.selectionBox.style.cssText = `
+      position: absolute;
+      border: 2.5px dashed #2563eb;
+      background-color: rgba(37, 99, 235, 0.12);
       border-radius: 6px;
       pointer-events: none;
-      box-shadow: 0 0 0 1px rgba(255,255,255,0.7), 0 8px 30px rgba(99,102,241,0.3);
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.8), 0 8px 32px rgba(37,99,235,0.28);
       display: none;
       z-index: 2147483647;
     `;
-    this.dragBadge = document.createElement('div');
-    this.dragBadge.style.cssText = `
+    this.selectionBadge = document.createElement('div');
+    this.selectionBadge.style.cssText = `
       position: absolute; top: -28px; left: 0;
-      background: #4338ca; color: #fff;
+      background: #1d4ed8; color: #fff;
       padding: 3px 10px; border-radius: 4px;
       font-size: 11px; font-weight: 600;
       white-space: nowrap; pointer-events: none;
       box-shadow: 0 2px 8px rgba(0,0,0,0.25);
     `;
-    this.dragBox.appendChild(this.dragBadge);
+    this.selectionBox.appendChild(this.selectionBadge);
 
-    // Top banner
+    // 4. Top Action Banner
     this.banner = document.createElement('div');
     this.banner.style.cssText = `
       position: fixed; top: 16px; left: 50%;
@@ -149,34 +177,65 @@ export class VisualGrabber {
       border-radius: 30px;
       font-size: 13px; font-weight: 500;
       box-shadow: 0 12px 30px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.12);
-      display: flex; align-items: center; gap: 10px;
+      display: flex; align-items: center; gap: 12px;
       pointer-events: auto;
       z-index: 2147483647;
       user-select: none;
+      max-width: 95vw;
     `;
-    this.banner.innerHTML = `
-      <span style="display:inline-flex;align-items:center;gap:6px;">
-        <span style="width:8px;height:8px;background:#22c55e;border-radius:50%;display:inline-block;"></span>
-        <strong>选择网页区域</strong>
-      </span>
-      <span style="color:#475569;">|</span>
-      <span style="color:#cbd5e1;font-size:12px;">点击选取</span>
-      <span style="color:#475569;">|</span>
-      <span style="color:#cbd5e1;font-size:12px;">拖拽框选</span>
-      <span style="color:#475569;">|</span>
-      <button id="ai-banner-exit-btn" style="background:rgba(239, 68, 68, 0.12);color:#fca5a5;border:1px solid rgba(239, 68, 68, 0.35);padding:3px 10px;border-radius:16px;font-size:12px;cursor:pointer;font-weight:500;transition:all 0.15s ease;display:inline-flex;align-items:center;gap:4px;">
-        <kbd style="background:rgba(0,0,0,0.3);padding:1px 5px;border-radius:3px;font-size:10px;color:#fecaca;">Esc</kbd> 退出
-      </button>
-    `;
+
+    this.renderBanner();
+
+    this.container.appendChild(this.hoverOverlayBox);
+    this.container.appendChild(this.startMarker);
+    this.container.appendChild(this.selectionBox);
+    this.container.appendChild(this.banner);
+    document.documentElement.appendChild(this.container);
+  }
+
+  private renderBanner(): void {
+    if (!this.banner) return;
+
+    if (this.startPoint) {
+      this.banner.innerHTML = `
+        <span style="display:inline-flex;align-items:center;gap:6px;">
+          <span style="width:8px;height:8px;background:#22c55e;border-radius:50%;display:inline-block;animation:pulse 1.5s infinite;"></span>
+          <strong style="color:#86efac;">已选定起点</strong>
+        </span>
+        <span style="color:#475569;">|</span>
+        <span style="color:#f8fafc;font-size:12.5px;">移动鼠标至【结束位置】并点击完成框选</span>
+        <span style="color:#475569;">|</span>
+        <button id="ai-banner-reset-btn" style="background:rgba(255,255,255,0.15);color:#fff;border:none;padding:3px 10px;border-radius:14px;font-size:12px;cursor:pointer;font-weight:500;">
+          重新选起点
+        </button>
+        <button id="ai-banner-exit-btn" style="background:rgba(239, 68, 68, 0.15);color:#fca5a5;border:1px solid rgba(239, 68, 68, 0.35);padding:3px 10px;border-radius:14px;font-size:12px;cursor:pointer;font-weight:500;">
+          <kbd style="background:rgba(0,0,0,0.3);padding:1px 4px;border-radius:3px;font-size:10px;">Esc</kbd> 退出
+        </button>
+      `;
+
+      this.banner.querySelector('#ai-banner-reset-btn')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.resetStartPoint();
+      });
+    } else {
+      this.banner.innerHTML = `
+        <span style="display:inline-flex;align-items:center;gap:6px;">
+          <span style="width:8px;height:8px;background:#60a5fa;border-radius:50%;display:inline-block;"></span>
+          <strong>两点连选 / 自由框选</strong>
+        </span>
+        <span style="color:#475569;">|</span>
+        <span style="color:#cbd5e1;font-size:12px;">① 点击【起点】 $\\rightarrow$ ② 移动至【终点】点击</span>
+        <span style="color:#475569;">|</span>
+        <button id="ai-banner-exit-btn" style="background:rgba(239, 68, 68, 0.12);color:#fca5a5;border:1px solid rgba(239, 68, 68, 0.35);padding:3px 10px;border-radius:16px;font-size:12px;cursor:pointer;font-weight:500;transition:all 0.15s ease;display:inline-flex;align-items:center;gap:4px;">
+          <kbd style="background:rgba(0,0,0,0.3);padding:1px 5px;border-radius:3px;font-size:10px;color:#fecaca;">Esc</kbd> 退出
+        </button>
+      `;
+    }
+
     this.banner.querySelector('#ai-banner-exit-btn')?.addEventListener('click', (e) => {
       e.stopPropagation();
       this.stop();
     });
-
-    this.container.appendChild(this.overlayBox);
-    this.container.appendChild(this.dragBox);
-    this.container.appendChild(this.banner);
-    document.documentElement.appendChild(this.container);
   }
 
   private removeOverlay(): void {
@@ -184,14 +243,15 @@ export class VisualGrabber {
       this.container.parentNode.removeChild(this.container);
     }
     this.container = null;
-    this.overlayBox = null;
-    this.badge = null;
+    this.hoverOverlayBox = null;
+    this.hoverBadge = null;
+    this.startMarker = null;
+    this.selectionBox = null;
+    this.selectionBadge = null;
     this.banner = null;
-    this.dragBox = null;
-    this.dragBadge = null;
   }
 
-  // ── Events ──────────────────────────────────────────────────────
+  // ── Event Handlers ──────────────────────────────────────────────
 
   private attachEvents(): void {
     window.addEventListener('mousemove', this.handleMouseMove, true);
@@ -200,6 +260,7 @@ export class VisualGrabber {
     window.addEventListener('click', this.handleClick, true);
     window.addEventListener('keydown', this.handleKeyDown, true);
     window.addEventListener('scroll', this.handleScroll, true);
+    window.addEventListener('dragstart', this.handleNativeDragStart, true);
   }
 
   private detachEvents(): void {
@@ -209,6 +270,51 @@ export class VisualGrabber {
     window.removeEventListener('click', this.handleClick, true);
     window.removeEventListener('keydown', this.handleKeyDown, true);
     window.removeEventListener('scroll', this.handleScroll, true);
+    window.removeEventListener('dragstart', this.handleNativeDragStart, true);
+  }
+
+  private handleNativeDragStart(e: DragEvent): void {
+    if (this.active) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }
+
+  private handleMouseMove(e: MouseEvent): void {
+    if (!this.active) return;
+
+    this.lastMousePage = { x: e.pageX, y: e.pageY };
+    this.lastClientY = e.clientY;
+
+    // 1. Mouse Dragging Mode
+    if (this.isMouseDown) {
+      const dx = Math.abs(e.pageX - this.dragStartPage.x);
+      const dy = Math.abs(e.pageY - this.dragStartPage.y);
+
+      if (!this.isDragging && (dx > 4 || dy > 4)) {
+        this.isDragging = true;
+        document.body.style.userSelect = 'none';
+        if (this.hoverOverlayBox) this.hoverOverlayBox.style.display = 'none';
+      }
+
+      if (this.isDragging) {
+        this.renderBoxBetween(this.dragStartPage, this.lastMousePage, '拖拽框选');
+        this.checkAutoScroll(e.clientY);
+        return;
+      }
+    }
+
+    // 2. Two-Point Selection Mode (Start Point is Active)
+    if (this.startPoint) {
+      this.renderBoxBetween(this.startPoint, this.lastMousePage, '点击确认终点');
+      this.checkAutoScroll(e.clientY);
+      return;
+    }
+
+    // 3. Normal Hover Mode
+    const target = e.target as HTMLElement;
+    if (!target || this.isInternalElement(target)) return;
+    this.highlightHoverElement(target);
   }
 
   private handleMouseDown(e: MouseEvent): void {
@@ -218,55 +324,38 @@ export class VisualGrabber {
 
     this.isMouseDown = true;
     this.isDragging = false;
-    this.dragStart = { x: e.clientX, y: e.clientY };
-    this.dragCurrent = { x: e.clientX, y: e.clientY };
-  }
-
-  private handleMouseMove(e: MouseEvent): void {
-    if (!this.active) return;
-
-    if (this.isMouseDown) {
-      this.dragCurrent = { x: e.clientX, y: e.clientY };
-      const dx = Math.abs(this.dragCurrent.x - this.dragStart.x);
-      const dy = Math.abs(this.dragCurrent.y - this.dragStart.y);
-
-      if (!this.isDragging && (dx > 5 || dy > 5)) {
-        this.isDragging = true;
-        document.body.style.userSelect = 'none';
-        if (this.overlayBox) this.overlayBox.style.display = 'none';
-      }
-
-      if (this.isDragging) {
-        this.updateDragBox();
-        return;
-      }
-    }
-
-    // Normal hover highlight
-    const target = e.target as HTMLElement;
-    if (!target || this.isInternalElement(target)) return;
-    this.highlightElement(target);
+    this.dragStartPage = { x: e.pageX, y: e.pageY };
+    this.lastClientY = e.clientY;
   }
 
   private handleMouseUp(e: MouseEvent): void {
     if (!this.active) return;
+    this.stopAutoScroll();
     document.body.style.userSelect = '';
 
+    // If completed a drag operation
     if (this.isDragging) {
       e.preventDefault();
       e.stopPropagation();
 
-      const left = Math.min(this.dragStart.x, this.dragCurrent.x);
-      const top = Math.min(this.dragStart.y, this.dragCurrent.y);
-      const width = Math.abs(this.dragCurrent.x - this.dragStart.x);
-      const height = Math.abs(this.dragCurrent.y - this.dragStart.y);
+      const pageLeft = Math.min(this.dragStartPage.x, e.pageX);
+      const pageTop = Math.min(this.dragStartPage.y, e.pageY);
+      const pageWidth = Math.abs(e.pageX - this.dragStartPage.x);
+      const pageHeight = Math.abs(e.pageY - this.dragStartPage.y);
 
       this.isMouseDown = false;
       this.isDragging = false;
-      if (this.dragBox) this.dragBox.style.display = 'none';
+      if (this.selectionBox) this.selectionBox.style.display = 'none';
 
-      if (width >= 12 && height >= 12) {
-        this.confirmAreaGrab({ left, top, right: left + width, bottom: top + height, width, height });
+      if (pageWidth >= 12 && pageHeight >= 12) {
+        this.confirmAreaGrab({
+          left: pageLeft,
+          top: pageTop,
+          right: pageLeft + pageWidth,
+          bottom: pageTop + pageHeight,
+          width: pageWidth,
+          height: pageHeight,
+        });
         return;
       }
     }
@@ -284,8 +373,32 @@ export class VisualGrabber {
     e.stopPropagation();
     if (this.isDragging) return;
 
-    if (this.currentElement) {
-      this.confirmGrab(this.currentElement);
+    // Two-Point Selection Click Logic
+    if (!this.startPoint) {
+      // Step 1: Set Start Point
+      this.setStartPoint({ x: e.pageX, y: e.pageY, el: target });
+    } else {
+      // Step 2: Set End Point and Complete Selection
+      const endPoint = { x: e.pageX, y: e.pageY };
+      const pageLeft = Math.min(this.startPoint.x, endPoint.x);
+      const pageTop = Math.min(this.startPoint.y, endPoint.y);
+      const pageWidth = Math.abs(endPoint.x - this.startPoint.x);
+      const pageHeight = Math.abs(endPoint.y - this.startPoint.y);
+
+      // If clicked the exact same spot (< 8px), grab the clicked single element
+      if (pageWidth < 8 && pageHeight < 8 && target) {
+        this.confirmGrab(target);
+        return;
+      }
+
+      this.confirmAreaGrab({
+        left: pageLeft,
+        top: pageTop,
+        right: pageLeft + pageWidth,
+        bottom: pageTop + pageHeight,
+        width: Math.max(10, pageWidth),
+        height: Math.max(10, pageHeight),
+      });
     }
   }
 
@@ -295,66 +408,185 @@ export class VisualGrabber {
     if (e.key === 'Escape' || e.key === 'Esc' || e.code === 'Escape') {
       e.preventDefault();
       e.stopPropagation();
-      this.stop(true);
+      if (this.startPoint) {
+        this.resetStartPoint();
+      } else {
+        this.stop(true);
+      }
       return;
+    }
+
+    if (e.key === 'Enter' || e.code === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (this.startPoint) {
+        const endPoint = this.lastMousePage;
+        const pageLeft = Math.min(this.startPoint.x, endPoint.x);
+        const pageTop = Math.min(this.startPoint.y, endPoint.y);
+        const pageWidth = Math.abs(endPoint.x - this.startPoint.x);
+        const pageHeight = Math.abs(endPoint.y - this.startPoint.y);
+        this.confirmAreaGrab({
+          left: pageLeft,
+          top: pageTop,
+          right: pageLeft + pageWidth,
+          bottom: pageTop + pageHeight,
+          width: Math.max(10, pageWidth),
+          height: Math.max(10, pageHeight),
+        });
+      } else if (this.currentHoverElement) {
+        this.confirmGrab(this.currentHoverElement);
+      }
     }
   }
 
   private handleScroll(): void {
-    if (this.active && this.currentElement && !this.isDragging) {
-      this.highlightElement(this.currentElement);
+    if (!this.active) return;
+
+    if (this.startPoint) {
+      this.updateStartMarkerPos();
+      this.renderBoxBetween(this.startPoint, this.lastMousePage, '点击确认终点');
+    } else if (this.isDragging) {
+      this.renderBoxBetween(this.dragStartPage, this.lastMousePage, '拖拽框选');
+    } else if (this.currentHoverElement) {
+      this.highlightHoverElement(this.currentHoverElement);
     }
   }
 
-  // ── UI helpers ──────────────────────────────────────────────────
+  // ── Two-Point Helpers ───────────────────────────────────────────
 
-  private highlightElement(el: HTMLElement): void {
-    this.currentElement = el;
-    if (!this.overlayBox || !this.badge) return;
+  private setStartPoint(point: { x: number; y: number; el?: HTMLElement }): void {
+    this.startPoint = point;
+    if (this.hoverOverlayBox) this.hoverOverlayBox.style.display = 'none';
+
+    this.updateStartMarkerPos();
+    if (this.startMarker) this.startMarker.style.display = 'block';
+
+    this.renderBoxBetween(this.startPoint, this.lastMousePage, '点击确认终点');
+    this.renderBanner();
+  }
+
+  private resetStartPoint(): void {
+    this.startPoint = null;
+    if (this.startMarker) this.startMarker.style.display = 'none';
+    if (this.selectionBox) this.selectionBox.style.display = 'none';
+    this.renderBanner();
+  }
+
+  private updateStartMarkerPos(): void {
+    if (!this.startPoint || !this.startMarker) return;
+    const clientX = this.startPoint.x - window.scrollX;
+    const clientY = this.startPoint.y - window.scrollY;
+    this.startMarker.style.left = `${clientX}px`;
+    this.startMarker.style.top = `${clientY}px`;
+  }
+
+  private renderBoxBetween(
+    p1: { x: number; y: number },
+    p2: { x: number; y: number },
+    badgeSuffix: string,
+  ): void {
+    if (!this.selectionBox || !this.selectionBadge) return;
+
+    const startClientX = p1.x - window.scrollX;
+    const startClientY = p1.y - window.scrollY;
+    const currentClientX = p2.x - window.scrollX;
+    const currentClientY = p2.y - window.scrollY;
+
+    const left = Math.min(startClientX, currentClientX);
+    const top = Math.min(startClientY, currentClientY);
+    const width = Math.abs(currentClientX - startClientX);
+    const height = Math.abs(currentClientY - startClientY);
+
+    this.selectionBox.style.display = 'block';
+    this.selectionBox.style.left = `${left}px`;
+    this.selectionBox.style.top = `${top}px`;
+    this.selectionBox.style.width = `${width}px`;
+    this.selectionBox.style.height = `${height}px`;
+
+    this.selectionBadge.textContent = `${Math.round(width)} × ${Math.round(height)} px (${badgeSuffix})`;
+    if (top < 32) {
+      this.selectionBadge.style.top = '4px';
+      this.selectionBadge.style.left = '4px';
+    } else {
+      this.selectionBadge.style.top = '-26px';
+      this.selectionBadge.style.left = '0px';
+    }
+  }
+
+  // ── Hover Highlight ─────────────────────────────────────────────
+
+  private highlightHoverElement(el: HTMLElement): void {
+    this.currentHoverElement = el;
+    if (!this.hoverOverlayBox || !this.hoverBadge || this.startPoint) return;
 
     const rect = el.getBoundingClientRect();
-    this.overlayBox.style.display = 'block';
-    this.overlayBox.style.top = `${rect.top}px`;
-    this.overlayBox.style.left = `${rect.left}px`;
-    this.overlayBox.style.width = `${rect.width}px`;
-    this.overlayBox.style.height = `${rect.height}px`;
+    this.hoverOverlayBox.style.display = 'block';
+    this.hoverOverlayBox.style.top = `${rect.top}px`;
+    this.hoverOverlayBox.style.left = `${rect.left}px`;
+    this.hoverOverlayBox.style.width = `${rect.width}px`;
+    this.hoverOverlayBox.style.height = `${rect.height}px`;
 
     const tagName = el.tagName.toLowerCase();
     const id = el.id ? `#${el.id}` : '';
-    const className = el.classList.length > 0 ? `.${Array.from(el.classList).slice(0, 2).join('.')}` : '';
+    const className = el.classList.length > 0 ? `.${Array.from(el.classList).slice(0, 1).join('.')}` : '';
     const dimensions = `${Math.round(rect.width)} × ${Math.round(rect.height)}`;
-    this.badge.textContent = `${tagName}${id}${className} (${dimensions})`;
+    this.hoverBadge.textContent = `${tagName}${id}${className} (${dimensions}) - 点击设为起点`;
 
     if (rect.top < 32) {
-      this.badge.style.top = '4px';
-      this.badge.style.left = '4px';
+      this.hoverBadge.style.top = '4px';
+      this.hoverBadge.style.left = '4px';
     } else {
-      this.badge.style.top = '-26px';
-      this.badge.style.left = '0px';
+      this.hoverBadge.style.top = '-26px';
+      this.hoverBadge.style.left = '0px';
     }
   }
 
-  private updateDragBox(): void {
-    if (!this.dragBox || !this.dragBadge) return;
+  // ── Auto Scroll ─────────────────────────────────────────────────
 
-    const left = Math.min(this.dragStart.x, this.dragCurrent.x);
-    const top = Math.min(this.dragStart.y, this.dragCurrent.y);
-    const width = Math.abs(this.dragCurrent.x - this.dragStart.x);
-    const height = Math.abs(this.dragCurrent.y - this.dragStart.y);
+  private checkAutoScroll(clientY: number): void {
+    const edgeThreshold = 50;
+    const viewHeight = window.innerHeight;
 
-    this.dragBox.style.display = 'block';
-    this.dragBox.style.left = `${left}px`;
-    this.dragBox.style.top = `${top}px`;
-    this.dragBox.style.width = `${width}px`;
-    this.dragBox.style.height = `${height}px`;
-
-    this.dragBadge.textContent = `${Math.round(width)} × ${Math.round(height)} px`;
-    if (top < 32) {
-      this.dragBadge.style.top = '4px';
-      this.dragBadge.style.left = '4px';
+    if (clientY < edgeThreshold) {
+      const speed = Math.max(3, Math.round((edgeThreshold - clientY) / 3));
+      this.startAutoScroll(-speed);
+    } else if (clientY > viewHeight - edgeThreshold) {
+      const speed = Math.max(3, Math.round((clientY - (viewHeight - edgeThreshold)) / 3));
+      this.startAutoScroll(speed);
     } else {
-      this.dragBadge.style.top = '-26px';
-      this.dragBadge.style.left = '0px';
+      this.stopAutoScroll();
+    }
+  }
+
+  private startAutoScroll(speed: number): void {
+    if (this.autoScrollTimer !== null) return;
+    const step = () => {
+      if (!this.isDragging && !this.startPoint) {
+        this.stopAutoScroll();
+        return;
+      }
+      window.scrollBy(0, speed);
+      this.lastMousePage = {
+        x: this.lastMousePage.x,
+        y: this.lastClientY + window.scrollY,
+      };
+
+      if (this.startPoint) {
+        this.updateStartMarkerPos();
+        this.renderBoxBetween(this.startPoint, this.lastMousePage, '点击确认终点');
+      } else if (this.isDragging) {
+        this.renderBoxBetween(this.dragStartPage, this.lastMousePage, '拖拽框选');
+      }
+
+      this.autoScrollTimer = requestAnimationFrame(step);
+    };
+    this.autoScrollTimer = requestAnimationFrame(step);
+  }
+
+  private stopAutoScroll(): void {
+    if (this.autoScrollTimer !== null) {
+      cancelAnimationFrame(this.autoScrollTimer);
+      this.autoScrollTimer = null;
     }
   }
 
@@ -398,7 +630,7 @@ export class VisualGrabber {
     return parts.slice(-3).join(' > ') || el.tagName.toLowerCase();
   }
 
-  // ── Content extraction ──────────────────────────────────────────
+  // ── Content Extraction ──────────────────────────────────────────
 
   private extractContent(el: HTMLElement): GrabbedContent {
     const rect = el.getBoundingClientRect();
@@ -429,74 +661,137 @@ export class VisualGrabber {
   }
 
   /**
-   * Extract content from drag-selected bounding box.
+   * Extract content from bounding box rectangle.
    *
-   * Algorithm: collect leaf-ish elements whose CENTER POINT falls inside the
-   * selection box. This avoids the problem where large wrapper containers
-   * (whose bounding rect spans the entire page) get incorrectly included.
+   * Evaluates all elements in document/page coordinates for scroll-independent accuracy.
    */
   private extractAreaContent(rect: SelectionBoxRect): GrabbedContent {
     const tdk = extractPageTDK(document);
-    const allElements = document.querySelectorAll('body *');
-    const candidates: HTMLElement[] = [];
+    const allElements = Array.from(document.querySelectorAll<HTMLElement>('body *'));
+    const selectionArea = rect.width * rect.height;
 
-    for (let i = 0; i < allElements.length; i++) {
-      const el = allElements[i] as HTMLElement;
-      if (this.isInternalElement(el)) continue;
+    // Helper to calculate geometric intersection in page coordinates
+    const getIntersection = (elPage: { left: number; top: number; right: number; bottom: number; width: number; height: number }) => {
+      if (elPage.width === 0 || elPage.height === 0) return null;
 
-      const r = el.getBoundingClientRect();
-      if (r.width === 0 || r.height === 0) continue;
+      const intersectLeft = Math.max(elPage.left, rect.left);
+      const intersectTop = Math.max(elPage.top, rect.top);
+      const intersectRight = Math.min(elPage.right, rect.right);
+      const intersectBottom = Math.min(elPage.bottom, rect.bottom);
 
-      // Use center-point containment: the element's center must be inside the selection box
-      const centerX = r.left + r.width / 2;
-      const centerY = r.top + r.height / 2;
+      const intersectWidth = Math.max(0, intersectRight - intersectLeft);
+      const intersectHeight = Math.max(0, intersectBottom - intersectTop);
+      const intersectArea = intersectWidth * intersectHeight;
+
+      if (intersectArea <= 0) return null;
+
+      const elArea = elPage.width * elPage.height;
+      const overlapRatio = elArea > 0 ? intersectArea / elArea : 0;
+      const centerX = elPage.left + elPage.width / 2;
+      const centerY = elPage.top + elPage.height / 2;
       const centerInBox =
         centerX >= rect.left && centerX <= rect.right &&
         centerY >= rect.top && centerY <= rect.bottom;
 
-      if (!centerInBox) continue;
+      return {
+        intersectArea,
+        elArea,
+        overlapRatio,
+        centerInBox,
+      };
+    };
 
-      // Skip elements significantly larger than selection box (wrapper containers)
-      const selectionArea = rect.width * rect.height;
-      const elArea = r.width * r.height;
-      if (elArea > selectionArea * 3) continue;
+    // Helper to compute element's page coordinates
+    const getElementPageRect = (el: HTMLElement) => {
+      const r = el.getBoundingClientRect();
+      return {
+        left: r.left + window.scrollX,
+        top: r.top + window.scrollY,
+        right: r.right + window.scrollX,
+        bottom: r.bottom + window.scrollY,
+        width: r.width,
+        height: r.height,
+      };
+    };
 
-      candidates.push(el);
+    // 1. Direct scan for all image / media elements intersecting the selection area
+    const allImages: string[] = [];
+    const mediaElements = Array.from(document.querySelectorAll<HTMLElement>('img, picture, figure, svg image, video[poster], [data-bg], [data-background]'));
+    for (const mediaEl of mediaElements) {
+      if (this.isInternalElement(mediaEl)) continue;
+      const elPage = getElementPageRect(mediaEl);
+      const info = getIntersection(elPage);
+      if (!info) continue;
+
+      // If center is in box or has visible overlap
+      if (info.centerInBox || info.overlapRatio >= 0.05 || info.intersectArea >= 30) {
+        const extracted = extractImagesFromElement(mediaEl, window.location.href);
+        for (const imgUrl of extracted) {
+          if (!allImages.includes(imgUrl)) {
+            allImages.push(imgUrl);
+          }
+        }
+      }
     }
 
-    // Keep only top-level elements to avoid nested duplication
+    // 2. Candidate content elements
+    const candidates: HTMLElement[] = [];
+    const contentTagRegex = /^(p|h[1-6]|li|blockquote|pre|code|table|tr|figure|figcaption|article|section|div|span|a|ul|ol|dd|dt)$/i;
+
+    for (let i = 0; i < allElements.length; i++) {
+      const el = allElements[i];
+      if (!el || this.isInternalElement(el)) continue;
+
+      const elPage = getElementPageRect(el);
+      const info = getIntersection(elPage);
+      if (!info) continue;
+
+      // Skip massive wrapper containers (e.g. body wrappers, #app) that dwarf the selection
+      if (info.elArea > selectionArea * 3.5 && info.overlapRatio < 0.65) {
+        continue;
+      }
+
+      // Check if element is a valid candidate
+      const isContentTag = contentTagRegex.test(el.tagName);
+      const isCandidate =
+        info.centerInBox ||
+        info.overlapRatio >= 0.2 ||
+        (isContentTag && info.intersectArea >= 30);
+
+      if (isCandidate) {
+        candidates.push(el);
+      }
+    }
+
+    // 3. Keep top-level selected elements to avoid nested duplicate text / HTML
     const topLevel = candidates.filter((el) => {
       let p = el.parentElement;
-      while (p && p !== document.body) {
-        if (candidates.includes(p)) return false;
+      while (p && p !== document.body && p !== document.documentElement) {
+        if (candidates.includes(p)) {
+          const pr = getElementPageRect(p);
+          // If parent is not an oversized container, let parent encapsulate this child
+          if (pr.width * pr.height <= selectionArea * 1.5) {
+            return false;
+          }
+        }
         p = p.parentElement;
       }
       return true;
     });
 
-    // If no candidates found via center-point, fall back to finding the
-    // smallest element that intersects with the selection box
-    if (topLevel.length === 0) {
+    // 4. Fallback if no candidates found
+    if (topLevel.length === 0 && candidates.length === 0) {
       let bestEl: HTMLElement | null = null;
-      let bestArea = Infinity;
+      let maxIntersect = 0;
 
       for (let i = 0; i < allElements.length; i++) {
-        const el = allElements[i] as HTMLElement;
-        if (this.isInternalElement(el)) continue;
-        const r = el.getBoundingClientRect();
-        if (r.width === 0 || r.height === 0) continue;
-
-        const isIntersecting = !(
-          r.right < rect.left || r.left > rect.right ||
-          r.bottom < rect.top || r.top > rect.bottom
-        );
-
-        if (isIntersecting) {
-          const area = r.width * r.height;
-          if (area < bestArea) {
-            bestArea = area;
-            bestEl = el;
-          }
+        const el = allElements[i];
+        if (!el || this.isInternalElement(el)) continue;
+        const elPage = getElementPageRect(el);
+        const info = getIntersection(elPage);
+        if (info && info.intersectArea > maxIntersect) {
+          maxIntersect = info.intersectArea;
+          bestEl = el;
         }
       }
 
@@ -505,21 +800,34 @@ export class VisualGrabber {
       }
     }
 
-    // Aggregate text, HTML, images and links from selected elements
+    const selectedElements = topLevel.length > 0 ? topLevel : candidates;
+
+    // 5. Sort elements by natural DOM order for coherent reading
+    selectedElements.sort((a, b) => {
+      const pos = a.compareDocumentPosition(b);
+      if (pos & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
+      if (pos & Node.DOCUMENT_POSITION_PRECEDING) return 1;
+      return 0;
+    });
+
+    // 6. Aggregate text, HTML, images and links
     const textPieces: string[] = [];
     const htmlPieces: string[] = [];
-    const allImages: GrabbedContent['images'] = [];
     const allLinks: string[] = [];
 
-    const elements = topLevel.length > 0 ? topLevel : candidates;
-
-    elements.forEach((el) => {
+    selectedElements.forEach((el) => {
       const text = (el.innerText || el.textContent || '').trim();
-      if (text) textPieces.push(text);
+      if (text && !textPieces.includes(text)) {
+        textPieces.push(text);
+      }
+
       htmlPieces.push(normalizeHtml(el, window.location.href));
 
+      // Extract images from selected subtree
       extractImagesFromElement(el, window.location.href).forEach((img) => {
-        if (!allImages.includes(img)) allImages.push(img);
+        if (!allImages.includes(img)) {
+          allImages.push(img);
+        }
       });
 
       if (el.tagName.toLowerCase() === 'a' && (el as HTMLAnchorElement).href) {
@@ -537,8 +845,8 @@ export class VisualGrabber {
       tdk,
       selectedHtml: htmlPieces.length === 1 ? htmlPieces[0]! : `<div class="drag-selected-area">\n${htmlPieces.join('\n')}\n</div>`,
       selectedText: textPieces.join('\n\n'),
-      selector: topLevel.length === 1 ? this.generateSelector(topLevel[0]!) : 'box-selection',
-      tag: topLevel.length === 1 ? topLevel[0]!.tagName.toLowerCase() : 'selection-area',
+      selector: selectedElements.length === 1 ? this.generateSelector(selectedElements[0]!) : 'box-selection',
+      tag: selectedElements.length === 1 ? selectedElements[0]!.tagName.toLowerCase() : 'selection-area',
       dimensions: { width: Math.round(rect.width), height: Math.round(rect.height) },
       images: allImages,
       links: allLinks,

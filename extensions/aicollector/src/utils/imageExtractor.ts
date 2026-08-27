@@ -5,11 +5,19 @@
  */
 
 /**
- * Filter out transparent or placeholder data URIs
+ * Filter out transparent or placeholder data URIs, tracking pixels, or invalid values
  */
 function isPlaceholder(url: string): boolean {
-  if (!url || url.length < 30) return true;
-  if (url.startsWith('data:image/svg+xml') || url.startsWith('data:image/gif')) {
+  if (!url) return true;
+  const trimmed = url.trim();
+  if (!trimmed || trimmed === '#' || trimmed === 'about:blank' || trimmed.startsWith('javascript:')) {
+    return true;
+  }
+  // Filter out tiny 1x1 transparent gif / svg placeholder data URLs
+  if (trimmed.startsWith('data:image/svg+xml') || trimmed.startsWith('data:image/gif')) {
+    return true;
+  }
+  if (trimmed.startsWith('data:') && trimmed.length < 80) {
     return true;
   }
   return false;
@@ -18,14 +26,17 @@ function isPlaceholder(url: string): boolean {
 /**
  * Normalizes raw candidate string into an absolute URL
  */
-function normalizeImageUrl(rawUrl: string, baseHref: string, dataType?: string | null): string | null {
+export function normalizeImageUrl(rawUrl: string, baseHref: string = window.location.href, dataType?: string | null): string | null {
+  if (!rawUrl) return null;
   let trimmed = rawUrl.trim();
   if (!trimmed || isPlaceholder(trimmed)) return null;
 
   // Handle srcset candidates (take the highest quality / last valid candidate)
   if (trimmed.includes(' ') && !trimmed.startsWith('data:')) {
-    const parts = trimmed.split(',').map((p) => p.trim().split(/\s+/)[0]);
-    trimmed = parts[parts.length - 1] || parts[0] || '';
+    const parts = trimmed.split(',').map((p) => p.trim().split(/\s+/)[0]).filter(Boolean);
+    if (parts.length > 0) {
+      trimmed = parts[parts.length - 1] || parts[0] || '';
+    }
   }
   if (!trimmed || isPlaceholder(trimmed)) return null;
 
@@ -40,6 +51,62 @@ function normalizeImageUrl(rawUrl: string, baseHref: string, dataType?: string |
   } catch {
     return trimmed;
   }
+}
+
+/**
+ * Common lazy load attribute names across major websites (WeChat, Zhihu, CSDN, Medium, etc.)
+ */
+const LAZY_IMAGE_ATTRIBUTES = [
+  'data-src',
+  'data-original',
+  'data-original-src',
+  'data-actualsrc',
+  'data-lazy-src',
+  'data-lazyload',
+  'data-origin-src',
+  'data-echo',
+  'data-zoom-src',
+  'data-large-file',
+  'data-highres',
+  'data-full-src',
+  'data-pic',
+  'data-cover',
+  'data-img-url',
+  'data-url',
+  'data-srcset',
+  'srcset',
+  'src',
+] as const;
+
+/**
+ * Extract the best valid image URL from an <img> element
+ */
+function extractFromImgElement(img: Element, baseHref: string): string | null {
+  const dataType = img.getAttribute('data-type');
+
+  // Try candidate attributes in order of quality/reliability
+  for (const attr of LAZY_IMAGE_ATTRIBUTES) {
+    const val = img.getAttribute(attr);
+    if (val && !isPlaceholder(val)) {
+      const normalized = normalizeImageUrl(val, baseHref, dataType);
+      if (normalized && !isPlaceholder(normalized)) {
+        return normalized;
+      }
+    }
+  }
+
+  // Fallback to DOM properties if available
+  const imgEl = img as HTMLImageElement;
+  if (imgEl.currentSrc && !isPlaceholder(imgEl.currentSrc)) {
+    const normalized = normalizeImageUrl(imgEl.currentSrc, baseHref, dataType);
+    if (normalized && !isPlaceholder(normalized)) return normalized;
+  }
+  if (imgEl.src && !isPlaceholder(imgEl.src)) {
+    const normalized = normalizeImageUrl(imgEl.src, baseHref, dataType);
+    if (normalized && !isPlaceholder(normalized)) return normalized;
+  }
+
+  return null;
 }
 
 /**
@@ -59,28 +126,17 @@ export function extractImagesFromElement(
     }
   };
 
-  // Helper to extract image candidates from an img element
-  const processImg = (img: Element) => {
-    const dataType = img.getAttribute('data-type');
-    const candidate =
-      img.getAttribute('data-src') ||
-      img.getAttribute('data-original-src') ||
-      img.getAttribute('data-original') ||
-      img.getAttribute('data-actualsrc') ||
-      img.getAttribute('data-url') ||
-      (img as HTMLImageElement).currentSrc ||
-      (img as HTMLImageElement).src ||
-      img.getAttribute('src');
-    addImage(candidate, dataType);
-  };
-
-  // 1. Process <img> elements (root element and descendants)
+  // 1. Process <img> elements (root element and all descendants)
   if (el.tagName.toLowerCase() === 'img') {
-    processImg(el);
+    const bestUrl = extractFromImgElement(el, baseHref);
+    if (bestUrl) addImage(bestUrl);
   }
-  el.querySelectorAll('img').forEach(processImg);
+  el.querySelectorAll('img').forEach((img) => {
+    const bestUrl = extractFromImgElement(img, baseHref);
+    if (bestUrl) addImage(bestUrl);
+  });
 
-  // 2. Process <picture> > <source> tags (root element and descendants)
+  // 2. Process <picture> > <source> tags
   if (el.tagName.toLowerCase() === 'source') {
     addImage(el.getAttribute('srcset') || el.getAttribute('data-srcset'));
   }
@@ -89,10 +145,34 @@ export function extractImagesFromElement(
     addImage(srcCandidate);
   });
 
-  // 3. Process CSS background-image (root element and descendants)
+  // 3. Process SVG <image> elements
+  if (el.tagName.toLowerCase() === 'image') {
+    addImage(el.getAttribute('href') || el.getAttribute('xlink:href'));
+  }
+  el.querySelectorAll('svg image, image').forEach((svgImg) => {
+    addImage(svgImg.getAttribute('href') || svgImg.getAttribute('xlink:href'));
+  });
+
+  // 4. Process <video poster="...">
+  if (el.tagName.toLowerCase() === 'video') {
+    addImage(el.getAttribute('poster'));
+  }
+  el.querySelectorAll('video[poster]').forEach((video) => {
+    addImage(video.getAttribute('poster'));
+  });
+
+  // 5. Process CSS background-image and data-bg attributes
   const processBg = (elem: HTMLElement) => {
-    if (elem && elem.style) {
-      const bg = elem.style.backgroundImage || window.getComputedStyle(elem).backgroundImage;
+    if (!elem) return;
+
+    // Check data-bg, data-background attributes
+    const dataBg = elem.getAttribute('data-bg') || elem.getAttribute('data-background') || elem.getAttribute('data-bg-url');
+    if (dataBg) {
+      addImage(dataBg);
+    }
+
+    if (elem.style) {
+      const bg = elem.style.backgroundImage || (typeof window !== 'undefined' ? window.getComputedStyle(elem).backgroundImage : '');
       if (bg && bg.startsWith('url(')) {
         const bgUrl = bg.replace(/^url\(["']?/, '').replace(/["']?\)$/, '');
         addImage(bgUrl);
@@ -101,11 +181,13 @@ export function extractImagesFromElement(
   };
 
   processBg(el);
-  const bgElements = el.querySelectorAll('*');
-  const maxScanCount = Math.min(bgElements.length, 30);
+  const allSubElements = el.querySelectorAll('*');
+  const maxScanCount = Math.min(allSubElements.length, 50);
   for (let i = 0; i < maxScanCount; i++) {
-    processBg(bgElements[i] as HTMLElement);
+    const subEl = allSubElements[i] as HTMLElement;
+    if (subEl) processBg(subEl);
   }
 
   return images;
 }
+

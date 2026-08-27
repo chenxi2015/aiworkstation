@@ -116,7 +116,22 @@ function extractBlocksFromNode(node: Node, blocks: FlowBlock[]): void {
 
   // 2. Direct Image element
   if (tag === 'img') {
-    const src = (el as HTMLImageElement).src || el.getAttribute('src') || '';
+    let src =
+      (el as HTMLImageElement).src ||
+      el.getAttribute('src') ||
+      el.getAttribute('data-src') ||
+      el.getAttribute('data-original') ||
+      el.getAttribute('data-actualsrc') ||
+      '';
+
+    if (src && (src.startsWith('data:image/svg+xml') || src.startsWith('data:image/gif') || src.includes('spacer.gif'))) {
+      src =
+        el.getAttribute('data-src') ||
+        el.getAttribute('data-original') ||
+        el.getAttribute('data-actualsrc') ||
+        '';
+    }
+
     if (src && !src.startsWith('data:image/svg+xml') && !src.includes('spacer.gif')) {
       blocks.push({
         type: 'image',
