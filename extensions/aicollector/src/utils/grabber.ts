@@ -13,35 +13,29 @@ interface SelectionBoxRect {
 }
 
 /**
- * Visual Element Grabber with Two-Point (Start + End) Range Selection
+ * Visual Element Grabber
  *
- * Core Selection Flow:
- * 1. Click Point 1 (Start Point): Locks the start position in document coordinates.
- * 2. Move Mouse: Live selection box stretches smoothly from Start Point to current cursor.
- * 3. Click Point 2 (End Point): Immediately grabs all elements, paragraphs, and images enclosed in the rectangle.
- * 4. Drag & Release: Also supported natively (press & drag over any area).
- * 5. Esc: Cancel start point or exit.
+ * Supports two intuitive capture modes:
+ * 1. Single Click: Hover over any DOM element and click to immediately grab it.
+ * 2. Press & Drag: Hold down mouse left button and drag downwards/any direction to box-select a region (with auto-scroll).
  */
 export class VisualGrabber {
   private active = false;
   private currentHoverElement: HTMLElement | null = null;
 
-  // Two-Point Selection State
-  private startPoint: { x: number; y: number; el?: HTMLElement } | null = null;
-  private lastMousePage = { x: 0, y: 0 };
-  private lastClientY = 0;
-
-  // Drag state (for mouse hold & drag)
+  // Mouse Drag state
   private isMouseDown = false;
   private isDragging = false;
+  private justDragged = false;
   private dragStartPage = { x: 0, y: 0 };
+  private lastMousePage = { x: 0, y: 0 };
+  private lastClientY = 0;
   private autoScrollTimer: number | null = null;
 
   // DOM Elements
   private container: HTMLDivElement | null = null;
   private hoverOverlayBox: HTMLDivElement | null = null;
   private hoverBadge: HTMLDivElement | null = null;
-  private startMarker: HTMLDivElement | null = null;
   private selectionBox: HTMLDivElement | null = null;
   private selectionBadge: HTMLDivElement | null = null;
   private banner: HTMLDivElement | null = null;
@@ -59,7 +53,9 @@ export class VisualGrabber {
   public start(): void {
     if (this.active) return;
     this.active = true;
-    this.startPoint = null;
+    this.isMouseDown = false;
+    this.isDragging = false;
+    this.justDragged = false;
     this.createOverlay();
     this.attachEvents();
     try {
@@ -76,9 +72,9 @@ export class VisualGrabber {
     this.detachEvents();
     this.removeOverlay();
     this.currentHoverElement = null;
-    this.startPoint = null;
     this.isMouseDown = false;
     this.isDragging = false;
+    this.justDragged = false;
     document.body.style.userSelect = '';
 
     if (notifyCancel) {
@@ -103,7 +99,7 @@ export class VisualGrabber {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     `;
 
-    // 1. Hover Highlight Box
+    // 1. Hover Highlight Box (for single click selection)
     this.hoverOverlayBox = document.createElement('div');
     this.hoverOverlayBox.style.cssText = `
       position: absolute;
@@ -126,27 +122,11 @@ export class VisualGrabber {
     `;
     this.hoverOverlayBox.appendChild(this.hoverBadge);
 
-    // 2. Start Point Marker Badge (🚩 起点)
-    this.startMarker = document.createElement('div');
-    this.startMarker.style.cssText = `
-      position: absolute;
-      background: #16a34a; color: #fff;
-      padding: 3px 10px; border-radius: 12px;
-      font-size: 11px; font-weight: 700;
-      white-space: nowrap; pointer-events: none;
-      box-shadow: 0 0 0 2px #fff, 0 4px 12px rgba(22,163,74,0.4);
-      z-index: 2147483647;
-      display: none;
-      transform: translate(-50%, -100%);
-      margin-top: -6px;
-    `;
-    this.startMarker.textContent = '🚩 起点';
-
-    // 3. Selection Rubberband Box (Live Stretched from Start to Cursor)
+    // 2. Drag Selection Box (for press-and-drag box selection)
     this.selectionBox = document.createElement('div');
     this.selectionBox.style.cssText = `
       position: absolute;
-      border: 2.5px dashed #2563eb;
+      border: 2px dashed #2563eb;
       background-color: rgba(37, 99, 235, 0.12);
       border-radius: 6px;
       pointer-events: none;
@@ -165,7 +145,7 @@ export class VisualGrabber {
     `;
     this.selectionBox.appendChild(this.selectionBadge);
 
-    // 4. Top Action Banner
+    // 3. Top Action Guide Banner
     this.banner = document.createElement('div');
     this.banner.style.cssText = `
       position: fixed; top: 16px; left: 50%;
@@ -187,7 +167,6 @@ export class VisualGrabber {
     this.renderBanner();
 
     this.container.appendChild(this.hoverOverlayBox);
-    this.container.appendChild(this.startMarker);
     this.container.appendChild(this.selectionBox);
     this.container.appendChild(this.banner);
     document.documentElement.appendChild(this.container);
@@ -196,41 +175,18 @@ export class VisualGrabber {
   private renderBanner(): void {
     if (!this.banner) return;
 
-    if (this.startPoint) {
-      this.banner.innerHTML = `
-        <span style="display:inline-flex;align-items:center;gap:6px;">
-          <span style="width:8px;height:8px;background:#22c55e;border-radius:50%;display:inline-block;animation:pulse 1.5s infinite;"></span>
-          <strong style="color:#86efac;">已选定起点</strong>
-        </span>
-        <span style="color:#475569;">|</span>
-        <span style="color:#f8fafc;font-size:12.5px;">移动鼠标至【结束位置】并点击完成框选</span>
-        <span style="color:#475569;">|</span>
-        <button id="ai-banner-reset-btn" style="background:rgba(255,255,255,0.15);color:#fff;border:none;padding:3px 10px;border-radius:14px;font-size:12px;cursor:pointer;font-weight:500;">
-          重新选起点
-        </button>
-        <button id="ai-banner-exit-btn" style="background:rgba(239, 68, 68, 0.15);color:#fca5a5;border:1px solid rgba(239, 68, 68, 0.35);padding:3px 10px;border-radius:14px;font-size:12px;cursor:pointer;font-weight:500;">
-          <kbd style="background:rgba(0,0,0,0.3);padding:1px 4px;border-radius:3px;font-size:10px;">Esc</kbd> 退出
-        </button>
-      `;
-
-      this.banner.querySelector('#ai-banner-reset-btn')?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.resetStartPoint();
-      });
-    } else {
-      this.banner.innerHTML = `
-        <span style="display:inline-flex;align-items:center;gap:6px;">
-          <span style="width:8px;height:8px;background:#60a5fa;border-radius:50%;display:inline-block;"></span>
-          <strong>两点连选 / 自由框选</strong>
-        </span>
-        <span style="color:#475569;">|</span>
-        <span style="color:#cbd5e1;font-size:12px;">① 点击【起点】 $\\rightarrow$ ② 移动至【终点】点击</span>
-        <span style="color:#475569;">|</span>
-        <button id="ai-banner-exit-btn" style="background:rgba(239, 68, 68, 0.12);color:#fca5a5;border:1px solid rgba(239, 68, 68, 0.35);padding:3px 10px;border-radius:16px;font-size:12px;cursor:pointer;font-weight:500;transition:all 0.15s ease;display:inline-flex;align-items:center;gap:4px;">
-          <kbd style="background:rgba(0,0,0,0.3);padding:1px 5px;border-radius:3px;font-size:10px;color:#fecaca;">Esc</kbd> 退出
-        </button>
-      `;
-    }
+    this.banner.innerHTML = `
+      <span style="display:inline-flex;align-items:center;gap:6px;">
+        <span style="width:8px;height:8px;background:#38bdf8;border-radius:50%;display:inline-block;"></span>
+        <strong>点选 / 拖拽框选</strong>
+      </span>
+      <span style="color:#475569;">|</span>
+      <span style="color:#cbd5e1;font-size:12px;">点击单个元素，或按住鼠标向下拖动框选区域</span>
+      <span style="color:#475569;">|</span>
+      <button id="ai-banner-exit-btn" style="background:rgba(239, 68, 68, 0.15);color:#fca5a5;border:1px solid rgba(239, 68, 68, 0.35);padding:3px 10px;border-radius:14px;font-size:12px;cursor:pointer;font-weight:500;transition:all 0.15s ease;">
+        <kbd style="background:rgba(0,0,0,0.3);padding:1px 4px;border-radius:3px;font-size:10px;">Esc</kbd> 退出
+      </button>
+    `;
 
     this.banner.querySelector('#ai-banner-exit-btn')?.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -245,7 +201,6 @@ export class VisualGrabber {
     this.container = null;
     this.hoverOverlayBox = null;
     this.hoverBadge = null;
-    this.startMarker = null;
     this.selectionBox = null;
     this.selectionBadge = null;
     this.banner = null;
@@ -291,27 +246,20 @@ export class VisualGrabber {
       const dx = Math.abs(e.pageX - this.dragStartPage.x);
       const dy = Math.abs(e.pageY - this.dragStartPage.y);
 
-      if (!this.isDragging && (dx > 4 || dy > 4)) {
+      if (!this.isDragging && (dx > 5 || dy > 5)) {
         this.isDragging = true;
         document.body.style.userSelect = 'none';
         if (this.hoverOverlayBox) this.hoverOverlayBox.style.display = 'none';
       }
 
       if (this.isDragging) {
-        this.renderBoxBetween(this.dragStartPage, this.lastMousePage, '拖拽框选');
+        this.renderSelectionBox(this.dragStartPage, this.lastMousePage);
         this.checkAutoScroll(e.clientY);
         return;
       }
     }
 
-    // 2. Two-Point Selection Mode (Start Point is Active)
-    if (this.startPoint) {
-      this.renderBoxBetween(this.startPoint, this.lastMousePage, '点击确认终点');
-      this.checkAutoScroll(e.clientY);
-      return;
-    }
-
-    // 3. Normal Hover Mode
+    // 2. Hover Highlight Mode (for single click selection)
     const target = e.target as HTMLElement;
     if (!target || this.isInternalElement(target)) return;
     this.highlightHoverElement(target);
@@ -324,6 +272,7 @@ export class VisualGrabber {
 
     this.isMouseDown = true;
     this.isDragging = false;
+    this.justDragged = false;
     this.dragStartPage = { x: e.pageX, y: e.pageY };
     this.lastClientY = e.clientY;
   }
@@ -333,10 +282,10 @@ export class VisualGrabber {
     this.stopAutoScroll();
     document.body.style.userSelect = '';
 
-    // If completed a drag operation
     if (this.isDragging) {
       e.preventDefault();
       e.stopPropagation();
+      this.justDragged = true;
 
       const pageLeft = Math.min(this.dragStartPage.x, e.pageX);
       const pageTop = Math.min(this.dragStartPage.y, e.pageY);
@@ -347,7 +296,12 @@ export class VisualGrabber {
       this.isDragging = false;
       if (this.selectionBox) this.selectionBox.style.display = 'none';
 
-      if (pageWidth >= 12 && pageHeight >= 12) {
+      // Reset justDragged flag after click event tick
+      setTimeout(() => {
+        this.justDragged = false;
+      }, 50);
+
+      if (pageWidth >= 8 && pageHeight >= 8) {
         this.confirmAreaGrab({
           left: pageLeft,
           top: pageTop,
@@ -371,34 +325,16 @@ export class VisualGrabber {
 
     e.preventDefault();
     e.stopPropagation();
-    if (this.isDragging) return;
 
-    // Two-Point Selection Click Logic
-    if (!this.startPoint) {
-      // Step 1: Set Start Point
-      this.setStartPoint({ x: e.pageX, y: e.pageY, el: target });
-    } else {
-      // Step 2: Set End Point and Complete Selection
-      const endPoint = { x: e.pageX, y: e.pageY };
-      const pageLeft = Math.min(this.startPoint.x, endPoint.x);
-      const pageTop = Math.min(this.startPoint.y, endPoint.y);
-      const pageWidth = Math.abs(endPoint.x - this.startPoint.x);
-      const pageHeight = Math.abs(endPoint.y - this.startPoint.y);
+    // If this click is the result of completing a drag, ignore it
+    if (this.isDragging || this.justDragged) {
+      this.justDragged = false;
+      return;
+    }
 
-      // If clicked the exact same spot (< 8px), grab the clicked single element
-      if (pageWidth < 8 && pageHeight < 8 && target) {
-        this.confirmGrab(target);
-        return;
-      }
-
-      this.confirmAreaGrab({
-        left: pageLeft,
-        top: pageTop,
-        right: pageLeft + pageWidth,
-        bottom: pageTop + pageHeight,
-        width: Math.max(10, pageWidth),
-        height: Math.max(10, pageHeight),
-      });
+    // Direct single click: Grab the clicked element immediately
+    if (target) {
+      this.confirmGrab(target);
     }
   }
 
@@ -408,83 +344,58 @@ export class VisualGrabber {
     if (e.key === 'Escape' || e.key === 'Esc' || e.code === 'Escape') {
       e.preventDefault();
       e.stopPropagation();
-      if (this.startPoint) {
-        this.resetStartPoint();
-      } else {
-        this.stop(true);
-      }
+      this.stop(true);
       return;
     }
 
-    if (e.key === 'Enter' || e.code === 'Enter') {
+    if ((e.key === 'Enter' || e.code === 'Enter') && this.currentHoverElement) {
       e.preventDefault();
       e.stopPropagation();
-      if (this.startPoint) {
-        const endPoint = this.lastMousePage;
-        const pageLeft = Math.min(this.startPoint.x, endPoint.x);
-        const pageTop = Math.min(this.startPoint.y, endPoint.y);
-        const pageWidth = Math.abs(endPoint.x - this.startPoint.x);
-        const pageHeight = Math.abs(endPoint.y - this.startPoint.y);
-        this.confirmAreaGrab({
-          left: pageLeft,
-          top: pageTop,
-          right: pageLeft + pageWidth,
-          bottom: pageTop + pageHeight,
-          width: Math.max(10, pageWidth),
-          height: Math.max(10, pageHeight),
-        });
-      } else if (this.currentHoverElement) {
-        this.confirmGrab(this.currentHoverElement);
-      }
+      this.confirmGrab(this.currentHoverElement);
     }
   }
 
   private handleScroll(): void {
     if (!this.active) return;
 
-    if (this.startPoint) {
-      this.updateStartMarkerPos();
-      this.renderBoxBetween(this.startPoint, this.lastMousePage, '点击确认终点');
-    } else if (this.isDragging) {
-      this.renderBoxBetween(this.dragStartPage, this.lastMousePage, '拖拽框选');
+    if (this.isDragging) {
+      this.renderSelectionBox(this.dragStartPage, this.lastMousePage);
     } else if (this.currentHoverElement) {
       this.highlightHoverElement(this.currentHoverElement);
     }
   }
 
-  // ── Two-Point Helpers ───────────────────────────────────────────
+  // ── Hover Highlight ─────────────────────────────────────────────
 
-  private setStartPoint(point: { x: number; y: number; el?: HTMLElement }): void {
-    this.startPoint = point;
-    if (this.hoverOverlayBox) this.hoverOverlayBox.style.display = 'none';
+  private highlightHoverElement(el: HTMLElement): void {
+    this.currentHoverElement = el;
+    if (!this.hoverOverlayBox || !this.hoverBadge || this.isDragging) return;
 
-    this.updateStartMarkerPos();
-    if (this.startMarker) this.startMarker.style.display = 'block';
+    const rect = el.getBoundingClientRect();
+    this.hoverOverlayBox.style.display = 'block';
+    this.hoverOverlayBox.style.top = `${rect.top}px`;
+    this.hoverOverlayBox.style.left = `${rect.left}px`;
+    this.hoverOverlayBox.style.width = `${rect.width}px`;
+    this.hoverOverlayBox.style.height = `${rect.height}px`;
 
-    this.renderBoxBetween(this.startPoint, this.lastMousePage, '点击确认终点');
-    this.renderBanner();
+    const tagName = el.tagName.toLowerCase();
+    const id = el.id ? `#${el.id}` : '';
+    const className = el.classList.length > 0 ? `.${Array.from(el.classList).slice(0, 1).join('.')}` : '';
+    const dimensions = `${Math.round(rect.width)} × ${Math.round(rect.height)}`;
+    this.hoverBadge.textContent = `${tagName}${id}${className} (${dimensions}) - 点击直接选取`;
+
+    if (rect.top < 32) {
+      this.hoverBadge.style.top = '4px';
+      this.hoverBadge.style.left = '4px';
+    } else {
+      this.hoverBadge.style.top = '-26px';
+      this.hoverBadge.style.left = '0px';
+    }
   }
 
-  private resetStartPoint(): void {
-    this.startPoint = null;
-    if (this.startMarker) this.startMarker.style.display = 'none';
-    if (this.selectionBox) this.selectionBox.style.display = 'none';
-    this.renderBanner();
-  }
+  // ── Drag Selection Box ──────────────────────────────────────────
 
-  private updateStartMarkerPos(): void {
-    if (!this.startPoint || !this.startMarker) return;
-    const clientX = this.startPoint.x - window.scrollX;
-    const clientY = this.startPoint.y - window.scrollY;
-    this.startMarker.style.left = `${clientX}px`;
-    this.startMarker.style.top = `${clientY}px`;
-  }
-
-  private renderBoxBetween(
-    p1: { x: number; y: number },
-    p2: { x: number; y: number },
-    badgeSuffix: string,
-  ): void {
+  private renderSelectionBox(p1: { x: number; y: number }, p2: { x: number; y: number }): void {
     if (!this.selectionBox || !this.selectionBadge) return;
 
     const startClientX = p1.x - window.scrollX;
@@ -503,41 +414,13 @@ export class VisualGrabber {
     this.selectionBox.style.width = `${width}px`;
     this.selectionBox.style.height = `${height}px`;
 
-    this.selectionBadge.textContent = `${Math.round(width)} × ${Math.round(height)} px (${badgeSuffix})`;
+    this.selectionBadge.textContent = `${Math.round(width)} × ${Math.round(height)} px (松开鼠标完成选区)`;
     if (top < 32) {
       this.selectionBadge.style.top = '4px';
       this.selectionBadge.style.left = '4px';
     } else {
       this.selectionBadge.style.top = '-26px';
       this.selectionBadge.style.left = '0px';
-    }
-  }
-
-  // ── Hover Highlight ─────────────────────────────────────────────
-
-  private highlightHoverElement(el: HTMLElement): void {
-    this.currentHoverElement = el;
-    if (!this.hoverOverlayBox || !this.hoverBadge || this.startPoint) return;
-
-    const rect = el.getBoundingClientRect();
-    this.hoverOverlayBox.style.display = 'block';
-    this.hoverOverlayBox.style.top = `${rect.top}px`;
-    this.hoverOverlayBox.style.left = `${rect.left}px`;
-    this.hoverOverlayBox.style.width = `${rect.width}px`;
-    this.hoverOverlayBox.style.height = `${rect.height}px`;
-
-    const tagName = el.tagName.toLowerCase();
-    const id = el.id ? `#${el.id}` : '';
-    const className = el.classList.length > 0 ? `.${Array.from(el.classList).slice(0, 1).join('.')}` : '';
-    const dimensions = `${Math.round(rect.width)} × ${Math.round(rect.height)}`;
-    this.hoverBadge.textContent = `${tagName}${id}${className} (${dimensions}) - 点击设为起点`;
-
-    if (rect.top < 32) {
-      this.hoverBadge.style.top = '4px';
-      this.hoverBadge.style.left = '4px';
-    } else {
-      this.hoverBadge.style.top = '-26px';
-      this.hoverBadge.style.left = '0px';
     }
   }
 
@@ -561,7 +444,7 @@ export class VisualGrabber {
   private startAutoScroll(speed: number): void {
     if (this.autoScrollTimer !== null) return;
     const step = () => {
-      if (!this.isDragging && !this.startPoint) {
+      if (!this.isDragging) {
         this.stopAutoScroll();
         return;
       }
@@ -571,13 +454,7 @@ export class VisualGrabber {
         y: this.lastClientY + window.scrollY,
       };
 
-      if (this.startPoint) {
-        this.updateStartMarkerPos();
-        this.renderBoxBetween(this.startPoint, this.lastMousePage, '点击确认终点');
-      } else if (this.isDragging) {
-        this.renderBoxBetween(this.dragStartPage, this.lastMousePage, '拖拽框选');
-      }
-
+      this.renderSelectionBox(this.dragStartPage, this.lastMousePage);
       this.autoScrollTimer = requestAnimationFrame(step);
     };
     this.autoScrollTimer = requestAnimationFrame(step);
