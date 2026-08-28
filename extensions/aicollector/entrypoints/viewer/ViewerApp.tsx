@@ -11,7 +11,7 @@ import {
   X,
   Loader2,
 } from 'lucide-react';
-import { Toast, toast } from '@heroui/react';
+import { Button, ButtonGroup, Toast, toast } from '@heroui/react';
 
 interface ViewerImagePayload {
   url: string;
@@ -292,7 +292,7 @@ export const ViewerApp: React.FC = () => {
   }
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-[#090d16] select-none flex flex-col">
+    <div className="relative w-screen h-screen overflow-hidden bg-[#090d16] select-none flex flex-col dark" data-theme="dark">
       {/* Toast notification system */}
       <Toast.Provider placement="bottom" />
 
@@ -306,124 +306,63 @@ export const ViewerApp: React.FC = () => {
       />
 
       {/* Top Floating Controls Toolbar */}
-      <header className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-4 py-2 bg-slate-900/92 backdrop-blur-xl border border-white/12 rounded-full shadow-[0_16px_36px_rgba(0,0,0,0.55)] max-w-[95vw] animate-in fade-in slide-in-from-top-2 duration-200">
+      <header className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-2 bg-surface/90 backdrop-blur-xl border border-border rounded-full shadow-2xl max-w-[95vw] animate-in fade-in slide-in-from-top-2 duration-200">
         {/* Title & Dimension info */}
-        <div className="flex items-center gap-2 pr-2.5 border-r border-white/12 shrink-0">
-          <span className="text-xs font-semibold text-zinc-100 max-w-[140px] sm:max-w-[220px] truncate" title={title}>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-sm font-semibold text-foreground max-w-[140px] sm:max-w-[220px] truncate" title={title}>
             {title}
           </span>
           {dimensions && (
-            <span className="text-[10px] font-mono bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded-full whitespace-nowrap">
+            <span className="font-mono text-foreground bg-default/40 border border-border px-1.5 py-0.5 rounded-full whitespace-nowrap">
               {dimensions.width} × {dimensions.height}
             </span>
           )}
-          <button
-            type="button"
+          <Button
+            size="sm"
+            variant="ghost"
             onClick={handleResetZoom}
-            className="text-[10px] font-mono bg-white/10 hover:bg-white/20 text-zinc-300 px-2 py-0.5 rounded-full min-w-[42px] text-center transition-colors cursor-pointer"
-            title="点击重置为 100%"
+            aria-label="点击重置为 100%"
           >
             {zoomPercent}%
-          </button>
+          </Button>
         </div>
 
-        {/* Action Buttons Group */}
-        <div className="flex items-center gap-1 shrink-0">
-          {/* Zoom Out */}
-          <button
-            type="button"
-            onClick={handleZoomOut}
-            className="w-7 h-7 rounded-full flex items-center justify-center text-zinc-300 hover:text-white hover:bg-white/12 transition-all cursor-pointer active:scale-95"
-            title="缩小 (快捷键: -)"
-          >
-            <ZoomOut className="w-4 h-4" />
-          </button>
-
-          {/* Zoom In */}
-          <button
-            type="button"
-            onClick={handleZoomIn}
-            className="w-7 h-7 rounded-full flex items-center justify-center text-zinc-300 hover:text-white hover:bg-white/12 transition-all cursor-pointer active:scale-95"
-            title="放大 (快捷键: +)"
-          >
-            <ZoomIn className="w-4 h-4" />
-          </button>
-
-          {/* Fit Screen */}
-          <button
-            type="button"
-            onClick={handleFitToScreen}
-            className="w-7 h-7 rounded-full flex items-center justify-center text-zinc-300 hover:text-white hover:bg-white/12 transition-all cursor-pointer active:scale-95"
-            title="适应屏幕 (快捷键: F)"
-          >
-            <Maximize2 className="w-4 h-4" />
-          </button>
-
-          {/* Reset 1:1 */}
-          <button
-            type="button"
-            onClick={handleResetZoom}
-            className="px-2 h-6 rounded bg-white/5 hover:bg-white/15 border border-white/10 text-zinc-300 hover:text-white text-[11px] font-mono font-bold flex items-center justify-center transition-all cursor-pointer active:scale-95 whitespace-nowrap"
-            title="原图 1:1 尺寸 (快捷键: 0)"
-          >
+        {/* Action ButtonGroup */}
+        <ButtonGroup size="lg" variant="ghost">
+          <Button isIconOnly onClick={handleZoomOut} aria-label="缩小 (快捷键: -)">
+            <ZoomOut />
+          </Button>
+          <Button isIconOnly onClick={handleZoomIn} aria-label="放大 (快捷键: +)">
+            <ZoomIn />
+          </Button>
+          <Button isIconOnly onClick={handleFitToScreen} aria-label="适应屏幕 (快捷键: F)">
+            <Maximize2 />
+          </Button>
+          <Button onClick={handleResetZoom} aria-label="原图 1:1 尺寸 (快捷键: 0)">
             1:1
-          </button>
+          </Button>
 
-          <div className="w-px h-4 bg-white/15 mx-1" />
+          <ButtonGroup.Separator />
 
-          {/* Rotate Left */}
-          <button
-            type="button"
-            onClick={handleRotateLeft}
-            className="w-7 h-7 rounded-full flex items-center justify-center text-zinc-300 hover:text-white hover:bg-white/12 transition-all cursor-pointer active:scale-95"
-            title="向左旋转 90° (快捷键: L)"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-          </button>
+          <Button isIconOnly onClick={handleRotateLeft} aria-label="向左旋转 90° (快捷键: L)">
+            <RotateCcw />
+          </Button>
+          <Button isIconOnly onClick={handleRotateRight} aria-label="向右旋转 90° (快捷键: R)">
+            <RotateCw />
+          </Button>
 
-          {/* Rotate Right */}
-          <button
-            type="button"
-            onClick={handleRotateRight}
-            className="w-7 h-7 rounded-full flex items-center justify-center text-zinc-300 hover:text-white hover:bg-white/12 transition-all cursor-pointer active:scale-95"
-            title="向右旋转 90° (快捷键: R)"
-          >
-            <RotateCw className="w-3.5 h-3.5" />
-          </button>
+          <ButtonGroup.Separator />
 
-          <div className="w-px h-4 bg-white/15 mx-1" />
-
-          {/* Copy Image */}
-          <button
-            type="button"
-            onClick={handleCopyImage}
-            className="w-7 h-7 rounded-full flex items-center justify-center text-zinc-300 hover:text-white hover:bg-white/12 transition-all cursor-pointer active:scale-95"
-            title="复制图片到剪贴板"
-          >
-            {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-          </button>
-
-          {/* Download PNG */}
-          <button
-            type="button"
-            onClick={handleDownload}
-            className="whitespace-nowrap shrink-0 h-7 px-3 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer active:scale-95 ml-0.5"
-            title="下载 PNG 图片"
-          >
-            <Download className="w-3.5 h-3.5 shrink-0" />
-            <span className="whitespace-nowrap">下载</span>
-          </button>
-
-          {/* Close */}
-          <button
-            type="button"
-            onClick={handleClose}
-            className="w-7 h-7 rounded-full flex items-center justify-center text-zinc-400 hover:text-rose-400 hover:bg-rose-500/20 transition-all cursor-pointer active:scale-95 ml-0.5"
-            title="关闭页面 (Esc)"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+          <Button isIconOnly onClick={handleCopyImage} aria-label="复制图片到剪贴板">
+            {copied ? <Check className="text-success" /> : <Copy />}
+          </Button>
+          <Button isIconOnly onClick={handleDownload} aria-label="下载 PNG 图片">
+            <Download />
+          </Button>
+          <Button isIconOnly onClick={handleClose} aria-label="关闭页面 (Esc)">
+            <X />
+          </Button>
+        </ButtonGroup>
       </header>
 
       {/* Main Pan & Zoom Viewport */}

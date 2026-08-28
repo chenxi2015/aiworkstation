@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Button } from '@heroui/react';
-import { X, Download, Copy, Check, FileText } from 'lucide-react';
+import { Modal, ScrollShadow, Button } from '@heroui/react';
+import { Download, Copy, Check, FileText } from 'lucide-react';
 import { exportMarkdown } from '../../../../src/utils/documentExporter';
 
 interface MarkdownEditModalProps {
@@ -33,68 +33,63 @@ export const MarkdownEditModal: React.FC<MarkdownEditModalProps> = ({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in duration-150"
-      onClick={onClose}
-    >
-      <div
-        className="bg-surface border border-border/80 rounded-lg shadow-xl w-full max-w-lg flex flex-col max-h-[85vh] overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Modal Header */}
-        <div className="flex items-center justify-between px-3 py-2.5 border-b border-border">
-          <div className="flex items-center gap-1.5">
-            <FileText className="w-4 h-4 text-accent" />
-            <h3 className="text-xs font-semibold text-foreground">生成 / 编辑 Markdown</h3>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1 rounded text-muted hover:text-foreground hover:bg-surface-tertiary transition-colors"
-            title="关闭"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+    <Modal.Root isOpen={true} onOpenChange={(isOpen) => { if (!isOpen) onClose(); }}>
+      <Modal.Backdrop>
+        <Modal.Container placement="top" className="p-2.5 pt-3">
+          <Modal.Dialog className="p-3.5 max-w-full w-full">
+            {/* Modal Header */}
+            <Modal.Header className="pr-6">
+              <Modal.Heading className="flex items-center gap-1.5 text-xs font-semibold">
+                <FileText className="w-4 h-4 text-accent shrink-0" />
+                <span>生成 / 编辑 Markdown</span>
+              </Modal.Heading>
+              <Modal.CloseTrigger />
+            </Modal.Header>
 
-        {/* Editor Area */}
-        <div className="p-3 flex-1 flex flex-col gap-2 overflow-hidden">
-          <div className="text-[11px] text-muted flex justify-between">
-            <span>支持自由编辑内容，可一键复制或下载：</span>
-            <span>{content.length} 字符</span>
-          </div>
-          <textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            className="w-full flex-1 min-h-[300px] p-2.5 rounded-md bg-surface-tertiary border border-border text-foreground font-mono text-[11px] leading-relaxed resize-none focus:outline-none focus:border-accent"
-            placeholder="Markdown 内容..."
-            spellCheck={false}
-          />
-        </div>
+            {/* Modal Body & Editor Area */}
+            <Modal.Body className="mt-2">
+              <div className="flex justify-between text-[11px] text-muted mb-1.5">
+                <span>支持自由编辑内容，可一键复制或下载：</span>
+                <span>{content.length} 字符</span>
+              </div>
+              <ScrollShadow className="max-h-80 w-full rounded-md border border-border bg-surface-tertiary">
+                <textarea
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  className="w-full min-h-60 p-2 bg-transparent text-foreground font-mono text-[11px] leading-relaxed resize-none focus:outline-none block"
+                  placeholder="Markdown 内容..."
+                  spellCheck={false}
+                />
+              </ScrollShadow>
+            </Modal.Body>
 
-        {/* Modal Footer */}
-        <div className="flex items-center justify-end gap-2 px-3 py-2.5 border-t border-border bg-surface-secondary">
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={handleCopy}
-            className="text-xs cursor-pointer"
-          >
-            {copied ? <Check className="w-3.5 h-3.5 text-success mr-1" /> : <Copy className="w-3.5 h-3.5 mr-1" />}
-            {copied ? '已复制' : '复制 Markdown'}
-          </Button>
+            {/* Modal Footer */}
+            <Modal.Footer className="flex w-full gap-2 mt-3">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={handleCopy}
+                className="flex-1 min-w-0 px-2 text-xs"
+              >
+                {copied ? <Check className="w-3.5 h-3.5 mr-1 shrink-0 text-success" /> : <Copy className="w-3.5 h-3.5 mr-1 shrink-0" />}
+                <span className="truncate">{copied ? '已复制' : '复制 Markdown'}</span>
+              </Button>
 
-          <Button
-            size="sm"
-            variant="primary"
-            onClick={handleDownload}
-            className="text-xs cursor-pointer"
-          >
-            <Download className="w-3.5 h-3.5 mr-1" />
-            下载 .md 文件
-          </Button>
-        </div>
-      </div>
-    </div>
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={handleDownload}
+                className="flex-1 min-w-0 px-2 text-xs"
+              >
+                <Download className="w-3.5 h-3.5 mr-1 shrink-0" />
+                <span className="truncate">下载 .md 文件</span>
+              </Button>
+            </Modal.Footer>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
+    </Modal.Root>
   );
 };
+
+
