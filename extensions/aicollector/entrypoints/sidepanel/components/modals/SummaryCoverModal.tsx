@@ -24,8 +24,8 @@ export const SummaryCoverModal: React.FC<SummaryCoverModalProps> = ({
         <Modal.Container placement="top" className="p-2.5 pt-3">
           <Modal.Dialog className="p-3.5 max-w-full w-full">
             {/* Modal Header */}
-            <Modal.Header className="pr-6">
-              <Modal.Heading className="flex items-center gap-1.5 text-xs font-semibold">
+            <Modal.Header>
+              <Modal.Heading className="flex items-center gap-1.5 font-semibold">
                 <FileText className="w-4 h-4 text-accent shrink-0" />
                 <span>封面与文章摘要</span>
               </Modal.Heading>
@@ -33,7 +33,7 @@ export const SummaryCoverModal: React.FC<SummaryCoverModalProps> = ({
             </Modal.Header>
 
             {/* Modal Body */}
-            <Modal.Body className="mt-2 flex flex-col gap-3 max-h-[60vh] overflow-y-auto">
+            <Modal.Body className="mt-4 flex flex-col gap-3.5 max-h-[65vh] overflow-y-auto">
               {/* Cover Image Section */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
@@ -58,7 +58,7 @@ export const SummaryCoverModal: React.FC<SummaryCoverModalProps> = ({
                 </div>
 
                 {cover ? (
-                  <div className="relative rounded-md overflow-hidden border border-border bg-surface-tertiary max-h-48 flex items-center justify-center">
+                  <div className="relative rounded-lg overflow-hidden border border-border bg-default-50/40 max-h-48 flex items-center justify-center">
                     <SafeImage
                       src={cover.url}
                       pageUrl={pageUrl}
@@ -67,7 +67,7 @@ export const SummaryCoverModal: React.FC<SummaryCoverModalProps> = ({
                     />
                   </div>
                 ) : (
-                  <div className="p-4 rounded-md bg-surface-tertiary text-center text-xs text-muted">
+                  <div className="p-4 rounded-lg border border-border/60 bg-default-50/40 text-center text-xs text-muted">
                     未检测到专属封面图片
                   </div>
                 )}
@@ -83,7 +83,7 @@ export const SummaryCoverModal: React.FC<SummaryCoverModalProps> = ({
                   <CopyButton text={summary.summary} title="复制摘要文本" />
                 </div>
 
-                <div className="p-2.5 rounded-md bg-surface-tertiary border border-border text-foreground text-xs leading-relaxed whitespace-pre-wrap select-text max-h-48 overflow-y-auto">
+                <div className="p-3 rounded-lg bg-default-50/40 border border-border text-foreground text-xs leading-relaxed whitespace-pre-wrap select-text max-h-48 overflow-y-auto">
                   {summary.summary}
                 </div>
               </div>

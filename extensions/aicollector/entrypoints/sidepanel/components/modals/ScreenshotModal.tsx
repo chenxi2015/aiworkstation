@@ -165,12 +165,12 @@ export const ScreenshotModal: React.FC<ScreenshotModalProps> = ({
         <Modal.Container placement="top" className="p-2.5 pt-3">
           <Modal.Dialog className="p-3.5 max-w-full w-full">
             {/* Modal Header */}
-            <Modal.Header className="pr-6 flex items-center justify-between gap-2">
-              <Modal.Heading className="flex items-center gap-1.5 text-xs font-semibold min-w-0 flex-1">
-                <Camera className="w-4 h-4 text-emerald-500 shrink-0" />
+            <Modal.Header className="flex items-center justify-between gap-2">
+              <Modal.Heading className="flex items-center gap-1.5 font-semibold min-w-0 flex-1">
+                <Camera className="w-4 h-4 text-accent shrink-0" />
                 <span className="truncate">选区真实截图</span>
                 {isLongImage && (
-                  <span className="shrink-0 px-1 py-0.2 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[10px] font-medium leading-none">
+                  <span className="shrink-0 px-1.5 py-0.5 rounded bg-accent/15 text-accent text-[10px] font-medium leading-none">
                     长图
                   </span>
                 )}
@@ -200,7 +200,7 @@ export const ScreenshotModal: React.FC<ScreenshotModalProps> = ({
                   className="p-1 rounded text-muted hover:text-foreground hover:bg-surface-tertiary transition-colors cursor-pointer disabled:opacity-50"
                   title="重新截取"
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isCapturing ? 'animate-spin text-emerald-500' : ''}`} />
+                  <RefreshCw className={`w-3.5 h-3.5 ${isCapturing ? 'animate-spin text-accent' : ''}`} />
                 </button>
 
                 {screenshotUrl && !isCapturing && (
@@ -218,13 +218,13 @@ export const ScreenshotModal: React.FC<ScreenshotModalProps> = ({
             </Modal.Header>
 
             {/* Image Preview Container */}
-            <Modal.Body className="mt-2">
-              <div className="flex flex-col items-center justify-start min-h-[300px] max-h-[60vh] overflow-y-auto rounded-lg border border-border bg-zinc-950/20 dark:bg-black/40 p-2">
+            <Modal.Body className="mt-4">
+              <div className="flex flex-col items-center justify-start min-h-[300px] max-h-[60vh] overflow-y-auto rounded-lg border border-border bg-default-50/40 p-3">
                 {isCapturing ? (
                   <div className="flex flex-col items-center justify-center gap-3 py-14 text-center m-auto max-w-[280px]">
                     <div className="relative">
-                      <Loader2 className="w-10 h-10 animate-spin text-emerald-500" />
-                      <Camera className="w-4 h-4 text-emerald-400 absolute inset-0 m-auto" />
+                      <Loader2 className="w-10 h-10 animate-spin text-accent" />
+                      <Camera className="w-4 h-4 text-accent absolute inset-0 m-auto" />
                     </div>
                     <div className="flex flex-col gap-1.5 w-full">
                       <span className="text-xs font-semibold text-foreground">
@@ -240,9 +240,9 @@ export const ScreenshotModal: React.FC<ScreenshotModalProps> = ({
                           : '防浮动元素消隐与像素级无缝拼接'}
                       </span>
                       {isLongImage && progress && (
-                        <div className="w-full bg-surface-tertiary h-1.5 rounded-full overflow-hidden mt-1.5 border border-border/50">
+                        <div className="w-full bg-default-100 h-1.5 rounded-full overflow-hidden mt-1.5 border border-border/50">
                           <div
-                            className="bg-emerald-500 h-full rounded-full transition-all duration-300 ease-out"
+                            className="bg-accent h-full rounded-full transition-all duration-300 ease-out"
                             style={{ width: `${Math.max(5, progress.percent)}%` }}
                           />
                         </div>
@@ -258,7 +258,7 @@ export const ScreenshotModal: React.FC<ScreenshotModalProps> = ({
                         viewMode === 'fit'
                           ? 'max-h-[55vh] max-w-full object-contain'
                           : 'w-full h-auto object-contain'
-                      } rounded-md shadow-md border border-border/60 transition-all`}
+                      } rounded-md shadow-sm border border-border/50 transition-all`}
                     />
                     <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-xs text-white/90 text-[10px] font-mono px-2 py-0.5 rounded pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
                       {isLongImage ? '100% 高清拼接' : '100% 原生渲染'}

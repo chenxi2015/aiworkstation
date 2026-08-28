@@ -1,38 +1,49 @@
-import React, { useEffect, useState } from 'react';
-import { Modal, Button } from '@heroui/react';
-import { Download, Copy, Check, Loader2, Sparkles } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Modal, Button, toast } from '@heroui/react';
+import { Download, Copy, Check, Loader2, Sparkles, RefreshCw, ExternalLink } from 'lucide-react';
 import { generatePosterDataUrl, type PosterOptions } from '../../../../src/utils/posterGenerator';
+import { openImageViewerInNewTab } from '../../../../src/utils/imageViewerHelper';
 
 interface PosterModalProps {
   options: PosterOptions;
+  cachedUrl?: string | null;
+  onGenerated?: (url: string) => void;
   onClose: () => void;
 }
 
-export const PosterModal: React.FC<PosterModalProps> = ({ options, onClose }) => {
-  const [posterUrl, setPosterUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+export const PosterModal: React.FC<PosterModalProps> = ({
+  options,
+  cachedUrl,
+  onGenerated,
+  onClose,
+}) => {
+  const [posterUrl, setPosterUrl] = useState<string | null>(cachedUrl || null);
+  const [loading, setLoading] = useState<boolean>(!cachedUrl);
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    let isMounted = true;
+  const handleGenerate = useCallback((isManual = false) => {
     setLoading(true);
-
     generatePosterDataUrl(options)
       .then((url) => {
-        if (isMounted) {
-          setPosterUrl(url);
-          setLoading(false);
+        setPosterUrl(url);
+        setLoading(false);
+        onGenerated?.(url);
+        if (isManual) {
+          toast.success('已重新生成分享海报', { timeout: 2000 });
         }
       })
       .catch((err) => {
         console.error('Failed to generate poster:', err);
-        if (isMounted) setLoading(false);
+        setLoading(false);
+        toast.danger('生成海报失败，请重试', { timeout: 2500 });
       });
+  }, [options, onGenerated]);
 
-    return () => {
-      isMounted = false;
-    };
-  }, [options]);
+  useEffect(() => {
+    if (!posterUrl) {
+      handleGenerate();
+    }
+  }, [posterUrl, handleGenerate]);
 
   const handleDownload = () => {
     if (!posterUrl) return;
@@ -55,10 +66,20 @@ export const PosterModal: React.FC<PosterModalProps> = ({ options, onClose }) =>
         }),
       ]);
       setCopied(true);
+      toast.success('已复制海报到剪贴板', { timeout: 2000 });
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error('Failed to copy image to clipboard:', err);
+      toast.danger('复制海报失败', { timeout: 2500 });
     }
+  };
+
+  const handleOpenInNewTab = () => {
+    if (!posterUrl) return;
+    openImageViewerInNewTab({
+      url: posterUrl,
+      title: `${options.title || '精美海报'} - 分享海报`,
+    });
   };
 
   return (
@@ -67,30 +88,61 @@ export const PosterModal: React.FC<PosterModalProps> = ({ options, onClose }) =>
         <Modal.Container placement="top" className="p-2.5 pt-3">
           <Modal.Dialog className="p-3.5 max-w-full w-full">
             {/* Modal Header */}
-            <Modal.Header className="pr-6">
-              <Modal.Heading className="flex items-center gap-1.5 text-xs font-semibold">
-                <Sparkles className="w-4 h-4 text-blue-500 shrink-0" />
-                <span>分享精美海报生成</span>
+            <Modal.Header className="flex items-center justify-between gap-2">
+              <Modal.Heading className="flex items-center gap-1.5 font-semibold min-w-0 flex-1">
+                <Sparkles className="w-4 h-4 text-accent shrink-0" />
+                <span className="truncate">分享精美海报生成</span>
               </Modal.Heading>
+
+              {/* Action Toolbar */}
+              <div className="flex items-center gap-1 shrink-0 mr-1">
+                {/* Re-generate button */}
+                <button
+                  type="button"
+                  onClick={() => handleGenerate(true)}
+                  disabled={loading}
+                  className="p-1 rounded text-muted hover:text-foreground hover:bg-surface-tertiary transition-colors cursor-pointer disabled:opacity-50"
+                  title="重新生成海报"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-accent' : ''}`} />
+                </button>
+
+                {/* Open in preview viewer */}
+                {posterUrl && !loading && (
+                  <button
+                    type="button"
+                    onClick={handleOpenInNewTab}
+                    className="p-1 rounded text-muted hover:text-foreground hover:bg-surface-tertiary transition-colors cursor-pointer"
+                    title="在预览组件中打开"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
               <Modal.CloseTrigger />
             </Modal.Header>
 
             {/* Poster Preview Area */}
-            <Modal.Body className="mt-2">
-              <div className="flex flex-col items-center justify-center min-h-[340px] max-h-[60vh] overflow-y-auto rounded-lg border border-border bg-zinc-900/10 dark:bg-black/30 p-2">
+            <Modal.Body className="mt-4">
+              <div className="flex flex-col items-center justify-center min-h-[320px] max-h-[60vh] overflow-y-auto rounded-lg border border-border bg-default-50/40 p-3">
                 {loading ? (
                   <div className="flex flex-col items-center gap-2 text-muted py-12">
-                    <Loader2 className="w-7 h-7 animate-spin text-blue-500" />
-                    <span className="text-xs font-medium text-zinc-500">正在生成高清分享海报...</span>
+                    <Loader2 className="w-7 h-7 animate-spin text-accent" />
+                    <span className="text-xs font-medium text-muted">正在生成高清分享海报...</span>
                   </div>
                 ) : posterUrl ? (
                   <img
                     src={posterUrl}
                     alt="Generated Poster"
-                    className="max-h-full max-w-full object-contain rounded-md shadow-md border border-border/60 transition-all hover:scale-[1.01]"
+                    className="max-h-full max-w-full object-contain rounded-md shadow-sm border border-border/50 transition-all hover:scale-[1.01]"
                   />
                 ) : (
-                  <div className="text-xs text-muted">海报生成失败，请重试</div>
+                  <div className="flex flex-col items-center gap-2 text-muted py-12 text-center m-auto">
+                    <span className="text-xs text-muted">海报生成失败，请重试</span>
+                    <Button size="sm" variant="secondary" onClick={() => handleGenerate(true)} className="text-xs mt-2">
+                      点击重新生成
+                    </Button>
+                  </div>
                 )}
               </div>
             </Modal.Body>

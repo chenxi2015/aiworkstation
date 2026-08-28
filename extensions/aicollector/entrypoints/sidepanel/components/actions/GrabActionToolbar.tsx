@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { toast } from '@heroui/react';
 import {
   FileCode,
@@ -46,6 +46,16 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
   const [showContentImageModal, setShowContentImageModal] = useState(false);
   const [showScreenshotModal, setShowScreenshotModal] = useState(false);
   const [isActionsExpanded, setIsActionsExpanded] = useState(true);
+
+  // Cached generated URLs to preserve across modal opens
+  const [cachedPosterUrl, setCachedPosterUrl] = useState<string | null>(null);
+  const [cachedContentImageUrl, setCachedContentImageUrl] = useState<string | null>(null);
+
+  // Reset caches when grabbed content changes
+  useEffect(() => {
+    setCachedPosterUrl(null);
+    setCachedContentImageUrl(null);
+  }, [grabbedContent.id]);
 
   // Toast / feedback states
   const [copiedState, setCopiedState] = useState<string | null>(null);
@@ -327,6 +337,8 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
             url: sanitizedUrl,
             coverUrl: coverInfo?.url,
           }}
+          cachedUrl={cachedPosterUrl}
+          onGenerated={(url) => setCachedPosterUrl(url)}
           onClose={() => setShowPosterModal(false)}
         />
       )}
@@ -343,6 +355,8 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
       {showContentImageModal && (
         <ContentImageModal
           grabbedContent={grabbedContent}
+          cachedUrl={cachedContentImageUrl}
+          onGenerated={(url) => setCachedContentImageUrl(url)}
           onClose={() => setShowContentImageModal(false)}
         />
       )}

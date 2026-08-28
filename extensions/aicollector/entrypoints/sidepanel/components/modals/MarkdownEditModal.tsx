@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Modal, ScrollShadow, Button } from '@heroui/react';
+import { Modal, Button } from '@heroui/react';
 import { Download, Copy, Check, FileText } from 'lucide-react';
 import { exportMarkdown } from '../../../../src/utils/documentExporter';
 
@@ -38,8 +38,8 @@ export const MarkdownEditModal: React.FC<MarkdownEditModalProps> = ({
         <Modal.Container placement="top" className="p-2.5 pt-3">
           <Modal.Dialog className="p-3.5 max-w-full w-full">
             {/* Modal Header */}
-            <Modal.Header className="pr-6">
-              <Modal.Heading className="flex items-center gap-1.5 text-xs font-semibold">
+            <Modal.Header>
+              <Modal.Heading className="flex items-center gap-1.5 font-semibold">
                 <FileText className="w-4 h-4 text-accent shrink-0" />
                 <span>生成 / 编辑 Markdown</span>
               </Modal.Heading>
@@ -47,20 +47,20 @@ export const MarkdownEditModal: React.FC<MarkdownEditModalProps> = ({
             </Modal.Header>
 
             {/* Modal Body & Editor Area */}
-            <Modal.Body className="mt-2">
-              <div className="flex justify-between text-[11px] text-muted mb-1.5">
-                <span>支持自由编辑内容，可一键复制或下载：</span>
-                <span>{content.length} 字符</span>
-              </div>
-              <ScrollShadow className="max-h-80 w-full rounded-md border border-border bg-surface-tertiary">
+            <Modal.Body className="mt-4">
+              <div className="w-full rounded-lg border border-border bg-default-50/40 transition-colors focus-within:border-primary focus-within:ring-1 focus-within:ring-primary overflow-hidden">
                 <textarea
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
-                  className="w-full min-h-60 p-2 bg-transparent text-foreground font-mono text-[11px] leading-relaxed resize-none focus:outline-none block"
+                  className="w-full h-72 p-3 bg-transparent text-foreground font-mono text-[11px] leading-relaxed resize-none outline-none border-none focus:outline-none focus:ring-0 block"
                   placeholder="Markdown 内容..."
                   spellCheck={false}
                 />
-              </ScrollShadow>
+              </div>
+              <div className="flex justify-between text-[11px] text-muted mt-2">
+                <span>支持自由编辑内容，可一键复制或下载：</span>
+                <span>{content.length} 字符</span>
+              </div>
             </Modal.Body>
 
             {/* Modal Footer */}
