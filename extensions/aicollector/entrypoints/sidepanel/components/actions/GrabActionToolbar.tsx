@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { toast } from '@heroui/react';
 import {
   FileCode,
-  FileSpreadsheet,
   Printer,
   Sparkles,
   ShieldCheck,
@@ -20,10 +19,7 @@ import { cleanUrl } from '../../../../src/utils/urlCleaner';
 import { htmlToMarkdown } from '../../../../src/utils/markdownConverter';
 import {
   exportMarkdownWithImages,
-  exportWord,
   exportPdf,
-  exportJson,
-  createStructuredContentJson,
   cleanDocumentTitle,
   convertGrabbedToAst,
   exportAstJson,
@@ -61,7 +57,6 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
   const [copiedState, setCopiedState] = useState<string | null>(null);
   const [isBundling, setIsBundling] = useState(false);
   const [bundlePercent, setBundlePercent] = useState(0);
-  const [isExportingWord, setIsExportingWord] = useState(false);
 
   const title = cleanDocumentTitle(grabbedContent.tdk.title || '选区内容');
   const rawUrl = grabbedContent.url;
@@ -159,35 +154,13 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
     }
   };
 
-  // 8. Download PDF (Print View)
-  const handleExportPdf = () => {
+  // 8. Open Document Preview / Exporter (PDF, Word, Print)
+  const handleOpenDocViewer = () => {
     exportPdf(title, grabbedContent.selectedHtml, grabbedContent.url, grabbedContent);
-    toast.info('已开启 PDF 预览页面', {
-      description: '请在顶部点击「立即打印 / 另存为 PDF」完成保存',
-      timeout: 3000,
+    toast.info('已开启文档导出与预览页面', {
+      description: '支持导出 Word、PDF 打印及 Markdown 复制',
+      timeout: 2500,
     });
-  };
-
-  // 9. Download Word (.docx/.doc)
-  const handleExportWord = async () => {
-    if (isExportingWord) return;
-    const filename = `${title.slice(0, 30).trim() || 'document'}_${Date.now()}.docx`;
-    try {
-      setIsExportingWord(true);
-      await exportWord(title, grabbedContent.selectedHtml, filename, grabbedContent.url, grabbedContent);
-      toast.success('Word 文档导出成功', {
-        description: filename,
-        timeout: 2500,
-      });
-    } catch (err) {
-      console.error('Failed to export docx:', err);
-      toast.danger('导出 Word 失败', {
-        description: String(err),
-        timeout: 3000,
-      });
-    } finally {
-      setIsExportingWord(false);
-    }
   };
 
   // Summary & Cover metadata
@@ -195,7 +168,7 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
   const summaryInfo = extractSummary(grabbedContent);
   const currentMarkdown = htmlToMarkdown(grabbedContent.selectedHtml, grabbedContent.url);
 
-  // Configuration for the tool grid (9 actions)
+  // Configuration for the tool grid (9 actions in 3x3 layout)
   const toolActions = [
     {
       id: 'cover_summary',
@@ -257,21 +230,10 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
       onClick: handleDownloadBundleZip,
     },
     {
-      id: 'download_pdf',
-      label: '下载 PDF',
+      id: 'export_document',
+      label: '导出 / 转成文档',
       icon: <Printer className="w-4 h-4 text-orange-500 group-hover:scale-110 transition-transform" />,
-      onClick: handleExportPdf,
-    },
-    {
-      id: 'download_word',
-      label: isExportingWord ? '生成中...' : '下载 Word',
-      icon: isExportingWord ? (
-        <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
-      ) : (
-        <FileSpreadsheet className="w-4 h-4 text-blue-600 group-hover:scale-110 transition-transform" />
-      ),
-      disabled: isExportingWord,
-      onClick: handleExportWord,
+      onClick: handleOpenDocViewer,
     },
   ];
 

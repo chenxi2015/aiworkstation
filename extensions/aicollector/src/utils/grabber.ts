@@ -152,14 +152,15 @@ export class VisualGrabber {
     this.banner.style.cssText = `
       position: fixed; top: 16px; left: 50%;
       transform: translateX(-50%);
-      background: rgba(15, 23, 42, 0.94);
-      backdrop-filter: blur(12px);
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
       color: #f8fafc;
-      padding: 7px 18px;
-      border-radius: 30px;
+      padding: 5px 6px 5px 12px;
+      border-radius: 9999px;
       font-size: 13px; font-weight: 500;
-      box-shadow: 0 12px 30px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.12);
-      display: flex; align-items: center; gap: 12px;
+      box-shadow: 0 16px 36px -4px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.12);
+      display: flex; align-items: center; gap: 10px;
       pointer-events: auto;
       z-index: 2147483647;
       user-select: none;
@@ -178,19 +179,117 @@ export class VisualGrabber {
     if (!this.banner) return;
 
     this.banner.innerHTML = `
-      <span style="display:inline-flex;align-items:center;gap:6px;">
-        <span style="width:8px;height:8px;background:#38bdf8;border-radius:50%;display:inline-block;"></span>
-        <strong>点选 / 拖拽框选</strong>
-      </span>
-      <span style="color:#475569;">|</span>
-      <span style="color:#cbd5e1;font-size:12px;">点击单个元素，或按住鼠标向下拖动框选区域</span>
-      <span style="color:#475569;">|</span>
-      <button id="ai-banner-fullpage-btn" style="background:rgba(59, 130, 246, 0.2);color:#93c5fd;border:1px solid rgba(59, 130, 246, 0.4);padding:3px 10px;border-radius:14px;font-size:12px;cursor:pointer;font-weight:500;transition:all 0.15s ease;display:inline-flex;align-items:center;gap:4px;">
-        <span>📸</span> 截取整页
-      </button>
-      <button id="ai-banner-exit-btn" style="background:rgba(239, 68, 68, 0.15);color:#fca5a5;border:1px solid rgba(239, 68, 68, 0.35);padding:3px 10px;border-radius:14px;font-size:12px;cursor:pointer;font-weight:500;transition:all 0.15s ease;">
-        <kbd style="background:rgba(0,0,0,0.3);padding:1px 4px;border-radius:3px;font-size:10px;">Esc</kbd> 退出
-      </button>
+      <style>
+        .ai-grabber-toolbar {
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
+          color: #f8fafc;
+          font-size: 13px;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          user-select: none;
+        }
+        .ai-grabber-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 3px 8px;
+          background: rgba(56, 189, 248, 0.12);
+          border: 1px solid rgba(56, 189, 248, 0.28);
+          border-radius: 9999px;
+          font-size: 12px;
+          font-weight: 600;
+          color: #38bdf8;
+          white-space: nowrap;
+        }
+        .ai-grabber-dot {
+          width: 6px;
+          height: 6px;
+          background: #38bdf8;
+          border-radius: 50%;
+          box-shadow: 0 0 6px #38bdf8;
+        }
+        .ai-grabber-hint {
+          color: #94a3b8;
+          font-size: 12px;
+          white-space: nowrap;
+        }
+        .ai-grabber-separator {
+          width: 1px;
+          height: 14px;
+          background: rgba(255, 255, 255, 0.15);
+          margin: 0 2px;
+        }
+        .ai-grabber-button-group {
+          display: inline-flex;
+          align-items: center;
+          background: rgba(255, 255, 255, 0.06);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 9999px;
+          padding: 2px;
+          gap: 2px;
+        }
+        .ai-grabber-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 4px 10px;
+          border-radius: 9999px;
+          font-size: 12px;
+          font-weight: 500;
+          line-height: 1;
+          cursor: pointer;
+          border: none;
+          background: transparent;
+          color: #e2e8f0;
+          transition: all 0.15s ease;
+          outline: none;
+          box-sizing: border-box;
+          white-space: nowrap;
+        }
+        .ai-grabber-btn:hover {
+          background: rgba(255, 255, 255, 0.12);
+          color: #ffffff;
+        }
+        .ai-grabber-btn:active {
+          transform: scale(0.96);
+          background: rgba(255, 255, 255, 0.16);
+        }
+        .ai-grabber-btn-danger {
+          color: #f87171;
+        }
+        .ai-grabber-btn-danger:hover {
+          background: rgba(239, 68, 68, 0.18);
+          color: #fca5a5;
+        }
+        .ai-grabber-kbd {
+          background: rgba(255, 255, 255, 0.12);
+          border: 1px solid rgba(255, 255, 255, 0.18);
+          border-radius: 4px;
+          padding: 1px 4px;
+          font-size: 10px;
+          font-family: ui-monospace, monospace;
+          color: inherit;
+        }
+      </style>
+      <div class="ai-grabber-toolbar">
+        <div class="ai-grabber-badge">
+          <span class="ai-grabber-dot"></span>
+          <span>点选 / 拖拽框选</span>
+        </div>
+        <span class="ai-grabber-hint">点击单个元素，或按住鼠标向下拖动框选区域</span>
+        <div class="ai-grabber-separator"></div>
+        <div class="ai-grabber-button-group">
+          <button id="ai-banner-fullpage-btn" class="ai-grabber-btn" title="截取当前网页完整页面">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            <span>截取整页</span>
+          </button>
+          <button id="ai-banner-exit-btn" class="ai-grabber-btn ai-grabber-btn-danger" title="退出截取 (Esc)">
+            <span class="ai-grabber-kbd">Esc</span>
+            <span>退出</span>
+          </button>
+        </div>
+      </div>
     `;
 
     this.banner.querySelector('#ai-banner-exit-btn')?.addEventListener('click', (e) => {
