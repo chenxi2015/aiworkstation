@@ -9,6 +9,7 @@ import type {
   InlineNode,
   ListItemBlock,
 } from '../types';
+import { highlightCodeToHtml } from '../../syntaxHighlighter';
 
 /**
  * Escapes unsafe HTML characters
@@ -96,8 +97,10 @@ export function renderBlockToHtml(block: BlockNode): string {
     }
 
     case 'code': {
-      const langClass = block.language ? ` class="language-${escapeHtml(block.language)}"` : '';
-      return `<pre><code${langClass}>${escapeHtml(block.code)}</code></pre>`;
+      const lang = block.language || '';
+      const langClass = lang ? ` class="language-${escapeHtml(lang)}"` : '';
+      const highlighted = highlightCodeToHtml(block.code, lang);
+      return `<pre class="ast-code-block"><code${langClass}>${highlighted}</code></pre>`;
     }
 
     case 'list': {

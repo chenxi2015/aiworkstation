@@ -54,6 +54,27 @@ export function injectScreenshotStyles(): () => void {
       width: 0 !important;
       height: 0 !important;
     }
+    /* Force sticky elements and smart sticky containers to stay static in document flow */
+    [style*="position: sticky" i],
+    [style*="position:sticky" i],
+    [style*="position: -webkit-sticky" i],
+    [style*="position:-webkit-sticky" i],
+    [data-smart-sticky-anchor] {
+      position: static !important;
+      top: auto !important;
+      transform: none !important;
+    }
+    /* Hide third-party extension overlay containers and shadow roots (e.g. Plasmo, CodeBox) */
+    plasmo-csui,
+    [id*="plasmo" i],
+    [class*="plasmo" i],
+    [id*="codebox" i],
+    [class*="codebox" i],
+    #ws_cmbm,
+    .ws_cmbmc {
+      display: none !important;
+      visibility: hidden !important;
+    }
   `;
   (document.head || document.documentElement).appendChild(styleEl);
 
@@ -63,58 +84,245 @@ export function injectScreenshotStyles(): () => void {
 }
 
 /**
+ * Controller interface to neutralize sticky elements and hide floating widgets
+ * throughout the entire multi-slice screenshot lifecycle.
+ */
+export interface FloatingElementController {
+  enforce: () => void;
+  restore: () => void;
+}
+
+/**
+ * Detect fixed and sticky floating elements on page and handle them before & during multi-slice capture:
+ * 1. Neutralize sticky elements by forcing 'position: static' so they remain at their natural
+ *    document flow coordinate and do NOT stick to the viewport during successive scroll slices.
+ * 2. Neutralize fixed header bars to 'position: absolute' (if starting from page top) so they
+ *    are captured only once at the top, or hide floating widgets (back-to-top buttons, chat heads, #ws_cmbm).
+ * 3. Suppress all third-party extension UI (e.g. <plasmo-csui>, shadow-roots, floating toolbars).
+ * 4. Supports re-enforcement after scroll events to counter dynamic JS page sticky scripts.
+ */
+export function createFloatingElementController(targetRect?: AreaPageRect): FloatingElementController {
+  interface RestorableElement {
+    element: HTMLElement;
+    originalPosition: string;
+    originalVisibility: string;
+    originalTop: string;
+    originalTransform: string;
+    originalOpacity: string;
+    originalDisplay: string;
+  }
+
+  const modifiedMap = new Map<HTMLElement, RestorableElement>();
+
+  const winH = window.innerHeight || 800;
+  const winW = window.innerWidth || 1200;
+  const globalScrollY = window.scrollY || 0;
+  const isCaptureFromTop = !targetRect || targetRect.top <= 80;
+
+  const enforce = () => {
+    try {
+      // 1. First explicitly suppress all third-party extension host tags & shadow-containers
+      const extensionHosts = document.querySelectorAll<HTMLElement>(
+        'plasmo-csui, [id*="plasmo" i], [class*="plasmo" i], [id*="codebox" i], [class*="codebox" i], #ws_cmbm, .ws_cmbmc',
+      );
+      extensionHosts.forEach((host) => {
+        if (host.closest('#ai-workstation-grabber-container') || host.id?.startsWith('ai-collector-')) return;
+        if (!modifiedMap.has(host)) {
+          modifiedMap.set(host, {
+            element: host,
+            originalPosition: host.style.position,
+            originalVisibility: host.style.visibility,
+            originalTop: host.style.top,
+            originalTransform: host.style.transform,
+            originalOpacity: host.style.opacity,
+            originalDisplay: host.style.display,
+          });
+        }
+        host.style.setProperty('display', 'none', 'important');
+        host.style.setProperty('visibility', 'hidden', 'important');
+      });
+
+      // 2. Scan all page elements for fixed/sticky/shadow-root artifacts
+      const allElements = document.querySelectorAll<HTMLElement>('*');
+
+      allElements.forEach((el) => {
+        if (
+          el.id === 'ai-workstation-grabber-container' ||
+          el.closest('#ai-workstation-grabber-container') ||
+          el.id?.startsWith('ai-collector-') ||
+          el.tagName === 'HTML' ||
+          el.tagName === 'BODY'
+        ) {
+          return;
+        }
+
+        try {
+          // Hide third-party Shadow DOM hosts (custom extension elements)
+          if (el.shadowRoot && !el.id?.startsWith('ai-collector-')) {
+            if (!modifiedMap.has(el)) {
+              modifiedMap.set(el, {
+                element: el,
+                originalPosition: el.style.position,
+                originalVisibility: el.style.visibility,
+                originalTop: el.style.top,
+                originalTransform: el.style.transform,
+                originalOpacity: el.style.opacity,
+                originalDisplay: el.style.display,
+              });
+            }
+            el.style.setProperty('display', 'none', 'important');
+            el.style.setProperty('visibility', 'hidden', 'important');
+            return;
+          }
+
+          const style = window.getComputedStyle(el);
+          const pos = style.position;
+          const rawStyle = el.getAttribute('style') || '';
+          const isSticky =
+            pos === 'sticky' ||
+            (pos as string) === '-webkit-sticky' ||
+            el.hasAttribute('data-smart-sticky-anchor') ||
+            rawStyle.includes('position: sticky') ||
+            rawStyle.includes('position:sticky') ||
+            rawStyle.includes('position: -webkit-sticky') ||
+            rawStyle.includes('position:-webkit-sticky');
+          const isFixed =
+            pos === 'fixed' ||
+            rawStyle.includes('position: fixed') ||
+            rawStyle.includes('position:fixed');
+
+          if (!isSticky && !isFixed) return;
+
+          const rect = el.getBoundingClientRect();
+
+          // Skip invisible elements or massive structural wrappers
+          if (rect.width <= 0 && rect.height <= 0) return;
+          if (rect.height > winH * 0.9 && rect.width > winW * 0.9) return;
+
+          if (!modifiedMap.has(el)) {
+            modifiedMap.set(el, {
+              element: el,
+              originalPosition: el.style.position,
+              originalVisibility: el.style.visibility,
+              originalTop: el.style.top,
+              originalTransform: el.style.transform,
+              originalOpacity: el.style.opacity,
+              originalDisplay: el.style.display,
+            });
+          }
+
+          if (isSticky) {
+            // Sticky elements must be converted to static to prevent repeated capture at every slice
+            el.style.setProperty('position', 'static', 'important');
+            el.style.setProperty('top', 'auto', 'important');
+            el.style.setProperty('transform', 'none', 'important');
+          } else if (isFixed) {
+            const isTopHeader = rect.top <= 15 && rect.height < winH * 0.45;
+            if (isCaptureFromTop && isTopHeader) {
+              // If starting from top, pin header to absolute top so it scrolls away naturally
+              const absoluteTop = rect.top + globalScrollY;
+              el.style.setProperty('position', 'absolute', 'important');
+              el.style.setProperty('top', `${absoluteTop}px`, 'important');
+            } else {
+              // Otherwise hide floating elements (floating buttons, toolbars, sidebars, third-party widgets)
+              el.style.setProperty('visibility', 'hidden', 'important');
+              el.style.setProperty('opacity', '0', 'important');
+            }
+          }
+        } catch {}
+      });
+    } catch {}
+  };
+
+  // Initial enforcement
+  enforce();
+
+  const restore = () => {
+    modifiedMap.forEach((item) => {
+      const el = item.element;
+      if (item.originalPosition) {
+        el.style.position = item.originalPosition;
+      } else {
+        el.style.removeProperty('position');
+      }
+
+      if (item.originalVisibility) {
+        el.style.visibility = item.originalVisibility;
+      } else {
+        el.style.removeProperty('visibility');
+      }
+
+      if (item.originalTop) {
+        el.style.top = item.originalTop;
+      } else {
+        el.style.removeProperty('top');
+      }
+
+      if (item.originalTransform) {
+        el.style.transform = item.originalTransform;
+      } else {
+        el.style.removeProperty('transform');
+      }
+
+      if (item.originalOpacity) {
+        el.style.opacity = item.originalOpacity;
+      } else {
+        el.style.removeProperty('opacity');
+      }
+
+      if (item.originalDisplay) {
+        el.style.display = item.originalDisplay;
+      } else {
+        el.style.removeProperty('display');
+      }
+    });
+    modifiedMap.clear();
+  };
+
+  return { enforce, restore };
+}
+
+
+/**
+ * Legacy compatibility wrapper for hiding floating elements
+ */
+export function hideFloatingElements(targetRect?: AreaPageRect): () => void {
+  const controller = createFloatingElementController(targetRect);
+  return controller.restore;
+}
+
+
+/**
  * Smart Scroll Container Detection
  *
- * Probes every element stacked at the target area's visible center, collects
- * their scrollable ancestors, and accepts the deepest one that:
- *   1. is tall enough to be a main-content scroller (>= 50% viewport height),
- *      rejecting tiny sub-scrollables like code blocks or table wrappers,
- *   2. geometrically intersects the target area in page coordinates,
- *   3. can actually be scrolled (verified with a reversible 1px test scroll).
- * Falls back to the global window scroller when nothing qualifies.
+ * Probes the target element / coordinates, collects scrollable ancestors,
+ * and returns the best matching scrollable container element (or window).
  */
-export function findScrollContainer(targetRect: AreaPageRect): Element | Window {
+export function findScrollContainer(
+  targetRect: AreaPageRect,
+  targetEl?: HTMLElement | null,
+): Element | Window {
   try {
     const winW = window.innerWidth || 1;
     const winH = window.innerHeight || 1;
     const scrollX = window.scrollX || 0;
     const scrollY = window.scrollY || 0;
 
-    const probeX = Math.max(
-      1,
-      Math.min(targetRect.left + targetRect.width / 2 - scrollX, winW - 1),
-    );
-    // Probe slightly inside the selection's visible leading edge instead of the
-    // extreme top, avoiding fixed headers stacked at the very top of the viewport.
-    const probeY = Math.max(
-      1,
-      Math.min(targetRect.top - scrollY + Math.min(targetRect.height / 2, 200), winH - 1),
-    );
-
-    const stack = document.elementsFromPoint(probeX, probeY);
-    const minContainerHeight = Math.min(320, Math.floor(winH * 0.5));
+    const minContainerHeight = Math.min(180, Math.floor(winH * 0.25));
 
     const isUsableContainer = (el: Element): boolean => {
       try {
+        if (el === document.body || el === document.documentElement) return false;
         const style = window.getComputedStyle(el);
         const overflowY = style.overflowY;
         const isScrollableStyle =
           overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay';
         if (!isScrollableStyle) return false;
-        if (el.scrollHeight <= el.clientHeight + 1) return false;
+        if (el.scrollHeight <= el.clientHeight + 2) return false;
         if (el.clientHeight < minContainerHeight) return false;
 
-        // The container's page-space box must intersect the target area, otherwise
-        // the probed element belongs to unrelated floating UI.
         const rect = el.getBoundingClientRect();
-        const boxTop = rect.top + scrollY;
-        const boxBottom = boxTop + rect.height;
-        if (
-          boxBottom <= targetRect.top + 4 ||
-          boxTop >= targetRect.top + targetRect.height - 4
-        ) {
-          return false;
-        }
+        if (rect.width <= 0 || rect.height <= 0) return false;
 
         // Reversible test scroll proving this element actually scrolls.
         const before = el.scrollTop;
@@ -133,6 +341,36 @@ export function findScrollContainer(targetRect: AreaPageRect): Element | Window 
       }
     };
 
+    // 1. If a target element is provided directly, walk up its ancestor chain first
+    if (targetEl) {
+      let curr: HTMLElement | null = targetEl;
+      while (curr && curr !== document.body && curr !== document.documentElement) {
+        if (isUsableContainer(curr)) {
+          return curr;
+        }
+        curr = curr.parentElement;
+      }
+
+      // Also probe direct children if the container itself was picked
+      const scrollableChild = targetEl.querySelector(
+        '[style*="overflow"], [class*="scroll"], [class*="overflow"]',
+      );
+      if (scrollableChild && isUsableContainer(scrollableChild)) {
+        return scrollableChild;
+      }
+    }
+
+    // 2. Coordinate-based probing at target area visible center
+    const probeX = Math.max(
+      1,
+      Math.min(targetRect.left + targetRect.width / 2 - scrollX, winW - 1),
+    );
+    const probeY = Math.max(
+      1,
+      Math.min(targetRect.top - scrollY + Math.min(targetRect.height / 2, 200), winH - 1),
+    );
+
+    const stack = document.elementsFromPoint(probeX, probeY);
     for (const hit of stack) {
       let el: Element | null = hit;
       while (el && el !== document.body && el !== document.documentElement) {
@@ -329,83 +567,62 @@ export async function waitForViewportImages(maxWaitMs = 400): Promise<void> {
 }
 
 /**
- * Detect external fixed and sticky floating elements on page and hide them
+ * Calculate the effective full page dimensions.
+ *
+ * In traditional pages, document.documentElement.scrollHeight reflects the entire page height.
+ * In SPA / multi-column layouts with locked body (height: 100%; overflow: hidden),
+ * probes major layout containers to find the true maximum scrollable content height.
  */
-export function hideFloatingElements(targetRect?: AreaPageRect): () => void {
-  const hiddenElements: HiddenElementState[] = [];
+export function calculateFullPageDimensions(): { width: number; height: number } {
+  const winW = window.innerWidth || 1;
+  const winH = window.innerHeight || 1;
 
-  const candidateSelectors = [
-    'header',
-    'nav',
-    '[class*="header" i]',
-    '[class*="sticky" i]',
-    '[class*="fixed" i]',
-    '[class*="navbar" i]',
-    '[class*="toolbar" i]',
-    '[style*="position: fixed"]',
-    '[style*="position:fixed"]',
-    '[style*="position: sticky"]',
-    '[style*="position:sticky"]',
-    '[style*="position: -webkit-sticky"]',
-  ].join(',');
+  let maxWidth = Math.max(
+    document.documentElement.scrollWidth || 0,
+    document.body?.scrollWidth || 0,
+    document.documentElement.offsetWidth || 0,
+    document.body?.offsetWidth || 0,
+    winW,
+  );
 
-  const matched = document.querySelectorAll<HTMLElement>(candidateSelectors);
-  const elementsToInspect = new Set<HTMLElement>(Array.from(matched));
+  let maxHeight = Math.max(
+    document.documentElement.scrollHeight || 0,
+    document.body?.scrollHeight || 0,
+    document.documentElement.offsetHeight || 0,
+    document.body?.offsetHeight || 0,
+    winH,
+  );
 
-  const winH = window.innerHeight || 800;
-  const globalScrollY = window.scrollY || 0;
-  const globalScrollX = window.scrollX || 0;
-
-  elementsToInspect.forEach((el) => {
-    if (el.closest('#ai-workstation-grabber-container')) return;
-
+  // If global window has little/no scroll (typical of SPA or multi-column layouts with overflow: hidden body),
+  // probe top-level and content scrollers to find the true max content height
+  const isGlobalScrollable = maxHeight > winH + 30;
+  if (!isGlobalScrollable) {
     try {
-      const style = window.getComputedStyle(el);
-      const pos = style.position;
-      const isFixed = pos === 'fixed';
-      const isSticky = pos === 'sticky' || (pos as string) === '-webkit-sticky';
-
-      if (isFixed || isSticky) {
-        const rect = el.getBoundingClientRect();
-
-        // Never hide main structural containers or full-height wrappers
-        if (rect.height > winH * 0.45) {
-          return;
+      const candidates = document.querySelectorAll<HTMLElement>(
+        'main, article, [role="main"], #root > *, #app > *, body > div, [style*="overflow"], [class*="content" i], [class*="main" i]',
+      );
+      candidates.forEach((el) => {
+        if (el.scrollHeight > maxHeight) {
+          maxHeight = el.scrollHeight;
         }
+      });
 
-        if (targetRect) {
-          const pageLeft = rect.left + globalScrollX;
-          const pageTop = rect.top + globalScrollY;
-          const pageRight = pageLeft + rect.width;
-          const pageBottom = pageTop + rect.height;
-
-          const overlapsTarget =
-            pageLeft < targetRect.left + targetRect.width &&
-            pageRight > targetRect.left &&
-            pageTop < targetRect.top + targetRect.height &&
-            pageBottom > targetRect.top;
-
-          if (overlapsTarget) {
-            return;
+      // Fallback probe all visible elements if still only 1 screen height
+      if (maxHeight <= winH + 30) {
+        document.querySelectorAll<HTMLElement>('*').forEach((el) => {
+          if (el.scrollHeight > maxHeight && el.clientHeight >= Math.min(180, winH * 0.25)) {
+            maxHeight = Math.max(maxHeight, el.scrollHeight);
           }
-        }
-
-        hiddenElements.push({
-          element: el,
-          originalVisibility: el.style.visibility,
         });
-        el.style.setProperty('visibility', 'hidden', 'important');
       }
     } catch {}
-  });
+  }
 
-  return () => {
-    for (const item of hiddenElements) {
-      if (item.originalVisibility) {
-        item.element.style.visibility = item.originalVisibility;
-      } else {
-        item.element.style.removeProperty('visibility');
-      }
-    }
+  return {
+    width: Math.round(maxWidth),
+    height: Math.round(maxHeight),
   };
 }
+
+
+

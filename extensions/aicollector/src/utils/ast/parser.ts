@@ -292,7 +292,8 @@ export function parseInlineNodes(node: Node, pageUrl?: string): InlineNode[] {
   }
 
   if (tag === 'code') {
-    return [{ type: 'inline_code', value: el.textContent || '' }];
+    const text = el.textContent || '';
+    return [{ type: 'inline_code', value: text.includes('\n') ? text.replace(/\s+/g, ' ').trim() : text }];
   }
 
   if (tag === 'br') {
@@ -426,8 +427,15 @@ export function parseElementToBlocks(element: HTMLElement, pageUrl?: string): Bl
     return blocks;
   }
 
-  // 2. Code Block (<pre>)
-  if (tag === 'pre') {
+  // 2. Code Block (<pre> or rich code block containers)
+  const isCodeContainer =
+    tag === 'pre' ||
+    (tag === 'code' && (element.textContent?.includes('\n') || /(?:language|lang)-/i.test(element.className))) ||
+    (/(?:code-block|highlight|syntaxhighlighter|snippet|code-box|code-wrapper|notion-code)/i.test(element.className) &&
+      element.querySelector('code, pre, .line') !== null &&
+      element.textContent?.includes('\n'));
+
+  if (isCodeContainer) {
     blocks.push(parseCodeBlock(element));
     return blocks;
   }

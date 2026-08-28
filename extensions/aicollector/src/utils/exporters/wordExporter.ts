@@ -38,6 +38,7 @@ import type {
 import { convertGrabbedToAst, parseHtmlToAst, applyTransforms, defaultAstTransforms } from '../ast';
 import { fetchImageDataUrl } from '../imageDownloader';
 import { downloadBlob, cleanDocumentTitle } from './exportUtils';
+import { tokenizeCodeForDocx } from '../syntaxHighlighter';
 
 interface InlineFormatOptions {
   bold?: boolean;
@@ -450,16 +451,39 @@ async function convertAstToDocxElements(
 
     if (block.type === 'code') {
       const codeBlock = block as CodeBlock;
-      const lines = codeBlock.code.split('\n');
-      const textRuns = lines.map((line, idx) =>
-        new TextRun({
-          text: line,
-          font: 'Consolas',
-          size: 19,
-          color: '0F172A',
-          break: idx < lines.length - 1 ? 1 : 0,
-        }),
-      );
+      const tokens = tokenizeCodeForDocx(codeBlock.code, codeBlock.language);
+      const textRuns: TextRun[] = [];
+
+      for (const token of tokens) {
+        const parts = token.text.split('\n');
+        parts.forEach((part, partIdx) => {
+          if (part) {
+            textRuns.push(
+              new TextRun({
+                text: part,
+                font: 'Consolas',
+                size: 19,
+                color: token.color || '0F172A',
+                bold: token.bold,
+                italics: token.italic,
+              }),
+            );
+          }
+          if (partIdx < parts.length - 1) {
+            textRuns.push(new TextRun({ break: 1 }));
+          }
+        });
+      }
+
+      if (textRuns.length === 0) {
+        textRuns.push(
+          new TextRun({
+            text: ' ',
+            font: 'Consolas',
+            size: 19,
+          }),
+        );
+      }
 
       elements.push(
         new Paragraph({
@@ -606,54 +630,13 @@ export async function exportWord(
     };
   }
 
-  // 2. Build Document Header (Title + Metadata Banner)
-  const children: (Paragraph | Table)[] = [
-    new Paragraph({
-      heading: HeadingLevel.TITLE,
-      children: [
-        new TextRun({
-          text: cleanTitle,
-          bold: true,
-          font: 'PingFang SC',
-          size: 40, // 20pt
-          color: '0F172A',
-        }),
-      ],
-      spacing: { after: 120 },
-    }),
-  ];
-
-  if (pageUrl || ast.metadata.url) {
-    const docUrl = pageUrl || ast.metadata.url;
-    children.push(
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: `来源：${docUrl}   |   采集时间：${new Date(ast.metadata.capturedAt || Date.now()).toLocaleString()}`,
-            color: '64748B',
-            font: 'PingFang SC',
-            size: 18, // 9pt
-          }),
-        ],
-        spacing: { after: 200 },
-        border: {
-          bottom: {
-            style: BorderStyle.SINGLE,
-            size: 6,
-            color: '3B82F6',
-            space: 8,
-          },
-        },
-      }),
-    );
-  }
-
-  // 3. Convert AST Blocks to docx Elements
+  // 2. Convert AST Blocks to docx Elements
+  const children: (Paragraph | Table)[] = [];
   const contentElements = await convertAstToDocxElements(ast, pageUrl || ast.metadata.url);
   children.push(...contentElements);
 
   // Fallback if empty
-  if (children.length <= 2) {
+  if (children.length === 0) {
     children.push(
       new Paragraph({
         children: [

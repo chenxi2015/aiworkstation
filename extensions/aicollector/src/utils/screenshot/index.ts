@@ -6,7 +6,7 @@
  */
 
 import type { AreaPageRect, ScreenshotOptions, ScreenshotProgress } from './types';
-import { getScrollPosition } from './domUtils';
+import { findScrollContainer, getScrollPosition } from './domUtils';
 import { acquireSlicesQueue } from './captureEngine';
 import { cropSingleViewport, stitchSlicesToDataUrl } from './stitchEngine';
 
@@ -33,8 +33,15 @@ export async function captureAndCropArea(
   const viewportW = window.innerWidth || document.documentElement.clientWidth || 1;
   const viewportH = window.innerHeight || document.documentElement.clientHeight || 1;
 
-  // Check if target area is already completely within the current viewport
+  const scrollContainer = findScrollContainer(pageRect);
+  const isNestedScroll = scrollContainer !== window;
+  const containerEl = isNestedScroll ? (scrollContainer as HTMLElement) : null;
+  const hasNestedScroll =
+    containerEl !== null && containerEl.scrollHeight > containerEl.clientHeight + 10;
+
+  // Check if target area is already completely within the current viewport and has no nested scrollable content
   const isFullyVisibleInCurrentViewport =
+    !hasNestedScroll &&
     pageRect.height <= viewportH &&
     pageRect.width <= viewportW &&
     pageRect.top >= initialScrollY &&

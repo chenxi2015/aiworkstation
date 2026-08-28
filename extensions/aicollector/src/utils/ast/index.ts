@@ -12,6 +12,8 @@ import {
   normalizeImagesTransform,
   pruneEmptyTransform,
   cleanNoiseTransform,
+  splitFencedCodeBlocksTransform,
+  promoteInlineCodeTransform,
 } from './transforms';
 
 export * from './types';
@@ -25,6 +27,8 @@ export * from './renderers';
  */
 export const defaultAstTransforms: ASTTransform[] = [
   cleanNoiseTransform,
+  splitFencedCodeBlocksTransform,
+  promoteInlineCodeTransform,
   normalizeImagesTransform,
   cleanLinksTransform,
   pruneEmptyTransform,

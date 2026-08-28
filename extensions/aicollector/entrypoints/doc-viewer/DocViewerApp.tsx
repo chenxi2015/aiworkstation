@@ -6,8 +6,6 @@ import {
   Check,
   X,
   Loader2,
-  ExternalLink,
-  Clock,
   Sparkles,
   Eye,
   Edit3,
@@ -244,7 +242,7 @@ export const DocViewerApp: React.FC = () => {
   }
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-slate-50 dark:bg-zinc-950 text-foreground flex flex-col antialiased">
+    <div className="doc-viewer-root h-screen w-screen overflow-hidden bg-slate-50 dark:bg-zinc-950 text-foreground flex flex-col antialiased">
       {/* Toast Notification Provider */}
       <Toast.Provider placement="bottom end" />
 
@@ -414,11 +412,11 @@ export const DocViewerApp: React.FC = () => {
       <main className="flex-1 overflow-hidden p-3 sm:p-5 flex justify-center">
         {mode === 'split' ? (
           /* Split View Mode (Fixed Height, Synchronized Inner Scrolling) */
-          <div className="w-full max-w-[1700px] h-full grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="doc-scroll-container w-full max-w-[1700px] h-full grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Left Column: Markdown Editor */}
             <section
               onMouseEnter={() => { activePanelRef.current = 'editor'; }}
-              className="h-full flex flex-col bg-surface rounded-2xl border border-border shadow-xs overflow-hidden"
+              className="doc-editor-panel h-full flex flex-col bg-surface rounded-2xl border border-border shadow-xs overflow-hidden no-print"
             >
               <div className="px-4 py-2.5 bg-default-100/50 border-b border-border flex items-center justify-between text-xs text-muted-foreground select-none shrink-0">
                 <div className="flex items-center gap-1.5 font-medium text-foreground">
@@ -443,9 +441,9 @@ export const DocViewerApp: React.FC = () => {
             {/* Right Column: Real-time Paper Preview */}
             <section
               onMouseEnter={() => { activePanelRef.current = 'preview'; }}
-              className="h-full flex flex-col bg-surface rounded-2xl border border-border shadow-xs overflow-hidden"
+              className="doc-preview-panel h-full flex flex-col bg-surface rounded-2xl border border-border shadow-xs overflow-hidden"
             >
-              <div className="px-4 py-2.5 bg-default-100/50 border-b border-border flex items-center justify-between text-xs text-muted-foreground select-none shrink-0">
+              <div className="px-4 py-2.5 bg-default-100/50 border-b border-border flex items-center justify-between text-xs text-muted-foreground select-none shrink-0 no-print">
                 <div className="flex items-center gap-1.5 font-medium text-foreground">
                   <Eye className="w-3.5 h-3.5 text-primary" />
                   <span>排版实时预览</span>
@@ -457,50 +455,22 @@ export const DocViewerApp: React.FC = () => {
               <div
                 ref={previewRef}
                 onScroll={handlePreviewScroll}
-                className="flex-1 overflow-y-auto p-6 sm:p-10"
+                className="doc-scroll-container flex-1 overflow-y-auto p-6 sm:p-10"
               >
-                {/* Document Header Info */}
-                <header className="border-b border-border pb-5 mb-6">
-                  <h1 className="text-2xl font-bold text-foreground leading-tight tracking-tight mb-3">
-                    {data.title}
-                  </h1>
-                  <div className="flex flex-wrap items-center gap-y-2 gap-x-5 text-xs text-muted-foreground">
-                    {data.pageUrl && (
-                      <div className="flex items-center gap-1.5 min-w-0 max-w-full">
-                        <span className="font-medium text-foreground shrink-0">来源:</span>
-                        <a
-                          href={data.pageUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-primary hover:underline truncate inline-flex items-center gap-1"
-                        >
-                          <span>{data.pageUrl}</span>
-                          <ExternalLink className="w-3 h-3 shrink-0 inline opacity-70" />
-                        </a>
-                      </div>
-                    )}
-                    {data.exportDate && (
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <Clock className="w-3.5 h-3.5 opacity-60" />
-                        <span className="font-medium text-foreground">采集时间:</span>
-                        <span>{data.exportDate}</span>
-                      </div>
-                    )}
-                  </div>
-                </header>
-
-                {/* Render Sanitized AST / Markdown HTML Content */}
-                <div
-                  className="doc-content-body font-sans text-[15px] leading-[1.85] text-foreground"
-                  dangerouslySetInnerHTML={{ __html: currentHtmlContent }}
-                />
+                <article className="document-paper w-full">
+                  {/* Render Sanitized AST / Markdown HTML Content */}
+                  <div
+                    className="doc-content-body font-sans text-[15px] leading-[1.85] text-foreground"
+                    dangerouslySetInnerHTML={{ __html: currentHtmlContent }}
+                  />
+                </article>
               </div>
             </section>
           </div>
         ) : mode === 'edit' ? (
           /* Pure Edit Mode (Full-width Editor) */
-          <div className="w-full max-w-[1000px] h-full flex flex-col bg-surface rounded-2xl border border-border shadow-xs overflow-hidden">
-            <div className="px-4 py-2.5 bg-default-100/50 border-b border-border flex items-center justify-between text-xs text-muted-foreground select-none shrink-0">
+          <div className="doc-editor-panel w-full max-w-[1000px] h-full flex flex-col bg-surface rounded-2xl border border-border shadow-xs overflow-hidden">
+            <div className="px-4 py-2.5 bg-default-100/50 border-b border-border flex items-center justify-between text-xs text-muted-foreground select-none shrink-0 no-print">
               <div className="flex items-center gap-1.5 font-medium text-foreground">
                 <Edit3 className="w-3.5 h-3.5 text-primary" />
                 <span>Markdown 编辑区</span>
@@ -520,38 +490,8 @@ export const DocViewerApp: React.FC = () => {
           </div>
         ) : (
           /* Pure Preview Mode (Full-height Scrollable Paper View) */
-          <div className="w-full h-full overflow-y-auto flex justify-center">
-            <article className="document-paper w-full max-w-[860px] my-2 mb-10 bg-surface text-foreground rounded-2xl shadow-xs border border-border p-8 sm:p-14">
-              {/* Document Header Info */}
-              <header className="border-b border-border pb-6 mb-8">
-                <h1 className="text-2xl sm:text-3xl font-bold text-foreground leading-tight tracking-tight mb-4">
-                  {data.title}
-                </h1>
-                <div className="flex flex-wrap items-center gap-y-2 gap-x-5 text-xs text-muted-foreground">
-                  {data.pageUrl && (
-                    <div className="flex items-center gap-1.5 min-w-0 max-w-full">
-                      <span className="font-medium text-foreground shrink-0">来源:</span>
-                      <a
-                        href={data.pageUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline truncate inline-flex items-center gap-1"
-                      >
-                        <span>{data.pageUrl}</span>
-                        <ExternalLink className="w-3 h-3 shrink-0 inline opacity-70" />
-                      </a>
-                    </div>
-                  )}
-                  {data.exportDate && (
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <Clock className="w-3.5 h-3.5 opacity-60" />
-                      <span className="font-medium text-foreground">采集时间:</span>
-                      <span>{data.exportDate}</span>
-                    </div>
-                  )}
-                </div>
-              </header>
-
+          <div className="doc-scroll-container w-full h-full overflow-y-auto flex justify-center items-start">
+            <article className="document-paper w-full max-w-[860px] my-2 mb-12 h-fit shrink-0 bg-surface text-foreground rounded-2xl shadow-xs border border-border p-8 sm:p-14">
               {/* Render Sanitized AST / Markdown HTML Content */}
               <div
                 className="doc-content-body font-sans text-[15.5px] leading-[1.85] text-foreground"
@@ -654,12 +594,15 @@ export const DocViewerApp: React.FC = () => {
         }
         .doc-content-body pre {
           margin: 1.6em 0;
-          padding: 1.1em 1.4em;
+          padding: 1.25em 1.5em;
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+          font-size: 0.88em;
           background: #0f172a;
           color: #f8fafc;
           border-radius: 10px;
           overflow-x: auto;
           line-height: 1.65;
+          border: 1px solid #1e293b;
         }
         .doc-content-body pre code {
           background: transparent !important;
@@ -667,6 +610,16 @@ export const DocViewerApp: React.FC = () => {
           padding: 0;
           font-size: 0.9em;
         }
+        /* Prism Syntax Highlighting Tokens */
+        .token.comment, .token.prolog, .token.doctype, .token.cdata { color: #94a3b8; font-style: italic; }
+        .token.punctuation { color: #cbd5e1; }
+        .token.property, .token.tag, .token.boolean, .token.number, .token.constant, .token.symbol, .token.deleted { color: #f87171; }
+        .token.selector, .token.attr-name, .token.string, .token.char, .token.builtin, .token.inserted { color: #4ade80; }
+        .token.operator, .token.entity, .token.url { color: #38bdf8; }
+        .token.atrule, .token.attr-value, .token.keyword { color: #c084fc; font-weight: 600; }
+        .token.function, .token.class-name { color: #60a5fa; }
+        .token.regex, .token.important, .token.variable { color: #fbbf24; }
+        .token.decorator { color: #fb923c; }
 
         /* Tables */
         .doc-content-body table {
@@ -707,31 +660,52 @@ export const DocViewerApp: React.FC = () => {
           text-underline-offset: 2px;
         }
 
-        /* Print Mode */
+        /* Print Mode & Multi-page Pagination */
         @page {
           size: A4;
-          margin: 12mm;
+          margin: 15mm 12mm;
         }
         @media print {
-          html, body {
+          *, *::before, *::after {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            box-sizing: border-box !important;
+          }
+
+          /* Release all viewport and overflow limits so Chromium can paginate properly */
+          html,
+          body,
+          #root,
+          .doc-viewer-root,
+          main,
+          .doc-scroll-container,
+          .doc-preview-panel {
             height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            width: 100% !important;
+            max-width: 100% !important;
             overflow: visible !important;
+            overflow-x: visible !important;
+            overflow-y: visible !important;
+            position: static !important;
+            display: block !important;
             background: #ffffff !important;
             background-color: #ffffff !important;
             padding: 0 !important;
             margin: 0 !important;
+            color: #000000 !important;
             color-scheme: light !important;
+            float: none !important;
           }
-          main {
-            height: auto !important;
-            overflow: visible !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            display: block !important;
-          }
-          .no-print {
+
+          /* Hide toolbar, editor, and decorative badges */
+          .no-print,
+          .doc-editor-panel,
+          header.no-print {
             display: none !important;
           }
+
           .document-paper {
             max-width: 100% !important;
             width: 100% !important;
@@ -741,18 +715,58 @@ export const DocViewerApp: React.FC = () => {
             border-radius: 0 !important;
             box-shadow: none !important;
             background: #ffffff !important;
+            color: #111827 !important;
           }
+
+          .doc-content-body {
+            color: #111827 !important;
+            font-size: 14px !important;
+            line-height: 1.75 !important;
+          }
+
+          .doc-content-body * {
+            overflow: visible !important;
+          }
+
+          /* Prevent headings from being orphaned at page bottoms */
+          h1, h2, h3, h4, h5, h6 {
+            break-after: avoid !important;
+            page-break-after: avoid !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+            color: #000000 !important;
+          }
+
+          /* Prevent block elements from being broken mid-block */
           .ast-video-card,
           .ast-image-card,
           pre,
           blockquote,
-          table {
+          table,
+          tr,
+          img,
+          figure {
             break-inside: avoid !important;
             page-break-inside: avoid !important;
           }
-          * {
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
+
+          .doc-content-body pre {
+            background: #f8fafc !important;
+            color: #0f172a !important;
+            border: 1px solid #cbd5e1 !important;
+            border-radius: 6px !important;
+            page-break-inside: avoid !important;
+          }
+          .doc-content-body .token.keyword, .doc-content-body .token.atrule { color: #7c3aed !important; }
+          .doc-content-body .token.function, .doc-content-body .token.class-name { color: #2563eb !important; }
+          .doc-content-body .token.string, .doc-content-body .token.attr-value { color: #16a34a !important; }
+          .doc-content-body .token.comment { color: #64748b !important; }
+          .doc-content-body .token.number, .doc-content-body .token.property { color: #d97706 !important; }
+          .doc-content-body .token.operator { color: #dc2626 !important; }
+
+          p, li {
+            orphans: 3;
+            widows: 3;
           }
         }
       `}</style>

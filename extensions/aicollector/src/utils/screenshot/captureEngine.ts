@@ -18,10 +18,10 @@
 
 import type { AreaPageRect, CapturedSlice, ScreenshotOptions, ScreenshotProgress } from './types';
 import {
+  createFloatingElementController,
   findScrollContainer,
   getMaxScroll,
   getScrollPosition,
-  hideFloatingElements,
   injectScreenshotStyles,
   nextFrame,
   robustScrollTo,
@@ -121,21 +121,34 @@ export async function acquireSlicesQueue(
   // Suppress scrollbars and disable smooth scrolling transitions
   restoreStyles = injectScreenshotStyles();
 
+  // Neutralize sticky elements to static and handle fixed headers before scrolling begins
+  const floatingController = createFloatingElementController(pageRect);
+  restoreFloating = floatingController.restore;
+  await sleep(30);
+  await nextFrame();
+
   // 3. Compute the starting scroll target so capture begins at the selection's
   // leading edge for BOTH global and nested scrolling.
   // Nested: the container-local content coordinate of the selection top derives
   // from its current displayed position: contentTop = s0 + (pageTop - w0 - containerClientTop).
   let startTargetY: number;
+  let effectiveTotalHeight = pageRect.height;
   if (isGlobalScroll) {
     startTargetY = Math.max(0, pageRect.top <= 80 ? 0 : pageRect.top);
   } else {
-    const rect = (scrollContainer as Element).getBoundingClientRect();
+    const containerEl = scrollContainer as HTMLElement;
+    const rect = containerEl.getBoundingClientRect();
     const contentTop = pageRect.top - initialGlobalY - rect.top + initialScrollY;
     const { maxY } = getMaxScroll(scrollContainer);
     startTargetY = Math.max(0, Math.min(contentTop, maxY));
+
+    // If the nested container has scrollable content, ensure effectiveTotalHeight covers it
+    if (containerEl.scrollHeight > containerEl.clientHeight + 10) {
+      effectiveTotalHeight = Math.max(effectiveTotalHeight, containerEl.scrollHeight);
+    }
   }
 
-  const totalHeight = Math.min(Math.max(1, pageRect.height), 32000);
+  const totalHeight = Math.min(Math.max(1, effectiveTotalHeight), 32000);
 
   // The target end Y in the unified page coordinate space (for the stitch engine)
   const targetEndY = pageRect.top + totalHeight;
@@ -156,16 +169,14 @@ export async function acquireSlicesQueue(
     robustScrollTo(scrollContainer, isGlobalScroll ? pageRect.left : initialScrollX, nextScrollTargetY);
     await waitForScrollSettled(scrollContainer, nextScrollTargetY, 500);
 
-    // Hide floating headers/sidebars once, before the very first capture, so no
-    // slice contains floating UI that later slices lack.
-    if (!restoreFloating) {
-      restoreFloating = hideFloatingElements(pageRect);
-      await sleep(30);
-      await nextFrame();
-    }
+    // Re-enforce sticky neutralization and floating element suppression after scroll event
+    floatingController.enforce();
 
     // Wait for dynamic DOM elements, lazy-loaded images & web fonts
     await waitForViewportImages(400);
+
+    // Re-enforce once more after image/font loading and layout changes
+    floatingController.enforce();
 
     // Pacing delay to ensure GPU render tree commitment
     await sleep(90);
@@ -185,6 +196,7 @@ export async function acquireSlicesQueue(
     let posAfter = getScrollPosition(scrollContainer);
     if (Math.abs(posAfter.y - posBefore.y) > 2 || Math.abs(posAfter.x - posBefore.x) > 2) {
       await waitForScrollSettled(scrollContainer, posAfter.y, 400);
+      floatingController.enforce();
       await sleep(80);
       await nextFrame();
       const retaken = await captureTabFrame();
@@ -222,7 +234,9 @@ export async function acquireSlicesQueue(
 
       robustScrollTo(scrollContainer, isGlobalScroll ? pageRect.left : initialScrollX, localSafeY);
       await waitForScrollSettled(scrollContainer, localSafeY, 400);
+      floatingController.enforce();
       await waitForViewportImages(250);
+      floatingController.enforce();
       await sleep(60);
       const intermediateDataUrl = await captureTabFrame();
 
@@ -244,7 +258,9 @@ export async function acquireSlicesQueue(
       // Return to the position where the current slice was captured
       robustScrollTo(scrollContainer, isGlobalScroll ? pageRect.left : initialScrollX, posAfter.y);
       await waitForScrollSettled(scrollContainer, posAfter.y, 300);
+      floatingController.enforce();
     }
+
 
     const currentSlice: CapturedSlice = {
       dataUrl,
