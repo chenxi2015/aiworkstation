@@ -48,6 +48,11 @@ export interface GrabbedContent {
     width: number;
     height: number;
   };
+  /** Window scroll position at grab time, used to restore the exact viewport before re-capture */
+  pageScroll?: {
+    x: number;
+    y: number;
+  };
   createdAt: number;
 }
 
@@ -93,5 +98,16 @@ export type ExtensionMessage =
       type: 'CAPTURE_AREA_SCREENSHOT';
       payload: { pageRect: { left: number; top: number; width: number; height: number } };
     }
+  | {
+      type: 'SCROLL_TO_AREA';
+      payload: {
+        pageRect: { left: number; top: number; width: number; height: number };
+        pageScroll?: { x: number; y: number };
+      };
+    }
   | { type: 'SYNC_BOOKMARK_EVENT'; payload: { action: 'create' | 'remove'; item: BookmarkItem } }
-  | { type: 'SYNC_LOG_UPDATE'; payload: SyncLogItem };
+  | { type: 'SYNC_LOG_UPDATE'; payload: SyncLogItem }
+  | {
+      type: 'SCREENSHOT_PROGRESS';
+      payload: { slice: number; totalSlices: number; percent: number };
+    };

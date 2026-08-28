@@ -36,6 +36,16 @@ export const ViewerApp: React.FC = () => {
 
   const imgRef = useRef<HTMLImageElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  const scaleRef = useRef(scale);
+  const panRef = useRef(pan);
+
+  useEffect(() => {
+    scaleRef.current = scale;
+  }, [scale]);
+
+  useEffect(() => {
+    panRef.current = pan;
+  }, [pan]);
 
   // 1. Load image data from chrome.storage.local or URL parameters
   useEffect(() => {
@@ -156,11 +166,55 @@ export const ViewerApp: React.FC = () => {
     window.close();
   };
 
-  // 8. Mouse Wheel Zoom
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    const delta = e.deltaY < 0 ? 1.15 : 0.85;
-    setScale((prev) => Math.min(Math.max(0.08, prev * delta), 15));
+  // 8. Wheel: scroll pans the image up/down; pinch gesture (ctrl+wheel) zooms at cursor
+  // Note: viewport only exists after loading completes, so re-run when it mounts
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+
+      if (e.ctrlKey || e.metaKey) {
+        // Trackpad pinch-to-zoom fires wheel events with ctrlKey=true in Chromium
+        const zoomFactor = Math.exp(-e.deltaY * 0.01);
+        const rect = viewport.getBoundingClientRect();
+        const cursorX = e.clientX - rect.left - rect.width / 2;
+        const cursorY = e.clientY - rect.top - rect.height / 2;
+
+        const prevScale = scaleRef.current;
+        const nextScale = Math.min(Math.max(0.08, prevScale * zoomFactor), 15);
+        const ratio = nextScale / prevScale;
+        const prevPan = panRef.current;
+
+        setScale(nextScale);
+        setPan({
+          x: cursorX - ratio * (cursorX - prevPan.x),
+          y: cursorY - ratio * (cursorY - prevPan.y),
+        });
+      } else {
+        // Wheel / two-finger scroll pans the image
+        const prevPan = panRef.current;
+        setPan({
+          x: prevPan.x - e.deltaX,
+          y: prevPan.y - e.deltaY,
+        });
+      }
+    };
+
+    viewport.addEventListener('wheel', onWheel, { passive: false });
+    return () => viewport.removeEventListener('wheel', onWheel);
+  }, [loading, data?.url]);
+
+  // 8b. Block browser-native pinch zoom (e.g. when cursor hovers over the toolbar)
+  useEffect(() => {
+    const blockNativeZoom = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('wheel', blockNativeZoom, { passive: false });
+    return () => window.removeEventListener('wheel', blockNativeZoom);
   }, []);
 
   // 9. Mouse Drag to Pan
@@ -375,7 +429,6 @@ export const ViewerApp: React.FC = () => {
       {/* Main Pan & Zoom Viewport */}
       <main
         ref={viewportRef}
-        onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -404,7 +457,7 @@ export const ViewerApp: React.FC = () => {
 
       {/* Bottom Shortcuts Footer Hint */}
       <footer className="fixed bottom-3 left-4 text-[11px] font-mono text-zinc-500 pointer-events-none z-20">
-        滚轮缩放 • 拖拽平移 • [+/-] 缩放 • [0] 100% • [F] 适应屏幕 • [R/L] 旋转 • [Esc] 关闭
+        滚轮/双指滚动图片 • 双指捏合缩放 • 拖拽平移 • [+/-] 缩放 • [0] 100% • [F] 适应屏幕 • [R/L] 旋转 • [Esc] 关闭
       </footer>
     </div>
   );

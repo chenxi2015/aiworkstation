@@ -614,6 +614,7 @@ export class VisualGrabber {
             height: Math.round(pageRect.height),
           }
         : undefined,
+      pageScroll: { x: window.scrollX || 0, y: window.scrollY || 0 },
       createdAt: Date.now(),
     };
   }
@@ -839,6 +840,15 @@ export class VisualGrabber {
       videos: allVideos,
       links: allLinks,
       screenshot,
+      pageRect: pageRect
+        ? {
+            left: Math.round(pageRect.left),
+            top: Math.round(pageRect.top),
+            width: Math.round(pageRect.width),
+            height: Math.round(pageRect.height),
+          }
+        : undefined,
+      pageScroll: { x: window.scrollX || 0, y: window.scrollY || 0 },
       createdAt: Date.now(),
     };
   }
