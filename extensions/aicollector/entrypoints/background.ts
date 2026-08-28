@@ -147,7 +147,7 @@ export default defineBackground(() => {
    */
   function rateLimitedCaptureVisibleTab(
     windowId: number,
-    options: chrome.tabs.CaptureVisibleTabOptions = { format: 'png' },
+    options: chrome.extensionTypes.ImageDetails = { format: 'png' },
   ): Promise<string> {
     const execute = async (): Promise<string> => {
       const minInterval = 650;
