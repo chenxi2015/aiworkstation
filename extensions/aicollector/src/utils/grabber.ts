@@ -185,6 +185,9 @@ export class VisualGrabber {
       <span style="color:#475569;">|</span>
       <span style="color:#cbd5e1;font-size:12px;">点击单个元素，或按住鼠标向下拖动框选区域</span>
       <span style="color:#475569;">|</span>
+      <button id="ai-banner-fullpage-btn" style="background:rgba(59, 130, 246, 0.2);color:#93c5fd;border:1px solid rgba(59, 130, 246, 0.4);padding:3px 10px;border-radius:14px;font-size:12px;cursor:pointer;font-weight:500;transition:all 0.15s ease;display:inline-flex;align-items:center;gap:4px;">
+        <span>📸</span> 截取整页
+      </button>
       <button id="ai-banner-exit-btn" style="background:rgba(239, 68, 68, 0.15);color:#fca5a5;border:1px solid rgba(239, 68, 68, 0.35);padding:3px 10px;border-radius:14px;font-size:12px;cursor:pointer;font-weight:500;transition:all 0.15s ease;">
         <kbd style="background:rgba(0,0,0,0.3);padding:1px 4px;border-radius:3px;font-size:10px;">Esc</kbd> 退出
       </button>
@@ -194,7 +197,26 @@ export class VisualGrabber {
       e.stopPropagation();
       this.stop();
     });
+
+    this.banner.querySelector('#ai-banner-fullpage-btn')?.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      this.stop(false);
+      // Trigger full page capture
+      try {
+        const fullWidth = Math.max(document.documentElement.scrollWidth, document.body?.scrollWidth || 0, window.innerWidth);
+        const fullHeight = Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight || 0, window.innerHeight);
+        const pageRect = { left: 0, top: 0, width: fullWidth, height: fullHeight };
+        const screenshot = await captureAndCropArea(pageRect, (progress) => {
+          chrome.runtime.sendMessage({ type: 'SCREENSHOT_PROGRESS', payload: progress }).catch(() => {});
+        });
+        const content = extractFullPageContent(screenshot);
+        chrome.runtime.sendMessage({ type: 'ELEMENT_GRABBED', payload: content });
+      } catch (err) {
+        console.error('[AI Collector] Full page capture error:', err);
+      }
+    });
   }
+
 
   private removeOverlay(): void {
     if (this.container?.parentNode) {
@@ -853,3 +875,55 @@ export class VisualGrabber {
     };
   }
 }
+
+/**
+ * Extract full webpage metadata, media, and text content for full page grab
+ */
+export function extractFullPageContent(screenshot?: string): GrabbedContent {
+  const rootEl = document.body || document.documentElement;
+  const fullWidth = Math.max(
+    document.documentElement.scrollWidth,
+    document.body?.scrollWidth || 0,
+    window.innerWidth,
+  );
+  const fullHeight = Math.max(
+    document.documentElement.scrollHeight,
+    document.body?.scrollHeight || 0,
+    window.innerHeight,
+  );
+
+  const tdk = extractPageTDK(document);
+  const images = extractImagesFromElement(rootEl, window.location.href);
+  const videos = extractVideosFromElement(rootEl, window.location.href);
+
+  const linkSet = new Set<string>();
+  document.querySelectorAll<HTMLAnchorElement>('a[href]').forEach((a) => {
+    if (a.href && !a.href.startsWith('javascript:')) {
+      linkSet.add(a.href);
+    }
+  });
+
+  return {
+    id: `page_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    url: window.location.href,
+    tdk,
+    selectedHtml: normalizeHtml(rootEl, window.location.href),
+    selectedText: (rootEl.innerText || rootEl.textContent || '').trim(),
+    selector: 'html',
+    tag: 'page',
+    dimensions: { width: Math.round(fullWidth), height: Math.round(fullHeight) },
+    images,
+    videos,
+    links: Array.from(linkSet),
+    screenshot,
+    pageRect: {
+      left: 0,
+      top: 0,
+      width: Math.round(fullWidth),
+      height: Math.round(fullHeight),
+    },
+    pageScroll: { x: 0, y: 0 },
+    createdAt: Date.now(),
+  };
+}
+

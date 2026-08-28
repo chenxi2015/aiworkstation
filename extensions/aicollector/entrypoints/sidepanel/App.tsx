@@ -37,7 +37,15 @@ export default function App() {
     filteredBookmarks,
   } = useBookmarks();
 
-  const { isGrabbing, grabbedContent, startGrab, clearGrabbedContent } = useVisualGrabber(() => {
+  const {
+    isGrabbing,
+    isCapturingFullPage,
+    captureProgress,
+    grabbedContent,
+    startGrab,
+    captureFullPage,
+    clearGrabbedContent,
+  } = useVisualGrabber(() => {
     setActiveTab('grab');
   });
 
@@ -99,15 +107,19 @@ export default function App() {
           <Tabs.Panel id="grab" className="p-0 outline-none">
             <GrabTab
               isGrabbing={isGrabbing}
+              isCapturingFullPage={isCapturingFullPage}
+              captureProgress={captureProgress}
               grabbedContent={grabbedContent}
               currentTdk={currentTdk}
               isScrolled={isScrolled}
               onStartGrab={startGrab}
+              onCaptureFullPage={captureFullPage}
               onClearGrabbed={clearGrabbedContent}
               onRefreshTdk={refreshCurrentPageTDK}
               onPushToWorkbench={pushToWorkbench}
             />
           </Tabs.Panel>
+
 
           <Tabs.Panel id="bookmarks" className="p-0 outline-none">
             <BookmarksTab

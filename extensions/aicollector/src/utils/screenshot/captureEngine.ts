@@ -35,31 +35,27 @@ import {
  * Track the last finished capture so calls are paced, and retry with
  * progressive backoff instead of aborting the whole run on a quota error.
  */
-let lastCaptureEndedAt = 0;
-
 async function captureTabFrame(): Promise<string | undefined> {
-  const backoffDelays = [0, 600, 1200];
-  for (let attempt = 0; attempt < backoffDelays.length; attempt++) {
-    const pacingWait = 550 - (Date.now() - lastCaptureEndedAt);
-    const waitMs = Math.max(backoffDelays[attempt] ?? 0, pacingWait);
-    if (waitMs > 0) {
-      await sleep(waitMs);
-    }
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const response: { success: boolean; dataUrl?: string; error?: string } =
         await chrome.runtime.sendMessage({ type: 'CAPTURE_VISIBLE_TAB' });
-      lastCaptureEndedAt = Date.now();
       if (response?.success && response.dataUrl) {
         return response.dataUrl;
       }
-      console.warn('[AI Collector] captureVisibleTab attempt failed:', response?.error);
+      console.warn(`[AI Collector] captureVisibleTab attempt #${attempt} warning:`, response?.error);
     } catch (err) {
-      lastCaptureEndedAt = Date.now();
-      console.warn('[AI Collector] captureVisibleTab messaging failed:', err);
+      console.warn(`[AI Collector] captureVisibleTab messaging attempt #${attempt} failed:`, err);
+    }
+
+    if (attempt < maxAttempts) {
+      await sleep(300 * attempt);
     }
   }
   return undefined;
 }
+
 
 /**
  * Acquire in-memory slice queue with guaranteed coverage and seamless overlap

@@ -94,6 +94,7 @@ export type ExtensionMessage =
   | { type: 'PAGE_TDK_RESULT'; payload: PageTDK }
   | { type: 'ELEMENT_GRABBED'; payload: GrabbedContent }
   | { type: 'CAPTURE_VISIBLE_TAB' }
+  | { type: 'CAPTURE_FULL_PAGE' }
   | {
       type: 'CAPTURE_AREA_SCREENSHOT';
       payload: { pageRect: { left: number; top: number; width: number; height: number } };
@@ -111,3 +112,4 @@ export type ExtensionMessage =
       type: 'SCREENSHOT_PROGRESS';
       payload: { slice: number; totalSlices: number; percent: number };
     };
+

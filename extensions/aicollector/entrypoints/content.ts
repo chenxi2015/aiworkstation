@@ -1,4 +1,4 @@
-import { VisualGrabber } from '../src/utils/grabber';
+import { VisualGrabber, extractFullPageContent } from '../src/utils/grabber';
 import { extractPageTDK } from '../src/utils/tdk';
 import { captureAndCropArea } from '../src/utils/screenshotHelper';
 import type { ExtensionMessage } from '../src/types';
@@ -31,6 +31,39 @@ export default defineContentScript({
             sendResponse({ success: true, tdk });
             break;
           }
+
+          case 'CAPTURE_FULL_PAGE': {
+            const fullWidth = Math.max(
+              document.documentElement.scrollWidth,
+              document.body?.scrollWidth || 0,
+              window.innerWidth,
+            );
+            const fullHeight = Math.max(
+              document.documentElement.scrollHeight,
+              document.body?.scrollHeight || 0,
+              window.innerHeight,
+            );
+            const pageRect = { left: 0, top: 0, width: fullWidth, height: fullHeight };
+
+            captureAndCropArea(pageRect, (progress) => {
+              chrome.runtime
+                .sendMessage({
+                  type: 'SCREENSHOT_PROGRESS',
+                  payload: progress,
+                })
+                .catch(() => {});
+            })
+              .then((screenshot) => {
+                const content = extractFullPageContent(screenshot);
+                sendResponse({ success: true, content });
+              })
+              .catch((err) => {
+                console.error('[AI Collector] Capture full page error:', err);
+                sendResponse({ success: false, error: String(err) });
+              });
+            return true; // Keep channel open for async response
+          }
+
 
           case 'CAPTURE_AREA_SCREENSHOT': {
             captureAndCropArea(message.payload.pageRect, (progress) => {

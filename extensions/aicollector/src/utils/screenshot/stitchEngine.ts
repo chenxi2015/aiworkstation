@@ -102,13 +102,16 @@ export async function stitchSlicesToCanvas(
 
   let renderedPageY = pageRect.top;
 
+  // Sort slices strictly by effective vertical top coordinate to prevent out-of-order stitching
+  const sortedSlices = [...slices].sort((a, b) => (a.scrollY + a.offsetY) - (b.scrollY + b.offsetY));
+
   console.groupCollapsed(
-    `%c🧩 [AI Collector 截图合成] 共 ${slices.length} 个切片开始无缝拼接`,
+    `%c🧩 [AI Collector 截图合成] 共 ${sortedSlices.length} 个切片开始无缝拼接`,
     'font-weight: bold; color: #059669; background: #ecfdf5; padding: 2px 6px; border-radius: 4px;',
   );
 
-  for (const [i, slice] of slices.entries()) {
-    const img = i === 0 ? firstImg : await loadImage(slice.dataUrl);
+  for (const [i, slice] of sortedSlices.entries()) {
+    const img = i === 0 && firstSlice === slice ? firstImg : await loadImage(slice.dataUrl);
     if (!img.naturalWidth || !img.naturalHeight) {
       console.warn(`切片 #${i + 1} 图像解码失败，跳过`);
       continue;
@@ -132,8 +135,8 @@ export async function stitchSlicesToCanvas(
     const clipLeft = Math.max(sliceLeft, pageRect.left);
     const clipRight = Math.min(sliceRight, pageRect.left + pageRect.width);
 
-    const clipH = clipBottom - clipTop;
-    const clipW = clipRight - clipLeft;
+    const clipH = Math.max(0, clipBottom - clipTop);
+    const clipW = Math.max(0, clipRight - clipLeft);
 
     if (clipH > 0 && clipW > 0) {
       // Source bitmap bounds (client point => page point: pageX = cx + scrollX)
@@ -163,6 +166,7 @@ export async function stitchSlicesToCanvas(
 
       renderedPageY = clipBottom;
     } else {
+      // Slice is already completely covered by earlier slices or above current rendering line
       console.log(`切片 #${i + 1} 无新增区域 (已在之前切片中包含)`);
     }
 
