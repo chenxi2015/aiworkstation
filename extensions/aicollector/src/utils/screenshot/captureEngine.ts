@@ -84,20 +84,25 @@ export async function acquireSlicesQueue(
   const scrollContainer = findScrollContainer(pageRect);
   const isGlobalScroll = scrollContainer === window;
 
+  const isFullPage =
+    pageRect.left <= 10 &&
+    pageRect.top <= 80 &&
+    pageRect.width >= Math.floor(viewportW * 0.85);
+
   // Track initial state of both global window and the chosen container
   const initialGlobalX = window.scrollX || 0;
   const initialGlobalY = window.scrollY || 0;
   const { x: initialScrollX, y: initialScrollY } = getScrollPosition(scrollContainer);
 
   // 2. Effective content viewport inside each captured frame.
-  // Global scroll: the whole frame is scrolled content.
-  // Nested container: only the container's visible client box holds scrolled
+  // Global scroll OR Full-Page SPA capture: the whole frame is scrolled content.
+  // Nested local box selection: only the container's visible client box holds scrolled
   // content; everything around it is static chrome that must be ignored.
   let viewOffsetX = 0;
   let viewOffsetY = 0;
   let viewW = viewportW;
   let viewH = viewportH;
-  if (!isGlobalScroll) {
+  if (!isGlobalScroll && !isFullPage) {
     const rect = (scrollContainer as Element).getBoundingClientRect();
     viewOffsetX = Math.max(0, Math.round(rect.left));
     viewOffsetY = Math.max(0, Math.round(rect.top));
@@ -140,7 +145,7 @@ export async function acquireSlicesQueue(
     const rect = containerEl.getBoundingClientRect();
     const contentTop = pageRect.top - initialGlobalY - rect.top + initialScrollY;
     const { maxY } = getMaxScroll(scrollContainer);
-    startTargetY = Math.max(0, Math.min(contentTop, maxY));
+    startTargetY = isFullPage ? 0 : Math.max(0, Math.min(contentTop, maxY));
 
     // If the nested container has scrollable content, ensure effectiveTotalHeight covers it
     if (containerEl.scrollHeight > containerEl.clientHeight + 10) {
@@ -224,7 +229,7 @@ export async function acquireSlicesQueue(
       ? prevSlice.scrollY + prevSlice.offsetY + prevSlice.height
       : 0;
     if (prevSlice && virtualScrollY + viewOffsetY > prevCoverageBottom + 8) {
-      console.warn('[AI Collector] Detected scroll jump, performing compensating capture at intermediate position');
+      console.log('[AI Collector] Detected scroll jump, performing compensating capture at intermediate position');
       const safeIntermediateY = prevSlice.scrollY + Math.floor(viewH * 0.5);
 
       // Translate the safe virtual Y back to the container's local coordinate
