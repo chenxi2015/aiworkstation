@@ -8,6 +8,8 @@
 import {
   captureAndCropArea,
   findScrollContainer,
+  nextFrame,
+  sleep,
   type AreaPageRect,
 } from '../screenshotHelper';
 import { GrabberOverlay } from './domOverlay';
@@ -321,7 +323,8 @@ export class VisualGrabber {
 
     let screenshot: string | undefined = undefined;
     if (isFullyVisibleInViewport) {
-      await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 30)));
+      await sleep(40);
+      await nextFrame();
       screenshot = await captureAndCropArea(pageRect);
     }
 
@@ -374,7 +377,8 @@ export class VisualGrabber {
 
     let screenshot: string | undefined = undefined;
     if (isFullyVisibleInViewport) {
-      await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 30)));
+      await sleep(40);
+      await nextFrame();
       screenshot = await captureAndCropArea(pageRect);
     }
 

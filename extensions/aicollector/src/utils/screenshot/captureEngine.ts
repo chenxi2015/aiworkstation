@@ -24,10 +24,12 @@ import {
   getScrollPosition,
   injectScreenshotStyles,
   nextFrame,
+  prewarmCaptureRegion,
   robustScrollTo,
   sleep,
   waitForScrollSettled,
   waitForViewportImages,
+  waitForViewportReady,
 } from './domUtils';
 
 /**
@@ -158,6 +160,15 @@ export async function acquireSlicesQueue(
   // The target end Y in the unified page coordinate space (for the stitch engine)
   const targetEndY = pageRect.top + totalHeight;
 
+  // 4. Pre-warm target region to trigger IntersectionObservers and dynamic lazy loaders
+  await prewarmCaptureRegion(
+    scrollContainer,
+    isGlobalScroll ? pageRect.left : initialScrollX,
+    startTargetY,
+    totalHeight,
+  );
+  floatingController.enforce();
+
   // Conservative step size ensuring at least 40% - 45% overlap between frames,
   // based on the EFFECTIVE content viewport height (not the full window height)
   const stepSize = Math.max(120, Math.floor(viewH * (1 - overlapRatio)));
@@ -177,8 +188,14 @@ export async function acquireSlicesQueue(
     // Re-enforce sticky neutralization and floating element suppression after scroll event
     floatingController.enforce();
 
+    // Cold-start extra pause on first slice to ensure GPU buffer and overlay teardown are clean
+    if (sliceIndex === 0) {
+      await sleep(60);
+      await nextFrame();
+    }
+
     // Wait for dynamic DOM elements, lazy-loaded images & web fonts
-    await waitForViewportImages(400);
+    await waitForViewportReady(500);
 
     // Re-enforce once more after image/font loading and layout changes
     floatingController.enforce();

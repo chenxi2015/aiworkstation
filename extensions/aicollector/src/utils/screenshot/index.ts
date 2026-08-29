@@ -6,7 +6,7 @@
  */
 
 import type { AreaPageRect, ScreenshotOptions, ScreenshotProgress } from './types';
-import { findScrollContainer, getScrollPosition } from './domUtils';
+import { findScrollContainer, getScrollPosition, nextFrame, waitForViewportReady } from './domUtils';
 import { acquireSlicesQueue } from './captureEngine';
 import { cropSingleViewport, stitchSlicesToDataUrl } from './stitchEngine';
 
@@ -52,6 +52,10 @@ export async function captureAndCropArea(
   if (isFullyVisibleInCurrentViewport) {
     console.log('[AI Collector] 选区已完全处于当前视口内，执行快速单视口捕获');
     try {
+      // Ensure viewport resources and fonts are settled and GPU frame is committed
+      await waitForViewportReady(350);
+      await nextFrame();
+
       const response: { success: boolean; dataUrl?: string; error?: string } =
         await chrome.runtime.sendMessage({ type: 'CAPTURE_VISIBLE_TAB' });
       if (response?.success && response.dataUrl) {

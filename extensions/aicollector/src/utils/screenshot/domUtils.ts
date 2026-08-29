@@ -796,17 +796,55 @@ export async function waitForScrollSettled(
 }
 
 /**
- * Wait for images and web fonts in the viewport to finish loading.
+ * Fast dry-run pass across the target region to pre-warm lazy loaders, IntersectionObservers,
+ * and JIT rendering before the official slice-by-slice recording.
  */
-export async function waitForViewportImages(maxWaitMs = 400): Promise<void> {
+export async function prewarmCaptureRegion(
+  container: Element | Window,
+  startX: number,
+  startY: number,
+  totalHeight: number,
+): Promise<void> {
+  const winH = window.innerHeight || 800;
+  // Only multi-screen captures (> 1.2 viewports) benefit from dry-run pre-warming
+  if (totalHeight <= winH * 1.2) {
+    return;
+  }
+
+  const step = Math.floor(winH * 1.5);
+  const endY = startY + totalHeight;
+  let currY = startY + step;
+
+  // Rapidly scroll down in large steps to trigger IntersectionObservers along the path
+  while (currY < endY) {
+    robustScrollTo(container, startX, currY);
+    currY += step;
+    await sleep(25);
+  }
+
+  // Pre-scroll to the bottom boundary then quickly return to initial start position
+  robustScrollTo(container, startX, endY);
+  await sleep(30);
+  robustScrollTo(container, startX, startY);
+  await waitForScrollSettled(container, startY, 250);
+  await sleep(40);
+  await nextFrame();
+}
+
+/**
+ * Wait for all critical resources (images, lazy sources, web fonts) in the current viewport to stabilize.
+ */
+export async function waitForViewportReady(maxWaitMs = 500): Promise<void> {
   const startTime = Date.now();
 
+  // 1. Web fonts readiness
   try {
     if (document.fonts && document.fonts.status !== 'loaded') {
       await Promise.race([document.fonts.ready, sleep(200)]);
     }
   } catch {}
 
+  // 2. Viewport images & lazy-loaded sources readiness
   while (Date.now() - startTime < maxWaitMs) {
     const imgs = Array.from(document.querySelectorAll<HTMLImageElement>('img'));
     const winH = window.innerHeight || 800;
@@ -822,11 +860,25 @@ export async function waitForViewportImages(maxWaitMs = 400): Promise<void> {
       }
     });
 
-    const allLoaded = viewportImgs.every(
-      (img) => !img.src || img.complete || img.naturalWidth > 0,
-    );
+    const allReady = viewportImgs.every((img) => {
+      // Check if image still has unconverted lazy-load attributes
+      const rawLazySrc =
+        img.getAttribute('data-src') ||
+        img.getAttribute('data-original') ||
+        img.getAttribute('data-lazy-src') ||
+        img.getAttribute('data-actualsrc');
+      if (rawLazySrc && !img.src.includes(rawLazySrc) && !img.currentSrc?.includes(rawLazySrc)) {
+        return false;
+      }
 
-    if (allLoaded || viewportImgs.length === 0) {
+      // Check if the image finished loading and is not a 1x1 placeholder GIF
+      if (!img.complete) return false;
+      if (img.naturalWidth === 0 && img.src) return false;
+
+      return true;
+    });
+
+    if (allReady || viewportImgs.length === 0) {
       await nextFrame();
       return;
     }
@@ -834,6 +886,11 @@ export async function waitForViewportImages(maxWaitMs = 400): Promise<void> {
     await sleep(40);
   }
 }
+
+/**
+ * Backward compatibility alias for waitForViewportReady
+ */
+export const waitForViewportImages = waitForViewportReady;
 
 /**
  * Calculate the effective full page dimensions.
