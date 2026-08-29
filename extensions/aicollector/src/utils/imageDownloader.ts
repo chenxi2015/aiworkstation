@@ -273,3 +273,69 @@ export async function downloadImagesAsZip(
   const filename = zipFilename || `images_${Date.now()}.zip`;
   await triggerBlobDownload(zipBlob, filename);
 }
+
+/**
+ * Extract video file extension from URL
+ */
+export function resolveVideoExtension(url?: string): string {
+  if (url) {
+    try {
+      const parsed = new URL(url, 'https://localhost');
+      const match = parsed.pathname.match(/\.(mp4|webm|mov|mkv|avi|m4v|ogg|flv)$/i);
+      if (match && match[1]) {
+        return match[1].toLowerCase();
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return 'mp4';
+}
+
+/**
+ * Download a single video by URL
+ */
+export async function downloadVideo(
+  url: string,
+  pageUrl?: string,
+  customFilename?: string,
+): Promise<void> {
+  if (!url) return;
+  let fullUrl = url;
+  if (pageUrl && !url.startsWith('http') && !url.startsWith('data:') && !url.startsWith('blob:')) {
+    try {
+      fullUrl = new URL(url, pageUrl).toString();
+    } catch {
+      fullUrl = url;
+    }
+  }
+
+  const ext = resolveVideoExtension(fullUrl);
+  const filename = customFilename || `video_${Date.now()}.${ext}`;
+
+  if (
+    chrome?.downloads?.download &&
+    (fullUrl.startsWith('http://') || fullUrl.startsWith('https://') || fullUrl.startsWith('data:'))
+  ) {
+    try {
+      await chrome.downloads.download({
+        url: fullUrl,
+        filename,
+        conflictAction: 'uniquify',
+        saveAs: false,
+      });
+      return;
+    } catch (err) {
+      console.warn('chrome.downloads failed for video, fallback to anchor click:', err);
+    }
+  }
+
+  // DOM fallback
+  const link = document.createElement('a');
+  link.href = fullUrl;
+  link.download = filename;
+  link.target = '_blank';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}

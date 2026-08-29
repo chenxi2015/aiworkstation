@@ -11,14 +11,12 @@ import {
   ChevronDown,
   ChevronUp,
   Camera,
-  Loader2,
   FileJson,
 } from 'lucide-react';
 import type { GrabbedContent } from '../../../../src/types';
 import { cleanUrl } from '../../../../src/utils/urlCleaner';
 import { htmlToMarkdown } from '../../../../src/utils/markdownConverter';
 import {
-  exportMarkdownWithImages,
   exportPdf,
   cleanDocumentTitle,
   convertGrabbedToAst,
@@ -30,9 +28,18 @@ import { PosterModal } from '../modals/PosterModal';
 import { SummaryCoverModal } from '../modals/SummaryCoverModal';
 import { ContentImageModal } from '../modals/ContentImageModal';
 import { ScreenshotModal } from '../modals/ScreenshotModal';
+import { BundleExportModal } from '../modals/BundleExportModal';
 
 interface GrabActionToolbarProps {
   grabbedContent: GrabbedContent;
+}
+
+interface ToolActionItem {
+  id: string;
+  label: string;
+  icon: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
 }
 
 export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedContent }) => {
@@ -41,6 +48,7 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [showContentImageModal, setShowContentImageModal] = useState(false);
   const [showScreenshotModal, setShowScreenshotModal] = useState(false);
+  const [showBundleModal, setShowBundleModal] = useState(false);
   const [isActionsExpanded, setIsActionsExpanded] = useState(true);
 
   // Cached generated URLs to preserve across modal opens
@@ -55,8 +63,6 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
 
   // Toast / feedback states
   const [copiedState, setCopiedState] = useState<string | null>(null);
-  const [isBundling, setIsBundling] = useState(false);
-  const [bundlePercent, setBundlePercent] = useState(0);
 
   const title = cleanDocumentTitle(grabbedContent.tdk.title || '选区内容');
   const rawUrl = grabbedContent.url;
@@ -121,37 +127,9 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
     setShowPosterModal(true);
   };
 
-  // 7. Bundle ZIP (MD + Images)
-  const handleDownloadBundleZip = async () => {
-    if (isBundling) return;
-    try {
-      setIsBundling(true);
-      setBundlePercent(0);
-      const md = htmlToMarkdown(grabbedContent.selectedHtml, grabbedContent.url);
-      const zipName = `${title.slice(0, 30).trim() || 'bundle'}_${Date.now()}.zip`;
-      await exportMarkdownWithImages(
-        md,
-        grabbedContent.images || [],
-        grabbedContent.url,
-        zipName,
-        (progress) => {
-          setBundlePercent(progress.percent);
-        },
-      );
-      toast.success('MD 与图片打包完成', {
-        description: zipName,
-        timeout: 2500,
-      });
-    } catch (err) {
-      console.error('Failed to bundle MD + Images:', err);
-      toast.danger('打包下载失败', {
-        description: String(err),
-        timeout: 3000,
-      });
-    } finally {
-      setIsBundling(false);
-      setBundlePercent(0);
-    }
+  // 7. Open Bundle Export Modal (MD, Images, Videos, Screenshot)
+  const handleOpenBundleModal = () => {
+    setShowBundleModal(true);
   };
 
   // 8. Open Document Preview / Exporter (PDF, Word, Print)
@@ -169,7 +147,7 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
   const currentMarkdown = htmlToMarkdown(grabbedContent.selectedHtml, grabbedContent.url);
 
   // Configuration for the tool grid (9 actions in 3x3 layout)
-  const toolActions = [
+  const toolActions: ToolActionItem[] = [
     {
       id: 'cover_summary',
       label: '封面 / 摘要',
@@ -220,14 +198,9 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
     },
     {
       id: 'bundle_zip',
-      label: isBundling ? `${bundlePercent}% 打包中` : 'MD+图片打包',
-      icon: isBundling ? (
-        <Loader2 className="w-4 h-4 text-rose-500 animate-spin" />
-      ) : (
-        <Archive className="w-4 h-4 text-rose-500 group-hover:scale-110 transition-transform" />
-      ),
-      disabled: isBundling,
-      onClick: handleDownloadBundleZip,
+      label: 'MD+资源打包',
+      icon: <Archive className="w-4 h-4 text-rose-500 group-hover:scale-110 transition-transform" />,
+      onClick: handleOpenBundleModal,
     },
     {
       id: 'export_document',
@@ -327,6 +300,13 @@ export const GrabActionToolbar: React.FC<GrabActionToolbarProps> = ({ grabbedCon
         <ScreenshotModal
           grabbedContent={grabbedContent}
           onClose={() => setShowScreenshotModal(false)}
+        />
+      )}
+
+      {showBundleModal && (
+        <BundleExportModal
+          grabbedContent={grabbedContent}
+          onClose={() => setShowBundleModal(false)}
         />
       )}
     </div>

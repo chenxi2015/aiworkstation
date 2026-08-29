@@ -21,9 +21,10 @@ import type { GrabbedContent, GrabbedVideo } from '../../../../src/types';
 import type { CollectPayload } from '../../../../src/services/workbench';
 import { SafeImage } from '../common/SafeImage';
 import { CopyButton } from '../common/CopyButton';
-import { downloadImage, downloadImagesAsZip } from '../../../../src/utils/imageDownloader';
+import { downloadImage, downloadVideo } from '../../../../src/utils/imageDownloader';
 import { GrabActionToolbar } from '../actions/GrabActionToolbar';
 import { openImageViewerInNewTab } from '../../../../src/utils/imageViewerHelper';
+import { BundleExportModal } from '../modals/BundleExportModal';
 
 interface GrabbedContentCardProps {
   grabbedContent: GrabbedContent;
@@ -165,9 +166,7 @@ export const GrabbedContentCard: React.FC<GrabbedContentCardProps> = ({
   const [isExpanded, setIsExpanded] = useState(false);
   const [isHtmlExpanded, setIsHtmlExpanded] = useState(false);
   const [isTextExpanded, setIsTextExpanded] = useState(false);
-  const [downloading, setDownloading] = useState(false);
-  const [downloadProgress, setDownloadProgress] = useState(0);
-  const [downloadSuccess, setDownloadSuccess] = useState(false);
+  const [showBundleModal, setShowBundleModal] = useState(false);
   const [singleDownloading, setSingleDownloading] = useState(false);
   const [singleDownloadSuccess, setSingleDownloadSuccess] = useState(false);
   const [copiedMediaUrl, setCopiedMediaUrl] = useState(false);
@@ -242,52 +241,14 @@ export const GrabbedContentCard: React.FC<GrabbedContentCardProps> = ({
     });
   };
 
-  const handleDownloadZip = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (rawImages.length === 0 || downloading) return;
-    try {
-      setDownloading(true);
-      setDownloadProgress(0);
-      const filename = `images_${grabbedContent.tag || 'grab'}_${Date.now()}.zip`;
-      await downloadImagesAsZip(
-        rawImages,
-        grabbedContent.url,
-        filename,
-        (progress) => {
-          setDownloadProgress(progress.percent);
-        },
-      );
-      setDownloadSuccess(true);
-      toast.success('图片已打包下载', {
-        description: `共 ${rawImages.length} 张图片已打包为 ZIP`,
-        timeout: 2500,
-      });
-      setTimeout(() => setDownloadSuccess(false), 2000);
-    } catch (err) {
-      console.error('Failed to download images as ZIP:', err);
-      toast.danger('图片打包下载失败', {
-        description: String(err),
-        timeout: 3000,
-      });
-    } finally {
-      setDownloading(false);
-      setDownloadProgress(0);
-    }
-  };
-
   const handleDownloadCurrentMedia = async (media: MediaItem, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!media.src || singleDownloading) return;
     try {
       setSingleDownloading(true);
       if (media.type === 'video') {
-        const anchor = document.createElement('a');
-        anchor.href = media.src;
-        anchor.download = `video_${Date.now()}.mp4`;
-        anchor.target = '_blank';
-        document.body.appendChild(anchor);
-        anchor.click();
-        document.body.removeChild(anchor);
+        const docTitle = (grabbedContent.tdk.title || 'video').slice(0, 25).trim();
+        await downloadVideo(media.src, grabbedContent.url, `${docTitle}_${Date.now()}.mp4`);
         setSingleDownloadSuccess(true);
         toast.success('已触发视频下载', { timeout: 2000 });
         setTimeout(() => setSingleDownloadSuccess(false), 2000);
@@ -434,68 +395,45 @@ export const GrabbedContentCard: React.FC<GrabbedContentCardProps> = ({
           {/* Media (Images & Videos) Section */}
           {mediaItems.length > 0 && (
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] font-semibold text-muted flex items-center gap-1">
+              <div className="flex items-center justify-between gap-1 mb-1.5">
+                <div className="flex items-center gap-1 min-w-0">
+                  <span className="text-[11px] font-semibold text-muted flex items-center gap-1 truncate">
                     {rawVideos.length > 0 ? (
-                      <VideoIcon className="w-3.5 h-3.5 text-accent" />
+                      <VideoIcon className="w-3.5 h-3.5 text-accent shrink-0" />
                     ) : (
-                      <ImageIcon className="w-3.5 h-3.5 text-accent" />
+                      <ImageIcon className="w-3.5 h-3.5 text-accent shrink-0" />
                     )}
-                    {rawVideos.length > 0 && rawImages.length > 0
-                      ? `包含图片与视频 (${rawImages.length} 图 · ${rawVideos.length} 视频):`
-                      : rawVideos.length > 0
-                        ? `包含视频 (${rawVideos.length}):`
-                        : rawImages.length === 1
-                          ? '包含图片:'
+                    <span>
+                      {rawVideos.length > 0 && rawImages.length > 0
+                        ? `媒体资源 (${rawImages.length} 图 · ${rawVideos.length} 视):`
+                        : rawVideos.length > 0
+                          ? `包含视频 (${rawVideos.length}):`
                           : `包含图片 (${rawImages.length}):`}
+                    </span>
                   </span>
+                </div>
 
-                  {rawImages.length > 0 && (
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowBundleModal(true)}
+                    title="打包下载选区媒体资源 (ZIP)"
+                    className="inline-flex items-center gap-1 text-[11px] text-muted hover:text-accent transition-colors cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>下载 ZIP</span>
+                  </button>
+
+                  {mediaItems.length > maxInitialVisible && (
                     <button
                       type="button"
-                      onClick={handleDownloadZip}
-                      disabled={downloading}
-                      title={
-                        rawImages.length === 1
-                          ? '打包下载图片 (ZIP)'
-                          : `打包下载全部 ${rawImages.length} 张图片 (ZIP)`
-                      }
-                      className="inline-flex items-center gap-1 text-[11px] text-muted hover:text-accent disabled:opacity-60 transition-colors cursor-pointer"
+                      onClick={() => setIsExpanded(!isExpanded)}
+                      className="text-[11px] text-accent hover:underline font-medium cursor-pointer"
                     >
-                      {downloading ? (
-                        <>
-                          <Loader2 className="w-3.5 h-3.5 animate-spin text-accent" />
-                          <span className="text-[10px] text-accent font-mono">
-                            {downloadProgress > 0 ? `打包中 ${downloadProgress}%` : '打包中...'}
-                          </span>
-                        </>
-                      ) : downloadSuccess ? (
-                        <>
-                          <Check className="w-3.5 h-3.5 text-success" />
-                          <span className="text-[10px] text-success">已下载 ZIP</span>
-                        </>
-                      ) : (
-                        <>
-                          <Download className="w-3.5 h-3.5" />
-                          <span className="text-[10px]">
-                            {rawImages.length === 1 ? '下载 ZIP' : `下载 ZIP (${rawImages.length})`}
-                          </span>
-                        </>
-                      )}
+                      {isExpanded ? '收起' : '展开全部'}
                     </button>
                   )}
                 </div>
-
-                {mediaItems.length > maxInitialVisible && (
-                  <button
-                    type="button"
-                    onClick={() => setIsExpanded(!isExpanded)}
-                    className="text-[11px] text-accent hover:underline font-medium cursor-pointer"
-                  >
-                    {isExpanded ? '收起' : `展开全部 (${mediaItems.length}项)`}
-                  </button>
-                )}
               </div>
 
               {/* Grid of media thumbnails */}
@@ -700,6 +638,13 @@ export const GrabbedContentCard: React.FC<GrabbedContentCardProps> = ({
             {currentPreviewMedia.src}
           </div>
         </div>
+      )}
+      {/* Bundle Export Modal */}
+      {showBundleModal && (
+        <BundleExportModal
+          grabbedContent={grabbedContent}
+          onClose={() => setShowBundleModal(false)}
+        />
       )}
     </>
   );
