@@ -5,15 +5,37 @@ import JSZip from 'jszip';
  */
 
 /**
- * Fetch image dataURL via background script to bypass Referer / CORS restrictions
+ * Fetch image dataURL via background proxy, content script blob reader, or canvas fallback
  */
 export async function fetchImageDataUrl(url: string, pageUrl?: string): Promise<string> {
-  if (!url || url.startsWith('data:') || url.startsWith('blob:')) {
+  if (!url) return '';
+  if (url.startsWith('data:')) {
     return url;
   }
 
-  return new Promise((resolve) => {
+  // 1. Handle blob: URLs (Must be read inside the host Tab's content script context)
+  if (url.startsWith('blob:')) {
     try {
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      const activeTabId = tabs[0]?.id;
+      if (typeof activeTabId === 'number') {
+        const res = await chrome.tabs.sendMessage(activeTabId, {
+          type: 'READ_PAGE_BLOB',
+          blobUrl: url,
+        });
+        if (res?.success && res.dataUrl) {
+          return res.dataUrl;
+        }
+      }
+    } catch (err) {
+      console.warn('[AI Collector] Failed to delegate blob read to content script:', err);
+    }
+    return url;
+  }
+
+  // 2. Try Background Smart Proxy (bypasses CORS and injects Referer)
+  try {
+    const bgRes = await new Promise<{ success: boolean; dataUrl?: string }>((resolve) => {
       chrome.runtime.sendMessage(
         {
           type: 'FETCH_IMAGE_DATA',
@@ -21,17 +43,40 @@ export async function fetchImageDataUrl(url: string, pageUrl?: string): Promise<
           pageUrl,
         },
         (res) => {
-          if (res?.success && res.dataUrl) {
-            resolve(res.dataUrl);
+          if (chrome.runtime.lastError || !res) {
+            resolve({ success: false });
           } else {
-            resolve(url);
+            resolve(res);
           }
         },
       );
-    } catch {
-      resolve(url);
+    });
+
+    if (bgRes.success && bgRes.dataUrl) {
+      return bgRes.dataUrl;
     }
-  });
+  } catch {
+    // Continue to DOM canvas fallback
+  }
+
+  // 3. Fallback: Delegate to Content Script to extract image pixels from rendered DOM Canvas
+  try {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const activeTabId = tabs[0]?.id;
+    if (typeof activeTabId === 'number') {
+      const canvasRes = await chrome.tabs.sendMessage(activeTabId, {
+        type: 'EXTRACT_IMAGE_CANVAS',
+        imageUrl: url,
+      });
+      if (canvasRes?.success && canvasRes.dataUrl) {
+        return canvasRes.dataUrl;
+      }
+    }
+  } catch {
+    // Ignore and return original URL
+  }
+
+  return url;
 }
 
 /**
@@ -41,17 +86,23 @@ export function resolveImageExtension(url?: string, dataUrl?: string): string {
   if (dataUrl) {
     if (dataUrl.startsWith('data:image/png')) return 'png';
     if (dataUrl.startsWith('data:image/webp')) return 'webp';
+    if (dataUrl.startsWith('data:image/avif')) return 'avif';
     if (dataUrl.startsWith('data:image/gif')) return 'gif';
     if (dataUrl.startsWith('data:image/svg')) return 'svg';
-    if (dataUrl.startsWith('data:image/jpeg')) return 'jpg';
+    if (dataUrl.startsWith('data:image/jpeg') || dataUrl.startsWith('data:image/jpg')) return 'jpg';
   }
 
   if (url) {
     try {
-      const parsed = new URL(url);
-      const match = parsed.pathname.match(/\.(jpg|jpeg|png|webp|gif|svg|bmp)$/i);
+      const parsed = new URL(url, 'https://localhost');
+      const match = parsed.pathname.match(/\.(jpg|jpeg|png|webp|avif|gif|svg|bmp|ico)$/i);
       if (match && match[1]) {
         return match[1].toLowerCase() === 'jpeg' ? 'jpg' : match[1].toLowerCase();
+      }
+      // WeChat image url format check: ?wx_fmt=png
+      const wxFmt = parsed.searchParams.get('wx_fmt') || parsed.searchParams.get('tp');
+      if (wxFmt && ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'].includes(wxFmt.toLowerCase())) {
+        return wxFmt.toLowerCase() === 'jpeg' ? 'jpg' : wxFmt.toLowerCase();
       }
     } catch {
       // ignore

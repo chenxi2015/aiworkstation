@@ -99,6 +99,93 @@ export default defineContentScript({
           return true; // Keep channel open for async response
         }
 
+        case 'READ_PAGE_BLOB': {
+          const { blobUrl } = message;
+          if (!blobUrl || !blobUrl.startsWith('blob:')) {
+            sendResponse({ success: false, error: 'Invalid blob URL' });
+            break;
+          }
+
+          fetch(blobUrl)
+            .then((res) => {
+              if (!res.ok) throw new Error(`Fetch blob failed with status ${res.status}`);
+              return res.blob();
+            })
+            .then((blob) => {
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                if (typeof reader.result === 'string') {
+                  sendResponse({ success: true, dataUrl: reader.result });
+                } else {
+                  sendResponse({ success: false, error: 'FileReader did not return string' });
+                }
+              };
+              reader.onerror = () => sendResponse({ success: false, error: 'FileReader read error' });
+              reader.readAsDataURL(blob);
+            })
+            .catch((err) => {
+              console.warn('[AI Collector] Failed to read page blob:', err);
+              sendResponse({ success: false, error: String(err?.message || err) });
+            });
+          return true; // Keep channel open for async response
+        }
+
+        case 'EXTRACT_IMAGE_CANVAS': {
+          const { imageUrl } = message;
+          if (!imageUrl) {
+            sendResponse({ success: false, error: 'Missing image URL' });
+            break;
+          }
+
+          // Try to find matching image element already in the DOM
+          const matchingImg = Array.from(document.querySelectorAll<HTMLImageElement>('img')).find(
+            (img) => img.src === imageUrl || img.currentSrc === imageUrl || img.getAttribute('data-src') === imageUrl,
+          );
+
+          if (matchingImg && matchingImg.complete && matchingImg.naturalWidth > 0) {
+            try {
+              const canvas = document.createElement('canvas');
+              canvas.width = matchingImg.naturalWidth;
+              canvas.height = matchingImg.naturalHeight;
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                ctx.drawImage(matchingImg, 0, 0);
+                const dataUrl = canvas.toDataURL('image/png');
+                sendResponse({ success: true, dataUrl });
+                return true;
+              }
+            } catch (err) {
+              console.warn('[AI Collector] Canvas extraction tainted or failed:', err);
+            }
+          }
+
+          // Fallback: create temporary in-memory Image with anonymous CORS
+          const tempImg = new Image();
+          tempImg.crossOrigin = 'anonymous';
+          tempImg.onload = () => {
+            try {
+              const canvas = document.createElement('canvas');
+              canvas.width = tempImg.naturalWidth;
+              canvas.height = tempImg.naturalHeight;
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                ctx.drawImage(tempImg, 0, 0);
+                const dataUrl = canvas.toDataURL('image/png');
+                sendResponse({ success: true, dataUrl });
+              } else {
+                sendResponse({ success: false, error: 'Failed to create canvas context' });
+              }
+            } catch (err) {
+              sendResponse({ success: false, error: err instanceof Error ? err.message : String(err) });
+            }
+          };
+          tempImg.onerror = (err) => {
+            sendResponse({ success: false, error: 'Failed to load image in content script' });
+          };
+          tempImg.src = imageUrl;
+          return true; // Keep channel open for async response
+        }
+
         default:
           break;
       }

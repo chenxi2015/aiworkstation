@@ -98,6 +98,24 @@ function extractPosterFromElement(
 }
 
 /**
+ * Common video candidate attribute names
+ */
+const VIDEO_SRC_ATTRIBUTES = [
+  'src',
+  'data-src',
+  'data-original-src',
+  'data-origin-src',
+  'data-video-url',
+  'data-mp4',
+  'data-video-src',
+  'data-h264',
+  'data-play-url',
+  'data-url',
+  'data-video',
+  'data-raw-url',
+] as const;
+
+/**
  * Extract video source candidate from a video or player element
  */
 function extractVideoSources(videoEl: HTMLVideoElement, baseHref: string): string[] {
@@ -111,21 +129,35 @@ function extractVideoSources(videoEl: HTMLVideoElement, baseHref: string): strin
     }
   };
 
-  // 1. Tag attributes & DOM properties
-  addCandidate(videoEl.getAttribute('src'));
-  addCandidate(videoEl.getAttribute('data-src'));
-  addCandidate(videoEl.getAttribute('data-original-src'));
-  addCandidate(videoEl.getAttribute('data-url'));
-  addCandidate(videoEl.currentSrc);
-  addCandidate(videoEl.src);
+  // 1. Prioritize direct HTTP/HTTPS sources from attributes
+  for (const attr of VIDEO_SRC_ATTRIBUTES) {
+    const val = videoEl.getAttribute(attr);
+    if (val && !val.startsWith('blob:')) {
+      addCandidate(val);
+    }
+  }
 
   // 2. Child <source> elements
   videoEl.querySelectorAll('source').forEach((source) => {
-    addCandidate(source.getAttribute('src'));
-    addCandidate(source.getAttribute('data-src'));
-    addCandidate(source.getAttribute('data-url'));
-    addCandidate(source.src);
+    for (const attr of VIDEO_SRC_ATTRIBUTES) {
+      const val = source.getAttribute(attr);
+      if (val && !val.startsWith('blob:')) {
+        addCandidate(val);
+      }
+    }
+    if (source.src && !source.src.startsWith('blob:')) {
+      addCandidate(source.src);
+    }
   });
+
+  // 3. Fallback to DOM properties or blob: src if no direct http URL was discovered
+  if (sources.length === 0) {
+    for (const attr of VIDEO_SRC_ATTRIBUTES) {
+      addCandidate(videoEl.getAttribute(attr));
+    }
+    addCandidate(videoEl.currentSrc);
+    addCandidate(videoEl.src);
+  }
 
   return sources;
 }
@@ -166,9 +198,9 @@ export function extractVideosFromElement(
     sources.forEach((src) => addVideo(src, poster));
   });
 
-  // 3. Scan video containers (e.g. .xgplayer, .tt-video-box, [tt-videoid], [data-video-url])
+  // 3. Scan rich media containers (e.g. .xgplayer, .tt-video-box, [tt-videoid], [data-video-url])
   const containerCandidates = el.querySelectorAll<HTMLElement>(
-    '[data-video-url], [data-mp4], [data-video-src], [tt-videoid]',
+    '[data-video-url], [data-mp4], [data-video-src], [data-origin-src], [data-play-url], [tt-videoid]',
   );
 
   containerCandidates.forEach((container) => {
@@ -176,15 +208,22 @@ export function extractVideosFromElement(
     if (container.querySelector('video')) return;
 
     const poster = extractPosterFromElement(container, baseHref);
-    const videoUrl =
-      container.getAttribute('data-video-url') ||
-      container.getAttribute('data-mp4') ||
-      container.getAttribute('data-video-src');
-
-    if (videoUrl) {
-      addVideo(videoUrl, poster);
+    for (const attr of VIDEO_SRC_ATTRIBUTES) {
+      const videoUrl = container.getAttribute(attr);
+      if (videoUrl) {
+        addVideo(videoUrl, poster);
+        break;
+      }
     }
   });
+
+  // 4. If current element is a link pointing to a video file
+  if (el.tagName.toLowerCase() === 'a') {
+    const href = (el as HTMLAnchorElement).href;
+    if (href && /\.(mp4|webm|mov|m4v|mkv)(\?.*)?$/i.test(href)) {
+      addVideo(href);
+    }
+  }
 
   return result;
 }

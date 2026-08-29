@@ -111,5 +111,7 @@ export type ExtensionMessage =
   | {
       type: 'SCREENSHOT_PROGRESS';
       payload: { slice: number; totalSlices: number; percent: number };
-    };
+    }
+  | { type: 'READ_PAGE_BLOB'; blobUrl: string }
+  | { type: 'EXTRACT_IMAGE_CANVAS'; imageUrl: string };
 

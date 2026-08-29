@@ -210,26 +210,67 @@ export default defineBackground(() => {
     }
 
     if (message.type === 'FETCH_IMAGE_DATA' && message.url) {
-      const { url } = message;
+      const { url, pageUrl } = message;
 
-      fetch(url, {
-        referrerPolicy: 'no-referrer',
-      })
-        .then((res) => {
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          return res.blob();
-        })
+      const fetchWithTimeout = async (targetUrl: string, options: RequestInit, timeoutMs = 8000) => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+          return await fetch(targetUrl, { ...options, signal: controller.signal });
+        } finally {
+          clearTimeout(timer);
+        }
+      };
+
+      const executeSmartFetch = async (): Promise<Blob> => {
+        // Attempt 1: If pageUrl provided, try with pageUrl as referer (helps with strict hotlink-protected sites)
+        if (pageUrl && pageUrl.startsWith('http')) {
+          try {
+            const res = await fetchWithTimeout(url, {
+              headers: { Referer: pageUrl },
+              credentials: 'omit',
+            });
+            if (res.ok) {
+              const blob = await res.blob();
+              if (blob.size > 0) return blob;
+            }
+          } catch {
+            // Fallback to next attempt
+          }
+        }
+
+        // Attempt 2: Try no-referrer policy (helps with sites that only allow empty referer)
+        try {
+          const res = await fetchWithTimeout(url, {
+            referrerPolicy: 'no-referrer',
+            credentials: 'omit',
+          });
+          if (res.ok) {
+            const blob = await res.blob();
+            if (blob.size > 0) return blob;
+          }
+        } catch {
+          // Fallback to direct fetch
+        }
+
+        // Attempt 3: Standard direct fetch
+        const res = await fetchWithTimeout(url, { credentials: 'omit' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return await res.blob();
+      };
+
+      executeSmartFetch()
         .then((blob) => {
           const reader = new FileReader();
           reader.onloadend = () => {
             sendResponse({ success: true, dataUrl: reader.result });
           };
-          reader.onerror = () => sendResponse({ success: false });
+          reader.onerror = () => sendResponse({ success: false, error: 'FileReader failed' });
           reader.readAsDataURL(blob);
         })
         .catch((err) => {
-          console.warn('[AI Collector] Background image fetch error:', err);
-          sendResponse({ success: false, error: String(err) });
+          console.warn('[AI Collector] Background smart image fetch failed:', err?.message || err);
+          sendResponse({ success: false, error: String(err?.message || err) });
         });
 
       return true; // Keep async response channel open

@@ -49,6 +49,23 @@ function base64ToBinary(dataUrl: string): { bytes: Uint8Array; ext: string } {
 }
 
 /**
+ * Helper to fetch with timeout
+ */
+async function fetchBinaryWithTimeout(url: string, timeoutMs = 10000, options: RequestInit = {}): Promise<ArrayBuffer | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    if (!res.ok) return null;
+    return await res.arrayBuffer();
+  } catch (err) {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
  * Export Markdown and all associated media (images, videos, screenshots) bundled into a ZIP archive
  */
 export async function exportBundleZip(options: BundleExportOptions): Promise<void> {
@@ -68,6 +85,7 @@ export async function exportBundleZip(options: BundleExportOptions): Promise<voi
 
   const zip = new JSZip();
   let updatedMarkdown = markdownContent;
+  const skippedLogs: string[] = [];
 
   const targetImages = includeImages ? images.filter(Boolean) : [];
   const targetVideos = includeVideos ? videos.filter((v) => Boolean(v?.src)) : [];
@@ -116,9 +134,8 @@ export async function exportBundleZip(options: BundleExportOptions): Promise<voi
               fetchUrl = dataUrl;
             }
           }
-          const res = await fetch(fetchUrl);
-          if (res.ok) {
-            const buf = await res.arrayBuffer();
+          const buf = await fetchBinaryWithTimeout(fetchUrl, 8000, { referrerPolicy: 'no-referrer' });
+          if (buf && buf.byteLength > 0) {
             const ext = resolveImageExtension(fetchUrl);
             const fileName = `img_${indexStr}.${ext}`;
             imgFolder.file(fileName, buf, { binary: true });
@@ -127,9 +144,12 @@ export async function exportBundleZip(options: BundleExportOptions): Promise<voi
             if (fetchUrl !== rawUrl) {
               updatedMarkdown = updatedMarkdown.split(fetchUrl).join(relativePath);
             }
+          } else {
+            skippedLogs.push(`[图片未打包] 无法直接拉取 (可能需要特定鉴权): ${rawUrl}`);
           }
         }
       } catch (err) {
+        skippedLogs.push(`[图片下载异常] ${rawUrl}: ${String(err)}`);
         console.warn(`Failed to package image [${rawUrl}]:`, err);
       } finally {
         completedTasks++;
@@ -144,7 +164,7 @@ export async function exportBundleZip(options: BundleExportOptions): Promise<voi
       const v = targetVideos[i];
       if (!v?.src) continue;
 
-      report(`正在下载视频 (${i + 1}/${targetVideos.length})...`);
+      report(`正在处理视频 (${i + 1}/${targetVideos.length})...`);
       try {
         let fullUrl = v.src;
         if (pageUrl && !fullUrl.startsWith('http') && !fullUrl.startsWith('data:') && !fullUrl.startsWith('blob:')) {
@@ -159,17 +179,34 @@ export async function exportBundleZip(options: BundleExportOptions): Promise<voi
         const indexStr = String(i + 1).padStart(2, '0');
         const fileName = `video_${indexStr}.${ext}`;
 
-        const res = await fetch(fullUrl);
-        if (res.ok) {
-          const buf = await res.arrayBuffer();
-          vidFolder.file(fileName, buf, { binary: true });
-          const relativePath = `./videos/${fileName}`;
-          updatedMarkdown = updatedMarkdown.split(v.src).join(relativePath);
-          if (fullUrl !== v.src) {
-            updatedMarkdown = updatedMarkdown.split(fullUrl).join(relativePath);
+        // If blob: video, attempt fallback reading via host context
+        if (fullUrl.startsWith('blob:')) {
+          const blobDataUrl = await fetchImageDataUrl(fullUrl, pageUrl);
+          if (blobDataUrl.startsWith('data:')) {
+            const { bytes } = base64ToBinary(blobDataUrl);
+            vidFolder.file(fileName, bytes, { binary: true });
+            const relativePath = `./videos/${fileName}`;
+            updatedMarkdown = updatedMarkdown.split(v.src).join(relativePath);
+          } else {
+            skippedLogs.push(
+              `[流媒体切片视频] ${v.title || `视频 ${i + 1}`} 属于在线 MSE/HLS 切片流，无法作为单一文件打包。建议在线观看。`,
+            );
+          }
+        } else {
+          const buf = await fetchBinaryWithTimeout(fullUrl, 15000);
+          if (buf && buf.byteLength > 0) {
+            vidFolder.file(fileName, buf, { binary: true });
+            const relativePath = `./videos/${fileName}`;
+            updatedMarkdown = updatedMarkdown.split(v.src).join(relativePath);
+            if (fullUrl !== v.src) {
+              updatedMarkdown = updatedMarkdown.split(fullUrl).join(relativePath);
+            }
+          } else {
+            skippedLogs.push(`[视频未打包] 无法直接拉取直链: ${fullUrl}`);
           }
         }
       } catch (err) {
+        skippedLogs.push(`[视频下载异常] ${v.src}: ${String(err)}`);
         console.warn(`Failed to package video [${v.src}]:`, err);
       } finally {
         completedTasks++;
@@ -195,6 +232,14 @@ export async function exportBundleZip(options: BundleExportOptions): Promise<voi
   // 4. Add Markdown file
   if (includeMarkdown && updatedMarkdown) {
     zip.file('index.md', updatedMarkdown);
+  }
+
+  // 5. Add download report if there were skipped or protected resources
+  if (skippedLogs.length > 0) {
+    zip.file(
+      'download_report.txt',
+      `--- 资源打包报告 (${new Date().toLocaleString()}) ---\n来源网址: ${pageUrl}\n\n以下资源因防盗链保护、流媒体切片或跨域限制已保留原链接:\n${skippedLogs.join('\n')}\n`,
+    );
   }
 
   // 5. Generate ZIP Blob
