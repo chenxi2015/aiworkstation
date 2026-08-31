@@ -12,6 +12,43 @@ export default defineContentScript({
 
     const grabber = new VisualGrabber();
 
+    // Inject the MAIN-world HLS sniffer (external file so page CSP cannot
+    // block it the way it would block an inline script), then relay detected
+    // playlist URLs to the background service worker.
+    const injectHlsSniffer = () => {
+      try {
+        const script = document.createElement('script');
+        script.src = chrome.runtime.getURL('hls-sniffer.js');
+        script.async = false;
+        script.onload = () => script.remove();
+        (document.head || document.documentElement).appendChild(script);
+      } catch {
+        // Injection may fail on restricted pages; safe to ignore
+      }
+    };
+    injectHlsSniffer();
+
+    const snifferMessageListener = (event: MessageEvent) => {
+      if (event.source !== window) return;
+      const data = event.data;
+      if (!data || data.source !== 'aic-hls-sniffer' || data.type !== 'HLS_DETECTED') return;
+      const url = data.payload?.url;
+      if (typeof url !== 'string') return;
+
+      chrome.runtime
+        .sendMessage({
+          type: 'HLS_STREAM_DETECTED',
+          payload: {
+            url,
+            via: data.payload?.via,
+            pageUrl: window.location.href,
+            pageTitle: document.title,
+          },
+        })
+        ?.catch?.(() => {});
+    };
+    window.addEventListener('message', snifferMessageListener);
+
     // Listen for messages from background / sidepanel
     const messageListener = (
       message: ExtensionMessage,
@@ -198,6 +235,7 @@ export default defineContentScript({
       try {
         chrome?.runtime?.onMessage?.removeListener?.(messageListener);
       } catch {}
+      window.removeEventListener('message', snifferMessageListener);
       grabber.stop();
     });
   },

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Tabs, Toast } from '@heroui/react';
 import { MousePointerClick, Bookmark, Activity, Settings } from 'lucide-react';
 
@@ -8,6 +8,8 @@ import { useCurrentTdk } from './hooks/useCurrentTdk';
 import { useBookmarks } from './hooks/useBookmarks';
 import { useSyncLogs } from './hooks/useSyncLogs';
 import { useVisualGrabber } from './hooks/useVisualGrabber';
+import { useSniffedStreams } from './hooks/useSniffedStreams';
+import { enrichGrabbedVideos } from '../../src/utils/videoStreamMatcher';
 
 import { Header } from './components/Header';
 import { GrabTab } from './components/tabs/GrabTab';
@@ -29,6 +31,7 @@ export default function App() {
   const { isOnline, checkWorkbenchStatus, pushToWorkbench } = useWorkbench();
   const { currentTdk, refreshCurrentPageTDK } = useCurrentTdk();
   const { syncLogs, clearSyncLogs } = useSyncLogs();
+  const { streams: sniffedStreams, clearStreams: clearSniffedStreams } = useSniffedStreams();
   const {
     searchQuery,
     setSearchQuery,
@@ -48,6 +51,13 @@ export default function App() {
   } = useVisualGrabber(() => {
     setActiveTab('grab');
   });
+
+  // WYSIWYG: associate grabbed blob: videos with sniffed HLS streams so
+  // region grabs carry actually-downloadable videos
+  const enrichedGrabbedContent = useMemo(
+    () => (grabbedContent ? enrichGrabbedVideos(grabbedContent, sniffedStreams) : null),
+    [grabbedContent, sniffedStreams],
+  );
 
   const handleScroll = (e: React.UIEvent<HTMLElement>) => {
     setIsScrolled(e.currentTarget.scrollTop > 2);
@@ -109,12 +119,14 @@ export default function App() {
               isGrabbing={isGrabbing}
               isCapturingFullPage={isCapturingFullPage}
               captureProgress={captureProgress}
-              grabbedContent={grabbedContent}
+              grabbedContent={enrichedGrabbedContent}
+              sniffedStreams={sniffedStreams}
               currentTdk={currentTdk}
               isScrolled={isScrolled}
               onStartGrab={startGrab}
               onCaptureFullPage={captureFullPage}
               onClearGrabbed={clearGrabbedContent}
+              onClearSniffedStreams={clearSniffedStreams}
               onRefreshTdk={refreshCurrentPageTDK}
               onPushToWorkbench={pushToWorkbench}
             />

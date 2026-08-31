@@ -21,6 +21,37 @@ export interface GrabbedVideo {
   src: string;
   poster?: string;
   title?: string;
+  /**
+   * Sniffed HLS playlist URL matched to this video element.
+   * Set when the element src is an undownloadable blob: URL and a
+   * sniffed stream correlates with it (e.g. shared video ID tokens).
+   */
+  hlsUrl?: string;
+}
+
+/**
+ * HLS stream sniffed from page network activity (m3u8 playlist URL)
+ */
+export interface SniffedStream {
+  /** Playlist URL, also used as the dedupe key */
+  url: string;
+  pageUrl: string;
+  pageTitle?: string;
+  /** Detection channel: fetch / xhr / performance */
+  via?: string;
+  detectedAt: number;
+  /** Playlist kind resolved by fetching/parsing the playlist content */
+  role?: 'master' | 'media';
+  /** Child playlists (variant / audio rendition URLs) of a master playlist */
+  children?: string[];
+  /** True when this playlist belongs to a master and should not be listed */
+  hidden?: boolean;
+  /** Master playlist declares a separate audio track (EXT-X-MEDIA) */
+  hasAudio?: boolean;
+  /** Best resolution advertised by a master playlist, e.g. "1280x720" */
+  bestResolution?: string;
+  /** Number of variant streams in a master playlist */
+  variantCount?: number;
 }
 
 /**
@@ -113,5 +144,11 @@ export type ExtensionMessage =
       payload: { slice: number; totalSlices: number; percent: number };
     }
   | { type: 'READ_PAGE_BLOB'; blobUrl: string }
-  | { type: 'EXTRACT_IMAGE_CANVAS'; imageUrl: string };
-
+  | { type: 'EXTRACT_IMAGE_CANVAS'; imageUrl: string }
+  | {
+      type: 'HLS_STREAM_DETECTED';
+      payload: { url: string; pageUrl: string; pageTitle?: string; via?: string };
+    }
+  | { type: 'GET_HLS_STREAMS'; tabId: number }
+  | { type: 'CLEAR_HLS_STREAMS'; tabId: number }
+  | { type: 'HLS_STREAMS_UPDATE'; payload: { tabId: number; streams: SniffedStream[] } };

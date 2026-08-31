@@ -12,9 +12,12 @@
     "zip": "wxt zip",
     "zip:firefox": "wxt zip -b firefox",
     "compile": "tsc --noEmit",
-    "postinstall": "wxt prepare"
+    "setup:ffmpeg": "node scripts/setup-ffmpeg.mjs",
+    "postinstall": "wxt prepare && node scripts/setup-ffmpeg.mjs"
   },
   "dependencies": {
+    "@ffmpeg/core": "0.11.0",
+    "@ffmpeg/ffmpeg": "0.11.6",
     "@heroui/react": "^3.2.4",
     "@heroui/styles": "^3.2.4",
     "clsx": "^2.1.1",

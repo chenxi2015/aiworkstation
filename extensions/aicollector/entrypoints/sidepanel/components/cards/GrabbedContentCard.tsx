@@ -22,6 +22,7 @@ import type { CollectPayload } from '../../../../src/services/workbench';
 import { SafeImage } from '../common/SafeImage';
 import { CopyButton } from '../common/CopyButton';
 import { downloadImage, downloadVideo } from '../../../../src/utils/imageDownloader';
+import { downloadHlsStream } from '../../../../src/utils/hlsDownloader';
 import { GrabActionToolbar } from '../actions/GrabActionToolbar';
 import { openImageViewerInNewTab } from '../../../../src/utils/imageViewerHelper';
 import { BundleExportModal } from '../modals/BundleExportModal';
@@ -33,7 +34,7 @@ interface GrabbedContentCardProps {
 
 type MediaItem =
   | { type: 'screenshot'; src: string; key: string }
-  | { type: 'video'; src: string; poster?: string; title?: string; key: string }
+  | { type: 'video'; src: string; poster?: string; title?: string; hlsUrl?: string; key: string }
   | { type: 'image'; src: string; key: string };
 
 /**
@@ -142,9 +143,13 @@ const VideoThumbnail: React.FC<{
       </div>
 
       {/* Video tag badge on top left */}
-      <div className="absolute top-0.5 left-0.5 px-1 py-0.2 rounded bg-accent/80 text-[8px] font-medium text-white pointer-events-none flex items-center gap-0.5 shadow-xs">
+      <div
+        className={`absolute top-0.5 left-0.5 px-1 py-0.2 rounded text-[8px] font-medium text-white pointer-events-none flex items-center gap-0.5 shadow-xs ${
+          video.hlsUrl ? 'bg-violet-600/90' : 'bg-accent/80'
+        }`}
+      >
         <VideoIcon className="w-2.5 h-2.5" />
-        <span>视频</span>
+        <span>{video.hlsUrl ? '视频·可下载' : '视频'}</span>
       </div>
 
       {/* Index badge on bottom right */}
@@ -183,6 +188,7 @@ export const GrabbedContentCard: React.FC<GrabbedContentCardProps> = ({
       src: v.src,
       poster: v.poster,
       title: v.title,
+      hlsUrl: v.hlsUrl,
       key: `video-${i}-${v.src}`,
     })),
     ...rawImages.map((src, i) => ({
@@ -248,10 +254,28 @@ export const GrabbedContentCard: React.FC<GrabbedContentCardProps> = ({
       setSingleDownloading(true);
       if (media.type === 'video') {
         const docTitle = (grabbedContent.tdk.title || 'video').slice(0, 25).trim();
-        await downloadVideo(media.src, grabbedContent.url, `${docTitle}_${Date.now()}.mp4`);
-        setSingleDownloadSuccess(true);
-        toast.success('已触发视频下载', { timeout: 2000 });
-        setTimeout(() => setSingleDownloadSuccess(false), 2000);
+        if (media.hlsUrl) {
+          // Sniffed HLS stream: download segments and mux via the HLS pipeline
+          const { filename, warning } = await downloadHlsStream(media.hlsUrl, {
+            filenameBase: `${docTitle}_${Date.now()}`,
+          });
+          setSingleDownloadSuccess(true);
+          toast.success(warning ? '视频已下载（仅视频轨）' : '视频已下载', {
+            description: warning ? `${warning}: ${filename}` : filename,
+            timeout: 2500,
+          });
+          setTimeout(() => setSingleDownloadSuccess(false), 2000);
+        } else if (media.src.startsWith('blob:')) {
+          toast.danger('视频暂不可下载', {
+            description: '未嗅探到该视频流，请先在页面中播放视频后再拾取',
+            timeout: 3500,
+          });
+        } else {
+          await downloadVideo(media.src, grabbedContent.url, `${docTitle}_${Date.now()}.mp4`);
+          setSingleDownloadSuccess(true);
+          toast.success('已触发视频下载', { timeout: 2000 });
+          setTimeout(() => setSingleDownloadSuccess(false), 2000);
+        }
       } else if (media.type === 'screenshot') {
         const a = document.createElement('a');
         a.href = media.src;
@@ -649,4 +673,3 @@ export const GrabbedContentCard: React.FC<GrabbedContentCardProps> = ({
     </>
   );
 };
-

@@ -16,6 +16,7 @@ import { htmlToMarkdown } from '../../../../src/utils/markdownConverter';
 import { cleanDocumentTitle } from '../../../../src/utils/exporters/exportUtils';
 import { exportBundleZip } from '../../../../src/utils/exporters/zipExporter';
 import { downloadVideo } from '../../../../src/utils/imageDownloader';
+import { downloadHlsStream } from '../../../../src/utils/hlsDownloader';
 
 interface BundleExportModalProps {
   grabbedContent: GrabbedContent;
@@ -100,8 +101,20 @@ export const BundleExportModal: React.FC<BundleExportModalProps> = ({
     if (!video.src || downloadingSingleVideo) return;
     try {
       setDownloadingSingleVideo(video.src);
-      const customFilename = `${title.slice(0, 25).trim() || 'video'}_${index + 1}.mp4`;
-      await downloadVideo(video.src, grabbedContent.url, customFilename);
+      if (video.hlsUrl) {
+        await downloadHlsStream(video.hlsUrl, {
+          filenameBase: `${title.slice(0, 25).trim() || 'video'}_${index + 1}`,
+        });
+      } else if (video.src.startsWith('blob:')) {
+        toast.danger('视频暂不可下载', {
+          description: '未嗅探到该视频流，请先在页面中播放视频后再拾取',
+          timeout: 3500,
+        });
+        return;
+      } else {
+        const customFilename = `${title.slice(0, 25).trim() || 'video'}_${index + 1}.mp4`;
+        await downloadVideo(video.src, grabbedContent.url, customFilename);
+      }
       toast.success(`视频 ${index + 1} 已开始下载`, { timeout: 2000 });
     } catch (err) {
       console.error('Failed to download single video:', err);

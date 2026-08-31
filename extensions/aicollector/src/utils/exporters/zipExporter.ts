@@ -6,6 +6,7 @@ import {
   resolveImageExtension,
   resolveVideoExtension,
 } from '../imageDownloader';
+import { fetchHlsStream } from '../hlsDownloader';
 
 export interface BundleExportOptions {
   markdownContent?: string;
@@ -166,6 +167,28 @@ export async function exportBundleZip(options: BundleExportOptions): Promise<voi
 
       report(`正在处理视频 (${i + 1}/${targetVideos.length})...`);
       try {
+        // Sniffed HLS stream: run the segment-download + mux pipeline
+        if (v.hlsUrl) {
+          const result = await fetchHlsStream(v.hlsUrl, {
+            onProgress: (p) =>
+              report(
+                p.phase === 'muxing'
+                  ? `视频 (${i + 1}/${targetVideos.length}) 正在合并音视频...`
+                  : `视频 (${i + 1}/${targetVideos.length}) 下载分片 ${p.percent}%...`,
+              ),
+          });
+          const indexStr = String(i + 1).padStart(2, '0');
+          const fileName = `video_${indexStr}.${result.extension}`;
+          vidFolder.file(fileName, result.blob);
+          const relativePath = `./videos/${fileName}`;
+          updatedMarkdown = updatedMarkdown.split(v.src).join(relativePath);
+          if (result.warning) {
+            skippedLogs.push(`[视频音轨] ${v.title || `视频 ${i + 1}`}: ${result.warning}`);
+          }
+          completedTasks++;
+          continue;
+        }
+
         let fullUrl = v.src;
         if (pageUrl && !fullUrl.startsWith('http') && !fullUrl.startsWith('data:') && !fullUrl.startsWith('blob:')) {
           try {
@@ -189,7 +212,7 @@ export async function exportBundleZip(options: BundleExportOptions): Promise<voi
             updatedMarkdown = updatedMarkdown.split(v.src).join(relativePath);
           } else {
             skippedLogs.push(
-              `[流媒体切片视频] ${v.title || `视频 ${i + 1}`} 属于在线 MSE/HLS 切片流，无法作为单一文件打包。建议在线观看。`,
+              `[流媒体切片视频] ${v.title || `视频 ${i + 1}`} 属于在线 MSE/HLS 切片流且未嗅探到对应视频流，无法打包。请先在页面中播放该视频后重新拾取。`,
             );
           }
         } else {

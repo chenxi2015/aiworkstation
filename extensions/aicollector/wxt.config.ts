@@ -22,9 +22,18 @@ export default defineConfig({
       'downloads',
     ],
     host_permissions: ['<all_urls>'],
+    // ffmpeg.wasm requires WebAssembly compilation inside extension pages
+    content_security_policy: {
+      extension_pages: "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'",
+    },
+    web_accessible_resources: [
+      {
+        resources: ['hls-sniffer.js'],
+        matches: ['<all_urls>'],
+      },
+    ],
     action: {
       default_title: '打开 AI Collector 侧边栏',
     },
   },
 });
-

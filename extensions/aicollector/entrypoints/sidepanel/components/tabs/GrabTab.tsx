@@ -1,8 +1,9 @@
 import React from 'react';
 import { MousePointerClick, Trash2, Camera, Loader2 } from 'lucide-react';
-import type { PageTDK, GrabbedContent } from '../../../../src/types';
+import type { PageTDK, GrabbedContent, SniffedStream } from '../../../../src/types';
 import type { CollectPayload } from '../../../../src/services/workbench';
 import { GrabbedContentCard } from '../cards/GrabbedContentCard';
+import { SniffedStreamsCard } from '../cards/SniffedStreamsCard';
 import { PageTdkCard } from '../cards/PageTdkCard';
 
 interface GrabTabProps {
@@ -10,11 +11,13 @@ interface GrabTabProps {
   isCapturingFullPage?: boolean;
   captureProgress?: { slice: number; totalSlices: number; percent: number } | null;
   grabbedContent: GrabbedContent | null;
+  sniffedStreams?: SniffedStream[];
   currentTdk: PageTDK | null;
   isScrolled?: boolean;
   onStartGrab: () => void;
   onCaptureFullPage?: () => void;
   onClearGrabbed?: () => void;
+  onClearSniffedStreams?: () => void;
   onRefreshTdk: () => void;
   onPushToWorkbench: (payload: CollectPayload) => void;
 }
@@ -27,11 +30,13 @@ export const GrabTab: React.FC<GrabTabProps> = ({
   isCapturingFullPage = false,
   captureProgress,
   grabbedContent,
+  sniffedStreams = [],
   currentTdk,
   isScrolled = false,
   onStartGrab,
   onCaptureFullPage,
   onClearGrabbed,
+  onClearSniffedStreams,
   onRefreshTdk,
   onPushToWorkbench,
 }) => {
@@ -182,6 +187,12 @@ export const GrabTab: React.FC<GrabTabProps> = ({
         />
       )}
 
+      {/* Sniffed HLS video streams on the current page */}
+      <SniffedStreamsCard
+        streams={sniffedStreams}
+        onClear={onClearSniffedStreams ?? (() => {})}
+      />
+
       {/* Current Page TDK Card */}
       <PageTdkCard
         currentTdk={currentTdk}
@@ -191,4 +202,3 @@ export const GrabTab: React.FC<GrabTabProps> = ({
     </div>
   );
 };
-

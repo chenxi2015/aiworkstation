@@ -1,6 +1,191 @@
-import type { PageTDK, SyncLogItem } from '../src/types';
+import type { PageTDK, SniffedStream, SyncLogItem } from '../src/types';
 
 const WORKBENCH_API_URL = 'http://localhost:3000/api/collect';
+
+/**
+ * Per-tab sniffed HLS streams storage.
+ * Prefers chrome.storage.session (survives service worker restarts) with an
+ * in-memory fallback for environments where it is unavailable.
+ */
+const HLS_STREAMS_KEY_PREFIX = 'hls_streams_';
+const MAX_STREAMS_PER_TAB = 30;
+const memoryStreams = new Map<number, SniffedStream[]>();
+
+async function readHlsStreams(tabId: number): Promise<SniffedStream[]> {
+  try {
+    const result = await chrome.storage.session.get(HLS_STREAMS_KEY_PREFIX + tabId);
+    const list = result[HLS_STREAMS_KEY_PREFIX + tabId];
+    if (Array.isArray(list)) return list as SniffedStream[];
+  } catch {
+    // storage.session unavailable, fall back to memory
+  }
+  return memoryStreams.get(tabId) || [];
+}
+
+async function writeHlsStreams(tabId: number, streams: SniffedStream[]): Promise<void> {
+  try {
+    await chrome.storage.session.set({ [HLS_STREAMS_KEY_PREFIX + tabId]: streams });
+    memoryStreams.delete(tabId);
+    return;
+  } catch {
+    // storage.session unavailable, fall back to memory
+  }
+  memoryStreams.set(tabId, streams);
+}
+
+function broadcastHlsStreams(tabId: number, streams: SniffedStream[]): void {
+  chrome.runtime
+    .sendMessage({
+      type: 'HLS_STREAMS_UPDATE',
+      payload: { tabId, streams },
+    })
+    .catch(() => {
+      // Sidepanel might not be open, safe to ignore
+    });
+}
+
+interface HlsPlaylistInfo {
+  role: 'master' | 'media';
+  /** Absolute URLs of variant + rendition playlists referenced by a master */
+  children: string[];
+  hasAudio?: boolean;
+  bestResolution?: string;
+  variantCount?: number;
+}
+
+/**
+ * Fetches and classifies an m3u8 playlist. Master playlists list their
+ * variant/audio child playlists, which lets us group one video's multiple
+ * network entries (e.g. Twitter splits video and audio tracks) into a
+ * single downloadable stream.
+ */
+async function classifyHlsPlaylist(url: string): Promise<HlsPlaylistInfo | null> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    let res: Response;
+    try {
+      res = await fetch(url, { credentials: 'omit', signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+    if (!res.ok) return null;
+    const text = await res.text();
+    if (!text.includes('#EXTM3U')) return null;
+
+    if (text.includes('#EXT-X-STREAM-INF')) {
+      const children: string[] = [];
+      const lines = text.split('\n').map((l) => l.trim());
+      let bestResolution: string | undefined;
+      let bestArea = 0;
+      let variantCount = 0;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i] ?? '';
+
+        if (line.startsWith('#EXT-X-MEDIA')) {
+          const uriMatch = line.match(/URI="([^"]+)"/);
+          if (uriMatch?.[1]) {
+            try {
+              children.push(new URL(uriMatch[1], url).href);
+            } catch {
+              // Skip unresolvable rendition URI
+            }
+          }
+          continue;
+        }
+
+        if (line.startsWith('#EXT-X-STREAM-INF')) {
+          variantCount++;
+          const resMatch = line.match(/RESOLUTION=(\d+)x(\d+)/);
+          if (resMatch) {
+            const area = Number(resMatch[1]) * Number(resMatch[2]);
+            if (area > bestArea) {
+              bestArea = area;
+              bestResolution = `${resMatch[1]}x${resMatch[2]}`;
+            }
+          }
+          // Variant URI sits on the next non-empty, non-comment line
+          for (let j = i + 1; j < lines.length; j++) {
+            const uri = lines[j];
+            if (!uri) continue;
+            if (uri.startsWith('#')) break;
+            try {
+              children.push(new URL(uri, url).href);
+            } catch {
+              // Skip unresolvable variant URI
+            }
+            break;
+          }
+        }
+      }
+
+      return {
+        role: 'master',
+        children,
+        hasAudio: /#EXT-X-MEDIA:[^\n]*TYPE=AUDIO[^\n]*URI="/.test(text),
+        bestResolution,
+        variantCount,
+      };
+    }
+
+    if (text.includes('#EXTINF')) {
+      return { role: 'media', children: [] };
+    }
+
+    return null;
+  } catch {
+    // Network/CORS/abort failure: keep the stream listed as-is
+    return null;
+  }
+}
+
+/**
+ * Registers a sniffed playlist for a tab, classifying it so that variant and
+ * audio-track playlists collapse into their master playlist entry.
+ */
+async function registerHlsStream(
+  tabId: number,
+  payload: { url: string; pageUrl: string; pageTitle?: string; via?: string },
+): Promise<void> {
+  const streams = await readHlsStreams(tabId);
+  if (streams.some((s) => s.url === payload.url)) return;
+
+  const stream: SniffedStream = {
+    url: payload.url,
+    via: payload.via,
+    pageUrl: payload.pageUrl,
+    pageTitle: payload.pageTitle,
+    detectedAt: Date.now(),
+  };
+
+  const info = await classifyHlsPlaylist(payload.url);
+  if (info) {
+    stream.role = info.role;
+    if (info.role === 'master') {
+      stream.children = info.children;
+      stream.hasAudio = info.hasAudio;
+      stream.bestResolution = info.bestResolution;
+      stream.variantCount = info.variantCount;
+      // Hide child playlists that were sniffed before this master arrived
+      for (const existing of streams) {
+        if (info.children.includes(existing.url)) {
+          existing.hidden = true;
+        }
+      }
+    } else {
+      // Hide this media playlist when an existing master already claims it
+      const parent = streams.find(
+        (s) => s.role === 'master' && s.children?.includes(stream.url),
+      );
+      if (parent) stream.hidden = true;
+    }
+  }
+
+  const next = [stream, ...streams].slice(0, MAX_STREAMS_PER_TAB);
+  await writeHlsStreams(tabId, next);
+  broadcastHlsStreams(tabId, next);
+}
 
 /**
  * Append sync log item to chrome.storage
@@ -137,7 +322,22 @@ export default defineBackground(() => {
     await appendSyncLog(log);
   });
 
-// 4. Background image fetch proxy with no-referrer bypass & Tab capture proxy with Rate Limiter
+  // 4. Sniffed HLS stream housekeeping: reset a tab's stream list when it
+  // navigates to a new document, and drop it entirely when the tab closes.
+  chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+    if (changeInfo.status === 'loading' && changeInfo.url) {
+      memoryStreams.delete(tabId);
+      chrome.storage.session.remove(HLS_STREAMS_KEY_PREFIX + tabId).catch(() => {});
+      broadcastHlsStreams(tabId, []);
+    }
+  });
+
+  chrome.tabs.onRemoved.addListener((tabId) => {
+    memoryStreams.delete(tabId);
+    chrome.storage.session.remove(HLS_STREAMS_KEY_PREFIX + tabId).catch(() => {});
+  });
+
+// 5. Background image fetch proxy with no-referrer bypass & Tab capture proxy with Rate Limiter
   let lastCaptureCallTimestamp = 0;
   let captureQueuePromise = Promise.resolve();
 
@@ -193,6 +393,40 @@ export default defineBackground(() => {
   }
 
   chrome.runtime.onMessage.addListener((message: any, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
+    if (message.type === 'HLS_STREAM_DETECTED' && message.payload?.url) {
+      const tabId = sender.tab?.id;
+      if (typeof tabId !== 'number') return;
+
+      registerHlsStream(tabId, {
+        url: message.payload.url,
+        via: message.payload.via,
+        pageUrl: message.payload.pageUrl || sender.tab?.url || '',
+        pageTitle: message.payload.pageTitle || sender.tab?.title || '',
+      });
+      return;
+    }
+
+    if (message.type === 'GET_HLS_STREAMS' && typeof message.tabId === 'number') {
+      readHlsStreams(message.tabId)
+        .then((streams) => sendResponse({ success: true, streams }))
+        .catch(() => sendResponse({ success: false, streams: [] }));
+      return true; // Keep async response channel open
+    }
+
+    if (message.type === 'CLEAR_HLS_STREAMS' && typeof message.tabId === 'number') {
+      (async () => {
+        memoryStreams.delete(message.tabId);
+        try {
+          await chrome.storage.session.remove(HLS_STREAMS_KEY_PREFIX + message.tabId);
+        } catch {
+          // storage.session unavailable
+        }
+        broadcastHlsStreams(message.tabId, []);
+        sendResponse({ success: true });
+      })();
+      return true; // Keep async response channel open
+    }
+
     if (message.type === 'CAPTURE_VISIBLE_TAB') {
       const windowId = sender.tab?.windowId ?? chrome.windows?.WINDOW_ID_CURRENT;
       rateLimitedCaptureVisibleTab(windowId, { format: 'png' })
@@ -277,4 +511,3 @@ export default defineBackground(() => {
     }
   });
 });
-
