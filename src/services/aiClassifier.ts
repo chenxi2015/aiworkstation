@@ -113,26 +113,29 @@ Each element must match:
 			folderPath: item.folderPath || item.parentTitle || "",
 		}));
 
-		const response = await fetch(`${baseUrl.replace(/\/+$/, "")}/chat/completions`, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				Authorization: `Bearer ${apiKey}`,
+		const response = await fetch(
+			`${baseUrl.replace(/\/+$/, "")}/chat/completions`,
+			{
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${apiKey}`,
+				},
+				body: JSON.stringify({
+					model,
+					messages: [
+						{ role: "system", content: systemPrompt },
+						{
+							role: "user",
+							content: `Please classify the following ${batch.length} bookmarks:\n${JSON.stringify(userPayload, null, 2)}`,
+						},
+					],
+					temperature: 0.2,
+					response_format: { type: "json_object" },
+				}),
+				signal,
 			},
-			body: JSON.stringify({
-				model,
-				messages: [
-					{ role: "system", content: systemPrompt },
-					{
-						role: "user",
-						content: `Please classify the following ${batch.length} bookmarks:\n${JSON.stringify(userPayload, null, 2)}`,
-					},
-				],
-				temperature: 0.2,
-				response_format: { type: "json_object" },
-			}),
-			signal,
-		});
+		);
 
 		if (!response.ok) {
 			const errorText = await response.text().catch(() => "");
@@ -149,7 +152,9 @@ Each element must match:
 		try {
 			parsed = JSON.parse(cleaned);
 			if (!Array.isArray(parsed)) {
-				const possibleArray = Object.values(parsed).find((val) => Array.isArray(val));
+				const possibleArray = Object.values(parsed).find((val) =>
+					Array.isArray(val),
+				);
 				if (possibleArray) {
 					parsed = possibleArray;
 				} else {
@@ -169,7 +174,9 @@ Each element must match:
 
 			const validTypes: ItemType[] = ["tool", "link", "doc", "skill", "note"];
 			const rawType = matched?.itemType?.toLowerCase();
-			const itemType: ItemType = validTypes.includes(rawType) ? rawType : "link";
+			const itemType: ItemType = validTypes.includes(rawType)
+				? rawType
+				: "link";
 
 			return {
 				id: item.id,
@@ -226,7 +233,10 @@ Each element must match:
 				);
 				results.push(...batchResults);
 			} catch (err: any) {
-				console.warn(`Batch ${chunkIndex} AI classification failed, using fallback:`, err);
+				console.warn(
+					`Batch ${chunkIndex} AI classification failed, using fallback:`,
+					err,
+				);
 				// Fallback to heuristic classification on batch failure
 				const fallbackBatch = chunk.map((item) => ({
 					id: item.id,
@@ -235,7 +245,9 @@ Each element must match:
 					category: "未分类",
 					folderName: item.parentTitle || "常用收藏",
 					folderDesc: "未分类书签归集",
-					itemType: (item.url.includes("github.com") ? "tool" : "link") as ItemType,
+					itemType: (item.url.includes("github.com")
+						? "tool"
+						: "link") as ItemType,
 					summary: item.title,
 					tags: item.keywords ? item.keywords.split(",").slice(0, 3) : [],
 					reason: `AI classification error: ${err?.message || "Unknown error"}`,

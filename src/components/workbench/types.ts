@@ -26,6 +26,7 @@ export interface WorkbenchItem {
 	name: string;
 	type: ItemType;
 	url?: string;
+	favicon?: string;
 	description?: string;
 	keywords?: string;
 	summary?: string;
@@ -42,6 +43,7 @@ export interface AIClassificationResult {
 	id: string | number;
 	title: string;
 	url: string;
+	favicon?: string;
 	category: string;
 	folderName: string;
 	folderDesc?: string;
@@ -65,6 +67,25 @@ export interface WorkbenchSettings {
 	deepseekBaseUrl: string;
 	deepseekModel: string;
 	batchSize: number;
+	// Embedding API Settings for RAG & Semantic Search
+	embeddingApiKey?: string;
+	embeddingBaseUrl?: string;
+	embeddingModel?: string;
+}
+
+export type SearchMode = "hybrid" | "semantic" | "keyword";
+
+export interface SearchResultItem extends WorkbenchItem {
+	score: number;
+	similarityPercent?: number;
+	matchType: "semantic" | "keyword" | "hybrid";
+	matchReason?: string;
+}
+
+export interface EmbeddingStats {
+	total: number;
+	embedded: number;
+	percentage: number;
 }
 
 export const CATEGORIES = [

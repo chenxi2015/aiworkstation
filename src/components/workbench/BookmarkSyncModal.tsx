@@ -35,7 +35,8 @@ const SAMPLE_BOOKMARKS: BookmarkTDKItem[] = [
 		id: "bm_2",
 		title: "GitHub: Let's build from here",
 		url: "https://github.com",
-		description: "GitHub is where over 100 million developers shape the future of software.",
+		description:
+			"GitHub is where over 100 million developers shape the future of software.",
 		keywords: "git, github, open source, developer, code",
 		parentTitle: "开发工具",
 		folderPath: "书签栏 / 研发 / 代码托管",
@@ -44,8 +45,10 @@ const SAMPLE_BOOKMARKS: BookmarkTDKItem[] = [
 		id: "bm_3",
 		title: "Hugging Face - The AI community building the future",
 		url: "https://huggingface.co",
-		description: "The platform where the machine learning community collaborates on models, datasets, and applications.",
-		keywords: "machine learning, AI models, datasets, transformers, huggingface",
+		description:
+			"The platform where the machine learning community collaborates on models, datasets, and applications.",
+		keywords:
+			"machine learning, AI models, datasets, transformers, huggingface",
 		parentTitle: "AI社区",
 		folderPath: "书签栏 / AI / 开源模型",
 	},
@@ -53,7 +56,8 @@ const SAMPLE_BOOKMARKS: BookmarkTDKItem[] = [
 		id: "bm_4",
 		title: "Midjourney - Generate AI Art and Images",
 		url: "https://www.midjourney.com",
-		description: "Midjourney is an independent research lab exploring new mediums of thought and expanding the imaginative powers of the human species.",
+		description:
+			"Midjourney is an independent research lab exploring new mediums of thought and expanding the imaginative powers of the human species.",
 		keywords: "AI art, image generation, midjourney, prompt, design",
 		parentTitle: "设计与视觉",
 		folderPath: "书签栏 / 设计 / AI绘画",
@@ -62,7 +66,8 @@ const SAMPLE_BOOKMARKS: BookmarkTDKItem[] = [
 		id: "bm_5",
 		title: "Claude by Anthropic",
 		url: "https://claude.ai",
-		description: "Talk with Claude, an AI assistant made by Anthropic to be helpful, harmless, and honest.",
+		description:
+			"Talk with Claude, an AI assistant made by Anthropic to be helpful, harmless, and honest.",
 		keywords: "Claude, Anthropic, AI assistant, LLM, chat",
 		parentTitle: "AI助手",
 		folderPath: "书签栏 / AI常用 / 对话",
@@ -71,7 +76,8 @@ const SAMPLE_BOOKMARKS: BookmarkTDKItem[] = [
 		id: "bm_6",
 		title: "Vercel: Build and deploy the best web experiences",
 		url: "https://vercel.com",
-		description: "Vercel's frontend cloud gives developers the frameworks, workflows, and infrastructure to build a faster, more personalized web.",
+		description:
+			"Vercel's frontend cloud gives developers the frameworks, workflows, and infrastructure to build a faster, more personalized web.",
 		keywords: "nextjs, vercel, frontend, deployment, cloud",
 		parentTitle: "部署上线",
 		folderPath: "书签栏 / 开发 / 运维部署",
@@ -98,7 +104,8 @@ const SAMPLE_BOOKMARKS: BookmarkTDKItem[] = [
 		id: "bm_9",
 		title: "Twitter / X",
 		url: "https://x.com",
-		description: "From breaking news and entertainment to sports and politics, get the full story with all the live commentary.",
+		description:
+			"From breaking news and entertainment to sports and politics, get the full story with all the live commentary.",
 		keywords: "twitter, x, social media, news, trends",
 		parentTitle: "社交媒体",
 		folderPath: "书签栏 / 自媒体 / 海外社交",
@@ -107,8 +114,10 @@ const SAMPLE_BOOKMARKS: BookmarkTDKItem[] = [
 		id: "bm_10",
 		title: "PromptBase - Midjourney, ChatGPT, DALL-E Prompt Marketplace",
 		url: "https://promptbase.com",
-		description: "Search 100,000+ AI prompts for Midjourney, ChatGPT, DALL-E, Stable Diffusion. Prompt engineering marketplace.",
-		keywords: "prompt engineering, AI prompts, midjourney prompt, chatgpt prompt",
+		description:
+			"Search 100,000+ AI prompts for Midjourney, ChatGPT, DALL-E, Stable Diffusion. Prompt engineering marketplace.",
+		keywords:
+			"prompt engineering, AI prompts, midjourney prompt, chatgpt prompt",
 		parentTitle: "Prompt工程",
 		folderPath: "书签栏 / AI / 提示词",
 	},
@@ -141,7 +150,9 @@ function parseBookmarkHtml(html: string): BookmarkTDKItem[] {
 
 			const title = a.textContent?.trim() || href;
 			const addDate = a.getAttribute("add_date");
-			const dateAdded = addDate ? Number.parseInt(addDate, 10) * 1000 : undefined;
+			const dateAdded = addDate
+				? Number.parseInt(addDate, 10) * 1000
+				: undefined;
 
 			results.push({
 				id: `imp_${Date.now()}_${idx}`,
@@ -163,11 +174,14 @@ export function BookmarkSyncModal({
 	onBookmarksImported,
 }: BookmarkSyncModalProps) {
 	const [rawText, setRawText] = useState("");
-	const [activeTab, setActiveTab] = useState<"preset" | "file" | "paste">("preset");
+	const [activeTab, setActiveTab] = useState<"preset" | "file" | "paste">(
+		"preset",
+	);
 
 	const handleImportSample = async (withAICallback = false) => {
 		await WorkbenchStorageService.addBookmarksToDb(SAMPLE_BOOKMARKS);
-		const { unclassified: updated } = await WorkbenchStorageService.fetchAllFromDb();
+		const { unclassified: updated } =
+			await WorkbenchStorageService.fetchAllFromDb();
 		toast.success(`已成功导入 ${SAMPLE_BOOKMARKS.length} 个书签至 SQLite`);
 		onBookmarksImported(updated, withAICallback);
 		onClose();
@@ -203,7 +217,8 @@ export function BookmarkSyncModal({
 			}
 
 			await WorkbenchStorageService.addBookmarksToDb(items);
-			const { unclassified: updated } = await WorkbenchStorageService.fetchAllFromDb();
+			const { unclassified: updated } =
+				await WorkbenchStorageService.fetchAllFromDb();
 			toast.success(`已从文件解析并保存 ${items.length} 个书签至 SQLite`);
 			onBookmarksImported(updated, false);
 			onClose();
@@ -230,17 +245,25 @@ export function BookmarkSyncModal({
 		}
 
 		if (items.length === 0) {
-			const lines = trimmed.split("\n").map((l) => l.trim()).filter(Boolean);
-			items = lines.map((line, idx) => {
-				const parts = line.split(/[\s\t,]+/);
-				const url = parts.find((p) => p.startsWith("http://") || p.startsWith("https://")) || line;
-				const title = parts.filter((p) => p !== url).join(" ") || url;
-				return {
-					id: `paste_${Date.now()}_${idx}`,
-					title,
-					url,
-				};
-			}).filter((i) => i.url.startsWith("http"));
+			const lines = trimmed
+				.split("\n")
+				.map((l) => l.trim())
+				.filter(Boolean);
+			items = lines
+				.map((line, idx) => {
+					const parts = line.split(/[\s\t,]+/);
+					const url =
+						parts.find(
+							(p) => p.startsWith("http://") || p.startsWith("https://"),
+						) || line;
+					const title = parts.filter((p) => p !== url).join(" ") || url;
+					return {
+						id: `paste_${Date.now()}_${idx}`,
+						title,
+						url,
+					};
+				})
+				.filter((i) => i.url.startsWith("http"));
 		}
 
 		if (items.length === 0) {
@@ -249,7 +272,8 @@ export function BookmarkSyncModal({
 		}
 
 		await WorkbenchStorageService.addBookmarksToDb(items);
-		const { unclassified: updated } = await WorkbenchStorageService.fetchAllFromDb();
+		const { unclassified: updated } =
+			await WorkbenchStorageService.fetchAllFromDb();
 		toast.success(`已成功导入 ${items.length} 个书签至 SQLite`);
 		onBookmarksImported(updated, false);
 		onClose();
@@ -310,7 +334,9 @@ export function BookmarkSyncModal({
 						{activeTab === "preset" && (
 							<div className="flex flex-col gap-3">
 								<p className="text-muted leading-relaxed">
-									立即载入包含 DeepSeek、GitHub、HuggingFace、Midjourney、Claude、Shopify 等 10 个精选多样化书签 TDK 样例，用于测试 AI 分门别类效果。
+									立即载入包含
+									DeepSeek、GitHub、HuggingFace、Midjourney、Claude、Shopify 等
+									10 个精选多样化书签 TDK 样例，用于测试 AI 分门别类效果。
 								</p>
 
 								<ScrollShadow className="max-h-[220px] overflow-y-auto pr-1">
@@ -361,7 +387,9 @@ export function BookmarkSyncModal({
 						{activeTab === "file" && (
 							<div className="flex flex-col gap-3 py-2">
 								<p className="text-muted leading-relaxed">
-									支持从 Chrome 浏览器书签管理器导出的 <code>bookmarks.html</code> 或 JSON 结构文件，自动提取每个书签的名称、链接与完整目录路径。
+									支持从 Chrome 浏览器书签管理器导出的{" "}
+									<code>bookmarks.html</code> 或 JSON
+									结构文件，自动提取每个书签的名称、链接与完整目录路径。
 								</p>
 
 								<label className="border-2 border-dashed border-border hover:border-accent/60 bg-surface-secondary/50 rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer transition-colors text-center group">
@@ -398,7 +426,9 @@ export function BookmarkSyncModal({
 								<TextField value={rawText} onChange={setRawText}>
 									<Label>粘贴书签链接列表或 JSON 数组</Label>
 									<TextArea
-										placeholder={"每行一条链接，或格式如：\nhttps://github.com GitHub代码托管\nhttps://deepseek.com DeepSeek官网"}
+										placeholder={
+											"每行一条链接，或格式如：\nhttps://github.com GitHub代码托管\nhttps://deepseek.com DeepSeek官网"
+										}
 										rows={6}
 										variant="secondary"
 									/>

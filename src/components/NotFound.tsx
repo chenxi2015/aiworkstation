@@ -10,9 +10,7 @@ export default function NotFound() {
 			<h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
 				404
 			</h1>
-			<p className="mt-3 text-lg font-medium text-foreground">
-				页面未找到
-			</p>
+			<p className="mt-3 text-lg font-medium text-foreground">页面未找到</p>
 			<p className="mt-1 max-w-sm text-sm text-muted">
 				您访问的页面不存在、已被移动或链接有误。
 			</p>

@@ -25,6 +25,17 @@ const formatDate = (timestamp?: number): string => {
 };
 
 /**
+ * Safely parse domain name from URL
+ */
+const getDomain = (url: string): string => {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return '';
+  }
+};
+
+/**
  * Tab panel for searching, browsing, and batch-syncing Chrome bookmarks to AI Workbench
  */
 export const BookmarksTab: React.FC<BookmarksTabProps> = ({
@@ -149,14 +160,16 @@ export const BookmarksTab: React.FC<BookmarksTabProps> = ({
             title={`点击打开: ${bm.url}\n路径: ${bm.folderPath || '根目录'}`}
           >
             <div className="flex items-center gap-2 overflow-hidden flex-1">
-              <img
-                src={`https://www.google.com/s2/favicons?domain=${new URL(bm.url).hostname}&sz=32`}
-                alt="fav"
-                className="w-4 h-4 rounded shrink-0"
-                onError={(e) => {
-                  (e.target as HTMLElement).style.display = 'none';
-                }}
-              />
+              {getDomain(bm.url) && (
+                <img
+                  src={`https://www.google.com/s2/favicons?domain=${getDomain(bm.url)}&sz=32`}
+                  alt="fav"
+                  className="w-4 h-4 rounded shrink-0 object-contain"
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = 'none';
+                  }}
+                />
+              )}
               <div className="overflow-hidden flex-1">
                 <div className="text-xs font-medium text-foreground truncate">{bm.title}</div>
                 <div className="flex items-center gap-1.5 text-[10px] text-muted truncate mt-0.5">

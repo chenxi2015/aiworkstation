@@ -3,7 +3,9 @@ declare module "better-sqlite3" {
 		readonly?: boolean;
 		fileMustExist?: boolean;
 		timeout?: number;
-		verbose?: ((message?: unknown, ...additionalArgs: unknown[]) => void) | null;
+		verbose?:
+			| ((message?: unknown, ...additionalArgs: unknown[]) => void)
+			| null;
 		nativeBinding?: string;
 	}
 

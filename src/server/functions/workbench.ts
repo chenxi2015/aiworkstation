@@ -23,12 +23,8 @@ export const getWorkbenchData = createServerFn({ method: "GET" }).handler(
  */
 export const saveFolder = createServerFn({ method: "POST" })
 	.validator(
-		(data: {
-			id?: number;
-			name: string;
-			category: string;
-			desc: string;
-		}) => data,
+		(data: { id?: number; name: string; category: string; desc: string }) =>
+			data,
 	)
 	.handler(async ({ data }): Promise<Folder[]> => {
 		if (data.id) {
@@ -96,10 +92,7 @@ export const moveItem = createServerFn({ method: "POST" })
  */
 export const deleteItem = createServerFn({ method: "POST" })
 	.validator(
-		(data: {
-			itemId: string | number;
-			folderId: number | null;
-		}) => data,
+		(data: { itemId: string | number; folderId: number | null }) => data,
 	)
 	.handler(
 		async ({

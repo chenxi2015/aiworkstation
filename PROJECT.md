@@ -90,9 +90,35 @@ extension/             # Chrome 插件（MV3）：manifest、background、conten
 - `pnpm dev`：启动工作台（localhost:3888）
 - 插件：`extension/` 目录用 Chrome「加载已解压的扩展程序」安装，改 content script 后需刷新目标页
 
+## RAG 知识检索与书签活化架构（已接入）
+
+针对“收藏即吃灰”的痛点，工作台引入了 **混合检索（Hybrid Search）+ 本地 RAG 知识活化引擎**：
+
+1. **向量化与特征提取（Embedding Pipeline）**：
+   - 自动提取书签标题、TDK、分类、标签与 AI 摘要，构建语义特征文本；
+   - 接入 OpenAI 兼容 Embedding API（SiliconFlow `bge-m3` / OpenAI `text-embedding-3-small` / Ollama 本地模型）；
+   - 向量浮点数组持久化至本地 SQLite `bookmarks` 表的 `embedding` 字段。
+2. **多模态检索策略（Hybrid Engine）**：
+   - **语义检索（Semantic）**：基于余弦相似度（Cosine Similarity），理解自然语言意图；
+   - **精准匹配（Keyword）**：加权匹配标题、标签、域名与关键词；
+   - **混合加权（Hybrid）**：`0.6 * 语义 + 0.4 * 关键词` 动态融合排序。
+3. **书签活化与二创赋能**：
+   - **全局快捷搜索（Cmd+K）**：随时唤起，精准快速找到模糊记忆中的工具与资料；
+   - **Chat with Bookmarks（RAG 问答）**：基于个人收藏库向 AI 提问并获取引用佐证；
+   - **文件夹专题提炼（Dossier）**：一键将成批碎片书签总结为体系化研究综述与备忘单；
+   - **每日灵感胶囊（Daily Capsule）**：主动唤醒沉睡的高价值工具与干货。
+
 ## Roadmap
 
-1. **M1 采集闭环**：folders/items 数据模型 + /api/collect + 插件主动收藏 + AI 归类 + 文件夹网格 UI
-2. **M2 推特链路**：推文嵌入按钮 + /api/tweets + 定时生成回复草稿 + 审稿 UI + 指令回灌填充
-3. **M3 发布矩阵**：公众号/小红书编辑器填充 + 书签拦截 + 热帖自动收集
-4. **M4 打磨**：side panel、插件管理页、数据备份导出、skills 深度集成
+1. **M1 采集闭环**（✅ 已完成）：folders/items 数据模型 + SQLite 落盘 + Chrome 插件主动同步 + DeepSeek 批量智能归类 + 文件夹网格 UI
+2. **M2 搜索与 RAG 知识活化**：
+   - **阶段一（✅ 已完成）**：全局快捷搜索（Cmd+K）+ SQLite 向量持久化 + TS 高效余弦相似度引擎 + 混合检索 + 索引构建流水线
+   - **阶段二（🚀 进行中）**：RAG 智能问答侧栏（Chat with Bookmarks）+ 文件夹一键专题综述提炼 + 首页每日灵感胶囊
+3. **M3 创作与二创矩阵**：
+   - 写作时自动关联并引用收藏库中的工具/素材
+   - 推文/小红书/视频脚本二创与草稿生成
+   - 指令通道回灌至网页编辑器并保留人工确认发布
+4. **M4 打磨与分发矩阵**：
+   - Chrome side panel 深度联动
+   - 个人专属视觉导航页（Showcase）一键导出
+   - 数据备份迁移与 skills 深度集成

@@ -63,6 +63,8 @@ class WorkbenchDatabase {
         reason TEXT DEFAULT '',
         source TEXT DEFAULT 'bookmark_sync',
         date_added INTEGER,
+        embedding TEXT DEFAULT NULL,
+        embedding_text TEXT DEFAULT '',
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
@@ -83,6 +85,27 @@ class WorkbenchDatabase {
       CREATE INDEX IF NOT EXISTS idx_folder_items_item_id ON folder_items(item_id);
       CREATE INDEX IF NOT EXISTS idx_bookmarks_url ON bookmarks(url);
     `);
+
+		// Graceful migration for existing SQLite DBs without embedding columns
+		try {
+			const columns = this.db
+				.prepare("PRAGMA table_info(bookmarks)")
+				.all() as Array<{ name: string }>;
+			const colNames = new Set(columns.map((c) => c.name));
+
+			if (!colNames.has("embedding")) {
+				this.db.exec(
+					"ALTER TABLE bookmarks ADD COLUMN embedding TEXT DEFAULT NULL",
+				);
+			}
+			if (!colNames.has("embedding_text")) {
+				this.db.exec(
+					"ALTER TABLE bookmarks ADD COLUMN embedding_text TEXT DEFAULT ''",
+				);
+			}
+		} catch (err) {
+			console.warn("[WorkbenchDatabase] Migration pragma error:", err);
+		}
 	}
 
 	/**
@@ -113,6 +136,7 @@ class WorkbenchDatabase {
 				name: b.title,
 				type: (b.item_type || "link") as ItemType,
 				url: b.url,
+				favicon: b.favicon || undefined,
 				description: b.description,
 				keywords: b.keywords,
 				summary: b.summary || b.title,
@@ -159,6 +183,7 @@ class WorkbenchDatabase {
 			name: b.title,
 			type: (b.item_type || "link") as ItemType,
 			url: b.url,
+			favicon: b.favicon || undefined,
 			description: b.description,
 			keywords: b.keywords,
 			summary: b.summary || b.title,
@@ -177,13 +202,14 @@ class WorkbenchDatabase {
 		const insertStmt = this.db.prepare(`
       INSERT INTO bookmarks (
         id, url, title, description, keywords, summary, item_type, tags,
-        parent_title, folder_path, source, date_added, created_at, updated_at
+        favicon, parent_title, folder_path, source, date_added, created_at, updated_at
       ) VALUES (
         @id, @url, @title, @description, @keywords, @summary, @item_type, @tags,
-        @parent_title, @folder_path, @source, @date_added, @created_at, @updated_at
+        @favicon, @parent_title, @folder_path, @source, @date_added, @created_at, @updated_at
       )
       ON CONFLICT(url) DO UPDATE SET
         title = excluded.title,
+        favicon = CASE WHEN excluded.favicon != '' THEN excluded.favicon ELSE bookmarks.favicon END,
         description = CASE WHEN excluded.description != '' THEN excluded.description ELSE bookmarks.description END,
         keywords = CASE WHEN excluded.keywords != '' THEN excluded.keywords ELSE bookmarks.keywords END,
         parent_title = CASE WHEN excluded.parent_title != '' THEN excluded.parent_title ELSE bookmarks.parent_title END,
@@ -209,6 +235,7 @@ class WorkbenchDatabase {
 					summary: bm.title || "",
 					item_type: "link",
 					tags: "[]",
+					favicon: bm.favicon || "",
 					parent_title: bm.parentTitle || "",
 					folder_path: bm.folderPath || "",
 					source: "bookmark_sync",
@@ -261,48 +288,56 @@ class WorkbenchDatabase {
       VALUES (?, ?, ?)
     `);
 
-		const transaction = this.db.transaction((list: AIClassificationResult[]) => {
-			for (const res of list) {
-				// 1. Find or create target folder
-				let folderRow = findFolderStmt.get(res.folderName, res.category) as any;
-				if (!folderRow) {
-					folderRow = findFolderByNameStmt.get(res.folderName) as any;
-				}
-
-				let folderId: number;
-				if (folderRow) {
-					folderId = folderRow.id;
-				} else {
-					const ins = insertFolderStmt.run(
+		const transaction = this.db.transaction(
+			(list: AIClassificationResult[]) => {
+				for (const res of list) {
+					// 1. Find or create target folder
+					let folderRow = findFolderStmt.get(
 						res.folderName,
-						res.category || "工作台",
-						res.folderDesc || `${res.folderName} 主题工具与资源归集。`,
-						today,
-						today,
-					);
-					folderId = ins.lastInsertRowid as number;
+						res.category,
+					) as any;
+					if (!folderRow) {
+						folderRow = findFolderByNameStmt.get(res.folderName) as any;
+					}
+
+					let folderId: number;
+					if (folderRow) {
+						folderId = folderRow.id;
+					} else {
+						const ins = insertFolderStmt.run(
+							res.folderName,
+							res.category || "工作台",
+							res.folderDesc || `${res.folderName} 主题工具与资源归集。`,
+							today,
+							today,
+						);
+						folderId = ins.lastInsertRowid as number;
+					}
+
+					// 2. Update bookmark metadata
+					updateBookmarkStmt.run({
+						id: res.id.toString(),
+						url: res.url,
+						title: res.title,
+						item_type: res.itemType,
+						summary: res.summary,
+						tags: JSON.stringify(res.tags || []),
+						reason: res.reason || "",
+						updated_at: today,
+					});
+
+					// 3. Resolve actual bookmark ID
+					const bmRow = findBookmarkIdStmt.get(
+						res.id.toString(),
+						res.url,
+					) as any;
+					const actualItemId = bmRow ? bmRow.id : res.id.toString();
+
+					// 4. Link item to folder in folder_items
+					insertRelationStmt.run(folderId, actualItemId, today);
 				}
-
-				// 2. Update bookmark metadata
-				updateBookmarkStmt.run({
-					id: res.id.toString(),
-					url: res.url,
-					title: res.title,
-					item_type: res.itemType,
-					summary: res.summary,
-					tags: JSON.stringify(res.tags || []),
-					reason: res.reason || "",
-					updated_at: today,
-				});
-
-				// 3. Resolve actual bookmark ID
-				const bmRow = findBookmarkIdStmt.get(res.id.toString(), res.url) as any;
-				const actualItemId = bmRow ? bmRow.id : res.id.toString();
-
-				// 4. Link item to folder in folder_items
-				insertRelationStmt.run(folderId, actualItemId, today);
-			}
-		});
+			},
+		);
 
 		transaction(results);
 	}
@@ -381,6 +416,147 @@ class WorkbenchDatabase {
 		} else {
 			this.db.prepare("DELETE FROM bookmarks WHERE id = ?").run(itemId);
 		}
+	}
+
+	/**
+	 * Get embedding coverage statistics
+	 */
+	getEmbeddingStats(): { total: number; embedded: number; percentage: number } {
+		const totalRow = this.db
+			.prepare("SELECT COUNT(*) as cnt FROM bookmarks")
+			.get() as { cnt: number };
+		const embeddedRow = this.db
+			.prepare(
+				"SELECT COUNT(*) as cnt FROM bookmarks WHERE embedding IS NOT NULL AND length(embedding) > 2",
+			)
+			.get() as { cnt: number };
+
+		const total = totalRow?.cnt || 0;
+		const embedded = embeddedRow?.cnt || 0;
+		const percentage = total > 0 ? Math.round((embedded / total) * 100) : 0;
+		return { total, embedded, percentage };
+	}
+
+	/**
+	 * Get bookmarks that need embedding vector calculation (or force all if needed)
+	 */
+	getBookmarksNeedingEmbedding(
+		limit = 50,
+		forceAll = false,
+	): Array<{
+		id: string;
+		title: string;
+		url: string;
+		description: string;
+		keywords: string;
+		summary: string;
+		tags: string;
+		parent_title: string;
+	}> {
+		const query = forceAll
+			? `SELECT id, title, url, description, keywords, summary, tags, parent_title FROM bookmarks ORDER BY updated_at DESC LIMIT ?`
+			: `SELECT id, title, url, description, keywords, summary, tags, parent_title FROM bookmarks WHERE embedding IS NULL OR length(embedding) <= 2 ORDER BY updated_at DESC LIMIT ?`;
+
+		return this.db.prepare(query).all(limit) as any[];
+	}
+
+	/**
+	 * Save computed embedding vector and indexing text into bookmark
+	 */
+	updateBookmarkEmbedding(
+		id: string,
+		embedding: number[],
+		embeddingText: string,
+	): void {
+		this.db
+			.prepare(
+				"UPDATE bookmarks SET embedding = ?, embedding_text = ?, updated_at = ? WHERE id = ?",
+			)
+			.run(
+				JSON.stringify(embedding),
+				embeddingText,
+				new Date().toISOString().split("T")[0],
+				id,
+			);
+	}
+
+	/**
+	 * Fetch all bookmarks enriched with folder details and parsed embeddings for fast hybrid search
+	 */
+	getAllBookmarksForSearch(): Array<{
+		id: string;
+		name: string;
+		url: string;
+		type: ItemType;
+		description: string;
+		keywords: string;
+		summary: string;
+		tags: string[];
+		favicon?: string;
+		folderId?: number | null;
+		folderName?: string;
+		category?: string;
+		createdAt?: string;
+		embedding: number[] | null;
+	}> {
+		const rows = this.db
+			.prepare(
+				`
+      SELECT 
+        b.id,
+        b.title as name,
+        b.url,
+        b.item_type as type,
+        b.description,
+        b.keywords,
+        b.summary,
+        b.tags,
+        b.favicon,
+        b.created_at,
+        b.embedding,
+        f.id as folder_id,
+        f.name as folder_name,
+        f.category
+      FROM bookmarks b
+      LEFT JOIN folder_items fi ON b.id = fi.item_id
+      LEFT JOIN folders f ON fi.folder_id = f.id
+    `,
+			)
+			.all() as any[];
+
+		return rows.map((r) => {
+			let emb: number[] | null = null;
+			if (r.embedding && typeof r.embedding === "string") {
+				try {
+					emb = JSON.parse(r.embedding);
+				} catch {
+					emb = null;
+				}
+			}
+			let parsedTags: string[] = [];
+			try {
+				parsedTags = JSON.parse(r.tags || "[]");
+			} catch {
+				parsedTags = [];
+			}
+
+			return {
+				id: r.id,
+				name: r.name,
+				url: r.url,
+				type: (r.type || "link") as ItemType,
+				description: r.description || "",
+				keywords: r.keywords || "",
+				summary: r.summary || r.name,
+				tags: parsedTags,
+				favicon: r.favicon || undefined,
+				folderId: r.folder_id || null,
+				folderName: r.folder_name || undefined,
+				category: r.category || undefined,
+				createdAt: r.created_at,
+				embedding: emb,
+			};
+		});
 	}
 }
 

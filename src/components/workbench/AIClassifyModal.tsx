@@ -9,7 +9,7 @@ import {
 import { useMemo, useRef, useState } from "react";
 import { AIClassifierService } from "../../services/aiClassifier";
 import { WorkbenchStorageService } from "../../services/workbenchStorage";
-import { ItemIcon } from "./Icons";
+import { ItemFavicon } from "./ItemFavicon";
 import type {
 	AIClassificationResult,
 	BookmarkTDKItem,
@@ -39,9 +39,9 @@ export function AIClassifyModal({
 	onClose,
 	onClassificationComplete,
 }: AIClassifyModalProps) {
-	const [status, setStatus] = useState<"idle" | "running" | "completed" | "error">(
-		"idle",
-	);
+	const [status, setStatus] = useState<
+		"idle" | "running" | "completed" | "error"
+	>("idle");
 	const [selectedCountLimit, setSelectedCountLimit] = useState<number>(50);
 	const [progressText, setProgressText] = useState("");
 	const [progressPercent, setProgressPercent] = useState(0);
@@ -83,7 +83,10 @@ export function AIClassifyModal({
 
 	// Slice items according to user limit
 	const targetItems = useMemo(() => {
-		if (selectedCountLimit === -1 || itemsToClassify.length <= selectedCountLimit) {
+		if (
+			selectedCountLimit === -1 ||
+			itemsToClassify.length <= selectedCountLimit
+		) {
 			return itemsToClassify;
 		}
 		return itemsToClassify.slice(0, selectedCountLimit);
@@ -132,14 +135,18 @@ export function AIClassifyModal({
 			setResults(classifiedResults);
 			setStatus("completed");
 			setProgressPercent(100);
-			toast.success(`DeepSeek 分析完成，共识别 ${classifiedResults.length} 个书签分类`);
+			toast.success(
+				`DeepSeek 分析完成，共识别 ${classifiedResults.length} 个书签分类`,
+			);
 		} catch (err: any) {
 			if (abortController.signal.aborted) {
 				setStatus("idle");
 				toast.info("已取消 AI 分类");
 			} else {
 				setStatus("error");
-				setErrorMsg(err?.message || "AI 分类服务请求失败，请检查网络或 API Key");
+				setErrorMsg(
+					err?.message || "AI 分类服务请求失败，请检查网络或 API Key",
+				);
 				toast.danger("AI 分类失败");
 			}
 		}
@@ -174,12 +181,17 @@ export function AIClassifyModal({
 							<span className="text-base font-bold text-foreground">
 								⚡ DeepSeek AI 智能分门别类
 							</span>
-							<Chip size="sm" variant="secondary" className="font-mono text-[10px]">
+							<Chip
+								size="sm"
+								variant="secondary"
+								className="font-mono text-[10px]"
+							>
 								待处理 {itemsToClassify.length} 条
 							</Chip>
 						</div>
 						<p className="text-xs text-muted">
-							基于每个书签的 TDK 数组（标题、描述、关键词与原始路径）进行语义识别，自动归入对应分类与主题文件夹。
+							基于每个书签的 TDK
+							数组（标题、描述、关键词与原始路径）进行语义识别，自动归入对应分类与主题文件夹。
 						</p>
 					</Modal.Header>
 
@@ -260,15 +272,25 @@ export function AIClassifyModal({
 													key={res.id || idx}
 													className="p-3 rounded-xl bg-surface-secondary border border-border hover:border-accent/40 transition-colors flex items-start gap-3 text-xs"
 												>
-													<div className="w-8 h-8 rounded-lg bg-accent-soft flex items-center justify-center shrink-0 text-accent mt-0.5">
-														<ItemIcon type={res.itemType} className="w-4 h-4" />
+													<div className="w-8 h-8 rounded-lg bg-surface flex items-center justify-center shrink-0 shadow-2xs mt-0.5 border border-border/50">
+														<ItemFavicon
+															url={res.url}
+															favicon={res.favicon}
+															type={res.itemType}
+															name={res.title}
+															size="xs"
+														/>
 													</div>
 													<div className="flex-1 min-w-0">
 														<div className="flex items-center gap-2 flex-wrap mb-1">
 															<span className="font-semibold text-foreground truncate max-w-[280px]">
 																{res.title}
 															</span>
-															<Chip size="sm" variant="secondary" className="text-[10px]">
+															<Chip
+																size="sm"
+																variant="secondary"
+																className="text-[10px]"
+															>
 																{typeInfo.label}
 															</Chip>
 															<Chip
@@ -316,12 +338,23 @@ export function AIClassifyModal({
 												key={item.id || idx}
 												className="p-2.5 rounded-xl bg-surface-secondary border border-border flex items-center justify-between text-xs gap-3"
 											>
-												<div className="truncate flex-1">
-													<div className="font-medium text-foreground truncate">
-														{item.name}
+												<div className="flex items-center gap-2 truncate flex-1 min-w-0">
+													<div className="w-5 h-5 rounded bg-surface flex items-center justify-center shrink-0">
+														<ItemFavicon
+															url={item.url}
+															favicon={item.favicon}
+															type={item.type}
+															name={item.name}
+															size="xs"
+														/>
 													</div>
-													<div className="text-[11px] text-muted truncate">
-														{item.url}
+													<div className="truncate flex-1">
+														<div className="font-medium text-foreground truncate">
+															{item.name}
+														</div>
+														<div className="text-[11px] text-muted truncate">
+															{item.url}
+														</div>
 													</div>
 												</div>
 												{item.folderName && (

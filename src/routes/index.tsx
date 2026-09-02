@@ -1,4 +1,4 @@
-import { Button, EmptyState, InputGroup, toast } from "@heroui/react";
+import { Button, EmptyState, toast } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import ThemeToggle from "../components/ThemeToggle";
@@ -7,7 +7,9 @@ import { BookmarkSyncModal } from "../components/workbench/BookmarkSyncModal";
 import { FolderCard } from "../components/workbench/FolderCard";
 import { FolderDetailPanel } from "../components/workbench/FolderDetailPanel";
 import { FolderModal } from "../components/workbench/FolderModal";
+import { GlobalSearchModal } from "../components/workbench/GlobalSearchModal";
 import { FolderIcon, WorkbenchLogoIcon } from "../components/workbench/Icons";
+import { ItemFavicon } from "../components/workbench/ItemFavicon";
 import { SettingsModal } from "../components/workbench/SettingsModal";
 import {
 	CATEGORIES as DEFAULT_CATEGORIES,
@@ -16,7 +18,10 @@ import {
 	type WorkbenchItem,
 	type WorkbenchSettings,
 } from "../components/workbench/types";
-import { DEFAULT_SETTINGS, WorkbenchStorageService } from "../services/workbenchStorage";
+import {
+	DEFAULT_SETTINGS,
+	WorkbenchStorageService,
+} from "../services/workbenchStorage";
 
 export const Route = createFileRoute("/")({
 	component: WorkbenchHome,
@@ -28,7 +33,7 @@ function WorkbenchHome() {
 	const [settings, setSettings] = useState<WorkbenchSettings>(DEFAULT_SETTINGS);
 	const [activeCategory, setActiveCategory] = useState<Category>("工作台");
 	const [selectedFolderId, setSelectedFolderId] = useState<number | null>(null);
-	const [searchQuery, setSearchQuery] = useState("");
+	const [searchQuery] = useState("");
 
 	// Modals state
 	const [folderModalState, setFolderModalState] = useState<{
@@ -39,6 +44,39 @@ function WorkbenchHome() {
 	const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
 	const [isAIClassifyModalOpen, setIsAIClassifyModalOpen] = useState(false);
 	const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+	const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
+
+	// Global shortcut: Cmd+K / Ctrl+K opens Global Search
+	useEffect(() => {
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+				e.preventDefault();
+				setIsGlobalSearchOpen((prev) => !prev);
+			}
+		};
+		window.addEventListener("keydown", handleKeyDown);
+		return () => window.removeEventListener("keydown", handleKeyDown);
+	}, []);
+
+	// Navigate to folder or unclassified view from search result
+	const handleNavigateFromSearch = (
+		folderId: number | null,
+		category?: Category,
+	) => {
+		if (folderId !== null && folderId !== undefined) {
+			const target = folders.find((f) => f.id === folderId);
+			if (target) {
+				setActiveCategory(target.category as Category);
+				setSelectedFolderId(target.id);
+			} else if (category) {
+				setActiveCategory(category);
+				setSelectedFolderId(folderId);
+			}
+		} else {
+			setActiveCategory("未分类");
+			setSelectedFolderId(null);
+		}
+	};
 
 	// Load data from SQLite database on mount
 	const loadDataFromDb = async () => {
@@ -135,7 +173,11 @@ function WorkbenchHome() {
 		if (!selectedFolderId) {
 			return filteredFolders[0] || null;
 		}
-		return folders.find((f) => f.id === selectedFolderId) || filteredFolders[0] || null;
+		return (
+			folders.find((f) => f.id === selectedFolderId) ||
+			filteredFolders[0] ||
+			null
+		);
 	}, [folders, selectedFolderId, filteredFolders]);
 
 	// Switch category
@@ -181,7 +223,10 @@ function WorkbenchHome() {
 	};
 
 	// Delete item from folder
-	const handleDeleteItemFromFolder = async (item: WorkbenchItem, folderId: number) => {
+	const handleDeleteItemFromFolder = async (
+		item: WorkbenchItem,
+		folderId: number,
+	) => {
 		const { folders: updatedFolders, unclassified: updatedUnclassified } =
 			await WorkbenchStorageService.deleteItemInDb(item.id || "", folderId);
 		setFolders(updatedFolders);
@@ -268,7 +313,11 @@ function WorkbenchHome() {
 								: folders.filter((f) => f.category === cat).length;
 
 						// Hide empty categories unless it's active or is standard
-						if (count === 0 && !["工作台", "未分类"].includes(cat) && !isActive) {
+						if (
+							count === 0 &&
+							!["工作台", "未分类"].includes(cat) &&
+							!isActive
+						) {
 							return null;
 						}
 
@@ -304,6 +353,19 @@ function WorkbenchHome() {
 
 				{/* Right: Actions */}
 				<div className="flex items-center gap-2 shrink-0">
+					{/* Global Search Button */}
+					<Button
+						variant="secondary"
+						size="sm"
+						className="rounded-full flex items-center gap-1.5 px-3 shadow-2xs"
+						onPress={() => setIsGlobalSearchOpen(true)}
+					>
+						<span>🔍 搜索</span>
+						<kbd className="text-[10px] font-mono px-1.5 py-0.2 bg-background/50 border border-border/80 rounded text-muted">
+							⌘K
+						</kbd>
+					</Button>
+
 					{/* AI Classify Button */}
 					<Button
 						variant={unclassified.length > 0 ? "primary" : "secondary"}
@@ -378,28 +440,21 @@ function WorkbenchHome() {
 							</p>
 						</div>
 
-						{/* Search Bar */}
-						<div className="w-full sm:w-64">
-							<InputGroup className="w-full h-8 text-xs">
-								<InputGroup.Input
-									type="text"
-									placeholder="搜索文件夹、书签或标签..."
-									value={searchQuery}
-									onChange={(e) => setSearchQuery(e.target.value)}
-									className="text-xs h-8"
-								/>
-								{searchQuery && (
-									<InputGroup.Suffix className="pr-1.5">
-										<button
-											type="button"
-											onClick={() => setSearchQuery("")}
-											className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[10px] text-muted hover:text-foreground cursor-pointer"
-										>
-											✕
-										</button>
-									</InputGroup.Suffix>
-								)}
-							</InputGroup>
+						{/* Quick Search & Global AI Search Trigger */}
+						<div className="w-full sm:w-72 flex items-center gap-2">
+							<button
+								type="button"
+								onClick={() => setIsGlobalSearchOpen(true)}
+								className="w-full flex items-center justify-between px-3 py-1.5 rounded-xl bg-surface border border-border text-xs text-muted hover:border-accent/60 hover:text-foreground cursor-pointer shadow-2xs transition-all"
+							>
+								<div className="flex items-center gap-2 truncate">
+									<span>🔍</span>
+									<span className="truncate">全局搜索 / AI 语义检索...</span>
+								</div>
+								<kbd className="text-[10px] font-mono px-1.5 py-0.2 bg-surface-secondary border border-border rounded text-muted shrink-0">
+									⌘K
+								</kbd>
+							</button>
 						</div>
 					</div>
 
@@ -415,7 +470,8 @@ function WorkbenchHome() {
 										未分类池暂无待整理内容
 									</h3>
 									<p className="text-xs text-muted mb-4 max-w-sm">
-										在 Chrome 浏览器侧边栏扩展中，点击「⚡ 一键同步至工作台」即可将 2000+ 书签快速写入本地 SQLite。
+										在 Chrome 浏览器侧边栏扩展中，点击「⚡
+										一键同步至工作台」即可将 2000+ 书签快速写入本地 SQLite。
 									</p>
 								</EmptyState>
 							) : (
@@ -428,10 +484,12 @@ function WorkbenchHome() {
 											</div>
 											<div>
 												<div className="font-semibold text-xs text-foreground">
-													SQLite 已就绪 {unclassified.length} 条从插件同步的书签 TDK
+													SQLite 已就绪 {unclassified.length} 条从插件同步的书签
+													TDK
 												</div>
 												<div className="text-[11px] text-muted">
-													点击按钮，由 DeepSeek 深度分析网页标题、描述及原路径，自动创建主题文件夹并入库。
+													点击按钮，由 DeepSeek
+													深度分析网页标题、描述及原路径，自动创建主题文件夹并入库。
 												</div>
 											</div>
 										</div>
@@ -455,19 +513,30 @@ function WorkbenchHome() {
 											>
 												<div>
 													<div className="flex items-start justify-between gap-2 mb-1.5">
-														<a
-															href={item.url}
-															target="_blank"
-															rel="noreferrer"
-															className="font-medium text-xs text-foreground hover:text-accent line-clamp-1 flex-1 font-sans"
-															title={item.name}
-														>
-															{item.name}
-														</a>
+														<div className="flex items-center gap-2 flex-1 min-w-0">
+															<div className="w-5 h-5 rounded-md bg-surface-secondary flex items-center justify-center shrink-0">
+																<ItemFavicon
+																	url={item.url}
+																	favicon={item.favicon}
+																	type={item.type}
+																	name={item.name}
+																	size="xs"
+																/>
+															</div>
+															<a
+																href={item.url}
+																target="_blank"
+																rel="noreferrer"
+																className="font-medium text-xs text-foreground hover:text-accent line-clamp-1 flex-1 font-sans"
+																title={item.name}
+															>
+																{item.name}
+															</a>
+														</div>
 														<button
 															type="button"
 															onClick={() => handleDeleteUnclassifiedItem(item)}
-															className="text-muted hover:text-danger p-0.5 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+															className="text-muted hover:text-danger p-0.5 text-xs opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
 															title="删除"
 														>
 															✕
@@ -480,8 +549,13 @@ function WorkbenchHome() {
 												</div>
 
 												<div className="flex items-center justify-between gap-2 pt-2 border-t border-border/40 text-[10px] text-muted">
-													<span className="truncate max-w-[160px]" title={item.url}>
-														{item.folderName ? `📁 ${item.folderName}` : item.url}
+													<span
+														className="truncate max-w-[160px]"
+														title={item.url}
+													>
+														{item.folderName
+															? `📁 ${item.folderName}`
+															: item.url}
 													</span>
 													{item.createdAt && <span>{item.createdAt}</span>}
 												</div>
@@ -503,13 +577,17 @@ function WorkbenchHome() {
 										该分类下暂无已归类的文件夹
 									</p>
 									<p className="text-xs text-muted mb-4 max-w-sm">
-										在 Chrome 扩展中点击「一键同步至工作台」，随后在「未分类」中点击「⚡ AI 智能归类」即可自动生成并保存至 SQLite。
+										在 Chrome
+										扩展中点击「一键同步至工作台」，随后在「未分类」中点击「⚡
+										AI 智能归类」即可自动生成并保存至 SQLite。
 									</p>
 									<Button
 										variant="primary"
 										size="sm"
 										className="rounded-full"
-										onPress={() => setFolderModalState({ isOpen: true, folder: null })}
+										onPress={() =>
+											setFolderModalState({ isOpen: true, folder: null })
+										}
 									>
 										+ 手动新建文件夹
 									</Button>
@@ -548,7 +626,9 @@ function WorkbenchHome() {
 			<FolderModal
 				isOpen={folderModalState.isOpen}
 				folder={folderModalState.folder}
-				defaultCategory={activeCategory === "未分类" ? "工作台" : activeCategory}
+				defaultCategory={
+					activeCategory === "未分类" ? "工作台" : activeCategory
+				}
 				onClose={() => setFolderModalState({ isOpen: false, folder: null })}
 				onSave={handleSaveFolder}
 				onDelete={handleDeleteFolder}
@@ -576,6 +656,13 @@ function WorkbenchHome() {
 				isOpen={isSettingsModalOpen}
 				onClose={() => setIsSettingsModalOpen(false)}
 				onSettingsUpdated={(newSettings) => setSettings(newSettings)}
+			/>
+
+			{/* Global Search Modal (Cmd+K) */}
+			<GlobalSearchModal
+				isOpen={isGlobalSearchOpen}
+				onClose={() => setIsGlobalSearchOpen(false)}
+				onNavigateToFolder={handleNavigateFromSearch}
 			/>
 		</div>
 	);
