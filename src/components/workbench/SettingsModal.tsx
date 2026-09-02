@@ -1,4 +1,5 @@
 import { Button, Input, Label, Modal, TextField, toast } from "@heroui/react";
+import { Brain, RotateCcw, Save, Sparkles } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import type { WorkbenchSettings } from "./types";
 import {
@@ -84,7 +85,7 @@ export function SettingsModal({
 			variant="blur"
 		>
 			<Modal.Container size="md">
-				<Modal.Dialog>
+				<Modal.Dialog aria-label="AI 与模型配置">
 					<Modal.CloseTrigger />
 					<Modal.Header>
 						<Modal.Heading>AI 与模型配置</Modal.Heading>
@@ -95,8 +96,9 @@ export function SettingsModal({
 							{/* Section 1: LLM Classification */}
 							<div className="flex flex-col gap-3">
 								<div className="flex items-center gap-2 pb-1 border-b border-border">
+									<Sparkles className="w-4 h-4 text-accent shrink-0" />
 									<span className="font-semibold text-foreground text-xs">
-										⚡ AI 分类与摘要 (DeepSeek / LLM)
+										AI 分类与摘要 (DeepSeek / LLM)
 									</span>
 								</div>
 								<p className="text-[11px] text-muted leading-relaxed">
@@ -149,8 +151,9 @@ export function SettingsModal({
 							{/* Section 2: Embedding / RAG Settings */}
 							<div className="flex flex-col gap-3 pt-2">
 								<div className="flex items-center gap-2 pb-1 border-b border-border">
+									<Brain className="w-4 h-4 text-accent shrink-0" />
 									<span className="font-semibold text-foreground text-xs">
-										🧠 向量索引与 AI 语义搜索 (Embedding / RAG)
+										向量索引与 AI 语义搜索 (Embedding / RAG)
 									</span>
 								</div>
 								<p className="text-[11px] text-muted leading-relaxed">
@@ -201,10 +204,11 @@ export function SettingsModal({
 								type="button"
 								variant="ghost"
 								size="sm"
-								className="rounded-full text-muted"
+								className="rounded-full text-muted flex items-center gap-1 cursor-pointer"
 								onPress={handleReset}
 							>
-								恢复默认
+								<RotateCcw className="w-3.5 h-3.5" />
+								<span>恢复默认</span>
 							</Button>
 
 							<div className="flex items-center gap-2">
@@ -212,7 +216,7 @@ export function SettingsModal({
 									type="button"
 									variant="ghost"
 									size="sm"
-									className="rounded-full"
+									className="rounded-full cursor-pointer"
 									onPress={onClose}
 								>
 									取消
@@ -221,9 +225,10 @@ export function SettingsModal({
 									type="submit"
 									variant="primary"
 									size="sm"
-									className="rounded-full"
+									className="rounded-full flex items-center gap-1.5 cursor-pointer shadow-sm"
 								>
-									保存配置
+									<Save className="w-3.5 h-3.5" />
+									<span>保存配置</span>
 								</Button>
 							</div>
 						</Modal.Footer>
@@ -233,3 +238,4 @@ export function SettingsModal({
 		</Modal.Backdrop>
 	);
 }
+

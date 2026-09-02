@@ -95,26 +95,48 @@ export function useWorkbenchData(): UseWorkbenchDataReturn {
 		reloadFromDb();
 	}, [reloadFromDb]);
 
-	// Background polling for real-time SQLite sync from Chrome extension
+	// Sync data on window focus / visibility change, and listen for broadcast / postMessage events
 	useEffect(() => {
-		const pollCollector = async () => {
-			const { folders: latestFolders, unclassified: latestUnclassified } =
-				await WorkbenchStorageService.fetchAllFromDb();
-
-			setUnclassified((prev) => {
-				if (latestUnclassified.length > prev.length) {
-					toast.success(
-						`⚡ SQLite 已同步接收 ${latestUnclassified.length - prev.length} 个新书签！`,
-					);
-				}
-				return latestUnclassified;
-			});
-			setFolders(latestFolders);
+		const handleVisibilityOrFocus = () => {
+			if (document.visibilityState === "visible") {
+				reloadFromDb();
+			}
 		};
 
-		const interval = setInterval(pollCollector, 2500);
-		return () => clearInterval(interval);
-	}, []);
+		// Listen for message events from extension or other tabs
+		const handleMessage = (event: MessageEvent) => {
+			if (
+				event.data?.type === "WORKBENCH_RELOAD" ||
+				event.data?.type === "BOOKMARK_COLLECTED"
+			) {
+				reloadFromDb();
+			}
+		};
+
+		// BroadcastChannel for cross-tab or cross-window instant notification
+		let channel: BroadcastChannel | null = null;
+		try {
+			channel = new BroadcastChannel("aiworkstation_sync");
+			channel.onmessage = (event) => {
+				if (event.data?.type === "WORKBENCH_RELOAD" || event.data?.type === "BOOKMARK_COLLECTED") {
+					reloadFromDb();
+				}
+			};
+		} catch {
+			// BroadcastChannel might not be supported in some environments
+		}
+
+		window.addEventListener("focus", handleVisibilityOrFocus);
+		document.addEventListener("visibilitychange", handleVisibilityOrFocus);
+		window.addEventListener("message", handleMessage);
+
+		return () => {
+			window.removeEventListener("focus", handleVisibilityOrFocus);
+			document.removeEventListener("visibilitychange", handleVisibilityOrFocus);
+			window.removeEventListener("message", handleMessage);
+			channel?.close();
+		};
+	}, [reloadFromDb]);
 
 	// Dynamic Category Tabs: Merge predefined categories with custom ones from folders
 	const dynamicCategories = useMemo(() => {

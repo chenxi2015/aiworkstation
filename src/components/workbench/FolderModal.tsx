@@ -93,7 +93,7 @@ export function FolderModal({
 			variant="blur"
 		>
 			<Modal.Container size="sm">
-				<Modal.Dialog>
+				<Modal.Dialog aria-label={isEdit ? "编辑文件夹" : "新建文件夹"}>
 					{/* Built-in close button from HeroUI */}
 					<Modal.CloseTrigger />
 

@@ -7,6 +7,13 @@ import {
 	TextField,
 	toast,
 } from "@heroui/react";
+import {
+	FileText,
+	FolderUp,
+	Sparkles,
+	UploadCloud,
+	Zap,
+} from "lucide-react";
 import { type ChangeEvent, useState } from "react";
 import { WorkbenchStorageService } from "../../services/workbenchStorage";
 import type { BookmarkTDKItem, WorkbenchItem } from "./types";
@@ -286,7 +293,7 @@ export function BookmarkSyncModal({
 			variant="blur"
 		>
 			<Modal.Container size="md">
-				<Modal.Dialog>
+				<Modal.Dialog aria-label="同步 / 导入书签到 AI 工作台">
 					<Modal.CloseTrigger />
 					<Modal.Header>
 						<Modal.Heading>同步 / 导入书签到 AI 工作台</Modal.Heading>
@@ -298,35 +305,38 @@ export function BookmarkSyncModal({
 							<button
 								type="button"
 								onClick={() => setActiveTab("preset")}
-								className={`flex-1 py-1.5 rounded-lg font-medium transition-colors cursor-pointer ${
+								className={`flex-1 py-1.5 rounded-lg font-medium transition-colors cursor-pointer flex items-center justify-center gap-1.5 ${
 									activeTab === "preset"
 										? "bg-surface text-foreground shadow-xs font-semibold"
 										: "text-muted hover:text-foreground"
 								}`}
 							>
-								⚡ 预置测试书签
+								<Zap className="w-3.5 h-3.5" />
+								<span>预置测试书签</span>
 							</button>
 							<button
 								type="button"
 								onClick={() => setActiveTab("file")}
-								className={`flex-1 py-1.5 rounded-lg font-medium transition-colors cursor-pointer ${
+								className={`flex-1 py-1.5 rounded-lg font-medium transition-colors cursor-pointer flex items-center justify-center gap-1.5 ${
 									activeTab === "file"
 										? "bg-surface text-foreground shadow-xs font-semibold"
 										: "text-muted hover:text-foreground"
 								}`}
 							>
-								📁 导入书签文件
+								<FolderUp className="w-3.5 h-3.5" />
+								<span>导入书签文件</span>
 							</button>
 							<button
 								type="button"
 								onClick={() => setActiveTab("paste")}
-								className={`flex-1 py-1.5 rounded-lg font-medium transition-colors cursor-pointer ${
+								className={`flex-1 py-1.5 rounded-lg font-medium transition-colors cursor-pointer flex items-center justify-center gap-1.5 ${
 									activeTab === "paste"
 										? "bg-surface text-foreground shadow-xs font-semibold"
 										: "text-muted hover:text-foreground"
 								}`}
 							>
-								📝 粘贴链接/JSON
+								<FileText className="w-3.5 h-3.5" />
+								<span>粘贴链接/JSON</span>
 							</button>
 						</div>
 
@@ -366,7 +376,7 @@ export function BookmarkSyncModal({
 									<Button
 										variant="secondary"
 										size="sm"
-										className="flex-1 rounded-full"
+										className="flex-1 rounded-full cursor-pointer"
 										onPress={() => handleImportSample(false)}
 									>
 										放入未分类池
@@ -374,10 +384,11 @@ export function BookmarkSyncModal({
 									<Button
 										variant="primary"
 										size="sm"
-										className="flex-1 rounded-full shadow-sm"
+										className="flex-1 rounded-full shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
 										onPress={() => handleImportSample(true)}
 									>
-										⚡ 导入并立即 AI 分类
+										<Sparkles className="w-3.5 h-3.5" />
+										<span>导入并立即 AI 分类</span>
 									</Button>
 								</div>
 							</div>
@@ -393,17 +404,7 @@ export function BookmarkSyncModal({
 								</p>
 
 								<label className="border-2 border-dashed border-border hover:border-accent/60 bg-surface-secondary/50 rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer transition-colors text-center group">
-									<svg
-										className="w-8 h-8 text-muted group-hover:text-accent mb-2 transition-colors"
-										viewBox="0 0 24 24"
-										fill="none"
-										stroke="currentColor"
-										strokeWidth="1.8"
-									>
-										<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-										<polyline points="17 8 12 3 7 8" />
-										<line x1="12" y1="3" x2="12" y2="15" />
-									</svg>
+									<UploadCloud className="w-8 h-8 text-muted group-hover:text-accent mb-2 transition-colors" />
 									<span className="font-semibold text-foreground mb-0.5">
 										点击选择或拖拽书签文件到此处
 									</span>
@@ -437,7 +438,7 @@ export function BookmarkSyncModal({
 								<Button
 									variant="primary"
 									size="sm"
-									className="rounded-full shadow-sm"
+									className="rounded-full shadow-sm cursor-pointer"
 									onPress={handlePasteImport}
 								>
 									导入到未分类池
@@ -451,7 +452,7 @@ export function BookmarkSyncModal({
 							type="button"
 							variant="ghost"
 							size="sm"
-							className="rounded-full"
+							className="rounded-full cursor-pointer"
 							onPress={onClose}
 						>
 							关闭
@@ -462,3 +463,4 @@ export function BookmarkSyncModal({
 		</Modal.Backdrop>
 	);
 }
+

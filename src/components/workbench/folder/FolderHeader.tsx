@@ -76,9 +76,10 @@ export function FolderHeader({
 					onPress={() => onOpenDossier(folder)}
 				>
 					<Sparkles className="w-3.5 h-3.5" />
-					<span>🧠 一键生成专题全景综述与指南</span>
+					<span>一键生成专题全景综述与指南</span>
 				</Button>
 			)}
 		</div>
 	);
 }
+

@@ -1,4 +1,5 @@
 import { Button, EmptyState } from "@heroui/react";
+import { FolderPlus } from "lucide-react";
 import { FolderCard } from "../FolderCard";
 import { FolderIcon } from "../Icons";
 import type { Folder } from "../types";
@@ -30,16 +31,17 @@ export function CategoryView({
 						该分类下暂无已归类的文件夹
 					</p>
 					<p className="text-xs text-muted mb-4 max-w-sm">
-						在 Chrome 扩展中点击「一键同步至工作台」，随后在「未分类」中点击「⚡
-						AI 智能归类」即可自动生成并保存至 SQLite。
+						在 Chrome 扩展中点击「一键同步至工作台」，随后在「未分类」中点击「AI
+						智能归类」即可自动生成并保存至 SQLite。
 					</p>
 					<Button
 						variant="primary"
 						size="sm"
-						className="rounded-full"
+						className="rounded-full flex items-center gap-1.5 cursor-pointer shadow-sm"
 						onPress={onCreateFolder}
 					>
-						+ 手动新建文件夹
+						<FolderPlus className="w-3.5 h-3.5" />
+						<span>手动新建文件夹</span>
 					</Button>
 				</EmptyState>
 			</div>
@@ -61,3 +63,4 @@ export function CategoryView({
 		</div>
 	);
 }
+

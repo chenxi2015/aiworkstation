@@ -1,4 +1,14 @@
 import { Button, Tooltip, toast } from "@heroui/react";
+import {
+	ChevronDown,
+	ChevronUp,
+	Dices,
+	ExternalLink,
+	Folder,
+	FolderSearch,
+	Loader2,
+	Sparkles,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { ItemFavicon } from "./ItemFavicon";
 import type { Category, WorkbenchItem } from "./types";
@@ -50,7 +60,7 @@ export function DailyCapsuleBanner({
 			<div className="flex items-center justify-between gap-4 mb-3">
 				<div className="flex items-center gap-2.5">
 					<div className="w-7 h-7 rounded-xl bg-accent text-accent-foreground flex items-center justify-center text-xs shadow-xs font-bold">
-						💡
+						<Sparkles className="w-4 h-4" />
 					</div>
 					<div>
 						<div className="flex items-center gap-2">
@@ -72,20 +82,34 @@ export function DailyCapsuleBanner({
 					<Button
 						variant="ghost"
 						size="sm"
-						className="h-7 px-2.5 text-xs text-muted hover:text-foreground rounded-full border border-border/60 bg-surface/50 hover:bg-surface shadow-2xs"
+						className="h-7 px-2.5 text-xs text-muted hover:text-foreground rounded-full border border-border/60 bg-surface/50 hover:bg-surface shadow-2xs cursor-pointer flex items-center gap-1.5"
 						onPress={handleRefresh}
 						isDisabled={isLoading}
 					>
-						{isLoading ? "⏳ 抽取中..." : "🎲 换一批"}
+						{isLoading ? (
+							<>
+								<Loader2 className="w-3.5 h-3.5 animate-spin" />
+								<span>抽取中...</span>
+							</>
+						) : (
+							<>
+								<Dices className="w-3.5 h-3.5" />
+								<span>换一批</span>
+							</>
+						)}
 					</Button>
 					<Button
 						variant="ghost"
 						size="sm"
-						className="h-7 w-7 p-0 text-xs text-muted hover:text-foreground rounded-full"
+						className="h-7 w-7 p-0 text-xs text-muted hover:text-foreground rounded-full cursor-pointer flex items-center justify-center"
 						onPress={() => setIsCollapsed(!isCollapsed)}
 						aria-label={isCollapsed ? "展开" : "收起"}
 					>
-						{isCollapsed ? "▼" : "▲"}
+						{isCollapsed ? (
+							<ChevronDown className="w-3.5 h-3.5" />
+						) : (
+							<ChevronUp className="w-3.5 h-3.5" />
+						)}
 					</Button>
 				</div>
 			</div>
@@ -120,8 +144,9 @@ export function DailyCapsuleBanner({
 									</a>
 									<div className="flex items-center gap-1.5 mt-0.5">
 										{item.folderName && (
-											<span className="text-[9px] font-medium px-1.5 py-0.1 rounded bg-surface-secondary text-muted border border-border/40 truncate max-w-[110px]">
-												📁 {item.folderName}
+											<span className="text-[9px] font-medium px-1.5 py-0.1 rounded bg-surface-secondary text-muted border border-border/40 truncate max-w-[110px] inline-flex items-center gap-1">
+												<Folder className="w-2.5 h-2.5 opacity-70 shrink-0" />
+												<span className="truncate">{item.folderName}</span>
 											</span>
 										)}
 										{item.tags && item.tags.length > 0 && (
@@ -160,10 +185,10 @@ export function DailyCapsuleBanner({
 															item.category as Category,
 														)
 													}
-													className="p-1 rounded text-muted hover:text-foreground hover:bg-surface-secondary cursor-pointer transition-colors"
+													className="p-1.5 rounded text-muted hover:text-foreground hover:bg-surface-secondary cursor-pointer transition-colors"
 													aria-label="在工作台中定位"
 												>
-													📂
+													<FolderSearch className="w-3.5 h-3.5" />
 												</button>
 											</Tooltip.Trigger>
 											<Tooltip.Content className="text-xs py-1 px-2">
@@ -177,9 +202,10 @@ export function DailyCapsuleBanner({
 											href={item.url}
 											target="_blank"
 											rel="noreferrer"
-											className="px-2 py-0.5 rounded-md bg-accent-soft text-accent hover:bg-accent hover:text-accent-foreground font-medium transition-all"
+											className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-accent-soft text-accent hover:bg-accent hover:text-accent-foreground font-medium transition-all text-[11px]"
 										>
-											打开 ↗
+											<span>打开</span>
+											<ExternalLink className="w-2.5 h-2.5" />
 										</a>
 									)}
 								</div>
@@ -191,3 +217,4 @@ export function DailyCapsuleBanner({
 		</div>
 	);
 }
+

@@ -1,3 +1,4 @@
+import { Laptop, Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 
 type ThemeMode = "light" | "dark" | "auto";
@@ -73,9 +74,25 @@ export default function ThemeToggle() {
 			onClick={toggleMode}
 			aria-label={label}
 			title={label}
-			className="rounded-full border border-border bg-surface-secondary px-3 py-1.5 text-xs font-semibold text-foreground shadow-sm transition hover:bg-surface-hover hover:border-border-secondary cursor-pointer"
+			className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-secondary px-2.5 py-1 text-xs font-semibold text-foreground shadow-sm transition hover:bg-surface-hover hover:border-border-secondary cursor-pointer"
 		>
-			{mode === "auto" ? "Auto" : mode === "dark" ? "Dark" : "Light"}
+			{mode === "auto" ? (
+				<>
+					<Laptop className="w-3.5 h-3.5 opacity-70" />
+					<span>Auto</span>
+				</>
+			) : mode === "dark" ? (
+				<>
+					<Moon className="w-3.5 h-3.5 text-accent" />
+					<span>Dark</span>
+				</>
+			) : (
+				<>
+					<Sun className="w-3.5 h-3.5 text-amber-500" />
+					<span>Light</span>
+				</>
+			)}
 		</button>
 	);
 }
+

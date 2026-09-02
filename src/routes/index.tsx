@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { Search } from "lucide-react";
 import {
 	AIClassifyModal,
 	BookmarkSyncModal,
@@ -115,7 +116,7 @@ function WorkbenchHome() {
 							</div>
 							<p className="text-xs text-muted mt-1 leading-relaxed max-w-xl">
 								{isUnclassified
-									? "所有从 Chrome 扩展一键同步并存入 SQLite 数据库的书签缓冲池。点击「⚡ AI 智能归类」，DeepSeek 将深度分析并自动生成主题文件夹。"
+									? "所有从 Chrome 扩展一键同步并存入 SQLite 数据库的书签缓冲池。点击「AI 智能归类」，DeepSeek 将深度分析并自动生成主题文件夹。"
 									: "点击任意文件夹卡片，右侧侧边栏将呈现该文件夹在 SQLite 中归集的全部书签、九宫格预览与快捷外链。"}
 							</p>
 						</div>
@@ -128,7 +129,7 @@ function WorkbenchHome() {
 								className="w-full flex items-center justify-between px-3 py-1.5 rounded-xl bg-surface border border-border text-xs text-muted hover:border-accent/60 hover:text-foreground cursor-pointer shadow-2xs transition-all"
 							>
 								<div className="flex items-center gap-2 truncate">
-									<span>🔍</span>
+									<Search className="w-3.5 h-3.5 text-muted" />
 									<span className="truncate">全局搜索 / AI 语义检索...</span>
 								</div>
 								<kbd className="text-[10px] font-mono px-1.5 py-0.2 bg-surface-secondary border border-border rounded text-muted shrink-0">
@@ -137,6 +138,7 @@ function WorkbenchHome() {
 							</button>
 						</div>
 					</div>
+
 
 					{/* View Switcher: Unclassified Pool vs Regular Category Folders */}
 					{isUnclassified ? (

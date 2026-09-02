@@ -1,4 +1,19 @@
 import { Button, Modal, Skeleton, Tooltip, toast } from "@heroui/react";
+import {
+	Brain,
+	Copy,
+	Database,
+	ExternalLink,
+	FileText,
+	Folder,
+	FolderSearch,
+	Loader2,
+	Search,
+	SearchX,
+	Sparkles,
+	X,
+	Zap,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ItemFavicon } from "./ItemFavicon";
 import type {
@@ -145,7 +160,7 @@ export function GlobalSearchModal({
 				if (res.processed === 0) break;
 			}
 
-			toast.success(`🎉 向量索引构建完成！已向量化 ${totalProcessed} 条书签`);
+			toast.success(`向量索引构建完成！已向量化 ${totalProcessed} 条书签`);
 		} catch (err: any) {
 			console.error("[GlobalSearch] Build index error:", err);
 			toast.danger(`构建向量索引失败: ${err.message || err}`);
@@ -177,13 +192,19 @@ export function GlobalSearchModal({
 			variant="blur"
 		>
 			<Modal.Container size="lg" className="max-w-3xl">
-				<Modal.Dialog className="p-0 overflow-hidden flex flex-col max-h-[85vh] bg-surface border border-border shadow-2xl rounded-2xl">
+				<Modal.Dialog
+					className="p-0 overflow-hidden flex flex-col max-h-[85vh] bg-surface border border-border shadow-2xl rounded-2xl"
+					aria-label="全局书签搜索与意图检索"
+				>
+					<Modal.Heading className="sr-only">
+						全局书签搜索与意图检索
+					</Modal.Heading>
 					{/* Search Header Bar */}
 					<div className="p-4 border-b border-border bg-surface-secondary/40 flex flex-col gap-3">
 						{/* Input Bar */}
 						<div className="relative flex items-center">
-							<span className="absolute left-3.5 text-muted pointer-events-none text-sm">
-								🔍
+							<span className="absolute left-3.5 text-muted pointer-events-none flex items-center">
+								<Search className="w-4 h-4" />
 							</span>
 							<input
 								ref={inputRef}
@@ -200,7 +221,7 @@ export function GlobalSearchModal({
 									onClick={() => setQuery("")}
 									className="absolute right-10 w-5 h-5 rounded-full flex items-center justify-center text-xs text-muted hover:text-foreground cursor-pointer"
 								>
-									✕
+									<X className="w-3.5 h-3.5" />
 								</button>
 							)}
 							<div className="absolute right-3.5 pointer-events-none flex items-center gap-1">
@@ -217,35 +238,38 @@ export function GlobalSearchModal({
 								<button
 									type="button"
 									onClick={() => setMode("hybrid")}
-									className={`px-2.5 py-1 rounded-md font-medium text-xs transition-all cursor-pointer ${
+									className={`px-2.5 py-1 rounded-md font-medium text-xs transition-all cursor-pointer flex items-center gap-1 ${
 										mode === "hybrid"
 											? "bg-accent-soft text-accent shadow-xs font-semibold"
 											: "text-muted hover:text-foreground"
 									}`}
 								>
-									⚡ 混合检索 (推荐)
+									<Zap className="w-3.5 h-3.5" />
+									<span>混合检索</span>
 								</button>
 								<button
 									type="button"
 									onClick={() => setMode("semantic")}
-									className={`px-2.5 py-1 rounded-md font-medium text-xs transition-all cursor-pointer ${
+									className={`px-2.5 py-1 rounded-md font-medium text-xs transition-all cursor-pointer flex items-center gap-1 ${
 										mode === "semantic"
 											? "bg-accent-soft text-accent shadow-xs font-semibold"
 											: "text-muted hover:text-foreground"
 									}`}
 								>
-									🧠 AI 语义检索
+									<Brain className="w-3.5 h-3.5" />
+									<span>AI 语义检索</span>
 								</button>
 								<button
 									type="button"
 									onClick={() => setMode("keyword")}
-									className={`px-2.5 py-1 rounded-md font-medium text-xs transition-all cursor-pointer ${
+									className={`px-2.5 py-1 rounded-md font-medium text-xs transition-all cursor-pointer flex items-center gap-1 ${
 										mode === "keyword"
 											? "bg-accent-soft text-accent shadow-xs font-semibold"
 											: "text-muted hover:text-foreground"
 									}`}
 								>
-									🔤 关键词匹配
+									<FileText className="w-3.5 h-3.5" />
+									<span>关键词匹配</span>
 								</button>
 							</div>
 
@@ -257,11 +281,21 @@ export function GlobalSearchModal({
 								<Button
 									variant="ghost"
 									size="sm"
-									className="text-[11px] rounded-full border border-border/80 h-6 px-2 hover:border-accent hover:text-accent"
+									className="text-[11px] rounded-full border border-border/80 h-6 px-2.5 hover:border-accent hover:text-accent flex items-center gap-1 cursor-pointer"
 									onPress={handleBuildVectorIndex}
 									isDisabled={isIndexing || stats.total === 0}
 								>
-									{isIndexing ? "⏳ 向量化中..." : "⚡ 构建向量索引"}
+									{isIndexing ? (
+										<>
+											<Loader2 className="w-3 h-3 animate-spin" />
+											<span>向量化中...</span>
+										</>
+									) : (
+										<>
+											<Database className="w-3 h-3" />
+											<span>构建向量索引</span>
+										</>
+									)}
 								</Button>
 							</div>
 						</div>
@@ -290,8 +324,8 @@ export function GlobalSearchModal({
 						) : !query.trim() ? (
 							/* Initial Guide / Suggestions */
 							<div className="flex flex-col items-center justify-center text-center py-12 px-4 gap-4">
-								<div className="w-12 h-12 rounded-2xl bg-accent-soft flex items-center justify-center text-accent text-2xl shadow-xs">
-									🔍
+								<div className="w-12 h-12 rounded-2xl bg-accent-soft flex items-center justify-center text-accent shadow-xs">
+									<Search className="w-6 h-6" />
 								</div>
 								<div>
 									<h3 className="font-semibold text-sm text-foreground">
@@ -323,13 +357,12 @@ export function GlobalSearchModal({
 						) : results.length === 0 ? (
 							/* Empty Results State */
 							<div className="py-12 text-center flex flex-col items-center justify-center gap-2">
-								<div className="text-3xl">🧩</div>
+								<SearchX className="w-9 h-9 text-muted opacity-40 mb-1" />
 								<div className="text-sm font-medium text-foreground">
 									未找到匹配的书签或内容
 								</div>
 								<p className="text-xs text-muted max-w-xs leading-relaxed">
-									尝试更换搜索词，或者点击右上角「⚡
-									构建向量索引」更新语义特征。
+									尝试更换搜索词，或者点击右上角「构建向量索引」更新语义特征。
 								</p>
 							</div>
 						) : (
@@ -381,25 +414,29 @@ export function GlobalSearchModal({
 
 													{/* Match Type Badge */}
 													{item.matchType === "semantic" && (
-														<span className="px-1.5 py-0.2 text-[10px] font-medium rounded-full bg-accent/15 text-accent border border-accent/20">
-															🧠 {item.similarityPercent}% 语义匹配
+														<span className="inline-flex items-center gap-1 px-1.5 py-0.2 text-[10px] font-medium rounded-full bg-accent/15 text-accent border border-accent/20">
+															<Brain className="w-2.5 h-2.5" />
+															<span>{item.similarityPercent}% 语义匹配</span>
 														</span>
 													)}
 													{item.matchType === "hybrid" && (
-														<span className="px-1.5 py-0.2 text-[10px] font-medium rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-															⚡ {item.similarityPercent}% 混合命中
+														<span className="inline-flex items-center gap-1 px-1.5 py-0.2 text-[10px] font-medium rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+															<Zap className="w-2.5 h-2.5" />
+															<span>{item.similarityPercent}% 混合命中</span>
 														</span>
 													)}
 													{item.matchType === "keyword" && item.matchReason && (
-														<span className="px-1.5 py-0.2 text-[10px] font-medium rounded-full bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/20">
-															🎯 {item.matchReason}
+														<span className="inline-flex items-center gap-1 px-1.5 py-0.2 text-[10px] font-medium rounded-full bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/20">
+															<Sparkles className="w-2.5 h-2.5" />
+															<span>{item.matchReason}</span>
 														</span>
 													)}
 
 													{/* Folder location tag */}
 													{item.folderName && (
-														<span className="text-[10px] text-muted px-1.5 py-0.2 rounded bg-surface-secondary border border-border/40 truncate max-w-[140px]">
-															📁 {item.folderName}
+														<span className="text-[10px] text-muted px-1.5 py-0.2 rounded bg-surface-secondary border border-border/40 truncate max-w-[140px] inline-flex items-center gap-1">
+															<Folder className="w-2.5 h-2.5 opacity-70 shrink-0" />
+															<span className="truncate">{item.folderName}</span>
 														</span>
 													)}
 												</div>
@@ -449,11 +486,11 @@ export function GlobalSearchModal({
 														<Button
 															variant="ghost"
 															size="sm"
-															className="h-7 w-7 p-0 rounded-lg text-muted hover:text-foreground"
+															className="h-7 w-7 p-0 rounded-lg text-muted hover:text-foreground cursor-pointer flex items-center justify-center"
 															onPress={() => handleCopyUrl(item)}
 															aria-label="复制链接"
 														>
-															📋
+															<Copy className="w-3.5 h-3.5" />
 														</Button>
 													</Tooltip.Trigger>
 													<Tooltip.Content className="text-xs py-1 px-2">
@@ -468,11 +505,11 @@ export function GlobalSearchModal({
 															<Button
 																variant="ghost"
 																size="sm"
-																className="h-7 w-7 p-0 rounded-lg text-muted hover:text-foreground"
+																className="h-7 w-7 p-0 rounded-lg text-muted hover:text-foreground cursor-pointer flex items-center justify-center"
 																onPress={() => handleJumpToFolder(item)}
 																aria-label="在工作台中定位"
 															>
-																📂
+																<FolderSearch className="w-3.5 h-3.5" />
 															</Button>
 														</Tooltip.Trigger>
 														<Tooltip.Content className="text-xs py-1 px-2">
@@ -486,13 +523,14 @@ export function GlobalSearchModal({
 													<Button
 														variant="secondary"
 														size="sm"
-														className="h-7 px-2.5 rounded-lg text-xs font-medium"
+														className="h-7 px-2.5 rounded-lg text-xs font-medium cursor-pointer inline-flex items-center gap-1"
 														onPress={() => {
 															window.open(item.url, "_blank");
 															onClose();
 														}}
 													>
-														打开 ↗
+														<span>打开</span>
+														<ExternalLink className="w-2.5 h-2.5" />
 													</Button>
 												)}
 											</div>
@@ -538,3 +576,4 @@ export function GlobalSearchModal({
 		</Modal.Backdrop>
 	);
 }
+

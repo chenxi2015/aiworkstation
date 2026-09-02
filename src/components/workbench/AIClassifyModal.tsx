@@ -6,6 +6,7 @@ import {
 	ScrollShadow,
 	toast,
 } from "@heroui/react";
+import { Check, Folder, Sparkles } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { AIClassifierService } from "../../services/aiClassifier";
 import { WorkbenchStorageService } from "../../services/workbenchStorage";
@@ -13,7 +14,7 @@ import { ItemFavicon } from "./ItemFavicon";
 import type {
 	AIClassificationResult,
 	BookmarkTDKItem,
-	Folder,
+	Folder as FolderType,
 	WorkbenchItem,
 	WorkbenchSettings,
 } from "./types";
@@ -22,11 +23,11 @@ import { ITEM_TYPES } from "./types";
 interface AIClassifyModalProps {
 	isOpen: boolean;
 	itemsToClassify: WorkbenchItem[];
-	folders: Folder[];
+	folders: FolderType[];
 	settings: WorkbenchSettings;
 	onClose: () => void;
 	onClassificationComplete: (
-		updatedFolders: Folder[],
+		updatedFolders: FolderType[],
 		updatedUnclassified: WorkbenchItem[],
 	) => void;
 }
@@ -174,13 +175,14 @@ export function AIClassifyModal({
 			variant="blur"
 		>
 			<Modal.Container size="lg">
-				<Modal.Dialog className="max-w-3xl">
+				<Modal.Dialog className="max-w-3xl" aria-label="DeepSeek AI 智能分门别类">
 					<Modal.CloseTrigger />
 					<Modal.Header className="flex flex-col gap-1">
 						<div className="flex items-center gap-2">
-							<span className="text-base font-bold text-foreground">
-								⚡ DeepSeek AI 智能分门别类
-							</span>
+							<Sparkles className="w-5 h-5 text-accent" />
+							<Modal.Heading className="text-base font-bold text-foreground">
+								DeepSeek AI 智能分门别类
+							</Modal.Heading>
 							<Chip
 								size="sm"
 								variant="secondary"
@@ -296,9 +298,12 @@ export function AIClassifyModal({
 															<Chip
 																size="sm"
 																variant="primary"
-																className="text-[10px] bg-accent/10 text-accent font-medium"
+																className="text-[10px] bg-accent/10 text-accent font-medium inline-flex items-center gap-1"
 															>
-																📁 {res.category} / {res.folderName}
+																<Folder className="w-2.5 h-2.5 opacity-70 shrink-0 inline" />
+																<span>
+																	{res.category} / {res.folderName}
+																</span>
 															</Chip>
 														</div>
 														<p className="text-muted text-[11px] line-clamp-1 mb-1">
@@ -377,7 +382,7 @@ export function AIClassifyModal({
 									type="button"
 									variant="danger-soft"
 									size="sm"
-									className="rounded-full"
+									className="rounded-full cursor-pointer"
 									onPress={() => abortControllerRef.current?.abort()}
 								>
 									终止分析
@@ -390,7 +395,7 @@ export function AIClassifyModal({
 								type="button"
 								variant="ghost"
 								size="sm"
-								className="rounded-full"
+								className="rounded-full cursor-pointer"
 								onPress={handleClose}
 							>
 								{status === "completed" ? "取消" : "关闭"}
@@ -401,10 +406,11 @@ export function AIClassifyModal({
 									type="button"
 									variant="primary"
 									size="sm"
-									className="rounded-full shadow-sm"
+									className="rounded-full shadow-sm flex items-center gap-1.5 cursor-pointer"
 									onPress={startClassification}
 								>
-									⚡ 启动 DeepSeek 分析 ({targetItems.length}项)
+									<Sparkles className="w-3.5 h-3.5" />
+									<span>启动 DeepSeek 分析 ({targetItems.length}项)</span>
 								</Button>
 							)}
 
@@ -413,10 +419,11 @@ export function AIClassifyModal({
 									type="button"
 									variant="primary"
 									size="sm"
-									className="rounded-full shadow-sm"
+									className="rounded-full shadow-sm flex items-center gap-1.5 cursor-pointer"
 									onPress={handleApply}
 								>
-									✨ 确认归类并生成文件夹 ({results.length}项)
+									<Check className="w-3.5 h-3.5" />
+									<span>确认归类并生成文件夹 ({results.length}项)</span>
 								</Button>
 							)}
 
@@ -425,7 +432,7 @@ export function AIClassifyModal({
 									type="button"
 									variant="primary"
 									size="sm"
-									className="rounded-full"
+									className="rounded-full cursor-pointer"
 									onPress={startClassification}
 								>
 									重新尝试
@@ -438,3 +445,4 @@ export function AIClassifyModal({
 		</Modal.Backdrop>
 	);
 }
+

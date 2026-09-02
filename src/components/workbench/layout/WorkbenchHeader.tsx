@@ -1,4 +1,12 @@
 import { Button } from "@heroui/react";
+import {
+	BotMessageSquare,
+	FolderDown,
+	FolderPlus,
+	Search,
+	Settings,
+	Sparkles,
+} from "lucide-react";
 import ThemeToggle from "../../ThemeToggle";
 import { WorkbenchLogoIcon } from "../Icons";
 import type { Category, Folder } from "../types";
@@ -66,20 +74,22 @@ export function WorkbenchHeader({
 				<Button
 					variant="secondary"
 					size="sm"
-					className="rounded-full flex items-center gap-1.5 px-3 shadow-2xs text-accent font-medium hover:bg-accent-soft"
+					className="rounded-full flex items-center gap-1.5 px-3 shadow-2xs text-accent font-medium hover:bg-accent-soft cursor-pointer"
 					onPress={onOpenChat}
 				>
-					<span>💬 知识问答</span>
+					<BotMessageSquare className="w-3.5 h-3.5 text-accent" />
+					<span>知识问答</span>
 				</Button>
 
 				{/* Global Search Button */}
 				<Button
 					variant="secondary"
 					size="sm"
-					className="rounded-full flex items-center gap-1.5 px-3 shadow-2xs"
+					className="rounded-full flex items-center gap-1.5 px-3 shadow-2xs cursor-pointer"
 					onPress={onOpenSearch}
 				>
-					<span>🔍 搜索</span>
+					<Search className="w-3.5 h-3.5" />
+					<span>搜索</span>
 					<kbd className="text-[10px] font-mono px-1.5 py-0.2 bg-background/50 border border-border/80 rounded text-muted">
 						⌘K
 					</kbd>
@@ -89,12 +99,13 @@ export function WorkbenchHeader({
 				<Button
 					variant={unclassifiedCount > 0 ? "primary" : "secondary"}
 					size="sm"
-					className="rounded-full shadow-xs"
+					className="rounded-full shadow-xs flex items-center gap-1.5 cursor-pointer"
 					onPress={onOpenAIClassify}
 				>
-					⚡ AI 智能归类
+					<Sparkles className="w-3.5 h-3.5" />
+					<span>AI 智能归类</span>
 					{unclassifiedCount > 0 && (
-						<span className="ml-1 px-1.5 py-0.2 text-[10px] bg-background/20 rounded-full font-mono">
+						<span className="ml-0.5 px-1.5 py-0.2 text-[10px] bg-background/20 rounded-full font-mono">
 							{unclassifiedCount}
 						</span>
 					)}
@@ -104,31 +115,33 @@ export function WorkbenchHeader({
 				<Button
 					variant="secondary"
 					size="sm"
-					className="rounded-full"
+					className="rounded-full flex items-center gap-1.5 cursor-pointer"
 					onPress={onOpenSync}
 				>
-					📥 导入书签
+					<FolderDown className="w-3.5 h-3.5" />
+					<span>导入书签</span>
 				</Button>
 
 				{/* New Folder Button */}
 				<Button
 					variant="ghost"
 					size="sm"
-					className="rounded-full"
+					className="rounded-full flex items-center gap-1.5 cursor-pointer text-foreground/80 hover:text-foreground"
 					onPress={onOpenCreateFolder}
 				>
-					+ 新建文件夹
+					<FolderPlus className="w-3.5 h-3.5" />
+					<span>新建文件夹</span>
 				</Button>
 
 				{/* Settings */}
 				<Button
 					variant="ghost"
 					size="sm"
-					className="rounded-full h-8 w-8 p-0"
+					className="rounded-full h-8 w-8 p-0 cursor-pointer text-muted hover:text-foreground"
 					onPress={onOpenSettings}
 					aria-label="设置"
 				>
-					⚙️
+					<Settings className="w-4 h-4" />
 				</Button>
 
 				<ThemeToggle />
@@ -136,3 +149,4 @@ export function WorkbenchHeader({
 		</header>
 	);
 }
+

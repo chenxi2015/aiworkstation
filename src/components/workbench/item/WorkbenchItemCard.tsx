@@ -185,26 +185,21 @@ export function WorkbenchItemCard({
 					{/* Move to another folder Dropdown */}
 					{showMoveDropdown && onMoveItem && otherFolders.length > 0 && (
 						<Dropdown>
-							<Tooltip>
-								<Tooltip.Trigger>
-									<Dropdown.Trigger>
-										<Button
-											variant="ghost"
-											size="sm"
-											className="h-6 px-2 text-[10px] rounded-lg text-muted hover:text-foreground hover:bg-surface"
-										>
-											<FolderInput className="w-3 h-3 mr-1" />
-											移动
-										</Button>
-									</Dropdown.Trigger>
-								</Tooltip.Trigger>
-								<Tooltip.Content className="text-xs py-1 px-2">
-									移动至其他文件夹
-								</Tooltip.Content>
-							</Tooltip>
+							<Dropdown.Trigger>
+								<Button
+									variant="ghost"
+									size="sm"
+									className="h-6 px-2 text-[10px] rounded-lg text-muted hover:text-foreground hover:bg-surface"
+									aria-label="移动至其他文件夹"
+								>
+									<FolderInput className="w-3 h-3 mr-1" />
+									移动
+								</Button>
+							</Dropdown.Trigger>
 
-							<Dropdown.Popover>
+							<Dropdown.Popover aria-label="移动至其他文件夹">
 								<Dropdown.Menu
+									aria-label="选择目标文件夹"
 									onAction={(key) => {
 										const targetId = Number(key);
 										if (targetId) {

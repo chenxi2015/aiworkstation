@@ -1,4 +1,17 @@
 import { Button, Modal, toast } from "@heroui/react";
+import {
+	BookOpen,
+	BotMessageSquare,
+	Clock,
+	CornerDownLeft,
+	ExternalLink,
+	Folder,
+	FolderSearch,
+	Loader2,
+	Sparkles,
+	Trash2,
+	X,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
 import { ItemFavicon } from "./ItemFavicon";
@@ -22,8 +35,8 @@ interface ChatWithBookmarksModalProps {
 }
 
 const DEFAULT_PROMPTS = [
-	"📅 我本周收藏了哪些网站与工具？",
-	"⚡ 盘点最近 7 天加入收藏的资源与文档",
+	"我本周收藏了哪些网站与工具？",
+	"盘点最近 7 天加入收藏的资源与文档",
 	"盘点我收藏的所有 AI 音视频处理与剪辑工具",
 	"根据我的书签，推荐一套高效率的自媒体创作工具链",
 ];
@@ -106,7 +119,7 @@ export function ChatWithBookmarksModal({
 				...prev,
 				{
 					role: "assistant",
-					content: `⚠️ 请求失败: ${error.message || "未知错误，请检查设置中的 DeepSeek API Key"}`,
+					content: `请求失败: ${error.message || "未知错误，请检查设置中的 DeepSeek API Key"}`,
 					timestamp: new Date().toLocaleTimeString(),
 				},
 			]);
@@ -127,20 +140,24 @@ export function ChatWithBookmarksModal({
 			variant="blur"
 		>
 			<Modal.Container size="lg" className="max-w-4xl w-full mx-auto p-4">
-				<Modal.Dialog className="p-0 overflow-hidden flex flex-col h-[85vh] max-h-[85vh] w-full max-w-4xl bg-surface border border-border shadow-2xl rounded-2xl">
+				<Modal.Dialog
+					className="p-0 overflow-hidden flex flex-col h-[85vh] max-h-[85vh] w-full max-w-4xl bg-surface border border-border shadow-2xl rounded-2xl"
+					aria-label="Chat with Bookmarks · 知识库智能问答"
+				>
 					{/* Modal Header */}
 					<div className="p-4 px-6 border-b border-border bg-surface-secondary/40 flex items-center justify-between gap-4 shrink-0">
 						<div className="flex items-center gap-3 min-w-0 flex-1">
-							<div className="w-9 h-9 rounded-xl bg-accent/15 text-accent border border-accent/20 flex items-center justify-center text-lg shrink-0 shadow-xs font-bold">
-								💬
+							<div className="w-9 h-9 rounded-xl bg-accent/15 text-accent border border-accent/20 flex items-center justify-center shrink-0 shadow-xs">
+								<BotMessageSquare className="w-5 h-5" />
 							</div>
 							<div className="min-w-0 flex-1">
 								<div className="flex items-center gap-2 flex-wrap min-w-0">
-									<h2 className="font-bold text-sm sm:text-base text-foreground truncate">
+									<Modal.Heading className="font-bold text-sm sm:text-base text-foreground truncate">
 										Chat with Bookmarks · 知识库智能问答
-									</h2>
+									</Modal.Heading>
 									<span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-accent/15 text-accent border border-accent/25 shrink-0 whitespace-nowrap">
-										✨ RAG 增强
+										<Sparkles className="w-3 h-3" />
+										<span>RAG 增强</span>
 									</span>
 								</div>
 								<p className="text-[11px] text-muted leading-relaxed truncate mt-0.5">
@@ -154,10 +171,11 @@ export function ChatWithBookmarksModal({
 								<Button
 									variant="ghost"
 									size="sm"
-									className="h-7 text-xs rounded-full text-muted hover:text-foreground border border-border/60 hover:bg-surface-secondary cursor-pointer"
+									className="h-7 text-xs rounded-full text-muted hover:text-foreground border border-border/60 hover:bg-surface-secondary cursor-pointer flex items-center gap-1"
 									onPress={handleClearHistory}
 								>
-									🧹 清空
+									<Trash2 className="w-3 h-3" />
+									<span>清空</span>
 								</Button>
 							)}
 							<button
@@ -166,7 +184,7 @@ export function ChatWithBookmarksModal({
 								className="w-7 h-7 rounded-full flex items-center justify-center text-muted hover:text-foreground hover:bg-surface-secondary cursor-pointer text-xs transition-colors"
 								title="关闭"
 							>
-								✕
+								<X className="w-4 h-4" />
 							</button>
 						</div>
 					</div>
@@ -175,8 +193,8 @@ export function ChatWithBookmarksModal({
 					<div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5 text-xs">
 						{messages.length === 0 ? (
 							<div className="flex flex-col items-center justify-center text-center py-12 px-4 gap-4 my-auto">
-								<div className="w-14 h-14 rounded-2xl bg-accent-soft flex items-center justify-center text-accent text-3xl shadow-xs">
-									💡
+								<div className="w-14 h-14 rounded-2xl bg-accent-soft flex items-center justify-center text-accent shadow-xs">
+									<Sparkles className="w-7 h-7" />
 								</div>
 								<div>
 									<h3 className="font-semibold text-sm text-foreground">
@@ -195,9 +213,7 @@ export function ChatWithBookmarksModal({
 											onClick={() => handleSend(prompt)}
 											className="p-3 text-left rounded-xl bg-surface-secondary/60 hover:bg-accent-soft/40 hover:border-accent/40 border border-border text-foreground transition-all cursor-pointer text-[11px] leading-relaxed shadow-2xs group flex items-start gap-2"
 										>
-											<span className="text-accent opacity-70 group-hover:opacity-100">
-												✦
-											</span>
+											<Sparkles className="w-3.5 h-3.5 text-accent opacity-70 group-hover:opacity-100 shrink-0 mt-0.5" />
 											<span className="flex-1">{prompt}</span>
 										</button>
 									))}
@@ -244,8 +260,9 @@ export function ChatWithBookmarksModal({
 									{msg.references && msg.references.length > 0 && (
 										<div className="mt-2 w-full max-w-2xl flex flex-col gap-1.5 p-3 rounded-xl bg-surface border border-border/80">
 											<div className="text-[11px] font-medium text-muted flex items-center justify-between">
-												<span>
-													📚 本地参考来源 ({msg.references.length} 个书签)
+												<span className="inline-flex items-center gap-1">
+													<BookOpen className="w-3.5 h-3.5 text-accent" />
+													<span>本地参考来源 ({msg.references.length} 个书签)</span>
 												</span>
 												<span className="text-[10px] opacity-70">
 													来自 SQLite 向量检索
@@ -277,13 +294,15 @@ export function ChatWithBookmarksModal({
 															</a>
 															<div className="flex items-center gap-1.5 mt-0.5 text-[9px] text-muted flex-wrap">
 																{ref.folderName && (
-																	<span className="truncate max-w-[80px]">
-																		📁 {ref.folderName}
+																	<span className="truncate max-w-[80px] inline-flex items-center gap-0.5">
+																		<Folder className="w-2.5 h-2.5 opacity-70" />
+																		<span>{ref.folderName}</span>
 																	</span>
 																)}
 																{ref.dateAdded && (
-																	<span className="text-muted/80">
-																		🕒 {new Date(ref.dateAdded).toLocaleDateString()}
+																	<span className="text-muted/80 inline-flex items-center gap-0.5">
+																		<Clock className="w-2.5 h-2.5 opacity-70" />
+																		<span>{new Date(ref.dateAdded).toLocaleDateString()}</span>
 																	</span>
 																)}
 																{ref.similarityPercent ? (
@@ -291,8 +310,9 @@ export function ChatWithBookmarksModal({
 																		{ref.similarityPercent}% 匹配
 																	</span>
 																) : ref.matchReason ? (
-																	<span className="text-accent/90 font-medium">
-																		✨ 精准命中
+																	<span className="text-accent/90 font-medium inline-flex items-center gap-0.5">
+																		<Sparkles className="w-2.5 h-2.5" />
+																		<span>精准命中</span>
 																	</span>
 																) : null}
 															</div>
@@ -312,7 +332,7 @@ export function ChatWithBookmarksModal({
 																		className="p-1 text-[10px] text-muted hover:text-foreground cursor-pointer rounded hover:bg-surface"
 																		title="在工作台中定位"
 																	>
-																		📂
+																		<FolderSearch className="w-3 h-3" />
 																	</button>
 																)}
 															{ref.url && (
@@ -323,7 +343,7 @@ export function ChatWithBookmarksModal({
 																	className="p-1 text-[10px] text-muted hover:text-accent shrink-0 rounded hover:bg-surface"
 																	title="打开链接"
 																>
-																	↗
+																	<ExternalLink className="w-3 h-3" />
 																</a>
 															)}
 														</div>
@@ -344,7 +364,7 @@ export function ChatWithBookmarksModal({
 									<span>· 思考中</span>
 								</div>
 								<div className="p-4 rounded-2xl bg-surface-secondary/70 border border-border text-foreground rounded-tl-xs shadow-2xs flex items-center gap-3">
-									<div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+									<Loader2 className="w-4 h-4 text-accent animate-spin" />
 									<span className="text-xs text-muted">
 										正在检索书签并组织回答...
 									</span>
@@ -374,11 +394,21 @@ export function ChatWithBookmarksModal({
 							<Button
 								variant="primary"
 								size="sm"
-								className="rounded-lg h-8 px-3.5 text-xs font-medium shrink-0"
+								className="rounded-lg h-8 px-3.5 text-xs font-medium shrink-0 flex items-center gap-1 cursor-pointer"
 								onPress={() => handleSend()}
 								isDisabled={!input.trim() || isLoading}
 							>
-								{isLoading ? "发送中..." : "发送 ↵"}
+								{isLoading ? (
+									<>
+										<Loader2 className="w-3.5 h-3.5 animate-spin" />
+										<span>发送中...</span>
+									</>
+								) : (
+									<>
+										<span>发送</span>
+										<CornerDownLeft className="w-3.5 h-3.5" />
+									</>
+								)}
 							</Button>
 						</div>
 
@@ -392,3 +422,4 @@ export function ChatWithBookmarksModal({
 		</Modal.Backdrop>
 	);
 }
+
