@@ -5,7 +5,7 @@ import { Card } from "@heroui/react";
  */
 export function FolderDetailSkeleton() {
 	return (
-		<aside className="w-[280px] xl:w-[310px] 2xl:w-[330px] shrink-0 bg-surface/95 backdrop-blur-md border-r border-border flex flex-col h-[calc(100vh-60px)] sticky top-[60px] p-3.5 space-y-4 animate-pulse">
+		<aside className="w-[280px] xl:w-[310px] 2xl:w-[330px] shrink-0 bg-surface/95 backdrop-blur-md border-r border-border flex flex-col h-full p-3.5 space-y-4 animate-pulse">
 			{/* Category switcher strip skeleton */}
 			<div className="flex items-center gap-1 pb-2 border-b border-border/60 overflow-hidden">
 				<div className="w-16 h-6 rounded-lg bg-surface-secondary/70 shrink-0" />

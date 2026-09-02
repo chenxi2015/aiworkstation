@@ -1,6 +1,6 @@
 import { Button, EmptyState, ScrollShadow, Separator } from "@heroui/react";
 import { Folder as FolderIconLucide, FolderPlus } from "lucide-react";
-import { useState } from "react";
+import { memo, useState } from "react";
 import { FolderGridPreview } from "./folder/FolderGridPreview";
 import { FolderHeader } from "./folder/FolderHeader";
 import { FolderItemList } from "./folder/FolderItemList";
@@ -25,7 +25,7 @@ export interface FolderDetailPanelProps {
 /**
  * Compact Left sidebar detail panel presenting selected folder's navigation, contents, and actions
  */
-export function FolderDetailPanel({
+export const FolderDetailPanel = memo(function FolderDetailPanel({
 	folder,
 	categoryFolders = [],
 	allFolders = [],
@@ -41,7 +41,7 @@ export function FolderDetailPanel({
 	// 1. Empty State when no folder is selected or no folders in category
 	if (!folder) {
 		return (
-			<aside className="w-[280px] xl:w-[310px] 2xl:w-[330px] shrink-0 bg-surface/90 backdrop-blur-md border-r border-border p-5 flex flex-col items-center justify-center text-center h-[calc(100vh-60px)] sticky top-[60px]">
+			<aside className="w-[280px] xl:w-[310px] 2xl:w-[330px] shrink-0 bg-surface/90 backdrop-blur-md border-r border-border p-5 flex flex-col items-center justify-center text-center h-full">
 				<EmptyState className="p-0 flex flex-col items-center justify-center text-center max-w-[240px]">
 					<div className="w-12 h-12 rounded-2xl bg-gradient-to-b from-accent/15 to-accent/5 border border-accent/20 flex items-center justify-center text-accent mb-3 shadow-xs">
 						<FolderIconLucide className="w-6 h-6 opacity-80" />
@@ -73,7 +73,7 @@ export function FolderDetailPanel({
 	}
 
 	return (
-		<aside className="w-[280px] xl:w-[310px] 2xl:w-[330px] shrink-0 bg-surface/95 backdrop-blur-md border-r border-border flex flex-col h-[calc(100vh-60px)] sticky top-[60px] shadow-xs">
+		<aside className="w-[280px] xl:w-[310px] 2xl:w-[330px] shrink-0 bg-surface/95 backdrop-blur-md border-r border-border flex flex-col h-full shadow-xs">
 			<ScrollShadow className="flex-1 px-3.5 py-3.5 overflow-y-auto">
 				{/* Category Folders Switcher Strip */}
 				{categoryFolders.length > 1 && onSelectFolder && (
@@ -147,4 +147,4 @@ export function FolderDetailPanel({
 			</ScrollShadow>
 		</aside>
 	);
-}
+});

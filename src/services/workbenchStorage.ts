@@ -44,7 +44,16 @@ import {
 const STORAGE_KEYS = {
 	SETTINGS: "aiworkstation_settings_v3",
 	CHAT_HISTORY: "aiworkstation_chat_history_v1",
+	CHAT_SESSIONS: "aiworkstation_chat_sessions_v1",
 } as const;
+
+export interface ChatSession {
+	id: string;
+	title: string;
+	createdAt: string;
+	updatedAt: string;
+	messages: any[];
+}
 
 export const DEFAULT_SETTINGS: WorkbenchSettings = {
 	deepseekApiKey: DEFAULT_DEEPSEEK_KEY,
@@ -183,7 +192,12 @@ export class WorkbenchStorageService {
 		config: EmbeddingConfig;
 		batchSize?: number;
 		forceAll?: boolean;
-	}): Promise<{ processed: number; remaining: number; stats: EmbeddingStats }> {
+	}): Promise<{
+		processed: number;
+		remaining: number;
+		stats: EmbeddingStats;
+		error?: string;
+	}> {
 		return await batchGenerateEmbeddings({ data: params });
 	}
 
@@ -303,6 +317,62 @@ export class WorkbenchStorageService {
 			window.localStorage.removeItem(STORAGE_KEYS.CHAT_HISTORY);
 		} catch (err) {
 			console.error("Failed to clear chat history from localStorage:", err);
+		}
+	}
+
+	/**
+	 * Load all chat sessions
+	 */
+	static getChatSessions(): ChatSession[] {
+		if (typeof window === "undefined") return [];
+		try {
+			const raw = window.localStorage.getItem(STORAGE_KEYS.CHAT_SESSIONS);
+			if (raw) {
+				return JSON.parse(raw);
+			}
+		} catch (err) {
+			console.error("Failed to load chat sessions from localStorage:", err);
+		}
+		return [];
+	}
+
+	/**
+	 * Persist all chat sessions
+	 */
+	static saveChatSessions(sessions: ChatSession[]): void {
+		if (typeof window === "undefined") return;
+		try {
+			window.localStorage.setItem(
+				STORAGE_KEYS.CHAT_SESSIONS,
+				JSON.stringify(sessions),
+			);
+		} catch (err) {
+			console.error("Failed to save chat sessions to localStorage:", err);
+		}
+	}
+
+	/**
+	 * Delete a single chat session by ID
+	 */
+	static deleteChatSession(sessionId: string): void {
+		if (typeof window === "undefined") return;
+		try {
+			const sessions = this.getChatSessions().filter((s) => s.id !== sessionId);
+			this.saveChatSessions(sessions);
+		} catch (err) {
+			console.error("Failed to delete chat session:", err);
+		}
+	}
+
+	/**
+	 * Clear all saved chat sessions
+	 */
+	static clearChatSessions(): void {
+		if (typeof window === "undefined") return;
+		try {
+			window.localStorage.removeItem(STORAGE_KEYS.CHAT_SESSIONS);
+		} catch (err) {
+			console.error("Failed to clear chat sessions from localStorage:", err);
 		}
 	}
 }

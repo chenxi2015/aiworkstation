@@ -57,7 +57,7 @@ export const EmbeddingStatusWidget = memo(function EmbeddingStatusWidget({
 						variant="ghost"
 						size="sm"
 						className="h-6 px-2 text-[10px] font-medium text-accent hover:bg-accent-soft rounded-lg cursor-pointer flex items-center gap-1 shrink-0"
-						onPress={onBuildIndex}
+						onPress={() => onBuildIndex()}
 						isDisabled={isIndexing}
 					>
 						{isIndexing ? (

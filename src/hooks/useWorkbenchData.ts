@@ -115,13 +115,13 @@ export function useWorkbenchData(
 			// If no folders exist but there are unclassified items, switch to unclassified view
 			if (loadedFolders.length === 0 && loadedUnclassified.length > 0) {
 				setActiveCategory("未分类");
-			} else if (loadedFolders.length > 0 && selectedFolderId === null) {
-				setSelectedFolderId(loadedFolders[0].id);
+			} else if (loadedFolders.length > 0) {
+				setSelectedFolderId((prev) => (prev === null ? loadedFolders[0].id : prev));
 			}
 		} finally {
 			setIsInitialLoading(false);
 		}
-	}, [selectedFolderId]);
+	}, []);
 
 	useEffect(() => {
 		if (!initialData) {

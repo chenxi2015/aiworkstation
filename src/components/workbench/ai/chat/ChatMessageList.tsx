@@ -2,9 +2,11 @@ import { Button } from "@heroui/react";
 import {
 	BookOpen,
 	Brain,
+	CheckSquare,
 	FolderInput,
 	FolderPlus,
 	Loader2,
+	Square,
 } from "lucide-react";
 import type { RefObject } from "react";
 import type { ChatItem } from "../../../../hooks/ai/useAiChat";
@@ -20,6 +22,7 @@ export interface ChatMessageListProps {
 	selectedRefKeys: Set<string | number>;
 	messagesEndRef: RefObject<HTMLDivElement | null>;
 	onToggleRefCheck: (refKey: string | number) => void;
+	onToggleSelectGroup?: (items: SearchResultItem[]) => void;
 	onOpenAssignSingle: (item: SearchResultItem, e: React.MouseEvent) => void;
 	onOpenAssignMultiple: (items: SearchResultItem[], createMode?: boolean) => void;
 	onSelectPrompt: (prompt: string) => void;
@@ -36,6 +39,7 @@ export function ChatMessageList({
 	selectedRefKeys,
 	messagesEndRef,
 	onToggleRefCheck,
+	onToggleSelectGroup,
 	onOpenAssignSingle,
 	onOpenAssignMultiple,
 	onSelectPrompt,
@@ -70,6 +74,11 @@ export function ChatMessageList({
 				const selectedRefsInThisMsg = currentReferences.filter((r: SearchResultItem) =>
 					selectedRefKeys.has(r.id || r.url || ""),
 				);
+				const isAllInMsgChecked =
+					currentReferences.length > 0 &&
+					currentReferences.every((r: SearchResultItem) =>
+						selectedRefKeys.has(r.id || r.url || ""),
+					);
 
 				return (
 					<div
@@ -109,11 +118,32 @@ export function ChatMessageList({
 										<BookOpen className="w-3.5 h-3.5 text-accent" />
 										<span>命中的网址列表 ({currentReferences.length})</span>
 									</span>
-									{selectedRefsInThisMsg.length > 0 && (
-										<span className="text-[10px] text-accent font-medium">
-											已选 {selectedRefsInThisMsg.length} 项
-										</span>
-									)}
+									<div className="flex items-center gap-2">
+										{selectedRefsInThisMsg.length > 0 && (
+											<span className="text-[10px] text-accent font-medium">
+												已选 {selectedRefsInThisMsg.length} 项
+											</span>
+										)}
+										{onToggleSelectGroup && (
+											<button
+												type="button"
+												onClick={() => onToggleSelectGroup(currentReferences)}
+												className={`text-[10px] font-medium inline-flex items-center gap-1 cursor-pointer transition-colors px-1.5 py-0.5 rounded-md ${
+													isAllInMsgChecked
+														? "text-accent bg-accent-soft/50 hover:bg-accent-soft/80"
+														: "text-muted hover:text-foreground hover:bg-surface-secondary"
+												}`}
+												aria-label={isAllInMsgChecked ? "取消全选" : "全选全部网址"}
+											>
+												{isAllInMsgChecked ? (
+													<CheckSquare className="w-3 h-3 text-accent" />
+												) : (
+													<Square className="w-3 h-3 opacity-50 hover:opacity-80" />
+												)}
+												<span>{isAllInMsgChecked ? "取消全选" : "全选"}</span>
+											</button>
+										)}
+									</div>
 								</div>
 
 								{/* Reference items list */}

@@ -78,55 +78,71 @@ export const batchGenerateEmbeddings = createServerFn({ method: "POST" })
 			processed: number;
 			remaining: number;
 			stats: EmbeddingStats;
+			error?: string;
 		}> => {
 			const { config, batchSize = 20, forceAll = false } = data;
 
-			if (!config.apiKey) {
-				throw new Error(
-					"Embedding API Key is required to generate vector embeddings",
-				);
-			}
-
-			const bookmarks = workbenchDb.getBookmarksNeedingEmbedding(
-				batchSize,
-				forceAll,
-			);
-
-			if (bookmarks.length === 0) {
-				const stats = workbenchDb.getEmbeddingStats();
-				return { processed: 0, remaining: 0, stats };
-			}
-
-			// Prepare texts for embedding
-			const itemsWithText = bookmarks.map((b) => ({
-				id: b.id,
-				text: EmbeddingService.createIndexingText(b),
-			}));
-
-			const texts = itemsWithText.map((i) => i.text);
-
-			// Call embedding API
-			const vectors = await EmbeddingService.generateBatchEmbeddings(
-				texts,
-				config,
-			);
-
-			// Save to SQLite
-			for (let i = 0; i < itemsWithText.length; i++) {
-				const item = itemsWithText[i];
-				const vec = vectors[i];
-				if (item && vec) {
-					workbenchDb.updateBookmarkEmbedding(item.id, vec, item.text);
+			try {
+				if (!config?.apiKey?.trim()) {
+					const stats = workbenchDb.getEmbeddingStats();
+					return {
+						processed: 0,
+						remaining: Math.max(0, stats.total - stats.embedded),
+						stats,
+						error: "缺少 Embedding API Key，请在设置中填入有效 API Key",
+					};
 				}
+
+				const bookmarks = workbenchDb.getBookmarksNeedingEmbedding(
+					batchSize,
+					forceAll,
+				);
+
+				if (bookmarks.length === 0) {
+					const stats = workbenchDb.getEmbeddingStats();
+					return { processed: 0, remaining: 0, stats };
+				}
+
+				// Prepare texts for embedding
+				const itemsWithText = bookmarks.map((b) => ({
+					id: b.id,
+					text: EmbeddingService.createIndexingText(b),
+				}));
+
+				const texts = itemsWithText.map((i) => i.text);
+
+				// Call embedding API
+				const vectors = await EmbeddingService.generateBatchEmbeddings(
+					texts,
+					config,
+				);
+
+				// Save to SQLite
+				for (let i = 0; i < itemsWithText.length; i++) {
+					const item = itemsWithText[i];
+					const vec = vectors[i];
+					if (item && vec) {
+						workbenchDb.updateBookmarkEmbedding(item.id, vec, item.text);
+					}
+				}
+
+				const stats = workbenchDb.getEmbeddingStats();
+				const remaining = stats.total - stats.embedded;
+
+				return {
+					processed: itemsWithText.length,
+					remaining: Math.max(0, remaining),
+					stats,
+				};
+			} catch (err: any) {
+				console.error("[batchGenerateEmbeddings] Error:", err);
+				const stats = workbenchDb.getEmbeddingStats();
+				return {
+					processed: 0,
+					remaining: Math.max(0, stats.total - stats.embedded),
+					stats,
+					error: err?.message || "向量索引构建失败，请检查网络或 API 配置",
+				};
 			}
-
-			const stats = workbenchDb.getEmbeddingStats();
-			const remaining = stats.total - stats.embedded;
-
-			return {
-				processed: itemsWithText.length,
-				remaining: Math.max(0, remaining),
-				stats,
-			};
 		},
 	);

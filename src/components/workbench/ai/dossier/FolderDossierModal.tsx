@@ -125,7 +125,8 @@ export function FolderDossierModal({
 									</span>
 								</div>
 								<p className="text-[11px] text-muted leading-relaxed truncate mt-0.5">
-									由 AI 深度解析提炼的结构化生态全景、工具链对比与实战 Cheatsheet
+									由 AI 深度解析提炼的结构化生态全景、工具链对比与实战
+									Cheatsheet
 								</p>
 							</div>
 						</div>
@@ -167,7 +168,7 @@ export function FolderDossierModal({
 								variant="ghost"
 								size="sm"
 								className="h-7 text-xs rounded-full border border-border/60 hover:bg-surface-secondary cursor-pointer flex items-center gap-1"
-								onPress={handleGenerate}
+								onPress={() => handleGenerate()}
 								isDisabled={isLoading}
 							>
 								{isLoading ? (
@@ -201,7 +202,8 @@ export function FolderDossierModal({
 									<div className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin shrink-0" />
 									<div className="flex flex-col gap-0.5">
 										<span className="text-xs font-semibold text-foreground">
-											DeepSeek 正在全面解析「{folder.name}」中的 {folder.items.length} 个书签素材...
+											DeepSeek 正在全面解析「{folder.name}」中的{" "}
+											{folder.items.length} 个书签素材...
 										</span>
 										<span className="text-[11px] text-muted">
 											正在提炼多维对比矩阵、选型决策指南与核心 Cheatsheet
@@ -232,7 +234,7 @@ export function FolderDossierModal({
 									variant="primary"
 									size="sm"
 									className="rounded-full mt-2"
-									onPress={handleGenerate}
+									onPress={() => handleGenerate()}
 								>
 									重试生成
 								</Button>
@@ -246,7 +248,10 @@ export function FolderDossierModal({
 					<div className="p-3.5 px-6 border-t border-border bg-surface-secondary/40 flex items-center justify-between text-[11px] text-muted shrink-0">
 						<span>
 							分类归属:{" "}
-							<strong className="text-foreground font-medium">{folder.category}</strong> · 共 {folder.items.length} 条已整理素材
+							<strong className="text-foreground font-medium">
+								{folder.category}
+							</strong>{" "}
+							· 共 {folder.items.length} 条已整理素材
 						</span>
 						<span className="flex items-center gap-1.5 text-accent font-medium">
 							<Sparkles className="w-3.5 h-3.5" />

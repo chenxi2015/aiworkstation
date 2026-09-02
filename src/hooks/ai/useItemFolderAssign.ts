@@ -49,6 +49,29 @@ export function useItemFolderAssign(options?: UseItemFolderAssignOptions) {
 		setSelectedItemKeys(new Set());
 	}, []);
 
+	// Toggle select all or clear all for a specific list/group of items
+	const toggleSelectGroup = useCallback((items: SearchResultItem[]) => {
+		setSelectedItemKeys((prev) => {
+			const next = new Set(prev);
+			const validKeys = items
+				.map((it) => it.id || it.url)
+				.filter((k): k is string | number => k !== undefined && k !== "");
+			if (validKeys.length === 0) return prev;
+
+			const isAllSelected = validKeys.every((k) => next.has(k));
+			if (isAllSelected) {
+				for (const k of validKeys) {
+					next.delete(k);
+				}
+			} else {
+				for (const k of validKeys) {
+					next.add(k);
+				}
+			}
+			return next;
+		});
+	}, []);
+
 	// Open assignment popover for a single item
 	const openAssignSingle = useCallback((item: SearchResultItem, e?: React.MouseEvent) => {
 		if (e) {
@@ -181,6 +204,7 @@ export function useItemFolderAssign(options?: UseItemFolderAssignOptions) {
 		setNewFolderCategory,
 		setFolderFilterQuery,
 		toggleSelectItem,
+		toggleSelectGroup,
 		selectAll,
 		clearSelection,
 		openAssignSingle,

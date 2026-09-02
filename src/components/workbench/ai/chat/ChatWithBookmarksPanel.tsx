@@ -3,6 +3,7 @@ import {
 	useEffect,
 	useImperativeHandle,
 	useRef,
+	useState,
 } from "react";
 import { Sparkles } from "lucide-react";
 import { useAiChat } from "../../../../hooks/ai/useAiChat";
@@ -12,6 +13,7 @@ import type { Category, Folder, SearchResultItem } from "../../types";
 import { CATEGORIES } from "../../types";
 import { EmbeddingStatusWidget } from "../shared/EmbeddingStatusWidget";
 import { ItemFolderAssignPopover } from "../shared/ItemFolderAssignPopover";
+import { ChatHistoryDrawer } from "./ChatHistoryDrawer";
 import { ChatInputArea } from "./ChatInputArea";
 import { ChatMessageList } from "./ChatMessageList";
 
@@ -48,6 +50,7 @@ export const ChatWithBookmarksPanel = forwardRef<
 ) {
 	const messagesEndRef = useRef<HTMLDivElement | null>(null);
 	const inputRef = useRef<HTMLTextAreaElement | null>(null);
+	const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
 
 	// 1. Vector Index Embedding Stats Hook
 	const { stats, isIndexing, buildIndex, fetchStats } = useEmbeddingStats();
@@ -57,13 +60,19 @@ export const ChatWithBookmarksPanel = forwardRef<
 		onDataChanged,
 	});
 
-	// 3. Conversational RAG Chat Hook
+	// 3. Conversational RAG Chat Hook with Session Management
 	const {
 		messages,
+		sessions,
+		currentSessionId,
 		input,
 		isLoading,
 		setInput,
 		sendPrompt,
+		createNewChat,
+		loadSession,
+		deleteSession,
+		clearAllSessions,
 		clearHistory,
 		updateMessageReferences,
 	} = useAiChat({
@@ -92,7 +101,7 @@ export const ChatWithBookmarksPanel = forwardRef<
 
 	return (
 		<aside
-			className={`w-[320px] xl:w-[360px] 2xl:w-[400px] shrink-0 bg-surface/95 backdrop-blur-md border-l border-border flex flex-col h-[calc(100vh-60px)] sticky top-[60px] shadow-xs relative ${className}`}
+			className={`w-[320px] xl:w-[360px] 2xl:w-[400px] shrink-0 bg-surface/95 backdrop-blur-md border-l border-border flex flex-col h-full shadow-xs relative ${className}`}
 		>
 			{/* Top Header: Title & Embedding Status Widget */}
 			<div className="p-3.5 border-b border-border/80 bg-surface-secondary/30 shrink-0 flex flex-col gap-2">
@@ -127,6 +136,7 @@ export const ChatWithBookmarksPanel = forwardRef<
 				selectedRefKeys={folderAssign.selectedItemKeys}
 				messagesEndRef={messagesEndRef}
 				onToggleRefCheck={folderAssign.toggleSelectItem}
+				onToggleSelectGroup={folderAssign.toggleSelectGroup}
 				onOpenAssignSingle={folderAssign.openAssignSingle}
 				onOpenAssignMultiple={folderAssign.openAssignMultiple}
 				onSelectPrompt={(p) => sendPrompt(p)}
@@ -168,7 +178,19 @@ export const ChatWithBookmarksPanel = forwardRef<
 				variant="drawer"
 			/>
 
-			{/* Bottom Input Area */}
+			{/* History Sessions Slide-over Drawer */}
+			<ChatHistoryDrawer
+				isOpen={isHistoryOpen}
+				sessions={sessions}
+				currentSessionId={currentSessionId}
+				onClose={() => setIsHistoryOpen(false)}
+				onSelectSession={loadSession}
+				onNewChat={createNewChat}
+				onDeleteSession={deleteSession}
+				onClearAllSessions={clearAllSessions}
+			/>
+
+			{/* Bottom Input Area with Top Action Bar */}
 			<ChatInputArea
 				input={input}
 				isLoading={isLoading}
@@ -176,6 +198,8 @@ export const ChatWithBookmarksPanel = forwardRef<
 				inputRef={inputRef}
 				onChangeInput={setInput}
 				onSend={() => sendPrompt()}
+				onOpenHistory={() => setIsHistoryOpen(true)}
+				onNewChat={createNewChat}
 				onClearHistory={clearHistory}
 			/>
 		</aside>

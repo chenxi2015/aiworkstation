@@ -8,7 +8,7 @@ export function ChatWithBookmarksSkeleton({
 }) {
 	return (
 		<aside
-			className={`w-[320px] xl:w-[360px] 2xl:w-[400px] shrink-0 bg-surface/95 backdrop-blur-md border-l border-border flex flex-col h-[calc(100vh-60px)] sticky top-[60px] animate-pulse ${className}`}
+			className={`w-[320px] xl:w-[360px] 2xl:w-[400px] shrink-0 bg-surface/95 backdrop-blur-md border-l border-border flex flex-col h-full animate-pulse ${className}`}
 		>
 			{/* Top Header skeleton */}
 			<div className="p-3.5 border-b border-border/80 bg-surface-secondary/30 shrink-0 flex flex-col gap-2.5">

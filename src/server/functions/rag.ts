@@ -222,7 +222,12 @@ ${contextSnippets}`;
 				error instanceof Error
 					? error.message
 					: "未知错误，请检查 API Key 或网络";
-			throw new Error(`AI 问答服务异常: ${errMsg}`);
+			return {
+				answer: `⚠️ **AI 问答服务异常**: ${errMsg}\n\n请检查「设置」中的 API Key、Base URL 或网络连接。`,
+				references,
+				timestamp: new Date().toLocaleTimeString(),
+				dbMutated: false,
+			};
 		}
 
 		return {
@@ -334,7 +339,13 @@ export const generateFolderDossier = createServerFn({ method: "POST" })
 				error instanceof Error
 					? error.message
 					: "未知错误，请检查 API Key 或网络";
-			throw new Error(`专题综述生成失败: ${errMsg}`);
+			return {
+				folderId: targetFolder.id,
+				folderName: targetFolder.name,
+				itemCount: targetFolder.items.length,
+				dossierMarkdown: `⚠️ **专题综述生成失败**: ${errMsg}\n\n请检查「设置」中的 LLM API Key 与网络连接。`,
+				generatedAt: new Date().toLocaleDateString(),
+			};
 		}
 
 		return {

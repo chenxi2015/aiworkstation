@@ -38,49 +38,75 @@ export function useEmbeddingStats(autoFetch = true): UseEmbeddingStatsReturn {
 		}
 	}, [autoFetch, fetchStats]);
 
-	const buildIndex = useCallback(
-		async (batchSize = 20) => {
-			const settings = WorkbenchStorageService.getSettings();
-			const apiKey = settings.embeddingApiKey || settings.deepseekApiKey;
+	const buildIndex = useCallback(async (customBatchSize?: number | unknown) => {
+		// Ensure batchSize is strictly a number and not an event object (e.g. PressEvent from HeroUI Button onPress)
+		const batchSize =
+			typeof customBatchSize === "number" && customBatchSize > 0
+				? Math.min(customBatchSize, 100)
+				: 20;
 
-			if (!apiKey) {
-				toast.warning("请先在「设置」中配置 Embedding API Key 或 DeepSeek API Key");
-				return;
-			}
+		const settings = WorkbenchStorageService.getSettings();
+		const embeddingKey = settings.embeddingApiKey?.trim();
+		const deepseekKey = settings.deepseekApiKey?.trim();
+		const apiKey = embeddingKey || deepseekKey;
 
-			setIsIndexing(true);
-			const config = {
-				apiKey: apiKey.trim(),
-				baseUrl: settings.embeddingBaseUrl?.trim() || undefined,
-				model: settings.embeddingModel?.trim() || undefined,
-			};
+		if (!apiKey) {
+			toast.warning("请先在「设置」中配置 Embedding API Key 或 LLM API Key");
+			return;
+		}
 
-			try {
-				let remaining = 1;
-				let totalProcessed = 0;
+		setIsIndexing(true);
+		const config: { apiKey: string; baseUrl?: string; model?: string } = {
+			apiKey,
+		};
+		if (settings.embeddingBaseUrl?.trim()) {
+			config.baseUrl = settings.embeddingBaseUrl.trim();
+		}
+		if (settings.embeddingModel?.trim()) {
+			config.model = settings.embeddingModel.trim();
+		}
 
-				while (remaining > 0) {
-					const res = await WorkbenchStorageService.batchProcessEmbeddings({
-						config,
-						batchSize,
-					});
-					totalProcessed += res.processed;
-					remaining = res.remaining;
-					setStats(res.stats);
+		try {
+			let remaining = 1;
+			let totalProcessed = 0;
 
-					if (res.processed === 0) break;
+			while (remaining > 0) {
+				const res = await WorkbenchStorageService.batchProcessEmbeddings({
+					config,
+					batchSize,
+				});
+
+				if (res.error) {
+					toast.danger(`构建向量索引失败: ${res.error}`);
+					if (res.stats) {
+						setStats(res.stats);
+					}
+					return;
 				}
 
-				toast.success(`向量索引构建完成！已向量化 ${totalProcessed} 条书签`);
-			} catch (err: any) {
-				console.error("[useEmbeddingStats] Build index error:", err);
-				toast.danger(`构建向量索引失败: ${err.message || err}`);
-			} finally {
-				setIsIndexing(false);
+				totalProcessed += res.processed;
+				remaining = res.remaining;
+				if (res.stats) {
+					setStats(res.stats);
+				}
+
+				if (res.processed === 0) break;
 			}
-		},
-		[],
-	);
+
+			if (totalProcessed > 0) {
+				toast.success(
+					`向量索引构建完成！已新增向量化 ${totalProcessed} 条书签`,
+				);
+			} else {
+				toast.success("所有书签向量索引均已是最新状态");
+			}
+		} catch (err: any) {
+			console.error("[useEmbeddingStats] Build index error:", err);
+			toast.danger(`构建向量索引失败: ${err?.message || err}`);
+		} finally {
+			setIsIndexing(false);
+		}
+	}, []);
 
 	return {
 		stats,

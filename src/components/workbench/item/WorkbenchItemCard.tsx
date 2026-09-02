@@ -27,6 +27,7 @@ export interface WorkbenchItemCardProps {
 	showMoveDropdown?: boolean;
 	showTypeBadge?: boolean;
 	footerExtra?: React.ReactNode;
+	className?: string;
 	onDeleteItem?: (item: WorkbenchItem) => void;
 	onMoveItem?: (item: WorkbenchItem, targetFolderId: number) => void;
 }
@@ -41,6 +42,7 @@ export const WorkbenchItemCard = memo(function WorkbenchItemCard({
 	showMoveDropdown = false,
 	showTypeBadge = true,
 	footerExtra,
+	className,
 	onDeleteItem,
 	onMoveItem,
 }: WorkbenchItemCardProps) {
@@ -64,7 +66,11 @@ export const WorkbenchItemCard = memo(function WorkbenchItemCard({
 	};
 
 	return (
-		<Card className="group/card p-3 rounded-2xl bg-surface-secondary/40 hover:bg-surface-secondary/80 border-border/70 hover:border-accent/40 transition-all duration-150 flex flex-col gap-2 shadow-none">
+		<Card
+			className={`group/card p-3.5 rounded-2xl bg-surface hover:bg-surface border border-border/80 hover:border-accent/40 shadow-xs hover:shadow-md transition-all duration-150 flex flex-col gap-2 ${
+				className || ""
+			}`}
+		>
 			{/* Item Header Row */}
 			<div className="flex items-start justify-between gap-2">
 				<button
@@ -72,7 +78,7 @@ export const WorkbenchItemCard = memo(function WorkbenchItemCard({
 					onClick={() => handleOpenLink(item.url)}
 					className="flex items-start gap-2.5 flex-1 min-w-0 cursor-pointer text-left"
 				>
-					<div className="w-7 h-7 rounded-xl bg-surface flex items-center justify-center shrink-0 text-accent mt-0.5 shadow-2xs group-hover/card:bg-accent-soft transition-colors">
+					<div className="w-7 h-7 rounded-xl bg-surface-secondary/70 flex items-center justify-center shrink-0 text-accent mt-0.5 group-hover/card:bg-accent-soft transition-colors">
 						<ItemFavicon
 							url={item.url}
 							favicon={item.favicon}
@@ -125,7 +131,7 @@ export const WorkbenchItemCard = memo(function WorkbenchItemCard({
 					{item.tags.map((tag) => (
 						<span
 							key={tag}
-							className="inline-flex items-center gap-0.5 text-[9px] px-1.5 py-0.2 rounded-md bg-surface text-muted border border-border/60"
+							className="inline-flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 rounded-md bg-surface-secondary text-muted border border-border/60"
 						>
 							<Tag className="w-2 h-2 opacity-60" />
 							{tag}
@@ -148,7 +154,7 @@ export const WorkbenchItemCard = memo(function WorkbenchItemCard({
 						<Button
 							variant="ghost"
 							size="sm"
-							className="h-6 px-2 text-[10px] rounded-lg text-muted hover:text-foreground hover:bg-surface cursor-pointer"
+							className="h-6 px-2 text-[10px] rounded-lg text-muted hover:text-foreground hover:bg-surface-secondary cursor-pointer"
 							onPress={() => handleOpenLink(item.url)}
 							aria-label="在浏览器新标签页中打开"
 						>
@@ -162,7 +168,7 @@ export const WorkbenchItemCard = memo(function WorkbenchItemCard({
 						<Button
 							variant="ghost"
 							size="sm"
-							className="h-6 px-2 text-[10px] rounded-lg text-muted hover:text-foreground hover:bg-surface cursor-pointer"
+							className="h-6 px-2 text-[10px] rounded-lg text-muted hover:text-foreground hover:bg-surface-secondary cursor-pointer"
 							onPress={() => handleCopyLink(item.url)}
 							aria-label="复制链接至剪贴板"
 						>
@@ -175,7 +181,7 @@ export const WorkbenchItemCard = memo(function WorkbenchItemCard({
 					{showMoveDropdown && onMoveItem && otherFolders.length > 0 && (
 						<Dropdown>
 							<Dropdown.Trigger
-								className="h-6 px-2 text-[10px] rounded-lg text-muted hover:text-foreground hover:bg-surface cursor-pointer inline-flex items-center"
+								className="h-6 px-2 text-[10px] rounded-lg text-muted hover:text-foreground hover:bg-surface-secondary cursor-pointer inline-flex items-center"
 								aria-label="移动至其他文件夹"
 							>
 								<FolderInput className="w-3 h-3 mr-1" />

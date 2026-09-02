@@ -93,14 +93,33 @@ export class EmbeddingService {
 
 		if (!res.ok) {
 			const errText = await res.text();
+			let parsedMsg = errText;
+			try {
+				const errJson = JSON.parse(errText);
+				parsedMsg = errJson.message || errJson.error?.message || errText;
+			} catch {
+				// Keep raw text if not JSON
+			}
+
+			if (res.status === 401) {
+				throw new Error(
+					`Embedding API 鉴权失败 (401 Unauthorized): ${parsedMsg}。请检查「设置」中的 Embedding API Key 是否有效。`,
+				);
+			}
+			if (res.status === 404) {
+				throw new Error(
+					`Embedding API 接口不存在 (404 Not Found): ${parsedMsg}。请检查 Base URL 与模型名称是否正确。`,
+				);
+			}
+
 			throw new Error(
-				`Embedding API error (${res.status} ${res.statusText}): ${errText}`,
+				`Embedding API 错误 (${res.status} ${res.statusText}): ${parsedMsg}`,
 			);
 		}
 
 		const data = await res.json();
 		if (!data.data || !Array.isArray(data.data)) {
-			throw new Error("Invalid response format from Embedding API");
+			throw new Error("Embedding API 返回格式异常，缺少 data 向量数组");
 		}
 
 		// Sort returned embeddings by index if present

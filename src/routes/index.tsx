@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { lazy, Suspense, useCallback, useRef, useTransition } from "react";
+import { lazy, Suspense, useCallback, useRef } from "react";
 import {
-	type Category,
 	CategoryView,
 	ChatWithBookmarksPanel,
 	type ChatWithBookmarksPanelRef,
@@ -59,7 +58,6 @@ export const Route = createFileRoute("/")({
 function WorkbenchHome() {
 	const initialData = Route.useLoaderData();
 	const chatPanelRef = useRef<ChatWithBookmarksPanelRef>(null);
-	const [isPending, startTransition] = useTransition();
 
 	// 1. Data, Sync and CRUD Business Logic (Hydrated with Route Loader Data)
 	const {
@@ -73,7 +71,7 @@ function WorkbenchHome() {
 		filteredUnclassified,
 		setSettings,
 		setSelectedFolderId,
-		handleCategoryChange: rawHandleCategoryChange,
+		handleCategoryChange,
 		handleSaveFolder,
 		handleDeleteFolder,
 		handleDeleteItemFromFolder,
@@ -99,25 +97,18 @@ function WorkbenchHome() {
 		setIsSettingsModalOpen,
 	} = useWorkbenchModals();
 
-	// Wrap category switching in startTransition for instant 60fps tab button response
-	const handleCategoryChange = useCallback(
-		(cat: Category) => {
-			startTransition(() => {
-				rawHandleCategoryChange(cat);
-			});
-		},
-		[rawHandleCategoryChange],
-	);
-
-	// Wrap folder switching in startTransition to guarantee smooth selection
+	// Direct and instant folder selection without unnecessary re-render triggers
 	const handleSelectFolder = useCallback(
 		(id: number) => {
-			startTransition(() => {
-				setSelectedFolderId(id);
-			});
+			setSelectedFolderId(id);
 		},
 		[setSelectedFolderId],
 	);
+
+	// Direct prompt dispatch to chat assistant
+	const handleAskAIAboutFolder = useCallback((prompt: string) => {
+		chatPanelRef.current?.sendPrompt(prompt);
+	}, []);
 
 	// 3. Focus Right AI Search Input on Cmd+K
 	useGlobalShortcuts({
@@ -129,7 +120,7 @@ function WorkbenchHome() {
 	const isUnclassified = activeCategory === "未分类";
 
 	return (
-		<div className="min-h-screen bg-background text-foreground flex flex-col selection:bg-accent-soft selection:text-accent-soft-foreground">
+		<div className="h-screen bg-background text-foreground flex flex-col overflow-hidden selection:bg-accent-soft selection:text-accent-soft-foreground">
 			{/* Topbar Navigation Header — Unified Search Triggers Right Panel */}
 			<WorkbenchHeader
 				categories={dynamicCategories}
@@ -144,11 +135,11 @@ function WorkbenchHome() {
 			/>
 
 			{/* Main Workspace Layout (Left: Folder Details | Center: Grid | Right: Resident AI Search Hub) */}
-			<div className="flex-1 flex w-full">
+			<div className="flex-1 flex w-full min-h-0 overflow-hidden">
 				{isUnclassified ? (
-					<div className="flex-1 flex w-full">
+					<div className="flex-1 flex w-full min-h-0 overflow-hidden">
 						{/* Unclassified Inbox Buffer */}
-						<main className="flex-1 p-6 lg:p-8 min-w-0 flex flex-col overflow-y-auto border-r border-border">
+						<main className="flex-1 p-6 lg:p-8 min-w-0 flex flex-col overflow-y-auto border-r border-border h-full">
 							{/* Daily Inspiration Capsule Banner */}
 							<DailyCapsuleBanner
 								onNavigateToFolder={handleNavigateFromSearch}
@@ -191,7 +182,7 @@ function WorkbenchHome() {
 						/>
 					</div>
 				) : (
-					<div className="flex-1 flex w-full">
+					<div className="flex-1 flex w-full min-h-0 overflow-hidden">
 						{/* 1. Left Column: 文件夹详情与快捷看板 (Folder Details & Bookmarks) */}
 						<FolderDetailPanel
 							folder={selectedFolder}
@@ -202,13 +193,11 @@ function WorkbenchHome() {
 							onEdit={openEditFolderModal}
 							onDeleteItem={handleDeleteItemFromFolder}
 							onMoveItem={handleMoveItem}
-							onAskAIAboutFolder={(prompt) => {
-								chatPanelRef.current?.sendPrompt(prompt);
-							}}
+							onAskAIAboutFolder={handleAskAIAboutFolder}
 						/>
 
 						{/* 2. Main Column: 文件夹列表与卡片区 (Category Folders Grid) */}
-						<main className="flex-1 p-6 lg:p-7 min-w-0 flex flex-col overflow-y-auto">
+						<main className="flex-1 p-6 lg:p-7 min-w-0 flex flex-col overflow-y-auto h-full">
 							{/* Daily Inspiration Capsule Banner */}
 							<DailyCapsuleBanner
 								onNavigateToFolder={handleNavigateFromSearch}
@@ -236,7 +225,6 @@ function WorkbenchHome() {
 							<CategoryView
 								folders={filteredFolders}
 								selectedFolderId={selectedFolder?.id ?? null}
-								isLoading={isPending}
 								onSelectFolder={handleSelectFolder}
 								onCreateFolder={openCreateFolderModal}
 							/>
