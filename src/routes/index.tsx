@@ -1,426 +1,106 @@
-import { Button, EmptyState, toast } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
-import ThemeToggle from "../components/ThemeToggle";
-import { AIClassifyModal } from "../components/workbench/AIClassifyModal";
-import { BookmarkSyncModal } from "../components/workbench/BookmarkSyncModal";
-import { FolderCard } from "../components/workbench/FolderCard";
-import { FolderDetailPanel } from "../components/workbench/FolderDetailPanel";
-import { FolderModal } from "../components/workbench/FolderModal";
-import { GlobalSearchModal } from "../components/workbench/GlobalSearchModal";
-import { FolderIcon, WorkbenchLogoIcon } from "../components/workbench/Icons";
-import { ItemFavicon } from "../components/workbench/ItemFavicon";
-import { SettingsModal } from "../components/workbench/SettingsModal";
 import {
-	CATEGORIES as DEFAULT_CATEGORIES,
-	type Category,
-	type Folder,
-	type WorkbenchItem,
-	type WorkbenchSettings,
-} from "../components/workbench/types";
-import {
-	DEFAULT_SETTINGS,
-	WorkbenchStorageService,
-} from "../services/workbenchStorage";
+	AIClassifyModal,
+	BookmarkSyncModal,
+	CategoryView,
+	ChatWithBookmarksModal,
+	DailyCapsuleBanner,
+	FloatingChatButton,
+	FolderDetailPanel,
+	FolderDossierModal,
+	FolderModal,
+	GlobalSearchModal,
+	SettingsModal,
+	UnclassifiedView,
+	WorkbenchHeader,
+} from "../components/workbench";
+import { useGlobalShortcuts } from "../hooks/useGlobalShortcuts";
+import { useWorkbenchData } from "../hooks/useWorkbenchData";
+import { useWorkbenchModals } from "../hooks/useWorkbenchModals";
 
 export const Route = createFileRoute("/")({
 	component: WorkbenchHome,
 });
 
+/**
+ * Main Workbench Home Page — Lightweight orchestration container
+ */
 function WorkbenchHome() {
-	const [folders, setFolders] = useState<Folder[]>([]);
-	const [unclassified, setUnclassified] = useState<WorkbenchItem[]>([]);
-	const [settings, setSettings] = useState<WorkbenchSettings>(DEFAULT_SETTINGS);
-	const [activeCategory, setActiveCategory] = useState<Category>("工作台");
-	const [selectedFolderId, setSelectedFolderId] = useState<number | null>(null);
-	const [searchQuery] = useState("");
+	// 1. Data, Sync and CRUD Business Logic
+	const {
+		folders,
+		unclassified,
+		settings,
+		activeCategory,
+		selectedFolder,
+		dynamicCategories,
+		filteredFolders,
+		filteredUnclassified,
+		setSettings,
+		setSelectedFolderId,
+		handleCategoryChange,
+		handleSaveFolder,
+		handleDeleteFolder,
+		handleDeleteItemFromFolder,
+		handleMoveItem,
+		handleDeleteUnclassifiedItem,
+		handleClassificationComplete,
+		handleBookmarksImported,
+		handleNavigateFromSearch,
+	} = useWorkbenchData();
 
-	// Modals state
-	const [folderModalState, setFolderModalState] = useState<{
-		isOpen: boolean;
-		folder: Folder | null;
-	}>({ isOpen: false, folder: null });
+	// 2. Modals state management
+	const {
+		folderModalState,
+		openCreateFolderModal,
+		openEditFolderModal,
+		closeFolderModal,
+		isSyncModalOpen,
+		setIsSyncModalOpen,
+		isAIClassifyModalOpen,
+		setIsAIClassifyModalOpen,
+		isSettingsModalOpen,
+		setIsSettingsModalOpen,
+		isGlobalSearchOpen,
+		setIsGlobalSearchOpen,
+		toggleGlobalSearch,
+		isChatModalOpen,
+		setIsChatModalOpen,
+		dossierFolder,
+		openDossierModal,
+		closeDossierModal,
+	} = useWorkbenchModals();
 
-	const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
-	const [isAIClassifyModalOpen, setIsAIClassifyModalOpen] = useState(false);
-	const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-	const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
+	// 3. Global Shortcuts (Cmd+K for search)
+	useGlobalShortcuts({ onToggleSearch: toggleGlobalSearch });
 
-	// Global shortcut: Cmd+K / Ctrl+K opens Global Search
-	useEffect(() => {
-		const handleKeyDown = (e: KeyboardEvent) => {
-			if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-				e.preventDefault();
-				setIsGlobalSearchOpen((prev) => !prev);
-			}
-		};
-		window.addEventListener("keydown", handleKeyDown);
-		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, []);
-
-	// Navigate to folder or unclassified view from search result
-	const handleNavigateFromSearch = (
-		folderId: number | null,
-		category?: Category,
-	) => {
-		if (folderId !== null && folderId !== undefined) {
-			const target = folders.find((f) => f.id === folderId);
-			if (target) {
-				setActiveCategory(target.category as Category);
-				setSelectedFolderId(target.id);
-			} else if (category) {
-				setActiveCategory(category);
-				setSelectedFolderId(folderId);
-			}
-		} else {
-			setActiveCategory("未分类");
-			setSelectedFolderId(null);
-		}
-	};
-
-	// Load data from SQLite database on mount
-	const loadDataFromDb = async () => {
-		const { folders: loadedFolders, unclassified: loadedUnclassified } =
-			await WorkbenchStorageService.fetchAllFromDb();
-		const loadedSettings = WorkbenchStorageService.getSettings();
-
-		setFolders(loadedFolders);
-		setUnclassified(loadedUnclassified);
-		setSettings(loadedSettings);
-
-		// If no folders exist but there are unclassified items, switch to unclassified view
-		if (loadedFolders.length === 0 && loadedUnclassified.length > 0) {
-			setActiveCategory("未分类");
-		} else if (loadedFolders.length > 0 && selectedFolderId === null) {
-			setSelectedFolderId(loadedFolders[0].id);
-		}
-	};
-
-	useEffect(() => {
-		loadDataFromDb();
-	}, []);
-
-	// Background polling to sync new bookmarks pushed by Chrome extension into SQLite
-	useEffect(() => {
-		const pollCollector = async () => {
-			const { folders: latestFolders, unclassified: latestUnclassified } =
-				await WorkbenchStorageService.fetchAllFromDb();
-
-			setUnclassified((prev) => {
-				if (latestUnclassified.length > prev.length) {
-					toast.success(
-						`⚡ SQLite 已同步接收 ${latestUnclassified.length - prev.length} 个新书签！`,
-					);
-				}
-				return latestUnclassified;
-			});
-			setFolders(latestFolders);
-		};
-
-		const interval = setInterval(pollCollector, 2500);
-		return () => clearInterval(interval);
-	}, []);
-
-	// Dynamic Category Tabs: Merge predefined categories with categories from created folders
-	const dynamicCategories = useMemo(() => {
-		const cats = new Set<string>();
-		// Prepend standard categories
-		for (const c of DEFAULT_CATEGORIES) {
-			cats.add(c);
-		}
-		// Add any category from user/AI-created folders
-		for (const f of folders) {
-			if (f.category) cats.add(f.category);
-		}
-		return Array.from(cats);
-	}, [folders]);
-
-	// Filter folders by active category and search query
-	const filteredFolders = useMemo(() => {
-		let list = folders.filter((f) => f.category === activeCategory);
-		if (searchQuery.trim()) {
-			const q = searchQuery.toLowerCase();
-			list = list.filter(
-				(f) =>
-					f.name.toLowerCase().includes(q) ||
-					f.desc?.toLowerCase().includes(q) ||
-					f.items.some(
-						(item) =>
-							item.name.toLowerCase().includes(q) ||
-							item.url?.toLowerCase().includes(q) ||
-							item.tags?.some((t) => t.toLowerCase().includes(q)),
-					),
-			);
-		}
-		return list;
-	}, [folders, activeCategory, searchQuery]);
-
-	// Filter unclassified items by search query
-	const filteredUnclassified = useMemo(() => {
-		if (!searchQuery.trim()) return unclassified;
-		const q = searchQuery.toLowerCase();
-		return unclassified.filter(
-			(item) =>
-				item.name.toLowerCase().includes(q) ||
-				item.url?.toLowerCase().includes(q) ||
-				item.description?.toLowerCase().includes(q) ||
-				item.folderName?.toLowerCase().includes(q),
-		);
-	}, [unclassified, searchQuery]);
-
-	// Selected folder instance
-	const selectedFolder = useMemo(() => {
-		if (!selectedFolderId) {
-			return filteredFolders[0] || null;
-		}
-		return (
-			folders.find((f) => f.id === selectedFolderId) ||
-			filteredFolders[0] ||
-			null
-		);
-	}, [folders, selectedFolderId, filteredFolders]);
-
-	// Switch category
-	const handleCategoryChange = (cat: Category) => {
-		setActiveCategory(cat);
-		if (cat === "未分类") {
-			setSelectedFolderId(null);
-		} else {
-			const firstInCat = folders.find((f) => f.category === cat);
-			setSelectedFolderId(firstInCat ? firstInCat.id : null);
-		}
-	};
-
-	// Save new or edited folder to SQLite
-	const handleSaveFolder = async (data: {
-		id?: number;
-		name: string;
-		category: string;
-		desc: string;
-	}) => {
-		const updated = await WorkbenchStorageService.saveFolderToDb(data);
-		setFolders(updated);
-		setActiveCategory(data.category as Category);
-		const createdOrEdited = data.id
-			? updated.find((f) => f.id === data.id)
-			: updated[updated.length - 1];
-		if (createdOrEdited) {
-			setSelectedFolderId(createdOrEdited.id);
-		}
-		setFolderModalState({ isOpen: false, folder: null });
-		toast.success("已保存文件夹至 SQLite 数据库");
-	};
-
-	// Delete folder from SQLite
-	const handleDeleteFolder = async (id: number) => {
-		const updated = await WorkbenchStorageService.deleteFolderFromDb(id);
-		setFolders(updated);
-		if (selectedFolderId === id) {
-			setSelectedFolderId(updated[0]?.id || null);
-		}
-		setFolderModalState({ isOpen: false, folder: null });
-		toast.danger("文件夹已从 SQLite 中删除");
-	};
-
-	// Delete item from folder
-	const handleDeleteItemFromFolder = async (
-		item: WorkbenchItem,
-		folderId: number,
-	) => {
-		const { folders: updatedFolders, unclassified: updatedUnclassified } =
-			await WorkbenchStorageService.deleteItemInDb(item.id || "", folderId);
-		setFolders(updatedFolders);
-		setUnclassified(updatedUnclassified);
-		toast.success(`已从文件夹中移除「${item.name}」`);
-	};
-
-	// Move item between folders in SQLite
-	const handleMoveItem = async (
-		item: WorkbenchItem,
-		sourceFolderId: number,
-		targetFolderId: number,
-	) => {
-		const { folders: updatedFolders, unclassified: updatedUnclassified } =
-			await WorkbenchStorageService.moveItemInDb(
-				item.id || "",
-				sourceFolderId,
-				targetFolderId,
-			);
-		setFolders(updatedFolders);
-		setUnclassified(updatedUnclassified);
-		toast.success(`已将「${item.name}」移动到目标文件夹`);
-	};
-
-	// Delete item from unclassified pool in SQLite
-	const handleDeleteUnclassifiedItem = async (item: WorkbenchItem) => {
-		const { unclassified: updatedUnclassified } =
-			await WorkbenchStorageService.deleteItemInDb(item.id || "", null);
-		setUnclassified(updatedUnclassified);
-		toast.success(`已从未分类池中移除「${item.name}」`);
-	};
-
-	// Handle successful AI classification callback
-	const handleClassificationComplete = (
-		updatedFolders: Folder[],
-		updatedUnclassified: WorkbenchItem[],
-	) => {
-		setFolders(updatedFolders);
-		setUnclassified(updatedUnclassified);
-		if (updatedFolders.length > 0) {
-			setActiveCategory(updatedFolders[0].category || "工作台");
-			setSelectedFolderId(updatedFolders[0].id);
-		}
-	};
-
-	// Handle bookmarks imported
-	const handleBookmarksImported = (
-		newUnclassified: WorkbenchItem[],
-		triggerAICallback?: boolean,
-	) => {
-		setUnclassified(newUnclassified);
-		setActiveCategory("未分类");
-		if (triggerAICallback) {
-			setIsAIClassifyModalOpen(true);
-		}
-	};
+	const isUnclassified = activeCategory === "未分类";
 
 	return (
 		<div className="min-h-screen bg-background text-foreground flex flex-col selection:bg-accent-soft selection:text-accent-soft-foreground">
-			{/* Topbar Navigation */}
-			<header className="sticky top-0 z-40 bg-surface/80 border-b border-border px-6 h-15 flex items-center gap-4 justify-between backdrop-blur-md">
-				{/* Left: Brand */}
-				<div className="flex items-center gap-2.5 shrink-0 pr-2">
-					<div className="w-8 h-8 rounded-xl bg-accent text-accent-foreground flex items-center justify-center shadow-sm">
-						<WorkbenchLogoIcon className="w-4 h-4" />
-					</div>
-					<div className="flex flex-col">
-						<span className="font-semibold text-sm tracking-tight text-foreground leading-none">
-							AI 工作台
-						</span>
-						<span className="text-[10px] text-muted tracking-tight font-mono mt-0.5">
-							SQLite 驱动
-						</span>
-					</div>
-				</div>
-
-				{/* Center: Category Tabs */}
-				<nav className="flex items-center gap-1 overflow-x-auto no-scrollbar flex-1 py-1 px-2">
-					{dynamicCategories.map((cat) => {
-						const isActive = cat === activeCategory;
-						const count =
-							cat === "未分类"
-								? unclassified.length
-								: folders.filter((f) => f.category === cat).length;
-
-						// Hide empty categories unless it's active or is standard
-						if (
-							count === 0 &&
-							!["工作台", "未分类"].includes(cat) &&
-							!isActive
-						) {
-							return null;
-						}
-
-						return (
-							<button
-								key={cat}
-								type="button"
-								onClick={() => handleCategoryChange(cat)}
-								className={`px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-150 flex items-center gap-1.5 cursor-pointer ${
-									isActive
-										? "bg-accent-soft text-accent font-semibold shadow-xs"
-										: "text-muted hover:text-foreground hover:bg-surface-secondary"
-								}`}
-							>
-								<span>{cat}</span>
-								{count > 0 && (
-									<span
-										className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-											cat === "未分类"
-												? "bg-danger/15 text-danger font-bold"
-												: isActive
-													? "bg-accent/20 text-accent"
-													: "bg-surface-secondary text-muted"
-										}`}
-									>
-										{count}
-									</span>
-								)}
-							</button>
-						);
-					})}
-				</nav>
-
-				{/* Right: Actions */}
-				<div className="flex items-center gap-2 shrink-0">
-					{/* Global Search Button */}
-					<Button
-						variant="secondary"
-						size="sm"
-						className="rounded-full flex items-center gap-1.5 px-3 shadow-2xs"
-						onPress={() => setIsGlobalSearchOpen(true)}
-					>
-						<span>🔍 搜索</span>
-						<kbd className="text-[10px] font-mono px-1.5 py-0.2 bg-background/50 border border-border/80 rounded text-muted">
-							⌘K
-						</kbd>
-					</Button>
-
-					{/* AI Classify Button */}
-					<Button
-						variant={unclassified.length > 0 ? "primary" : "secondary"}
-						size="sm"
-						className="rounded-full shadow-xs"
-						onPress={() => setIsAIClassifyModalOpen(true)}
-					>
-						⚡ AI 智能归类
-						{unclassified.length > 0 && (
-							<span className="ml-1 px-1.5 py-0.2 text-[10px] bg-background/20 rounded-full font-mono">
-								{unclassified.length}
-							</span>
-						)}
-					</Button>
-
-					{/* Import/Sync Bookmarks Button */}
-					<Button
-						variant="secondary"
-						size="sm"
-						className="rounded-full"
-						onPress={() => setIsSyncModalOpen(true)}
-					>
-						📥 导入书签
-					</Button>
-
-					{/* New Folder Button */}
-					<Button
-						variant="ghost"
-						size="sm"
-						className="rounded-full"
-						onPress={() => setFolderModalState({ isOpen: true, folder: null })}
-					>
-						+ 新建文件夹
-					</Button>
-
-					{/* Settings */}
-					<Button
-						variant="ghost"
-						size="sm"
-						className="rounded-full h-8 w-8 p-0"
-						onPress={() => setIsSettingsModalOpen(true)}
-						aria-label="设置"
-					>
-						⚙️
-					</Button>
-
-					<ThemeToggle />
-				</div>
-			</header>
+			{/* Topbar Navigation Header */}
+			<WorkbenchHeader
+				categories={dynamicCategories}
+				activeCategory={activeCategory}
+				unclassifiedCount={unclassified.length}
+				folders={folders}
+				onSelectCategory={handleCategoryChange}
+				onOpenChat={() => setIsChatModalOpen(true)}
+				onOpenSearch={() => setIsGlobalSearchOpen(true)}
+				onOpenAIClassify={() => setIsAIClassifyModalOpen(true)}
+				onOpenSync={() => setIsSyncModalOpen(true)}
+				onOpenCreateFolder={openCreateFolderModal}
+				onOpenSettings={() => setIsSettingsModalOpen(true)}
+			/>
 
 			{/* Main Workspace Layout */}
 			<div className="flex-1 flex w-full">
-				{/* Left Main Content */}
+				{/* Main Content Area */}
 				<main className="flex-1 p-8 lg:p-9 min-w-0 flex flex-col">
-					{/* Header Title & Actions Bar */}
+					{/* Daily Inspiration Capsule Banner */}
+					<DailyCapsuleBanner onNavigateToFolder={handleNavigateFromSearch} />
+
+					{/* Workspace Title & Quick Search Bar */}
 					<div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-4 mb-6">
 						<div>
 							<div className="flex items-center gap-2">
@@ -428,19 +108,19 @@ function WorkbenchHome() {
 									{activeCategory}
 								</h1>
 								<span className="text-xs font-medium text-muted">
-									{activeCategory === "未分类"
+									{isUnclassified
 										? `${unclassified.length} 条待整理书签`
 										: `${filteredFolders.length} 个文件夹`}
 								</span>
 							</div>
 							<p className="text-xs text-muted mt-1 leading-relaxed max-w-xl">
-								{activeCategory === "未分类"
+								{isUnclassified
 									? "所有从 Chrome 扩展一键同步并存入 SQLite 数据库的书签缓冲池。点击「⚡ AI 智能归类」，DeepSeek 将深度分析并自动生成主题文件夹。"
 									: "点击任意文件夹卡片，右侧侧边栏将呈现该文件夹在 SQLite 中归集的全部书签、九宫格预览与快捷外链。"}
 							</p>
 						</div>
 
-						{/* Quick Search & Global AI Search Trigger */}
+						{/* Quick Global Search Trigger */}
 						<div className="w-full sm:w-72 flex items-center gap-2">
 							<button
 								type="button"
@@ -458,183 +138,52 @@ function WorkbenchHome() {
 						</div>
 					</div>
 
-					{/* View 1: Unclassified Pool Special View */}
-					{activeCategory === "未分类" ? (
-						<div className="flex-1 flex flex-col">
-							{filteredUnclassified.length === 0 ? (
-								<EmptyState className="py-20 flex flex-col items-center justify-center text-center border border-dashed border-border rounded-3xl bg-surface p-8">
-									<div className="w-14 h-14 rounded-2xl bg-surface-secondary flex items-center justify-center text-muted mb-3.5 opacity-50">
-										📥
-									</div>
-									<h3 className="text-sm font-semibold text-foreground mb-1">
-										未分类池暂无待整理内容
-									</h3>
-									<p className="text-xs text-muted mb-4 max-w-sm">
-										在 Chrome 浏览器侧边栏扩展中，点击「⚡
-										一键同步至工作台」即可将 2000+ 书签快速写入本地 SQLite。
-									</p>
-								</EmptyState>
-							) : (
-								<div className="flex flex-col gap-4">
-									{/* Top AI Action Banner */}
-									<div className="p-4 rounded-2xl bg-gradient-to-r from-accent/10 via-surface-secondary to-surface-secondary border border-accent/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-										<div className="flex items-center gap-3">
-											<div className="w-10 h-10 rounded-xl bg-accent text-accent-foreground flex items-center justify-center text-lg font-bold shadow-sm">
-												⚡
-											</div>
-											<div>
-												<div className="font-semibold text-xs text-foreground">
-													SQLite 已就绪 {unclassified.length} 条从插件同步的书签
-													TDK
-												</div>
-												<div className="text-[11px] text-muted">
-													点击按钮，由 DeepSeek
-													深度分析网页标题、描述及原路径，自动创建主题文件夹并入库。
-												</div>
-											</div>
-										</div>
-
-										<Button
-											variant="primary"
-											size="sm"
-											className="rounded-full shadow-sm shrink-0"
-											onPress={() => setIsAIClassifyModalOpen(true)}
-										>
-											⚡ 启动 DeepSeek 一键智能分类
-										</Button>
-									</div>
-
-									{/* Unclassified Items Grid */}
-									<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-										{filteredUnclassified.map((item, idx) => (
-											<div
-												key={item.id || idx}
-												className="p-4 rounded-2xl bg-surface border border-border hover:border-accent/40 transition-all flex flex-col justify-between gap-2 shadow-xs group"
-											>
-												<div>
-													<div className="flex items-start justify-between gap-2 mb-1.5">
-														<div className="flex items-center gap-2 flex-1 min-w-0">
-															<div className="w-5 h-5 rounded-md bg-surface-secondary flex items-center justify-center shrink-0">
-																<ItemFavicon
-																	url={item.url}
-																	favicon={item.favicon}
-																	type={item.type}
-																	name={item.name}
-																	size="xs"
-																/>
-															</div>
-															<a
-																href={item.url}
-																target="_blank"
-																rel="noreferrer"
-																className="font-medium text-xs text-foreground hover:text-accent line-clamp-1 flex-1 font-sans"
-																title={item.name}
-															>
-																{item.name}
-															</a>
-														</div>
-														<button
-															type="button"
-															onClick={() => handleDeleteUnclassifiedItem(item)}
-															className="text-muted hover:text-danger p-0.5 text-xs opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-															title="删除"
-														>
-															✕
-														</button>
-													</div>
-
-													<p className="text-[11px] text-muted line-clamp-2 leading-relaxed mb-2">
-														{item.description || item.summary || item.url}
-													</p>
-												</div>
-
-												<div className="flex items-center justify-between gap-2 pt-2 border-t border-border/40 text-[10px] text-muted">
-													<span
-														className="truncate max-w-[160px]"
-														title={item.url}
-													>
-														{item.folderName
-															? `📁 ${item.folderName}`
-															: item.url}
-													</span>
-													{item.createdAt && <span>{item.createdAt}</span>}
-												</div>
-											</div>
-										))}
-									</div>
-								</div>
-							)}
-						</div>
+					{/* View Switcher: Unclassified Pool vs Regular Category Folders */}
+					{isUnclassified ? (
+						<UnclassifiedView
+							unclassified={filteredUnclassified}
+							onOpenAIClassify={() => setIsAIClassifyModalOpen(true)}
+							onDeleteItem={handleDeleteUnclassifiedItem}
+						/>
 					) : (
-						/* View 2: Regular Category Folder Grid */
-						<div className="flex-1 flex flex-col">
-							{filteredFolders.length === 0 ? (
-								<EmptyState className="py-20 flex flex-col items-center justify-center text-center border border-dashed border-border rounded-3xl bg-surface p-8">
-									<div className="w-14 h-14 rounded-2xl bg-surface-secondary flex items-center justify-center text-muted mb-3.5 opacity-50">
-										<FolderIcon className="w-7 h-7" />
-									</div>
-									<p className="text-xs text-muted mb-2 font-medium text-foreground">
-										该分类下暂无已归类的文件夹
-									</p>
-									<p className="text-xs text-muted mb-4 max-w-sm">
-										在 Chrome
-										扩展中点击「一键同步至工作台」，随后在「未分类」中点击「⚡
-										AI 智能归类」即可自动生成并保存至 SQLite。
-									</p>
-									<Button
-										variant="primary"
-										size="sm"
-										className="rounded-full"
-										onPress={() =>
-											setFolderModalState({ isOpen: true, folder: null })
-										}
-									>
-										+ 手动新建文件夹
-									</Button>
-								</EmptyState>
-							) : (
-								<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-									{filteredFolders.map((folder) => (
-										<FolderCard
-											key={folder.id}
-											folder={folder}
-											isSelected={folder.id === selectedFolder?.id}
-											onClick={() => setSelectedFolderId(folder.id)}
-										/>
-									))}
-								</div>
-							)}
-						</div>
+						<CategoryView
+							folders={filteredFolders}
+							selectedFolderId={selectedFolder?.id ?? null}
+							onSelectFolder={(id) => setSelectedFolderId(id)}
+							onCreateFolder={openCreateFolderModal}
+						/>
 					)}
 				</main>
 
-				{/* Right Detail Panel (Active when not in unclassified) */}
-				{activeCategory !== "未分类" && (
+				{/* Right Detail Panel */}
+				{!isUnclassified && (
 					<FolderDetailPanel
 						folder={selectedFolder}
 						allFolders={folders}
-						onEdit={(folder) => setFolderModalState({ isOpen: true, folder })}
-						onDeleteItem={(item, folderId) =>
-							handleDeleteItemFromFolder(item, folderId)
-						}
+						onEdit={openEditFolderModal}
+						onDeleteItem={handleDeleteItemFromFolder}
 						onMoveItem={handleMoveItem}
+						onOpenDossier={openDossierModal}
 					/>
 				)}
 			</div>
 
-			{/* Folder Modal */}
+			{/* Feature Modals */}
 			<FolderModal
 				isOpen={folderModalState.isOpen}
 				folder={folderModalState.folder}
-				defaultCategory={
-					activeCategory === "未分类" ? "工作台" : activeCategory
-				}
-				onClose={() => setFolderModalState({ isOpen: false, folder: null })}
-				onSave={handleSaveFolder}
-				onDelete={handleDeleteFolder}
+				defaultCategory={isUnclassified ? "工作台" : activeCategory}
+				onClose={closeFolderModal}
+				onSave={async (data) => {
+					await handleSaveFolder(data);
+					closeFolderModal();
+				}}
+				onDelete={async (id) => {
+					await handleDeleteFolder(id);
+					closeFolderModal();
+				}}
 			/>
 
-			{/* AI Classify Modal */}
 			<AIClassifyModal
 				isOpen={isAIClassifyModalOpen}
 				itemsToClassify={unclassified}
@@ -644,26 +193,40 @@ function WorkbenchHome() {
 				onClassificationComplete={handleClassificationComplete}
 			/>
 
-			{/* Bookmark Sync Modal */}
 			<BookmarkSyncModal
 				isOpen={isSyncModalOpen}
 				onClose={() => setIsSyncModalOpen(false)}
-				onBookmarksImported={handleBookmarksImported}
+				onBookmarksImported={(newItems) =>
+					handleBookmarksImported(newItems, () => setIsAIClassifyModalOpen(true))
+				}
 			/>
 
-			{/* Settings Modal */}
 			<SettingsModal
 				isOpen={isSettingsModalOpen}
 				onClose={() => setIsSettingsModalOpen(false)}
-				onSettingsUpdated={(newSettings) => setSettings(newSettings)}
+				onSettingsUpdated={setSettings}
 			/>
 
-			{/* Global Search Modal (Cmd+K) */}
 			<GlobalSearchModal
 				isOpen={isGlobalSearchOpen}
 				onClose={() => setIsGlobalSearchOpen(false)}
 				onNavigateToFolder={handleNavigateFromSearch}
 			/>
+
+			<ChatWithBookmarksModal
+				isOpen={isChatModalOpen}
+				onClose={() => setIsChatModalOpen(false)}
+				onNavigateToFolder={handleNavigateFromSearch}
+			/>
+
+			<FolderDossierModal
+				isOpen={!!dossierFolder}
+				folder={dossierFolder}
+				onClose={closeDossierModal}
+			/>
+
+			{/* Floating AI Assistant Bubble */}
+			<FloatingChatButton onOpenChat={() => setIsChatModalOpen(true)} />
 		</div>
 	);
 }

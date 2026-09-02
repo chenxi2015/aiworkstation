@@ -1,10 +1,4 @@
-import {
-	Button,
-	Modal,
-	Skeleton,
-	Tooltip,
-	toast,
-} from "@heroui/react";
+import { Button, Modal, Skeleton, Tooltip, toast } from "@heroui/react";
 import { useEffect, useRef, useState } from "react";
 import { ItemFavicon } from "./ItemFavicon";
 import type {

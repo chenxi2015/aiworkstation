@@ -558,7 +558,171 @@ class WorkbenchDatabase {
 			};
 		});
 	}
+
+	/**
+	 * Query bookmarks by structured conditions (time range, folder, category, tag, keyword)
+	 */
+	queryBookmarks(params: BookmarkQueryParams = {}): WorkbenchItem[] {
+		const {
+			startDate,
+			endDate,
+			startTimeMs,
+			endTimeMs,
+			folderName,
+			category,
+			tag,
+			keyword,
+			limit = 30,
+			sortBy = "date_added",
+			sortOrder = "DESC",
+		} = params;
+
+		const conditions: string[] = [];
+		const sqlArgs: any[] = [];
+
+		// 1. Time range filter (checks date_added timestamp or created_at string)
+		if (typeof startTimeMs === "number" && startTimeMs > 0) {
+			conditions.push("(b.date_added >= ? OR (b.date_added IS NULL AND b.created_at >= ?))");
+			sqlArgs.push(startTimeMs);
+			sqlArgs.push(new Date(startTimeMs).toISOString().split("T")[0]);
+		} else if (startDate) {
+			const startMs = new Date(`${startDate}T00:00:00`).getTime();
+			conditions.push("(b.date_added >= ? OR b.created_at >= ?)");
+			sqlArgs.push(startMs);
+			sqlArgs.push(startDate);
+		}
+
+		if (typeof endTimeMs === "number" && endTimeMs > 0) {
+			conditions.push("(b.date_added <= ? OR (b.date_added IS NULL AND b.created_at <= ?))");
+			sqlArgs.push(endTimeMs);
+			sqlArgs.push(new Date(endTimeMs).toISOString().split("T")[0]);
+		} else if (endDate) {
+			const endMs = new Date(`${endDate}T23:59:59.999`).getTime();
+			conditions.push("(b.date_added <= ? OR b.created_at <= ?)");
+			sqlArgs.push(endMs);
+			sqlArgs.push(endDate);
+		}
+
+		// 2. Folder filter
+		if (folderName && folderName.trim()) {
+			conditions.push("(f.name LIKE ? OR b.parent_title LIKE ?)");
+			sqlArgs.push(`%${folderName.trim()}%`);
+			sqlArgs.push(`%${folderName.trim()}%`);
+		}
+
+		// 3. Category filter
+		if (category && category.trim()) {
+			conditions.push("f.category = ?");
+			sqlArgs.push(category.trim());
+		}
+
+		// 4. Tag filter
+		if (tag && tag.trim()) {
+			conditions.push("b.tags LIKE ?");
+			sqlArgs.push(`%${tag.trim()}%`);
+		}
+
+		// 5. Keyword search (title, summary, description, keywords)
+		if (keyword && keyword.trim()) {
+			conditions.push(
+				"(b.title LIKE ? OR b.summary LIKE ? OR b.description LIKE ? OR b.keywords LIKE ?)",
+			);
+			const kw = `%${keyword.trim()}%`;
+			sqlArgs.push(kw, kw, kw, kw);
+		}
+
+		const whereClause =
+			conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+		// Determine safe sort field
+		let orderField = "b.date_added";
+		if (sortBy === "created_at") orderField = "b.created_at";
+		else if (sortBy === "updated_at") orderField = "b.updated_at";
+		const direction = sortOrder.toUpperCase() === "ASC" ? "ASC" : "DESC";
+
+		const query = `
+      SELECT 
+        b.id,
+        b.title as name,
+        b.url,
+        b.item_type as type,
+        b.description,
+        b.keywords,
+        b.summary,
+        b.tags,
+        b.favicon,
+        b.date_added,
+        b.created_at,
+        b.source,
+        b.reason,
+        f.id as folder_id,
+        f.name as folder_name,
+        f.category
+      FROM bookmarks b
+      LEFT JOIN folder_items fi ON b.id = fi.item_id
+      LEFT JOIN folders f ON fi.folder_id = f.id
+      ${whereClause}
+      ORDER BY ${orderField} ${direction}, b.id DESC
+      LIMIT ?
+    `;
+
+		sqlArgs.push(Math.min(Math.max(limit, 1), 100));
+
+		const rows = this.db.prepare(query).all(...sqlArgs) as any[];
+
+		return rows.map((r) => {
+			let parsedTags: string[] = [];
+			try {
+				parsedTags = JSON.parse(r.tags || "[]");
+			} catch {
+				parsedTags = [];
+			}
+
+			return {
+				id: r.id,
+				name: r.name,
+				url: r.url,
+				type: (r.type || "link") as ItemType,
+				description: r.description || "",
+				keywords: r.keywords || "",
+				summary: r.summary || r.name,
+				tags: parsedTags,
+				favicon: r.favicon || undefined,
+				folderId: r.folder_id || null,
+				folderName: r.folder_name || undefined,
+				category: r.category || undefined,
+				createdAt: r.created_at,
+				dateAdded: r.date_added || undefined,
+				source: r.source || "bookmark_sync",
+				reason: r.reason || undefined,
+			};
+		});
+	}
+}
+
+export interface BookmarkQueryParams {
+	timeRange?:
+		| "today"
+		| "yesterday"
+		| "this_week"
+		| "last_week"
+		| "this_month"
+		| "recent_7_days"
+		| "recent_30_days"
+		| "all";
+	startDate?: string;
+	endDate?: string;
+	startTimeMs?: number;
+	endTimeMs?: number;
+	folderName?: string;
+	category?: string;
+	tag?: string;
+	keyword?: string;
+	limit?: number;
+	sortBy?: "date_added" | "created_at" | "updated_at";
+	sortOrder?: "ASC" | "DESC";
 }
 
 // Singleton database instance
 export const workbenchDb = new WorkbenchDatabase();
+

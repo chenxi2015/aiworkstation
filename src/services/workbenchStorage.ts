@@ -9,6 +9,14 @@ import type {
 	WorkbenchSettings,
 } from "../components/workbench/types";
 import {
+	type ChatMessage,
+	type FolderDossierResult,
+	type RAGChatResult,
+	chatWithBookmarks,
+	generateFolderDossier,
+	getDailyCapsules,
+} from "../server/functions/rag.ts";
+import {
 	batchGenerateEmbeddings,
 	getEmbeddingCoverageStats,
 	searchWorkbenchItems,
@@ -179,6 +187,51 @@ export class WorkbenchStorageService {
 	}
 
 	/**
+	 * Chat with user's bookmarks knowledge base using RAG
+	 */
+	static async chatWithBookmarks(params: {
+		question: string;
+		history?: ChatMessage[];
+		embeddingConfig?: EmbeddingConfig;
+		llmConfig?: {
+			apiKey?: string;
+			baseUrl?: string;
+			model?: string;
+		};
+	}): Promise<RAGChatResult> {
+		return await chatWithBookmarks({ data: params });
+	}
+
+	/**
+	 * Generate research dossier summary for a folder
+	 */
+	static async generateFolderDossier(params: {
+		folderId: number;
+		llmConfig?: {
+			apiKey?: string;
+			baseUrl?: string;
+			model?: string;
+		};
+	}): Promise<FolderDossierResult> {
+		return await generateFolderDossier({ data: params });
+	}
+
+	/**
+	 * Fetch daily inspiration capsules from SQLite bookmarks
+	 */
+	static async fetchDailyCapsules(params: {
+		count?: number;
+		excludeIds?: string[];
+	}): Promise<WorkbenchItem[]> {
+		try {
+			return await getDailyCapsules({ data: params });
+		} catch (err) {
+			console.warn("[WorkbenchStorage] fetchDailyCapsules error:", err);
+			return [];
+		}
+	}
+
+	/**
 	 * Load settings
 	 */
 	static getSettings(): WorkbenchSettings {
@@ -209,3 +262,5 @@ export class WorkbenchStorageService {
 		}
 	}
 }
+
+export type { ChatMessage };

@@ -36,6 +36,7 @@ export interface WorkbenchItem {
 	category?: string;
 	reason?: string;
 	createdAt?: string;
+	dateAdded?: number;
 	source?: "bookmark_sync" | "manual" | "grab" | "preset";
 }
 
