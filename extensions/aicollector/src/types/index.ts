@@ -101,6 +101,15 @@ export interface BookmarkItem {
   status?: 'pending' | 'synced' | 'failed';
 }
 
+export interface FlattenedBookmark {
+  id: string;
+  title: string;
+  url: string;
+  parentTitle?: string;
+  folderPath?: string;
+  dateAdded?: number;
+}
+
 /**
  * Sync log item for real-time monitoring
  */

@@ -27,7 +27,7 @@
 │ side panel iframe 内嵌工作台      │   │ API：/api/collect、/api/tweets ...   │
 └────────────────────────────────┘   └───────────────────────────────────┘
          通信：
-         1. 数据通道：插件 → fetch localhost:3000/api/*（Bearer token），永远可用
+         1. 数据通道：插件 → fetch localhost:3888/api/*（Bearer token），永远可用
          2. 控制通道：工作台页面 ↔ 插件，externally_connectable + chrome.runtime.connect 长连接，
             仅工作台标签页打开时可用，用于实时指令下发/进度回传
 ```
@@ -51,7 +51,7 @@
 |---|---|---|
 | 收藏当前页到工作台 | action / 快捷键 / 右键菜单 → content script 提取 → POST /api/collect | P0 |
 | AI 自动归类到文件夹 | 服务端 chat() + outputSchema 结构化分类，低置信度留"未分类" | P0 |
-| side panel 内嵌工作台 | iframe localhost:3000 | P0 |
+| side panel 内嵌工作台 | iframe localhost:3888 | P0 |
 | 浏览器原生收藏（Ctrl+D）拦截 | chrome.bookmarks.onCreated 转发 | P1 |
 | 推特推文内嵌"AI 回复/二创"按钮 | content script 注入，内容回传工作台处理 | P1 |
 | 推特热帖自动收集 | 时间线 DOM 监听，互动数超阈值自动入库 | P1 |
@@ -87,7 +87,7 @@ extension/             # Chrome 插件（MV3）：manifest、background、conten
 
 ## 开发命令
 
-- `pnpm dev`：启动工作台（localhost:3000）
+- `pnpm dev`：启动工作台（localhost:3888）
 - 插件：`extension/` 目录用 Chrome「加载已解压的扩展程序」安装，改 content script 后需刷新目标页
 
 ## Roadmap

@@ -46,7 +46,7 @@
 - **独立文档阅读器 (`doc-viewer`)**：支持在新标签页中以沉浸式排版阅读或编辑抓取到的文档。
 
 ### 5. 🔌 本地工作台数据联动
-- 支持一键将提取的内容、元数据与图片打包直接推送到本地 **AI Workstation** 工作台（`http://localhost:3000/api/collect`）。
+- 支持一键将提取的内容、元数据与图片打包直接推送到本地 **AI Workstation** 工作台（`http://localhost:3888/api/collect`）。
 - 网络故障或工作台未开启时，自动进入本地 `chrome.storage` 队列暂存，待工作台连通后自动同步。
 
 ---

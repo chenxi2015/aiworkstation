@@ -9,17 +9,18 @@ export function useWorkbench() {
   const [isOnline, setIsOnline] = useState(false);
 
   const checkWorkbenchStatus = useCallback(async (showFeedback = false) => {
-    const online = await WorkbenchService.checkHealth();
+    const url = await WorkbenchService.getWorkbenchUrl();
+    const online = await WorkbenchService.checkHealth(url);
     setIsOnline(online);
     if (showFeedback) {
       if (online) {
         toast.success('工作台连接正常', {
-          description: '已成功连通本地 AI 工作台 (localhost:3000)',
+          description: `已成功连通本地 AI 工作台 (${url})`,
           timeout: 2500,
         });
       } else {
         toast.warning('未检测到工作台', {
-          description: '本地工作台未启动，内容将暂存至离线队列',
+          description: `工作台未启动 (${url})，内容将暂存至离线队列`,
           timeout: 3000,
         });
       }

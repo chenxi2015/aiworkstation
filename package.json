@@ -6,7 +6,7 @@
     "#/*": "./src/*"
   },
   "scripts": {
-    "dev": "vite dev --port 3000",
+    "dev": "vite dev --port 3888",
     "generate-routes": "tsr generate",
     "build": "vite build",
     "preview": "vite preview",
@@ -39,6 +39,7 @@
     "@tanstack/react-store": "latest",
     "@tanstack/react-table": "latest",
     "@tanstack/store": "latest",
+    "better-sqlite3": "^13.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "highlight.js": "^11.11.1",

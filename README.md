@@ -74,7 +74,7 @@
 ```
 
 ### 通信机制
-1. **数据通道（HTTP API）**：插件 → `POST http://localhost:3000/api/*`（携带 Local Bearer Token 认证），常态可用，负责大文本、图片与素材入库。
+1. **数据通道（HTTP API）**：插件 → `POST http://localhost:3888/api/*`（携带 Local Bearer Token 认证），常态可用，负责大文本、图片与素材入库。
 2. **控制信令通道（Port 连接）**：工作台 ↔ 插件（`externally_connectable`），工作台激活时建立长连接，用于指令下发、进度回传与编辑器回填。
 
 ---
@@ -136,16 +136,16 @@ aiworkstation/
 # 1. 安装项目依赖
 pnpm install
 
-# 2. 启动开发服务器 (默认运行在 http://localhost:3000)
+# 2. 启动开发服务器 (默认运行在 http://localhost:3888)
 pnpm dev
 ```
 
-浏览器访问 [http://localhost:3000](http://localhost:3000) 即可进入 AI Workstation。
+浏览器访问 [http://localhost:3888](http://localhost:3888) 即可进入 AI Workstation。
 
 ### 2. 开发与加载 Chrome 采集插件
 
 ```bash
-# 启动插件开发模式（支持 HMR 热重载）
+# 启动插件开发模式（固定在 3889 端口，支持 HMR 热重载）
 pnpm --filter ./extensions/aicollector dev
 ```
 
@@ -162,8 +162,8 @@ pnpm --filter ./extensions/aicollector dev
 
 | 命令 | 说明 |
 |---|---|
-| `pnpm dev` | 启动 TanStack Start 本地工作台 (端口 3000) |
-| `pnpm --filter ./extensions/aicollector dev` | 启动 Chrome 插件开发热更服务 |
+| `pnpm dev` | 启动 TanStack Start 本地工作台 (端口 3888) |
+| `pnpm --filter ./extensions/aicollector dev` | 启动 Chrome 插件开发热更服务 (端口 3889) |
 | `pnpm build` | 构建工作台生产产物 |
 | `pnpm --filter ./extensions/aicollector build` | 构建 Chrome 插件生产包 |
 | `pnpm --filter ./extensions/aicollector zip` | 打包生成 Chrome 插件发布 .zip 文件 |

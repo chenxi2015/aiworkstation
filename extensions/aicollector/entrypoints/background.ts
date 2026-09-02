@@ -1,6 +1,18 @@
 import type { PageTDK, SniffedStream, SyncLogItem } from '../src/types';
+import { DEFAULT_WORKBENCH_URL, WORKBENCH_STORAGE_KEY } from '../src/services/workbench';
 
-const WORKBENCH_API_URL = 'http://localhost:3000/api/collect';
+async function getWorkbenchBaseUrl(): Promise<string> {
+  try {
+    const result = await chrome.storage.local.get(WORKBENCH_STORAGE_KEY);
+    const custom = result[WORKBENCH_STORAGE_KEY];
+    if (typeof custom === 'string' && custom.trim()) {
+      return custom.trim().replace(/\/+$/, '');
+    }
+  } catch {
+    // Fall back to default
+  }
+  return DEFAULT_WORKBENCH_URL;
+}
 
 /**
  * Per-tab sniffed HLS streams storage.
@@ -220,7 +232,8 @@ async function pushToWorkbench(data: {
   source: 'bookmark_created' | 'manual_grab';
 }): Promise<boolean> {
   try {
-    const response = await fetch(WORKBENCH_API_URL, {
+    const baseUrl = await getWorkbenchBaseUrl();
+    const response = await fetch(`${baseUrl}/api/collect`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

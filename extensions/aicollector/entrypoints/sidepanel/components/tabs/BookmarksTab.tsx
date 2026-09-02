@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Button, InputGroup } from '@heroui/react';
-import { Search, RefreshCw, Send, Calendar } from 'lucide-react';
+import { Search, RefreshCw, Send, Calendar, Zap, Check } from 'lucide-react';
 import type { FlattenedBookmark } from '../../hooks/useBookmarks';
-import type { CollectPayload } from '../../../../src/services/workbench';
+import { type CollectPayload, WorkbenchService } from '../../../../src/services/workbench';
 
 interface BookmarksTabProps {
   searchQuery: string;
@@ -25,7 +25,7 @@ const formatDate = (timestamp?: number): string => {
 };
 
 /**
- * Tab panel for searching, browsing, and collecting Chrome bookmarks
+ * Tab panel for searching, browsing, and batch-syncing Chrome bookmarks to AI Workbench
  */
 export const BookmarksTab: React.FC<BookmarksTabProps> = ({
   searchQuery,
@@ -34,6 +34,9 @@ export const BookmarksTab: React.FC<BookmarksTabProps> = ({
   onRefresh,
   onPushToWorkbench,
 }) => {
+  const [isSyncingAll, setIsSyncAll] = useState(false);
+  const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
+
   const handleOpenBookmark = (url: string) => {
     chrome.tabs.create({ url });
   };
@@ -51,6 +54,23 @@ export const BookmarksTab: React.FC<BookmarksTabProps> = ({
         bookmarkedAt: bm.dateAdded ? new Date(bm.dateAdded).toISOString() : undefined,
       },
     });
+  };
+
+  const handleBatchSyncAll = async () => {
+    if (bookmarks.length === 0) return;
+    setIsSyncAll(true);
+    setSyncFeedback(null);
+
+    try {
+      const res = await WorkbenchService.pushBookmarksBatch(bookmarks);
+      setSyncFeedback(res.message);
+      setTimeout(() => setSyncFeedback(null), 4000);
+    } catch {
+      setSyncFeedback('同步失败，请检查工作台是否已开启');
+      setTimeout(() => setSyncFeedback(null), 4000);
+    } finally {
+      setIsSyncAll(false);
+    }
   };
 
   return (
@@ -82,21 +102,41 @@ export const BookmarksTab: React.FC<BookmarksTabProps> = ({
           )}
         </InputGroup>
 
-        {/* Header toolbar */}
+        {/* Header toolbar & Batch Sync Action */}
         <div className="flex justify-between items-center px-0.5">
-          <span className="text-[11px] text-muted">
-            共找到 {bookmarks.length} 个书签
+          <span className="text-[11px] text-muted font-medium">
+            共 {bookmarks.length} 个书签
           </span>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-6 text-[11px] px-2 cursor-pointer"
-            onClick={onRefresh}
-          >
-            <RefreshCw className="w-3 h-3 mr-1" />
-            刷新
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 text-[11px] px-2 cursor-pointer"
+              onClick={onRefresh}
+            >
+              <RefreshCw className="w-3 h-3 mr-1" />
+              刷新
+            </Button>
+            <Button
+              size="sm"
+              variant="primary"
+              className="h-6 text-[11px] px-2.5 rounded-full shadow-xs cursor-pointer"
+              isDisabled={isSyncingAll || bookmarks.length === 0}
+              onClick={handleBatchSyncAll}
+            >
+              <Zap className="w-3 h-3 mr-1" />
+              {isSyncingAll ? '同步中...' : '一键同步至工作台'}
+            </Button>
+          </div>
         </div>
+
+        {/* Sync Feedback Toast Banner */}
+        {syncFeedback && (
+          <div className="p-2 rounded-lg bg-accent-soft text-accent text-[11px] flex items-center gap-1.5 border border-accent/20 animate-fade-in">
+            <Check className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">{syncFeedback}</span>
+          </div>
+        )}
       </div>
 
       {/* Bookmarks List */}
