@@ -9,16 +9,20 @@ import {
 	Loader2,
 	Sparkles,
 } from "lucide-react";
-import { useEffect, useState } from "react";
-import { ItemFavicon } from "./ItemFavicon";
-import type { Category, WorkbenchItem } from "./types";
-import { WorkbenchStorageService } from "../../services/workbenchStorage";
+import { memo, useEffect, useState } from "react";
+import { WorkbenchStorageService } from "../../../../services/workbenchStorage";
+import { ItemFavicon } from "../../ItemFavicon";
+import { CapsuleBannerSkeleton } from "../../skeletons/CapsuleBannerSkeleton";
+import type { Category, WorkbenchItem } from "../../types";
 
-interface DailyCapsuleBannerProps {
+export interface DailyCapsuleBannerProps {
 	onNavigateToFolder?: (folderId: number | null, category?: Category) => void;
 }
 
-export function DailyCapsuleBanner({
+/**
+ * Daily Inspiration Capsule Banner to awaken sleeping bookmarks and assets
+ */
+export const DailyCapsuleBanner = memo(function DailyCapsuleBanner({
 	onNavigateToFolder,
 }: DailyCapsuleBannerProps) {
 	const [capsules, setCapsules] = useState<WorkbenchItem[]>([]);
@@ -52,6 +56,10 @@ export function DailyCapsuleBanner({
 
 	if (capsules.length === 0 && !isLoading) {
 		return null;
+	}
+
+	if (isLoading && capsules.length === 0) {
+		return <CapsuleBannerSkeleton />;
 	}
 
 	return (
@@ -216,5 +224,4 @@ export function DailyCapsuleBanner({
 			)}
 		</div>
 	);
-}
-
+});

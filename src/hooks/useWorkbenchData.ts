@@ -1,8 +1,8 @@
 import { toast } from "@heroui/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-	CATEGORIES as DEFAULT_CATEGORIES,
 	type Category,
+	CATEGORIES as DEFAULT_CATEGORIES,
 	type Folder,
 	type WorkbenchItem,
 	type WorkbenchSettings,
@@ -30,6 +30,7 @@ export interface UseWorkbenchDataReturn {
 	filteredFolders: Folder[];
 	filteredUnclassified: WorkbenchItem[];
 	searchQuery: string;
+	isInitialLoading: boolean;
 	setSearchQuery: (query: string) => void;
 	setActiveCategory: (cat: Category) => void;
 	setSelectedFolderId: (id: number | null) => void;
@@ -62,38 +63,71 @@ export interface UseWorkbenchDataReturn {
 	reloadFromDb: () => Promise<void>;
 }
 
+export interface InitialWorkbenchData {
+	folders?: Folder[];
+	unclassified?: WorkbenchItem[];
+	settings?: WorkbenchSettings;
+}
+
 /**
  * Hook to manage workbench core state, database synchronization, polling, and CRUD operations
  */
-export function useWorkbenchData(): UseWorkbenchDataReturn {
-	const [folders, setFolders] = useState<Folder[]>([]);
-	const [unclassified, setUnclassified] = useState<WorkbenchItem[]>([]);
-	const [settings, setSettings] = useState<WorkbenchSettings>(DEFAULT_SETTINGS);
-	const [activeCategory, setActiveCategory] = useState<Category>("工作台");
-	const [selectedFolderId, setSelectedFolderId] = useState<number | null>(null);
+export function useWorkbenchData(
+	initialData?: InitialWorkbenchData,
+): UseWorkbenchDataReturn {
+	const [folders, setFolders] = useState<Folder[]>(
+		() => initialData?.folders ?? [],
+	);
+	const [unclassified, setUnclassified] = useState<WorkbenchItem[]>(
+		() => initialData?.unclassified ?? [],
+	);
+	const [settings, setSettings] = useState<WorkbenchSettings>(
+		() => initialData?.settings ?? DEFAULT_SETTINGS,
+	);
+	const [activeCategory, setActiveCategory] = useState<Category>(() => {
+		if (
+			initialData?.folders &&
+			initialData.folders.length === 0 &&
+			initialData.unclassified &&
+			initialData.unclassified.length > 0
+		) {
+			return "未分类";
+		}
+		return "工作台";
+	});
+	const [selectedFolderId, setSelectedFolderId] = useState<number | null>(
+		() => initialData?.folders?.[0]?.id ?? null,
+	);
 	const [searchQuery, setSearchQuery] = useState("");
+	const [isInitialLoading, setIsInitialLoading] = useState(() => !initialData);
 
 	// Load initial data from SQLite
 	const reloadFromDb = useCallback(async () => {
-		const { folders: loadedFolders, unclassified: loadedUnclassified } =
-			await WorkbenchStorageService.fetchAllFromDb();
-		const loadedSettings = WorkbenchStorageService.getSettings();
+		try {
+			const { folders: loadedFolders, unclassified: loadedUnclassified } =
+				await WorkbenchStorageService.fetchAllFromDb();
+			const loadedSettings = WorkbenchStorageService.getSettings();
 
-		setFolders(loadedFolders);
-		setUnclassified(loadedUnclassified);
-		setSettings(loadedSettings);
+			setFolders(loadedFolders);
+			setUnclassified(loadedUnclassified);
+			setSettings(loadedSettings);
 
-		// If no folders exist but there are unclassified items, switch to unclassified view
-		if (loadedFolders.length === 0 && loadedUnclassified.length > 0) {
-			setActiveCategory("未分类");
-		} else if (loadedFolders.length > 0 && selectedFolderId === null) {
-			setSelectedFolderId(loadedFolders[0].id);
+			// If no folders exist but there are unclassified items, switch to unclassified view
+			if (loadedFolders.length === 0 && loadedUnclassified.length > 0) {
+				setActiveCategory("未分类");
+			} else if (loadedFolders.length > 0 && selectedFolderId === null) {
+				setSelectedFolderId(loadedFolders[0].id);
+			}
+		} finally {
+			setIsInitialLoading(false);
 		}
 	}, [selectedFolderId]);
 
 	useEffect(() => {
-		reloadFromDb();
-	}, [reloadFromDb]);
+		if (!initialData) {
+			reloadFromDb();
+		}
+	}, [initialData, reloadFromDb]);
 
 	// Sync data on window focus / visibility change, and listen for broadcast / postMessage events
 	useEffect(() => {
@@ -118,7 +152,10 @@ export function useWorkbenchData(): UseWorkbenchDataReturn {
 		try {
 			channel = new BroadcastChannel("aiworkstation_sync");
 			channel.onmessage = (event) => {
-				if (event.data?.type === "WORKBENCH_RELOAD" || event.data?.type === "BOOKMARK_COLLECTED") {
+				if (
+					event.data?.type === "WORKBENCH_RELOAD" ||
+					event.data?.type === "BOOKMARK_COLLECTED"
+				) {
 					reloadFromDb();
 				}
 			};
@@ -335,6 +372,7 @@ export function useWorkbenchData(): UseWorkbenchDataReturn {
 		filteredFolders,
 		filteredUnclassified,
 		searchQuery,
+		isInitialLoading,
 		setSearchQuery,
 		setActiveCategory,
 		setSelectedFolderId,

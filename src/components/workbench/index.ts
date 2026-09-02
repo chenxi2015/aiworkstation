@@ -4,7 +4,7 @@ export * from "./types";
 // Common UI primitives & icons
 export * from "./Icons";
 export * from "./ItemFavicon";
-export * from "./DailyCapsuleBanner";
+export * from "./skeletons";
 
 // Item components
 export * from "./item/WorkbenchItemCard";
@@ -23,11 +23,5 @@ export * from "./layout/CategoryView";
 export * from "./layout/UnclassifiedView";
 export * from "./layout/FloatingChatButton";
 
-// Feature Modals
-export * from "./FolderModal";
-export * from "./SettingsModal";
-export * from "./GlobalSearchModal";
-export * from "./ChatWithBookmarksModal";
-export * from "./FolderDossierModal";
-export * from "./AIClassifyModal";
-export * from "./BookmarkSyncModal";
+// AI Module Components (Modular Architecture)
+export * from "./ai";

@@ -13,16 +13,19 @@ import {
 	X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Streamdown } from "streamdown";
-import type { Folder } from "./types";
-import { WorkbenchStorageService } from "../../services/workbenchStorage";
+import { WorkbenchStorageService } from "../../../../services/workbenchStorage";
+import type { Folder } from "../../types";
+import { AiMarkdownRenderer } from "../shared/AiMarkdownRenderer";
 
-interface FolderDossierModalProps {
+export interface FolderDossierModalProps {
 	isOpen: boolean;
 	folder: Folder | null;
 	onClose: () => void;
 }
 
+/**
+ * AI Folder Dossier Modal generating deep synthesis reports from folder bookmarks
+ */
 export function FolderDossierModal({
 	isOpen,
 	folder,
@@ -235,23 +238,7 @@ export function FolderDossierModal({
 								</Button>
 							</div>
 						) : markdown ? (
-							<div className="prose prose-sm dark:prose-invert max-w-none text-foreground leading-relaxed prose-headings:font-bold prose-headings:tracking-tight prose-h1:text-xl sm:prose-h1:text-2xl prose-h1:border-b prose-h1:border-border/60 prose-h1:pb-3 prose-h1:mb-4 prose-h2:text-base sm:prose-h2:text-lg prose-h2:mt-6 prose-h2:mb-3 prose-h3:text-sm sm:prose-h3:text-base prose-p:text-muted-foreground prose-p:leading-relaxed prose-table:my-4 prose-th:bg-surface-secondary/80 prose-th:text-foreground prose-th:p-2.5 prose-th:text-xs prose-td:p-2.5 prose-td:text-xs prose-td:border-border/60 prose-strong:text-foreground prose-code:text-accent prose-code:bg-accent/10 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:before:content-none prose-code:after:content-none prose-blockquote:border-l-accent prose-blockquote:bg-surface-secondary/40 prose-blockquote:py-1.5 prose-blockquote:px-4 prose-blockquote:rounded-r-lg">
-								<Streamdown
-									controls={{
-										table: {
-											copy: true,
-											download: true,
-											fullscreen: true,
-										},
-										code: {
-											copy: true,
-											download: true,
-										},
-									}}
-								>
-									{markdown}
-								</Streamdown>
-							</div>
+							<AiMarkdownRenderer content={markdown} compact={false} />
 						) : null}
 					</div>
 
@@ -271,4 +258,3 @@ export function FolderDossierModal({
 		</Modal.Backdrop>
 	);
 }
-

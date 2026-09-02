@@ -8,19 +8,19 @@ import {
 } from "@heroui/react";
 import { Check, Folder, Sparkles } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
-import { AIClassifierService } from "../../services/aiClassifier";
-import { WorkbenchStorageService } from "../../services/workbenchStorage";
-import { ItemFavicon } from "./ItemFavicon";
+import { AIClassifierService } from "../../../../services/aiClassifier";
+import { WorkbenchStorageService } from "../../../../services/workbenchStorage";
+import { ItemFavicon } from "../../ItemFavicon";
 import type {
 	AIClassificationResult,
 	BookmarkTDKItem,
 	Folder as FolderType,
 	WorkbenchItem,
 	WorkbenchSettings,
-} from "./types";
-import { ITEM_TYPES } from "./types";
+} from "../../types";
+import { ITEM_TYPES } from "../../types";
 
-interface AIClassifyModalProps {
+export interface AIClassifyModalProps {
 	isOpen: boolean;
 	itemsToClassify: WorkbenchItem[];
 	folders: FolderType[];
@@ -32,6 +32,9 @@ interface AIClassifyModalProps {
 	) => void;
 }
 
+/**
+ * AI Classification Modal powered by DeepSeek for bulk sorting inbox bookmarks
+ */
 export function AIClassifyModal({
 	isOpen,
 	itemsToClassify,
@@ -445,4 +448,3 @@ export function AIClassifyModal({
 		</Modal.Backdrop>
 	);
 }
-

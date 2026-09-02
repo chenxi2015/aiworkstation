@@ -3,7 +3,6 @@ import {
 	Card,
 	Chip,
 	Dropdown,
-	Tooltip,
 	toast,
 } from "@heroui/react";
 import {
@@ -16,6 +15,7 @@ import {
 	Tag,
 	Trash2,
 } from "lucide-react";
+import React, { memo } from "react";
 import { extractDomain } from "../../../lib/url";
 import { ItemFavicon } from "../ItemFavicon";
 import { type Folder, ITEM_TYPES, type WorkbenchItem } from "../types";
@@ -33,8 +33,9 @@ export interface WorkbenchItemCardProps {
 
 /**
  * Reusable bookmark / item card component used across folder details and unclassified lists.
+ * Heavily slimmed down & memoized to avoid DOM explosion on large lists.
  */
-export function WorkbenchItemCard({
+export const WorkbenchItemCard = memo(function WorkbenchItemCard({
 	item,
 	otherFolders = [],
 	showMoveDropdown = false,
@@ -63,7 +64,7 @@ export function WorkbenchItemCard({
 	};
 
 	return (
-		<Card className="group/card p-3 rounded-2xl bg-surface-secondary/40 hover:bg-surface-secondary/80 border-border/70 hover:border-accent/40 transition-all duration-200 flex flex-col gap-2 shadow-none">
+		<Card className="group/card p-3 rounded-2xl bg-surface-secondary/40 hover:bg-surface-secondary/80 border-border/70 hover:border-accent/40 transition-all duration-150 flex flex-col gap-2 shadow-none">
 			{/* Item Header Row */}
 			<div className="flex items-start justify-between gap-2">
 				<button
@@ -144,57 +145,41 @@ export function WorkbenchItemCard({
 				<div className="flex items-center gap-1 shrink-0">
 					{/* Open in New Tab */}
 					{item.url && (
-						<Tooltip>
-							<Tooltip.Trigger>
-								<Button
-									variant="ghost"
-									size="sm"
-									className="h-6 px-2 text-[10px] rounded-lg text-muted hover:text-foreground hover:bg-surface"
-									onPress={() => handleOpenLink(item.url)}
-								>
-									<ExternalLink className="w-3 h-3 mr-1" />
-									打开
-								</Button>
-							</Tooltip.Trigger>
-							<Tooltip.Content className="text-xs py-1 px-2">
-								在浏览器新标签页中打开
-							</Tooltip.Content>
-						</Tooltip>
+						<Button
+							variant="ghost"
+							size="sm"
+							className="h-6 px-2 text-[10px] rounded-lg text-muted hover:text-foreground hover:bg-surface cursor-pointer"
+							onPress={() => handleOpenLink(item.url)}
+							aria-label="在浏览器新标签页中打开"
+						>
+							<ExternalLink className="w-3 h-3 mr-1" />
+							打开
+						</Button>
 					)}
 
 					{/* Copy Link */}
 					{item.url && (
-						<Tooltip>
-							<Tooltip.Trigger>
-								<Button
-									variant="ghost"
-									size="sm"
-									className="h-6 px-2 text-[10px] rounded-lg text-muted hover:text-foreground hover:bg-surface"
-									onPress={() => handleCopyLink(item.url)}
-								>
-									<Copy className="w-3 h-3 mr-1" />
-									复制
-								</Button>
-							</Tooltip.Trigger>
-							<Tooltip.Content className="text-xs py-1 px-2">
-								复制链接至剪贴板
-							</Tooltip.Content>
-						</Tooltip>
+						<Button
+							variant="ghost"
+							size="sm"
+							className="h-6 px-2 text-[10px] rounded-lg text-muted hover:text-foreground hover:bg-surface cursor-pointer"
+							onPress={() => handleCopyLink(item.url)}
+							aria-label="复制链接至剪贴板"
+						>
+							<Copy className="w-3 h-3 mr-1" />
+							复制
+						</Button>
 					)}
 
 					{/* Move to another folder Dropdown */}
 					{showMoveDropdown && onMoveItem && otherFolders.length > 0 && (
 						<Dropdown>
-							<Dropdown.Trigger>
-								<Button
-									variant="ghost"
-									size="sm"
-									className="h-6 px-2 text-[10px] rounded-lg text-muted hover:text-foreground hover:bg-surface"
-									aria-label="移动至其他文件夹"
-								>
-									<FolderInput className="w-3 h-3 mr-1" />
-									移动
-								</Button>
+							<Dropdown.Trigger
+								className="h-6 px-2 text-[10px] rounded-lg text-muted hover:text-foreground hover:bg-surface cursor-pointer inline-flex items-center"
+								aria-label="移动至其他文件夹"
+							>
+								<FolderInput className="w-3 h-3 mr-1" />
+								移动
 							</Dropdown.Trigger>
 
 							<Dropdown.Popover aria-label="移动至其他文件夹">
@@ -229,24 +214,19 @@ export function WorkbenchItemCard({
 
 					{/* Delete Item */}
 					{onDeleteItem && (
-						<Tooltip>
-							<Tooltip.Trigger>
-								<Button
-									variant="ghost"
-									size="sm"
-									className="h-6 w-6 p-0 text-muted hover:text-danger hover:bg-danger-soft/20 rounded-lg shrink-0"
-									onPress={() => onDeleteItem(item)}
-								>
-									<Trash2 className="w-3 h-3" />
-								</Button>
-							</Tooltip.Trigger>
-							<Tooltip.Content className="text-xs py-1 px-2 text-danger">
-								移除此项
-							</Tooltip.Content>
-						</Tooltip>
+						<Button
+							variant="ghost"
+							size="sm"
+							className="h-6 w-6 p-0 text-muted hover:text-danger hover:bg-danger-soft/20 rounded-lg shrink-0 cursor-pointer"
+							onPress={() => onDeleteItem(item)}
+							aria-label="移除此项"
+						>
+							<Trash2 className="w-3 h-3" />
+						</Button>
 					)}
 				</div>
 			</div>
 		</Card>
 	);
-}
+});
+

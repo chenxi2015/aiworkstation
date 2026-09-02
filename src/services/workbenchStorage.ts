@@ -43,6 +43,7 @@ import {
 
 const STORAGE_KEYS = {
 	SETTINGS: "aiworkstation_settings_v3",
+	CHAT_HISTORY: "aiworkstation_chat_history_v1",
 } as const;
 
 export const DEFAULT_SETTINGS: WorkbenchSettings = {
@@ -259,6 +260,49 @@ export class WorkbenchStorageService {
 			);
 		} catch (err) {
 			console.error("Failed to save settings to localStorage:", err);
+		}
+	}
+
+	/**
+	 * Load chat history
+	 */
+	static getChatHistory(): any[] {
+		if (typeof window === "undefined") return [];
+		try {
+			const raw = window.localStorage.getItem(STORAGE_KEYS.CHAT_HISTORY);
+			if (raw) {
+				return JSON.parse(raw);
+			}
+		} catch (err) {
+			console.error("Failed to load chat history from localStorage:", err);
+		}
+		return [];
+	}
+
+	/**
+	 * Persist chat history
+	 */
+	static saveChatHistory(history: any[]): void {
+		if (typeof window === "undefined") return;
+		try {
+			window.localStorage.setItem(
+				STORAGE_KEYS.CHAT_HISTORY,
+				JSON.stringify(history),
+			);
+		} catch (err) {
+			console.error("Failed to save chat history to localStorage:", err);
+		}
+	}
+
+	/**
+	 * Clear chat history
+	 */
+	static clearChatHistory(): void {
+		if (typeof window === "undefined") return;
+		try {
+			window.localStorage.removeItem(STORAGE_KEYS.CHAT_HISTORY);
+		} catch (err) {
+			console.error("Failed to clear chat history from localStorage:", err);
 		}
 	}
 }

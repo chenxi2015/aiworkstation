@@ -1,3 +1,4 @@
+import { memo, useMemo } from "react";
 import type { Category, Folder } from "../types";
 
 export interface CategoryTabsProps {
@@ -10,14 +11,26 @@ export interface CategoryTabsProps {
 
 /**
  * Dynamic Category Navigation Pills with item count badges
+ * Memoized and precomputed for instant 60fps tab switching
  */
-export function CategoryTabs({
+export const CategoryTabs = memo(function CategoryTabs({
 	categories,
 	activeCategory,
 	unclassifiedCount,
 	folders,
 	onSelectCategory,
 }: CategoryTabsProps) {
+	// Precompute folder counts per category once to avoid O(M*N) filtering in JSX loop
+	const folderCountMap = useMemo(() => {
+		const map = new Map<string, number>();
+		for (const f of folders) {
+			if (f.category) {
+				map.set(f.category, (map.get(f.category) || 0) + 1);
+			}
+		}
+		return map;
+	}, [folders]);
+
 	return (
 		<nav className="flex items-center gap-1 overflow-x-auto no-scrollbar flex-1 py-1 px-2">
 			{categories.map((cat) => {
@@ -25,7 +38,7 @@ export function CategoryTabs({
 				const count =
 					cat === "未分类"
 						? unclassifiedCount
-						: folders.filter((f) => f.category === cat).length;
+						: folderCountMap.get(cat) || 0;
 
 				// Hide empty categories unless active or standard
 				if (count === 0 && !["工作台", "未分类"].includes(cat) && !isActive) {
@@ -62,4 +75,5 @@ export function CategoryTabs({
 			})}
 		</nav>
 	);
-}
+});
+

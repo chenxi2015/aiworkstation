@@ -1,3 +1,6 @@
+import { chat } from "@tanstack/ai";
+import { openaiCompatibleText } from "@tanstack/ai-openai/compatible";
+import { z } from "zod";
 import type {
 	AIClassificationResult,
 	BookmarkTDKItem,
@@ -6,17 +9,42 @@ import type {
 } from "../components/workbench/types";
 
 export const DEFAULT_DEEPSEEK_KEY =
-	import.meta.env.VITE_DEEPSEEK_API_KEY ||
+	(typeof import.meta !== "undefined" &&
+		import.meta.env?.VITE_DEEPSEEK_API_KEY) ||
 	(typeof process !== "undefined" ? process.env?.DEEPSEEK_API_KEY : "") ||
 	"";
 export const DEFAULT_DEEPSEEK_BASE_URL =
-	import.meta.env.VITE_DEEPSEEK_BASE_URL ||
+	(typeof import.meta !== "undefined" &&
+		import.meta.env?.VITE_DEEPSEEK_BASE_URL) ||
 	(typeof process !== "undefined" ? process.env?.DEEPSEEK_BASE_URL : "") ||
 	"https://api.deepseek.com";
 export const DEFAULT_DEEPSEEK_MODEL =
-	import.meta.env.VITE_DEEPSEEK_MODEL ||
+	(typeof import.meta !== "undefined" &&
+		import.meta.env?.VITE_DEEPSEEK_MODEL) ||
 	(typeof process !== "undefined" ? process.env?.DEEPSEEK_MODEL : "") ||
 	"deepseek-chat";
+
+/**
+ * Zod Schema for TanStack AI structured classification output
+ */
+const classificationItemSchema = z.object({
+	id: z.union([z.string(), z.number()]).describe("书签唯一ID"),
+	title: z.string().describe("书签名称/标题"),
+	url: z.string().describe("书签URL"),
+	category: z.string().describe("所属工作台大分类"),
+	folderName: z.string().describe("所属主题文件夹名称"),
+	folderDesc: z.string().describe("主题文件夹简短说明"),
+	itemType: z
+		.enum(["tool", "link", "doc", "skill", "note"])
+		.describe("条目类型"),
+	summary: z.string().describe("中文一句话摘要说明"),
+	tags: z.array(z.string()).describe("2-3个中文主题标签"),
+	reason: z.string().describe("归类理由"),
+});
+
+const classificationBatchSchema = z.object({
+	items: z.array(classificationItemSchema).describe("分类结果列表"),
+});
 
 /**
  * Options for AI bookmark classification
@@ -30,30 +58,11 @@ export interface ClassifyOptions {
 }
 
 /**
- * Clean and normalize JSON string returned by LLM
- */
-function cleanJsonOutput(raw: string): string {
-	let text = raw.trim();
-	// Remove markdown code blocks if wrapped
-	if (text.startsWith("```")) {
-		const lines = text.split("\n");
-		if (lines[0].startsWith("```")) {
-			lines.shift();
-		}
-		if (lines.length > 0 && lines[lines.length - 1].startsWith("```")) {
-			lines.pop();
-		}
-		text = lines.join("\n").trim();
-	}
-	return text;
-}
-
-/**
- * AI Classifier service powered by DeepSeek API
+ * AI Classifier service powered by TanStack AI Native chat() + Structured Outputs
  */
 export class AIClassifierService {
 	/**
-	 * Classify a single batch of bookmark TDK items
+	 * Classify a single batch of bookmark TDK items using TanStack AI
 	 */
 	private static async classifyBatch(
 		batch: BookmarkTDKItem[],
@@ -63,8 +72,14 @@ export class AIClassifierService {
 		signal?: AbortSignal,
 	): Promise<AIClassificationResult[]> {
 		const apiKey = settings.deepseekApiKey || DEFAULT_DEEPSEEK_KEY;
-		const baseUrl = settings.deepseekBaseUrl || DEFAULT_DEEPSEEK_BASE_URL;
+		const baseUrl = (
+			settings.deepseekBaseUrl || DEFAULT_DEEPSEEK_BASE_URL
+		).replace(/\/+$/, "");
 		const model = settings.deepseekModel || DEFAULT_DEEPSEEK_MODEL;
+
+		if (!apiKey) {
+			throw new Error("DeepSeek API Key is required for classification");
+		}
 
 		const systemPrompt = `You are an expert AI content organizer and taxonomy architect for an AI Workstation.
 Your task is to analyze an array of web bookmarks with their TDK metadata (Title, Description, Keywords, URL, and folder hierarchy) and categorize them into appropriate workspace categories and theme folders.
@@ -87,22 +102,7 @@ Guidelines for categorization:
    - "note": Notes, inspirations, references, materials.
 5. "summary": A concise 1-sentence summary (in Chinese) explaining what this website is.
 6. "tags": An array of 2-3 relevant topic tags in Chinese.
-7. "reason": Brief justification for the classification.
-
-Output format: Return ONLY a valid JSON object with key "items", whose value is an array of objects.
-Each element must match:
-{
-  "id": string | number,
-  "title": string,
-  "url": string,
-  "category": string,
-  "folderName": string,
-  "folderDesc": string,
-  "itemType": "tool" | "link" | "doc" | "skill" | "note",
-  "summary": string,
-  "tags": string[],
-  "reason": string
-}`;
+7. "reason": Brief justification for the classification.`;
 
 		const userPayload = batch.map((item) => ({
 			id: item.id,
@@ -113,70 +113,48 @@ Each element must match:
 			folderPath: item.folderPath || item.parentTitle || "",
 		}));
 
-		const response = await fetch(
-			`${baseUrl.replace(/\/+$/, "")}/chat/completions`,
-			{
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					Authorization: `Bearer ${apiKey}`,
-				},
-				body: JSON.stringify({
-					model,
-					messages: [
-						{ role: "system", content: systemPrompt },
-						{
-							role: "user",
-							content: `Please classify the following ${batch.length} bookmarks:\n${JSON.stringify(userPayload, null, 2)}`,
-						},
-					],
-					temperature: 0.2,
-					response_format: { type: "json_object" },
-				}),
-				signal,
-			},
-		);
+		// 1. Create TanStack AI OpenAI-compatible adapter
+		const adapter = openaiCompatibleText(model, {
+			baseURL: baseUrl,
+			apiKey,
+		});
 
-		if (!response.ok) {
-			const errorText = await response.text().catch(() => "");
-			throw new Error(
-				`DeepSeek API error (${response.status}): ${errorText || response.statusText}`,
-			);
-		}
-
-		const data = await response.json();
-		const rawContent = data.choices?.[0]?.message?.content || "{}";
-		const cleaned = cleanJsonOutput(rawContent);
-
-		let parsed: any;
-		try {
-			parsed = JSON.parse(cleaned);
-			if (!Array.isArray(parsed)) {
-				const possibleArray = Object.values(parsed).find((val) =>
-					Array.isArray(val),
-				);
-				if (possibleArray) {
-					parsed = possibleArray;
-				} else {
-					parsed = [parsed];
-				}
+		// 2. Setup cancellation controller
+		const abortController = new AbortController();
+		if (signal) {
+			if (signal.aborted) {
+				abortController.abort();
+			} else {
+				signal.addEventListener("abort", () => abortController.abort(), {
+					once: true,
+				});
 			}
-		} catch (err) {
-			console.error("Failed to parse DeepSeek response JSON:", rawContent, err);
-			throw new Error("Failed to parse AI classification result JSON");
 		}
 
-		// Map and validate results
+		// 3. Execute TanStack AI chat() with structured outputSchema
+		const response = await chat({
+			adapter,
+			systemPrompts: [systemPrompt],
+			messages: [
+				{
+					role: "user",
+					content: `Please classify the following ${batch.length} bookmarks:\n${JSON.stringify(userPayload, null, 2)}`,
+				},
+			],
+			outputSchema: classificationBatchSchema,
+			stream: false,
+			abortController,
+		});
+
+		const parsedItems = response?.items || [];
+
+		// 3. Map and validate results
 		return batch.map((item) => {
-			const matched = (parsed as any[]).find(
+			const matched = parsedItems.find(
 				(p) => String(p.id) === String(item.id) || p.url === item.url,
 			);
 
-			const validTypes: ItemType[] = ["tool", "link", "doc", "skill", "note"];
-			const rawType = matched?.itemType?.toLowerCase();
-			const itemType: ItemType = validTypes.includes(rawType)
-				? rawType
-				: "link";
+			const itemType = (matched?.itemType || "link") as ItemType;
 
 			return {
 				id: item.id,

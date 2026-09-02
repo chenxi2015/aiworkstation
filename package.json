@@ -60,6 +60,7 @@
     "@tanstack/devtools-event-client": "latest",
     "@tanstack/devtools-vite": "latest",
     "@tanstack/router-cli": "^1.132.0",
+    "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^22.10.2",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",

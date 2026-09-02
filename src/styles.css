@@ -169,3 +169,219 @@ pre code {
   width: min(1200px, calc(100% - 2rem));
   margin-inline: auto;
 }
+
+/* ==========================================================================
+   Streamdown & AI Output Typography & Controls Overrides
+   ========================================================================== */
+
+/* Font scaling for AI markdown outputs in compact chat & panels */
+.ai-markdown-root,
+.ai-chat-prose {
+  font-size: 12px;
+  color: var(--foreground);
+}
+
+.ai-markdown-root [data-streamdown="heading-1"],
+.ai-chat-prose [data-streamdown="heading-1"],
+.ai-chat-prose h1 {
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  line-height: 1.35 !important;
+  margin-top: 10px !important;
+  margin-bottom: 5px !important;
+  color: var(--foreground) !important;
+}
+
+.ai-markdown-root [data-streamdown="heading-2"],
+.ai-chat-prose [data-streamdown="heading-2"],
+.ai-chat-prose h2 {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  line-height: 1.35 !important;
+  margin-top: 8px !important;
+  margin-bottom: 4px !important;
+  color: var(--foreground) !important;
+}
+
+.ai-markdown-root [data-streamdown="heading-3"],
+.ai-chat-prose [data-streamdown="heading-3"],
+.ai-chat-prose h3 {
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+  line-height: 1.35 !important;
+  margin-top: 6px !important;
+  margin-bottom: 3px !important;
+  color: var(--foreground) !important;
+}
+
+.ai-markdown-root [data-streamdown="heading-4"],
+.ai-markdown-root [data-streamdown="heading-5"],
+.ai-markdown-root [data-streamdown="heading-6"],
+.ai-chat-prose [data-streamdown="heading-4"],
+.ai-chat-prose [data-streamdown="heading-5"],
+.ai-chat-prose [data-streamdown="heading-6"],
+.ai-chat-prose h4,
+.ai-chat-prose h5,
+.ai-chat-prose h6 {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  line-height: 1.35 !important;
+  margin-top: 6px !important;
+  margin-bottom: 3px !important;
+  color: var(--foreground) !important;
+}
+
+.ai-markdown-root [data-streamdown="paragraph"],
+.ai-chat-prose [data-streamdown="paragraph"],
+.ai-chat-prose p {
+  font-size: 12px !important;
+  line-height: 1.65 !important;
+  margin-top: 4px !important;
+  margin-bottom: 4px !important;
+}
+
+.ai-markdown-root [data-streamdown="unordered-list"],
+.ai-markdown-root [data-streamdown="ordered-list"],
+.ai-chat-prose [data-streamdown="unordered-list"],
+.ai-chat-prose [data-streamdown="ordered-list"],
+.ai-chat-prose ul,
+.ai-chat-prose ol {
+  font-size: 12px !important;
+  line-height: 1.6 !important;
+  margin-top: 4px !important;
+  margin-bottom: 4px !important;
+  padding-left: 14px !important;
+}
+
+.ai-markdown-root [data-streamdown="list-item"],
+.ai-chat-prose [data-streamdown="list-item"],
+.ai-chat-prose li {
+  padding-top: 1px !important;
+  padding-bottom: 1px !important;
+}
+
+/* Streamdown table wrapper & toolbar button styling */
+[data-streamdown="table-wrapper"] {
+  margin-block: 6px !important;
+  padding: 6px !important;
+  background-color: var(--surface-secondary) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
+  gap: 4px !important;
+}
+
+/* Table toolbar action buttons */
+[data-streamdown="table-wrapper"] > .flex.items-center.justify-end,
+[data-streamdown="table-wrapper"] > div:first-child {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 4px !important;
+  padding-bottom: 2px !important;
+}
+
+[data-streamdown="table-wrapper"] button[type="button"],
+[data-streamdown="code-block-actions"] button[type="button"] {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 24px !important;
+  height: 24px !important;
+  padding: 0 !important;
+  border-radius: 6px !important;
+  color: var(--muted) !important;
+  background-color: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+}
+
+[data-streamdown="table-wrapper"] button[type="button"]:hover,
+[data-streamdown="code-block-actions"] button[type="button"]:hover {
+  color: var(--foreground) !important;
+  background-color: var(--surface-tertiary) !important;
+  border-color: var(--accent) !important;
+}
+
+/* Fix Streamdown Dropdown Menu (Copy / Download popup) */
+[data-streamdown="table-wrapper"] .relative > .absolute,
+[data-streamdown] .absolute.top-full {
+  position: absolute !important;
+  top: calc(100% + 4px) !important;
+  right: 0 !important;
+  z-index: 50 !important;
+  min-width: 140px !important;
+  width: max-content !important;
+  max-width: 220px !important;
+  background-color: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+  padding: 4px !important;
+  overflow: visible !important;
+  white-space: nowrap !important;
+}
+
+/* Dropdown Menu Item Buttons */
+[data-streamdown="table-wrapper"] .relative > .absolute button,
+[data-streamdown] .absolute.top-full button {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  width: 100% !important;
+  min-width: 100% !important;
+  height: 28px !important;
+  padding: 4px 8px !important;
+  margin: 1px 0 !important;
+  font-size: 11.5px !important;
+  font-weight: 500 !important;
+  color: var(--foreground) !important;
+  background-color: transparent !important;
+  border: none !important;
+  border-radius: 5px !important;
+  text-align: left !important;
+  white-space: nowrap !important;
+  cursor: pointer !important;
+  box-shadow: none !important;
+}
+
+[data-streamdown="table-wrapper"] .relative > .absolute button:hover,
+[data-streamdown] .absolute.top-full button:hover {
+  background-color: var(--surface-secondary) !important;
+  color: var(--accent) !important;
+}
+
+/* Table container and cells */
+[data-streamdown="table-wrapper"] > div:last-child {
+  border-radius: 6px !important;
+  overflow-x: auto !important;
+  border: 1px solid var(--border) !important;
+  background-color: var(--surface) !important;
+}
+
+[data-streamdown="table"] {
+  width: 100% !important;
+  font-size: 11.5px !important;
+  border-collapse: collapse !important;
+}
+
+[data-streamdown="table-header-cell"],
+[data-streamdown="table-header"] th {
+  padding: 5px 8px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  background-color: var(--surface-secondary) !important;
+  color: var(--foreground) !important;
+  border-bottom: 1px solid var(--border) !important;
+  white-space: nowrap !important;
+}
+
+[data-streamdown="table-cell"],
+[data-streamdown="table-body"] td {
+  padding: 5px 8px !important;
+  font-size: 11.5px !important;
+  color: var(--foreground) !important;
+  border-bottom: 1px solid var(--border) !important;
+  line-height: 1.45 !important;
+}

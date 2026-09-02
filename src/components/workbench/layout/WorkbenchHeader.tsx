@@ -1,11 +1,9 @@
 import { Button } from "@heroui/react";
 import {
-	BotMessageSquare,
 	FolderDown,
 	FolderPlus,
 	Search,
 	Settings,
-	Sparkles,
 } from "lucide-react";
 import ThemeToggle from "../../ThemeToggle";
 import { WorkbenchLogoIcon } from "../Icons";
@@ -18,9 +16,7 @@ export interface WorkbenchHeaderProps {
 	unclassifiedCount: number;
 	folders: Folder[];
 	onSelectCategory: (category: Category) => void;
-	onOpenChat: () => void;
 	onOpenSearch: () => void;
-	onOpenAIClassify: () => void;
 	onOpenSync: () => void;
 	onOpenCreateFolder: () => void;
 	onOpenSettings: () => void;
@@ -35,9 +31,7 @@ export function WorkbenchHeader({
 	unclassifiedCount,
 	folders,
 	onSelectCategory,
-	onOpenChat,
 	onOpenSearch,
-	onOpenAIClassify,
 	onOpenSync,
 	onOpenCreateFolder,
 	onOpenSettings,
@@ -70,17 +64,6 @@ export function WorkbenchHeader({
 
 			{/* Right: Actions */}
 			<div className="flex items-center gap-2 shrink-0">
-				{/* Chat with Bookmarks RAG Button */}
-				<Button
-					variant="secondary"
-					size="sm"
-					className="rounded-full flex items-center gap-1.5 px-3 shadow-2xs text-accent font-medium hover:bg-accent-soft cursor-pointer"
-					onPress={onOpenChat}
-				>
-					<BotMessageSquare className="w-3.5 h-3.5 text-accent" />
-					<span>知识问答</span>
-				</Button>
-
 				{/* Global Search Button */}
 				<Button
 					variant="secondary"
@@ -93,22 +76,6 @@ export function WorkbenchHeader({
 					<kbd className="text-[10px] font-mono px-1.5 py-0.2 bg-background/50 border border-border/80 rounded text-muted">
 						⌘K
 					</kbd>
-				</Button>
-
-				{/* AI Classify Button */}
-				<Button
-					variant={unclassifiedCount > 0 ? "primary" : "secondary"}
-					size="sm"
-					className="rounded-full shadow-xs flex items-center gap-1.5 cursor-pointer"
-					onPress={onOpenAIClassify}
-				>
-					<Sparkles className="w-3.5 h-3.5" />
-					<span>AI 智能归类</span>
-					{unclassifiedCount > 0 && (
-						<span className="ml-0.5 px-1.5 py-0.2 text-[10px] bg-background/20 rounded-full font-mono">
-							{unclassifiedCount}
-						</span>
-					)}
 				</Button>
 
 				{/* Import/Sync Bookmarks Button */}

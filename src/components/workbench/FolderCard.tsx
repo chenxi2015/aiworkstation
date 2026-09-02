@@ -1,4 +1,5 @@
 import { Card, Chip } from "@heroui/react";
+import { memo } from "react";
 import { CalendarIcon, FolderIcon, GridIcon } from "./Icons";
 import type { Folder } from "./types";
 
@@ -8,7 +9,11 @@ interface FolderCardProps {
 	onClick: () => void;
 }
 
-export function FolderCard({ folder, isSelected, onClick }: FolderCardProps) {
+export const FolderCard = memo(function FolderCard({
+	folder,
+	isSelected,
+	onClick,
+}: FolderCardProps) {
 	const isGrid = folder.name.includes("九宫格") || folder.items.length >= 9;
 
 	return (
@@ -19,7 +24,7 @@ export function FolderCard({ folder, isSelected, onClick }: FolderCardProps) {
 			onKeyDown={(e) => {
 				if (e.key === "Enter" || e.key === " ") onClick();
 			}}
-			className={`cursor-pointer ${isSelected ? "border-accent ring-2 ring-accent" : ""}`}
+			className={`cursor-pointer transition-all duration-150 ${isSelected ? "border-accent ring-2 ring-accent" : "hover:border-accent/40"}`}
 		>
 			<Card.Header>
 				{isGrid ? (
@@ -47,4 +52,5 @@ export function FolderCard({ folder, isSelected, onClick }: FolderCardProps) {
 			</Card.Footer>
 		</Card>
 	);
-}
+});
+

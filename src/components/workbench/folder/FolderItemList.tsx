@@ -1,6 +1,6 @@
-import { Chip, EmptyState, InputGroup } from "@heroui/react";
-import { Search, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Button, Chip, EmptyState, InputGroup } from "@heroui/react";
+import { ChevronDown, Search, X } from "lucide-react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { WorkbenchItemCard } from "../item/WorkbenchItemCard";
 import {
 	type Folder,
@@ -8,6 +8,9 @@ import {
 	type ItemType,
 	type WorkbenchItem,
 } from "../types";
+
+const INITIAL_CHUNK_SIZE = 30;
+const INCREMENTAL_CHUNK_SIZE = 30;
 
 export interface FolderItemListProps {
 	folder: Folder;
@@ -23,9 +26,10 @@ export interface FolderItemListProps {
 }
 
 /**
- * Filterable and searchable list of items inside a specific folder
+ * Filterable and searchable list of items inside a specific folder.
+ * Uses progressive chunk rendering to ensure instant 60fps responsiveness even with 1000+ items.
  */
-export function FolderItemList({
+export const FolderItemList = memo(function FolderItemList({
 	folder,
 	allFolders = [],
 	onDeleteItem,
@@ -35,9 +39,15 @@ export function FolderItemList({
 }: FolderItemListProps) {
 	const [localSearchQuery, setLocalSearchQuery] = useState("");
 	const [localTypeFilter, setLocalTypeFilter] = useState("all");
+	const [visibleCount, setVisibleCount] = useState(INITIAL_CHUNK_SIZE);
 
 	const selectedType = controlledTypeFilter ?? localTypeFilter;
 	const setSelectedType = controlledOnSelectTypeFilter ?? setLocalTypeFilter;
+
+	// Reset pagination on folder, search or filter changes
+	useEffect(() => {
+		setVisibleCount(INITIAL_CHUNK_SIZE);
+	}, [folder.id, selectedType, localSearchQuery]);
 
 	// Other folders available for moving items
 	const otherFolders = useMemo(() => {
@@ -75,6 +85,18 @@ export function FolderItemList({
 
 		return list;
 	}, [folder.items, selectedType, localSearchQuery]);
+
+	// Slice visible items for ultra-fast initial DOM mounting
+	const visibleItems = useMemo(() => {
+		return filteredItems.slice(0, visibleCount);
+	}, [filteredItems, visibleCount]);
+
+	const hasMore = filteredItems.length > visibleCount;
+	const remainingCount = filteredItems.length - visibleCount;
+
+	const handleLoadMore = () => {
+		setVisibleCount((prev) => prev + INCREMENTAL_CHUNK_SIZE);
+	};
 
 	return (
 		<div className="space-y-3">
@@ -173,7 +195,7 @@ export function FolderItemList({
 				</EmptyState>
 			) : (
 				<div className="space-y-2.5">
-					{filteredItems.map((item, index) => (
+					{visibleItems.map((item, index) => (
 						<WorkbenchItemCard
 							key={item.id || `${item.name}-${index}`}
 							item={item}
@@ -190,8 +212,27 @@ export function FolderItemList({
 							}
 						/>
 					))}
+
+					{/* Progressive Load More Action */}
+					{hasMore && (
+						<div className="pt-2 pb-1 text-center">
+							<Button
+								variant="secondary"
+								size="sm"
+								className="w-full py-1.5 h-8 text-xs rounded-xl bg-surface-secondary/60 hover:bg-surface-secondary text-muted hover:text-foreground border border-border/60 cursor-pointer flex items-center justify-center gap-1 shadow-2xs font-medium"
+								onPress={handleLoadMore}
+							>
+								<span>加载更多</span>
+								<span className="text-[10px] font-mono opacity-70">
+									(+{Math.min(INCREMENTAL_CHUNK_SIZE, remainingCount)} / 剩余 {remainingCount})
+								</span>
+								<ChevronDown className="w-3.5 h-3.5 opacity-70" />
+							</Button>
+						</div>
+					)}
 				</div>
 			)}
 		</div>
 	);
-}
+});
+

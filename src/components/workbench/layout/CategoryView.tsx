@@ -1,25 +1,37 @@
 import { Button, EmptyState } from "@heroui/react";
 import { FolderPlus } from "lucide-react";
+import { memo } from "react";
 import { FolderCard } from "../FolderCard";
 import { FolderIcon } from "../Icons";
+import { FolderGridSkeleton } from "../skeletons/FolderGridSkeleton";
 import type { Folder } from "../types";
 
 export interface CategoryViewProps {
 	folders: Folder[];
 	selectedFolderId: number | null;
+	isLoading?: boolean;
 	onSelectFolder: (id: number) => void;
 	onCreateFolder: () => void;
 }
 
 /**
- * Category View displaying folder cards in a responsive grid or empty state
+ * Category View displaying folder cards in a responsive grid, skeleton loading, or empty state
  */
-export function CategoryView({
+export const CategoryView = memo(function CategoryView({
 	folders,
 	selectedFolderId,
+	isLoading = false,
 	onSelectFolder,
 	onCreateFolder,
 }: CategoryViewProps) {
+	if (isLoading) {
+		return (
+			<div className="flex-1 flex flex-col">
+				<FolderGridSkeleton count={8} />
+			</div>
+		);
+	}
+
 	if (folders.length === 0) {
 		return (
 			<div className="flex-1 flex flex-col">
@@ -50,7 +62,7 @@ export function CategoryView({
 
 	return (
 		<div className="flex-1 flex flex-col">
-			<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+			<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5">
 				{folders.map((folder) => (
 					<FolderCard
 						key={folder.id}
@@ -62,5 +74,6 @@ export function CategoryView({
 			</div>
 		</div>
 	);
-}
+});
+
 

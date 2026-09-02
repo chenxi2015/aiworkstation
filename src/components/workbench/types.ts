@@ -60,6 +60,8 @@ export interface Folder {
 	category: string;
 	createdAt: string;
 	desc?: string;
+	dossierMarkdown?: string;
+	dossierUpdatedAt?: string;
 	items: WorkbenchItem[];
 }
 

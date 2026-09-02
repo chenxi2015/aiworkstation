@@ -3,16 +3,12 @@ import { devtools } from "@tanstack/devtools-vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
-import { workbenchDb } from "./src/server/db/sqlite.ts";
-
-/**
- * Custom Vite plugin to handle external Chrome Extension /api/collect HTTP endpoint
- */
+// Avoid static DB import at top-level so DB schema edits don't trigger full Vite config server reloads
 function extensionCollectorApiPlugin(): Plugin {
 	return {
 		name: "extension-collector-api-plugin",
 		configureServer(server) {
-			server.middlewares.use((req, res, next) => {
+			server.middlewares.use(async (req, res, next) => {
 				const fullUrl = req.url || "";
 				const pathname = fullUrl.split("?")[0];
 
@@ -42,6 +38,8 @@ function extensionCollectorApiPlugin(): Plugin {
 					res.statusCode = status;
 					res.end(JSON.stringify(data));
 				};
+
+				const { workbenchDb } = await import("./src/server/db/sqlite.ts");
 
 				if (req.method === "POST") {
 					let body = "";
