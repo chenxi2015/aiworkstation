@@ -1,5 +1,5 @@
 import { toast } from "@heroui/react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	type Category,
 	CATEGORIES as DEFAULT_CATEGORIES,
@@ -96,9 +96,26 @@ export function useWorkbenchData(
 		}
 		return "工作台";
 	});
-	const [selectedFolderId, setSelectedFolderId] = useState<number | null>(
-		() => initialData?.folders?.[0]?.id ?? null,
-	);
+
+	// Keep a ref to the latest activeCategory to avoid stale closures in reloadFromDb
+	const activeCategoryRef = useRef(activeCategory);
+	useEffect(() => {
+		activeCategoryRef.current = activeCategory;
+	}, [activeCategory]);
+
+	// Initialize selectedFolderId to the first folder belonging to activeCategory
+	const [selectedFolderId, setSelectedFolderId] = useState<number | null>(() => {
+		if (!initialData?.folders || initialData.folders.length === 0) return null;
+		const initCat =
+			initialData.folders.length === 0 &&
+			initialData.unclassified &&
+			initialData.unclassified.length > 0
+				? "未分类"
+				: "工作台";
+		if (initCat === "未分类") return null;
+		const firstInCat = initialData.folders.find((f) => f.category === initCat);
+		return firstInCat ? firstInCat.id : (initialData.folders[0]?.id ?? null);
+	});
 	const [searchQuery, setSearchQuery] = useState("");
 	const [isInitialLoading, setIsInitialLoading] = useState(() => !initialData);
 
@@ -116,10 +133,21 @@ export function useWorkbenchData(
 			// If no folders exist but there are unclassified items, switch to unclassified view
 			if (loadedFolders.length === 0 && loadedUnclassified.length > 0) {
 				setActiveCategory("未分类");
+				setSelectedFolderId(null);
 			} else if (loadedFolders.length > 0) {
-				setSelectedFolderId((prev) =>
-					prev === null ? loadedFolders[0].id : prev,
-				);
+				const currentCat = activeCategoryRef.current;
+				setSelectedFolderId((prev) => {
+					// Retain current selection if it still exists and belongs to the active category
+					if (prev !== null) {
+						const existing = loadedFolders.find(
+							(f) => f.id === prev && f.category === currentCat,
+						);
+						if (existing) return prev;
+					}
+					// Default to the first folder in the active category
+					const firstInCat = loadedFolders.find((f) => f.category === currentCat);
+					return firstInCat ? firstInCat.id : (loadedFolders[0]?.id ?? null);
+				});
 			}
 		} finally {
 			setIsInitialLoading(false);
@@ -225,15 +253,15 @@ export function useWorkbenchData(
 
 	// Selected folder instance
 	const selectedFolder = useMemo(() => {
-		if (!selectedFolderId) {
-			return filteredFolders[0] || null;
+		if (activeCategory === "未分类") {
+			return null;
 		}
-		return (
-			folders.find((f) => f.id === selectedFolderId) ||
-			filteredFolders[0] ||
-			null
-		);
-	}, [folders, selectedFolderId, filteredFolders]);
+		if (selectedFolderId) {
+			const matched = filteredFolders.find((f) => f.id === selectedFolderId);
+			if (matched) return matched;
+		}
+		return filteredFolders[0] || null;
+	}, [selectedFolderId, filteredFolders, activeCategory]);
 
 	// Handle category switch
 	const handleCategoryChange = useCallback(
