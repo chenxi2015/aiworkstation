@@ -17,6 +17,7 @@ export interface SaveFolderPayload {
 	name: string;
 	category: string;
 	desc: string;
+	color?: string;
 }
 
 export interface UseWorkbenchDataReturn {
@@ -44,7 +45,7 @@ export interface UseWorkbenchDataReturn {
 	) => Promise<void>;
 	handleMoveItem: (
 		item: WorkbenchItem,
-		sourceFolderId: number,
+		sourceFolderId: number | null,
 		targetFolderId: number,
 	) => Promise<void>;
 	handleDeleteUnclassifiedItem: (item: WorkbenchItem) => Promise<void>;
@@ -116,7 +117,9 @@ export function useWorkbenchData(
 			if (loadedFolders.length === 0 && loadedUnclassified.length > 0) {
 				setActiveCategory("未分类");
 			} else if (loadedFolders.length > 0) {
-				setSelectedFolderId((prev) => (prev === null ? loadedFolders[0].id : prev));
+				setSelectedFolderId((prev) =>
+					prev === null ? loadedFolders[0].id : prev,
+				);
 			}
 		} finally {
 			setIsInitialLoading(false);
@@ -305,11 +308,11 @@ export function useWorkbenchData(
 		[],
 	);
 
-	// Move item between folders
+	// Move item between folders (or from unclassified pool)
 	const handleMoveItem = useCallback(
 		async (
 			item: WorkbenchItem,
-			sourceFolderId: number,
+			sourceFolderId: number | null,
 			targetFolderId: number,
 		) => {
 			const { folders: updatedFolders, unclassified: updatedUnclassified } =
@@ -320,7 +323,11 @@ export function useWorkbenchData(
 				);
 			setFolders(updatedFolders);
 			setUnclassified(updatedUnclassified);
-			toast.success(`已将「${item.name}」移动到目标文件夹`);
+			toast.success(
+				sourceFolderId === null
+					? `已将「${item.name}」放入目标文件夹`
+					: `已将「${item.name}」移动到目标文件夹`,
+			);
 		},
 		[],
 	);

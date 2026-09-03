@@ -14,6 +14,10 @@ export const createFolderInputSchema = z.object({
 			"所属工作台大分类（如：工作台、自媒体、技能、电商、收藏等），默认'工作台'",
 		),
 	desc: z.string().optional().describe("文件夹主题说明或使用场景描述"),
+	color: z
+		.string()
+		.optional()
+		.describe("文件夹主题颜色 Hex 代码，例如 '#4f46e5'"),
 });
 
 export type CreateFolderInput = z.infer<typeof createFolderInputSchema>;
@@ -24,7 +28,7 @@ export type CreateFolderInput = z.infer<typeof createFolderInputSchema>;
 export function executeCreateFolder(
 	args: CreateFolderInput,
 ): ToolExecutionResult {
-	const { name, category = "工作台", desc = "" } = args;
+	const { name, category = "工作台", desc = "", color } = args;
 	const trimmedName = (name || "").trim();
 
 	if (!trimmedName) {
@@ -56,6 +60,7 @@ export function executeCreateFolder(
 		trimmedName,
 		category,
 		desc || `${trimmedName} 主题资产库`,
+		color,
 	);
 
 	return {

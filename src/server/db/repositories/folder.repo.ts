@@ -64,6 +64,7 @@ export class FolderRepository {
 				name: f.name,
 				category: f.category,
 				desc: f.description || "",
+				color: f.color || undefined,
 				createdAt: f.created_at,
 				items,
 			});
@@ -75,19 +76,25 @@ export class FolderRepository {
 	/**
 	 * Create a new folder
 	 */
-	createFolder(name: string, category: string, desc: string): Folder {
+	createFolder(
+		name: string,
+		category: string,
+		desc: string,
+		color?: string,
+	): Folder {
 		const today = new Date().toISOString().split("T")[0];
 		const ins = this.db
 			.prepare(
-				"INSERT INTO folders (name, category, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+				"INSERT INTO folders (name, category, description, color, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
 			)
-			.run(name, category, desc, today, today);
+			.run(name, category, desc, color || "", today, today);
 
 		return {
 			id: ins.lastInsertRowid as number,
 			name,
 			category,
 			desc,
+			color: color || undefined,
 			createdAt: today,
 			items: [],
 		};
@@ -96,13 +103,19 @@ export class FolderRepository {
 	/**
 	 * Update folder metadata
 	 */
-	updateFolder(id: number, name: string, category: string, desc: string): void {
+	updateFolder(
+		id: number,
+		name: string,
+		category: string,
+		desc: string,
+		color?: string,
+	): void {
 		const today = new Date().toISOString().split("T")[0];
 		this.db
 			.prepare(
-				"UPDATE folders SET name = ?, category = ?, description = ?, updated_at = ? WHERE id = ?",
+				"UPDATE folders SET name = ?, category = ?, description = ?, color = ?, updated_at = ? WHERE id = ?",
 			)
-			.run(name, category, desc, today, id);
+			.run(name, category, desc, color || "", today, id);
 	}
 
 	/**

@@ -23,14 +23,25 @@ export const getWorkbenchData = createServerFn({ method: "GET" }).handler(
  */
 export const saveFolder = createServerFn({ method: "POST" })
 	.validator(
-		(data: { id?: number; name: string; category: string; desc: string }) =>
-			data,
+		(data: {
+			id?: number;
+			name: string;
+			category: string;
+			desc: string;
+			color?: string;
+		}) => data,
 	)
 	.handler(async ({ data }): Promise<Folder[]> => {
 		if (data.id) {
-			workbenchDb.updateFolder(data.id, data.name, data.category, data.desc);
+			workbenchDb.updateFolder(
+				data.id,
+				data.name,
+				data.category,
+				data.desc,
+				data.color,
+			);
 		} else {
-			workbenchDb.createFolder(data.name, data.category, data.desc);
+			workbenchDb.createFolder(data.name, data.category, data.desc, data.color);
 		}
 		return workbenchDb.getAllFolders();
 	});

@@ -1,10 +1,4 @@
-import {
-	Button,
-	Card,
-	Chip,
-	Dropdown,
-	toast,
-} from "@heroui/react";
+import { Button, Card, Chip, Dropdown, Tooltip, toast } from "@heroui/react";
 import {
 	ArrowUpRight,
 	Copy,
@@ -15,7 +9,8 @@ import {
 	Tag,
 	Trash2,
 } from "lucide-react";
-import React, { memo } from "react";
+import type React from "react";
+import { memo, useMemo } from "react";
 import { extractDomain } from "../../../lib/url";
 import { ItemFavicon } from "../ItemFavicon";
 import { type Folder, ITEM_TYPES, type WorkbenchItem } from "../types";
@@ -28,13 +23,14 @@ export interface WorkbenchItemCardProps {
 	showTypeBadge?: boolean;
 	footerExtra?: React.ReactNode;
 	className?: string;
+	compact?: boolean;
 	onDeleteItem?: (item: WorkbenchItem) => void;
 	onMoveItem?: (item: WorkbenchItem, targetFolderId: number) => void;
 }
 
 /**
  * Reusable bookmark / item card component used across folder details and unclassified lists.
- * Heavily slimmed down & memoized to avoid DOM explosion on large lists.
+ * Supports compact mode for clean sidebars, and full card mode for multi-column feeds.
  */
 export const WorkbenchItemCard = memo(function WorkbenchItemCard({
 	item,
@@ -43,6 +39,7 @@ export const WorkbenchItemCard = memo(function WorkbenchItemCard({
 	showTypeBadge = true,
 	footerExtra,
 	className,
+	compact = false,
 	onDeleteItem,
 	onMoveItem,
 }: WorkbenchItemCardProps) {
@@ -64,6 +61,173 @@ export const WorkbenchItemCard = memo(function WorkbenchItemCard({
 			toast.success("已复制链接到剪贴板");
 		}
 	};
+
+	// Sort folders: prioritize matched folder if item has original folderName, then sort by category and name
+	const sortedFolders = useMemo(() => {
+		if (!otherFolders || otherFolders.length === 0) return [];
+		const normalizedOriginalFolder = item.folderName?.trim().toLowerCase();
+		return [...otherFolders].sort((a, b) => {
+			if (normalizedOriginalFolder) {
+				const aMatch = a.name.trim().toLowerCase() === normalizedOriginalFolder;
+				const bMatch = b.name.trim().toLowerCase() === normalizedOriginalFolder;
+				if (aMatch && !bMatch) return -1;
+				if (!aMatch && bMatch) return 1;
+			}
+			if (a.category !== b.category) {
+				return a.category.localeCompare(b.category);
+			}
+			return a.name.localeCompare(b.name);
+		});
+	}, [otherFolders, item.folderName]);
+
+	if (compact) {
+		return (
+			<div
+				className={`group/item flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl hover:bg-surface-secondary/70 border border-transparent hover:border-border/60 transition-all ${
+					className || ""
+				}`}
+			>
+				{/* Favicon & Title Button */}
+				<button
+					type="button"
+					onClick={() => handleOpenLink(item.url)}
+					className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer text-left"
+				>
+					<div className="w-5 h-5 rounded-md bg-surface flex items-center justify-center shrink-0 text-accent shadow-2xs">
+						<ItemFavicon
+							url={item.url}
+							favicon={item.favicon}
+							type={item.type}
+							name={item.name}
+							size="xs"
+						/>
+					</div>
+					<div className="min-w-0 flex-1">
+						<div
+							className="text-xs font-medium text-foreground truncate group-hover/item:text-accent transition-colors"
+							title={item.name}
+						>
+							{item.name}
+						</div>
+						{domain && (
+							<div className="text-[10px] text-muted font-mono truncate leading-none mt-0.5">
+								{domain}
+							</div>
+						)}
+					</div>
+				</button>
+
+				{/* Actions (visible on hover) */}
+				<div className="flex items-center gap-0.5 opacity-0 group-hover/item:opacity-100 transition-opacity shrink-0">
+					{item.url && (
+						<Tooltip>
+							<Tooltip.Trigger>
+								<button
+									type="button"
+									onClick={() => handleOpenLink(item.url)}
+									className="w-6 h-6 rounded-md flex items-center justify-center text-muted hover:text-foreground hover:bg-surface cursor-pointer transition-colors"
+									aria-label="打开链接"
+								>
+									<ExternalLink className="w-3 h-3" />
+								</button>
+							</Tooltip.Trigger>
+							<Tooltip.Content className="text-xs py-1 px-2">
+								打开
+							</Tooltip.Content>
+						</Tooltip>
+					)}
+
+					{item.url && (
+						<Tooltip>
+							<Tooltip.Trigger>
+								<button
+									type="button"
+									onClick={() => handleCopyLink(item.url)}
+									className="w-6 h-6 rounded-md flex items-center justify-center text-muted hover:text-foreground hover:bg-surface cursor-pointer transition-colors"
+									aria-label="复制链接"
+								>
+									<Copy className="w-3 h-3" />
+								</button>
+							</Tooltip.Trigger>
+							<Tooltip.Content className="text-xs py-1 px-2">
+								复制链接
+							</Tooltip.Content>
+						</Tooltip>
+					)}
+
+					{showMoveDropdown && onMoveItem && sortedFolders.length > 0 && (
+						<Dropdown>
+							<Dropdown.Trigger
+								className="w-6 h-6 rounded-md flex items-center justify-center text-muted hover:text-foreground hover:bg-surface cursor-pointer transition-colors"
+								aria-label={item.folderId ? "移动至其他文件夹" : "放入文件夹"}
+							>
+								<FolderInput className="w-3 h-3" />
+							</Dropdown.Trigger>
+							<Dropdown.Popover
+								aria-label="选择目标文件夹"
+								className="max-h-72 overflow-y-auto min-w-[220px] p-1 shadow-lg border border-border/80 rounded-xl bg-surface"
+							>
+								<Dropdown.Menu
+									aria-label="选择目标文件夹"
+									onAction={(key) => {
+										const targetId = Number(key);
+										if (targetId) onMoveItem(item, targetId);
+									}}
+								>
+									{sortedFolders.map((of) => {
+										const isMatched =
+											item.folderName &&
+											of.name.trim().toLowerCase() ===
+												item.folderName.trim().toLowerCase();
+										return (
+											<Dropdown.Item
+												key={String(of.id)}
+												id={String(of.id)}
+												textValue={of.name}
+											>
+												<div className="flex items-center gap-2 w-full py-0.5">
+													<FolderIconLucide className="w-3.5 h-3.5 text-accent shrink-0" />
+													<span className="text-xs font-medium truncate flex-1">
+														{of.name}
+													</span>
+													{isMatched && (
+														<span className="text-[9px] px-1 py-0.2 rounded bg-accent/15 text-accent font-medium shrink-0">
+															推荐
+														</span>
+													)}
+													<span className="text-[10px] text-muted shrink-0">
+														({of.category})
+													</span>
+												</div>
+											</Dropdown.Item>
+										);
+									})}
+								</Dropdown.Menu>
+							</Dropdown.Popover>
+						</Dropdown>
+					)}
+
+					{onDeleteItem && (
+						<Tooltip>
+							<Tooltip.Trigger>
+								<button
+									type="button"
+									onClick={() => onDeleteItem(item)}
+									className="w-6 h-6 rounded-md flex items-center justify-center text-muted hover:text-danger hover:bg-danger-soft/20 cursor-pointer transition-colors"
+									aria-label="删除此条目"
+								>
+									<Trash2 className="w-3 h-3" />
+								</button>
+							</Tooltip.Trigger>
+							<Tooltip.Content className="text-xs py-1 px-2">
+								删除
+							</Tooltip.Content>
+						</Tooltip>
+					)}
+				</div>
+			</div>
+		);
+	}
 
 	return (
 		<Card
@@ -178,17 +342,20 @@ export const WorkbenchItemCard = memo(function WorkbenchItemCard({
 					)}
 
 					{/* Move to another folder Dropdown */}
-					{showMoveDropdown && onMoveItem && otherFolders.length > 0 && (
+					{showMoveDropdown && onMoveItem && sortedFolders.length > 0 && (
 						<Dropdown>
 							<Dropdown.Trigger
 								className="h-6 px-2 text-[10px] rounded-lg text-muted hover:text-foreground hover:bg-surface-secondary cursor-pointer inline-flex items-center"
-								aria-label="移动至其他文件夹"
+								aria-label={item.folderId ? "移动至其他文件夹" : "放入文件夹"}
 							>
 								<FolderInput className="w-3 h-3 mr-1" />
-								移动
+								{item.folderId ? "移动" : "放入"}
 							</Dropdown.Trigger>
 
-							<Dropdown.Popover aria-label="移动至其他文件夹">
+							<Dropdown.Popover
+								aria-label="选择目标文件夹"
+								className="max-h-72 overflow-y-auto min-w-[220px] p-1 shadow-lg border border-border/80 rounded-xl bg-surface"
+							>
 								<Dropdown.Menu
 									aria-label="选择目标文件夹"
 									onAction={(key) => {
@@ -198,21 +365,34 @@ export const WorkbenchItemCard = memo(function WorkbenchItemCard({
 										}
 									}}
 								>
-									{otherFolders.map((of) => (
-										<Dropdown.Item
-											key={String(of.id)}
-											id={String(of.id)}
-											textValue={of.name}
-										>
-											<div className="flex items-center gap-2">
-												<FolderIconLucide className="w-3.5 h-3.5 text-accent" />
-												<span className="text-xs">{of.name}</span>
-												<span className="text-[10px] text-muted ml-auto">
-													({of.category})
-												</span>
-											</div>
-										</Dropdown.Item>
-									))}
+									{sortedFolders.map((of) => {
+										const isMatched =
+											item.folderName &&
+											of.name.trim().toLowerCase() ===
+												item.folderName.trim().toLowerCase();
+										return (
+											<Dropdown.Item
+												key={String(of.id)}
+												id={String(of.id)}
+												textValue={of.name}
+											>
+												<div className="flex items-center gap-2 w-full py-0.5">
+													<FolderIconLucide className="w-3.5 h-3.5 text-accent shrink-0" />
+													<span className="text-xs font-medium truncate flex-1">
+														{of.name}
+													</span>
+													{isMatched && (
+														<span className="text-[9px] px-1 py-0.2 rounded bg-accent/15 text-accent font-medium shrink-0">
+															推荐
+														</span>
+													)}
+													<span className="text-[10px] text-muted shrink-0">
+														({of.category})
+													</span>
+												</div>
+											</Dropdown.Item>
+										);
+									})}
 								</Dropdown.Menu>
 							</Dropdown.Popover>
 						</Dropdown>
@@ -235,4 +415,3 @@ export const WorkbenchItemCard = memo(function WorkbenchItemCard({
 		</Card>
 	);
 });
-

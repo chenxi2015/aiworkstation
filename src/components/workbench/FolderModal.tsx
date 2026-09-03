@@ -13,9 +13,23 @@ import {
 	TextArea,
 	TextField,
 } from "@heroui/react";
+import { Check, Palette, RotateCcw } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
+import { FolderAppGridCover } from "./folder/FolderAppGridCover";
 import type { Folder } from "./types";
 import { CATEGORIES } from "./types";
+
+export const FOLDER_COLOR_PRESETS = [
+	{ name: "默认", value: "" },
+	{ name: "科技蓝", value: "#4f46e5" },
+	{ name: "翡翠绿", value: "#059669" },
+	{ name: "琥珀橙", value: "#d97706" },
+	{ name: "珊瑚粉", value: "#e11d48" },
+	{ name: "梦幻紫", value: "#7c3aed" },
+	{ name: "天空蓝", value: "#0284c7" },
+	{ name: "烈焰橙", value: "#ea580c" },
+	{ name: "高级灰", value: "#475569" },
+];
 
 interface FolderModalProps {
 	isOpen: boolean;
@@ -27,6 +41,7 @@ interface FolderModalProps {
 		name: string;
 		category: string;
 		desc: string;
+		color?: string;
 	}) => void;
 	onDelete: (id: number) => void;
 }
@@ -42,6 +57,7 @@ export function FolderModal({
 	const [name, setName] = useState("");
 	const [category, setCategory] = useState(defaultCategory);
 	const [desc, setDesc] = useState("");
+	const [color, setColor] = useState("");
 	const [error, setError] = useState("");
 
 	const isEdit = !!folder;
@@ -52,10 +68,12 @@ export function FolderModal({
 				setName(folder.name);
 				setCategory(folder.category);
 				setDesc(folder.desc || "");
+				setColor(folder.color || "");
 			} else {
 				setName("");
 				setCategory(defaultCategory || "工作台");
 				setDesc("");
+				setColor("");
 			}
 			setError("");
 		}
@@ -74,6 +92,7 @@ export function FolderModal({
 			name: trimmed,
 			category,
 			desc: desc.trim(),
+			color: color.trim() || undefined,
 		});
 	};
 
@@ -155,10 +174,160 @@ export function FolderModal({
 								<TextArea
 									placeholder="这个文件夹用来归集什么？"
 									maxLength={120}
-									rows={3}
+									rows={2}
 									variant="secondary"
 								/>
 							</TextField>
+
+							{/* Color Accent Picker */}
+							<div className="flex flex-col gap-2 pt-1 border-t border-border/50">
+								<div className="flex items-center justify-between">
+									<Label className="text-xs font-medium text-foreground">
+										颜色标注（渐变色风格）
+									</Label>
+									{color && (
+										<button
+											type="button"
+											onClick={() => setColor("")}
+											className="text-[11px] text-muted hover:text-foreground flex items-center gap-1 cursor-pointer transition-colors"
+										>
+											<RotateCcw className="w-3 h-3" />
+											<span>重置为默认</span>
+										</button>
+									)}
+								</div>
+
+								{/* Color chips */}
+								<div className="flex items-center gap-2 flex-wrap">
+									{FOLDER_COLOR_PRESETS.map((p) => {
+										const isSelected =
+											p.value === ""
+												? !color
+												: color.toLowerCase() === p.value.toLowerCase();
+										return (
+											<button
+												key={p.name}
+												type="button"
+												title={p.name}
+												onClick={() => setColor(p.value)}
+												className={`relative w-7 h-7 rounded-full transition-all flex items-center justify-center cursor-pointer border ${
+													isSelected
+														? "ring-2 ring-accent ring-offset-2 scale-110 shadow-sm border-transparent"
+														: "border-border/60 hover:scale-105 opacity-85 hover:opacity-100"
+												}`}
+												style={{
+													backgroundColor:
+														p.value || "var(--surface-secondary)",
+												}}
+											>
+												{isSelected && (
+													<Check
+														className={`w-3.5 h-3.5 ${
+															p.value
+																? "text-white drop-shadow-sm"
+																: "text-foreground"
+														}`}
+													/>
+												)}
+											</button>
+										);
+									})}
+
+									{/* Custom Color Input */}
+									<label
+										title="自定义颜色"
+										className={`relative w-7 h-7 rounded-full flex items-center justify-center cursor-pointer border border-dashed border-border/80 hover:border-accent hover:scale-105 transition-all ${
+											color &&
+											!FOLDER_COLOR_PRESETS.some(
+												(p) => p.value.toLowerCase() === color.toLowerCase(),
+											)
+												? "ring-2 ring-accent ring-offset-2 scale-110 shadow-sm"
+												: ""
+										}`}
+										style={{
+											backgroundColor:
+												color &&
+												!FOLDER_COLOR_PRESETS.some(
+													(p) => p.value.toLowerCase() === color.toLowerCase(),
+												)
+													? color
+													: undefined,
+										}}
+									>
+										<Palette
+											className={`w-3.5 h-3.5 ${
+												color &&
+												!FOLDER_COLOR_PRESETS.some(
+													(p) => p.value.toLowerCase() === color.toLowerCase(),
+												)
+													? "text-white drop-shadow-sm"
+													: "text-muted"
+											}`}
+										/>
+										<input
+											type="color"
+											value={color || "#4f46e5"}
+											onChange={(e) => setColor(e.target.value)}
+											className="sr-only"
+										/>
+									</label>
+								</div>
+
+								{/* Live Preview Card */}
+								<div
+									className="relative overflow-hidden mt-1 p-2.5 rounded-xl border bg-surface transition-all duration-200 flex items-center gap-3 shadow-xs"
+									style={{
+										borderColor: color ? `${color}35` : "var(--border)",
+									}}
+								>
+									<FolderAppGridCover
+										folder={{
+											id: folder?.id || 0,
+											name: name.trim() || "文件夹预览",
+											category,
+											createdAt: "",
+											desc,
+											color,
+											items:
+												folder?.items && folder.items.length > 0
+													? folder.items
+													: [
+															{
+																name: "微信",
+																type: "link",
+																url: "https://weixin.qq.com",
+															},
+															{
+																name: "小红书",
+																type: "link",
+																url: "https://xiaohongshu.com",
+															},
+															{
+																name: "GitHub",
+																type: "link",
+																url: "https://github.com",
+															},
+															{
+																name: "Google",
+																type: "link",
+																url: "https://google.com",
+															},
+														],
+										}}
+										size="sm"
+									/>
+									<div className="min-w-0 flex-1">
+										<p className="text-xs font-semibold text-foreground truncate">
+											{name.trim() || "文件夹名称预览"}
+										</p>
+										<p className="text-[10px] text-muted">
+											{color
+												? `已应用手机桌面风格与专属颜色（${color}）`
+												: "默认磨砂玻璃风格"}
+										</p>
+									</div>
+								</div>
+							</div>
 						</Modal.Body>
 
 						{/* Modal Footer */}

@@ -11,6 +11,7 @@ export function initSchema(db: SqliteDatabase): void {
       name TEXT NOT NULL,
       category TEXT NOT NULL DEFAULT '工作台',
       description TEXT DEFAULT '',
+      color TEXT DEFAULT '',
       icon TEXT DEFAULT '',
       sort_order INTEGER DEFAULT 0,
       created_at TEXT NOT NULL,
@@ -56,20 +57,30 @@ export function initSchema(db: SqliteDatabase): void {
     CREATE INDEX IF NOT EXISTS idx_bookmarks_url ON bookmarks(url);
   `);
 
-	// Graceful migration for existing SQLite DBs without embedding columns
+	// Graceful migration for existing SQLite DBs without embedding columns or color column
 	try {
-		const columns = db.prepare("PRAGMA table_info(bookmarks)").all() as Array<{
+		const bookmarkCols = db
+			.prepare("PRAGMA table_info(bookmarks)")
+			.all() as Array<{
 			name: string;
 		}>;
-		const colNames = new Set(columns.map((c) => c.name));
+		const bookmarkColNames = new Set(bookmarkCols.map((c) => c.name));
 
-		if (!colNames.has("embedding")) {
+		if (!bookmarkColNames.has("embedding")) {
 			db.exec("ALTER TABLE bookmarks ADD COLUMN embedding TEXT DEFAULT NULL");
 		}
-		if (!colNames.has("embedding_text")) {
+		if (!bookmarkColNames.has("embedding_text")) {
 			db.exec(
 				"ALTER TABLE bookmarks ADD COLUMN embedding_text TEXT DEFAULT ''",
 			);
+		}
+
+		const folderCols = db.prepare("PRAGMA table_info(folders)").all() as Array<{
+			name: string;
+		}>;
+		const folderColNames = new Set(folderCols.map((c) => c.name));
+		if (!folderColNames.has("color")) {
+			db.exec("ALTER TABLE folders ADD COLUMN color TEXT DEFAULT ''");
 		}
 	} catch (err) {
 		console.warn("[DatabaseSchema] Migration pragma error:", err);

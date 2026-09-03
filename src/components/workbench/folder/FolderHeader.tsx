@@ -1,6 +1,7 @@
-import { Button, Card, Chip, Tooltip } from "@heroui/react";
-import { Clock, FolderOpen, Pencil, Sparkles } from "lucide-react";
+import { Button, Tooltip } from "@heroui/react";
+import { Pencil, Sparkles } from "lucide-react";
 import type { Folder } from "../types";
+import { FolderAppGridCover } from "./FolderAppGridCover";
 
 export interface FolderHeaderProps {
 	folder: Folder;
@@ -11,78 +12,81 @@ export interface FolderHeaderProps {
 /**
  * Top metadata, description and action header for selected folder in detail panel
  */
-export function FolderHeader({
-	folder,
-	onEdit,
-	onAskAI,
-}: FolderHeaderProps) {
+export function FolderHeader({ folder, onEdit, onAskAI }: FolderHeaderProps) {
+	const count = folder.items?.length || 0;
+
 	return (
-		<div className="flex flex-col gap-2.5 mb-3.5">
-			<div className="flex items-start justify-between gap-2">
-				<div className="flex items-center gap-1.5 flex-wrap">
-					<Chip
-						size="sm"
-						variant="secondary"
-						className="font-medium text-[10px] h-5 px-1.5 text-accent bg-accent-soft border-accent/20"
-					>
-						{folder.category || "工作台"}
-					</Chip>
-					<span className="text-[10px] text-muted flex items-center gap-1">
-						<Clock className="w-2.5 h-2.5 opacity-60" />
-						{folder.createdAt || "刚刚"}
-					</span>
+		<div className="flex flex-col gap-1.5 mb-3">
+			<div className="flex items-center justify-between gap-2">
+				{/* Folder Title & Cover */}
+				<div className="flex items-center gap-2.5 min-w-0 flex-1">
+					<FolderAppGridCover folder={folder} size="sm" />
+					<div className="min-w-0 flex-1">
+						<div className="flex items-center gap-1.5">
+							<h2
+								className="text-sm font-bold text-foreground tracking-tight truncate"
+								title={folder.name}
+							>
+								{folder.name}
+							</h2>
+							<span className="text-[10px] font-mono font-medium text-muted bg-surface-secondary px-1.5 py-0.2 rounded-full shrink-0">
+								{count}
+							</span>
+						</div>
+						{folder.desc && (
+							<p
+								className="text-[11px] text-muted line-clamp-1 leading-normal mt-0.5"
+								title={folder.desc}
+							>
+								{folder.desc}
+							</p>
+						)}
+					</div>
 				</div>
 
-				<Tooltip>
-					<Tooltip.Trigger>
-						<Button
-							variant="ghost"
-							size="sm"
-							className="rounded-full shrink-0 h-6 w-6 p-0 text-muted hover:text-foreground"
-							onPress={() => onEdit(folder)}
-							aria-label="编辑文件夹"
-						>
-							<Pencil className="w-3 h-3" />
-						</Button>
-					</Tooltip.Trigger>
-					<Tooltip.Content className="text-xs py-1 px-2">
-						编辑文件夹名称与分类
-					</Tooltip.Content>
-				</Tooltip>
-			</div>
-
-			<div>
-				<h2 className="text-base font-bold text-foreground tracking-tight leading-snug break-all flex items-center gap-1.5">
-					<FolderOpen className="w-4 h-4 text-accent shrink-0" />
-					<span>{folder.name}</span>
-				</h2>
-			</div>
-
-			{/* Folder Description Card */}
-			<Card className="bg-surface-secondary/50 border-border/60 p-2.5 shadow-none rounded-xl">
-				<p className="text-[11px] text-foreground/80 leading-relaxed break-words">
-					{folder.desc || (
-						<span className="text-muted italic">暂无文件夹描述信息</span>
+				{/* Quick Actions (AI Summary + Edit) */}
+				<div className="flex items-center gap-1 shrink-0">
+					{onAskAI && count > 0 && (
+						<Tooltip>
+							<Tooltip.Trigger>
+								<Button
+									variant="ghost"
+									size="sm"
+									className="rounded-lg shrink-0 h-7 w-7 p-0 text-accent hover:bg-accent-soft cursor-pointer"
+									onPress={() =>
+										onAskAI(
+											`请深度总结与盘点「${folder.name}」文件夹中的 ${count} 个书签条目，分析核心亮点、适用场景与推荐使用工作流。`,
+										)
+									}
+									aria-label="让 AI 总结与盘点此文件夹"
+								>
+									<Sparkles className="w-3.5 h-3.5" />
+								</Button>
+							</Tooltip.Trigger>
+							<Tooltip.Content className="text-xs py-1 px-2">
+								让 AI 总结与盘点此文件夹
+							</Tooltip.Content>
+						</Tooltip>
 					)}
-				</p>
-			</Card>
 
-			{/* Quick Ask AI about this folder */}
-			{onAskAI && folder.items.length > 0 && (
-				<Button
-					variant="secondary"
-					size="sm"
-					className="w-full flex items-center justify-center gap-1.5 text-[11px] font-medium rounded-xl bg-accent-soft text-accent border border-accent/30 py-1.5 h-8 shadow-2xs hover:shadow-xs transition-all cursor-pointer"
-					onPress={() =>
-						onAskAI(
-							`请深度总结与盘点「${folder.name}」文件夹中的 ${folder.items.length} 个书签条目，分析核心亮点、适用场景与推荐使用工作流。`,
-						)
-					}
-				>
-					<Sparkles className="w-3 h-3" />
-					<span>让 AI 总结与盘点此文件夹</span>
-				</Button>
-			)}
+					<Tooltip>
+						<Tooltip.Trigger>
+							<Button
+								variant="ghost"
+								size="sm"
+								className="rounded-lg shrink-0 h-7 w-7 p-0 text-muted hover:text-foreground hover:bg-surface-secondary cursor-pointer"
+								onPress={() => onEdit(folder)}
+								aria-label="编辑文件夹"
+							>
+								<Pencil className="w-3.5 h-3.5" />
+							</Button>
+						</Tooltip.Trigger>
+						<Tooltip.Content className="text-xs py-1 px-2">
+							编辑文件夹
+						</Tooltip.Content>
+					</Tooltip>
+				</div>
+			</div>
 		</div>
 	);
 }

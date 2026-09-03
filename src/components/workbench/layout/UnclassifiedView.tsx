@@ -1,12 +1,14 @@
 import { Button, EmptyState } from "@heroui/react";
 import { Folder, Inbox, Sparkles, Zap } from "lucide-react";
 import { WorkbenchItemCard } from "../item/WorkbenchItemCard";
-import type { WorkbenchItem } from "../types";
+import type { Folder as WorkbenchFolder, WorkbenchItem } from "../types";
 
 export interface UnclassifiedViewProps {
 	unclassified: WorkbenchItem[];
+	folders?: WorkbenchFolder[];
 	onOpenAIClassify: () => void;
 	onDeleteItem: (item: WorkbenchItem) => void;
+	onMoveItem?: (item: WorkbenchItem, targetFolderId: number) => void;
 }
 
 /**
@@ -14,8 +16,10 @@ export interface UnclassifiedViewProps {
  */
 export function UnclassifiedView({
 	unclassified,
+	folders = [],
 	onOpenAIClassify,
 	onDeleteItem,
+	onMoveItem,
 }: UnclassifiedViewProps) {
 	if (unclassified.length === 0) {
 		return (
@@ -69,36 +73,58 @@ export function UnclassifiedView({
 
 				{/* Unclassified Items Grid */}
 				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-					{unclassified.map((item, idx) => (
-						<WorkbenchItemCard
-							key={item.id || idx}
-							item={item}
-							index={idx}
-							showMoveDropdown={false}
-							showTypeBadge={false}
-							onDeleteItem={onDeleteItem}
-							footerExtra={
-								<div className="flex items-center justify-between gap-2 text-[10px] text-muted w-full">
-									<span
-										className="truncate max-w-[150px] inline-flex items-center gap-1"
-										title={item.url}
-									>
-										{item.folderName ? (
-											<>
-												<Folder className="w-2.5 h-2.5 opacity-70 shrink-0" />
-												<span className="truncate">{item.folderName}</span>
-											</>
-										) : (
-											item.url
+					{unclassified.map((item, idx) => {
+						const matchedFolder = item.folderName
+							? folders.find(
+									(f) =>
+										f.name.trim().toLowerCase() ===
+										item.folderName?.trim().toLowerCase(),
+								)
+							: undefined;
+
+						return (
+							<WorkbenchItemCard
+								key={item.id || idx}
+								item={item}
+								index={idx}
+								otherFolders={folders}
+								showMoveDropdown={Boolean(folders.length > 0 && onMoveItem)}
+								showTypeBadge={false}
+								onDeleteItem={onDeleteItem}
+								onMoveItem={onMoveItem}
+								footerExtra={
+									<div className="flex items-center justify-between gap-2 text-[10px] text-muted w-full">
+										<span
+											className="truncate max-w-[150px] inline-flex items-center gap-1"
+											title={item.url}
+										>
+											{matchedFolder && onMoveItem ? (
+												<button
+													type="button"
+													onClick={() => onMoveItem(item, matchedFolder.id)}
+													className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-accent-soft text-accent hover:bg-accent hover:text-accent-foreground transition-all cursor-pointer truncate max-w-[150px]"
+													title={`点击直接放入已有文件夹「${matchedFolder.name}」`}
+												>
+													<Folder className="w-2.5 h-2.5 shrink-0" />
+													<span className="truncate">{item.folderName}</span>
+												</button>
+											) : item.folderName ? (
+												<>
+													<Folder className="w-2.5 h-2.5 opacity-70 shrink-0" />
+													<span className="truncate">{item.folderName}</span>
+												</>
+											) : (
+												item.url
+											)}
+										</span>
+										{item.createdAt && (
+											<span className="shrink-0">{item.createdAt}</span>
 										)}
-									</span>
-									{item.createdAt && (
-										<span className="shrink-0">{item.createdAt}</span>
-									)}
-								</div>
-							}
-						/>
-					))}
+									</div>
+								}
+							/>
+						);
+					})}
 				</div>
 			</div>
 		</div>

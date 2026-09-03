@@ -4,7 +4,6 @@ import {
 	CategoryView,
 	ChatWithBookmarksPanel,
 	type ChatWithBookmarksPanelRef,
-	DailyCapsuleBanner,
 	FolderDetailPanel,
 	UnclassifiedView,
 	WorkbenchHeader,
@@ -120,7 +119,7 @@ function WorkbenchHome() {
 	const isUnclassified = activeCategory === "未分类";
 
 	return (
-		<div className="h-screen bg-background text-foreground flex flex-col overflow-hidden selection:bg-accent-soft selection:text-accent-soft-foreground">
+		<div className="h-screen bg-surface dark:bg-background text-foreground flex flex-col overflow-hidden selection:bg-accent-soft selection:text-accent-soft-foreground">
 			{/* Topbar Navigation Header — Unified Search Triggers Right Panel */}
 			<WorkbenchHeader
 				categories={dynamicCategories}
@@ -140,11 +139,6 @@ function WorkbenchHome() {
 					<div className="flex-1 flex w-full min-h-0 overflow-hidden">
 						{/* Unclassified Inbox Buffer */}
 						<main className="flex-1 p-6 lg:p-8 min-w-0 flex flex-col overflow-y-auto border-r border-border h-full">
-							{/* Daily Inspiration Capsule Banner */}
-							<DailyCapsuleBanner
-								onNavigateToFolder={handleNavigateFromSearch}
-							/>
-
 							{/* Workspace Title */}
 							<div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-4 mb-6">
 								<div>
@@ -166,8 +160,12 @@ function WorkbenchHome() {
 
 							<UnclassifiedView
 								unclassified={filteredUnclassified}
+								folders={folders}
 								onOpenAIClassify={() => setIsAIClassifyModalOpen(true)}
 								onDeleteItem={handleDeleteUnclassifiedItem}
+								onMoveItem={(item, targetFolderId) =>
+									handleMoveItem(item, null, targetFolderId)
+								}
 							/>
 						</main>
 
@@ -198,11 +196,6 @@ function WorkbenchHome() {
 
 						{/* 2. Main Column: 文件夹列表与卡片区 (Category Folders Grid) */}
 						<main className="flex-1 p-6 lg:p-7 min-w-0 flex flex-col overflow-y-auto h-full">
-							{/* Daily Inspiration Capsule Banner */}
-							<DailyCapsuleBanner
-								onNavigateToFolder={handleNavigateFromSearch}
-							/>
-
 							{/* Workspace Title */}
 							<div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-4 mb-6">
 								<div>

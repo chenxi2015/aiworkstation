@@ -95,6 +95,7 @@ export class WorkbenchStorageService {
 		name: string;
 		category: string;
 		desc: string;
+		color?: string;
 	}): Promise<Folder[]> {
 		return await saveFolder({ data: folderData });
 	}

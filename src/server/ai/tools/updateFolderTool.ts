@@ -8,6 +8,10 @@ export const updateFolderInputSchema = z.object({
 	newName: z.string().optional().describe("修改后的新文件夹名称"),
 	newCategory: z.string().optional().describe("修改后的新所属分类"),
 	newDesc: z.string().optional().describe("修改后的新描述"),
+	newColor: z
+		.string()
+		.optional()
+		.describe("修改后的新主题颜色 Hex 代码，例如 '#4f46e5'"),
 });
 
 export type UpdateFolderInput = z.infer<typeof updateFolderInputSchema>;
@@ -18,7 +22,7 @@ export type UpdateFolderInput = z.infer<typeof updateFolderInputSchema>;
 export function executeUpdateFolder(
 	args: UpdateFolderInput,
 ): ToolExecutionResult {
-	const { folderName, newName, newCategory, newDesc } = args;
+	const { folderName, newName, newCategory, newDesc, newColor } = args;
 	const nameTrimmed = (folderName || "").trim();
 
 	const allFolders = workbenchDb.getAllFolders();
@@ -39,12 +43,14 @@ export function executeUpdateFolder(
 	const updatedName = newName?.trim() || folder.name;
 	const updatedCategory = newCategory?.trim() || folder.category;
 	const updatedDesc = newDesc !== undefined ? newDesc : folder.desc || "";
+	const updatedColor = newColor !== undefined ? newColor : folder.color;
 
 	workbenchDb.updateFolder(
 		folder.id,
 		updatedName,
 		updatedCategory,
 		updatedDesc,
+		updatedColor,
 	);
 
 	return {

@@ -23,7 +23,7 @@ export interface ItemFolderAssignPopoverProps {
 	onToggleCreateMode: () => void;
 	onChangeNewFolderName: (name: string) => void;
 	onChangeNewFolderCategory: (category: string) => void;
-	onChangeFilterQuery: (query: string) => void;
+	onChangeFilterQuery: (query: string) => void;	
 	onClose: () => void;
 	onMoveToExistingFolder: (folder: Folder) => void;
 	onCreateFolderAndMove: () => void;
@@ -235,7 +235,18 @@ export function ItemFolderAssignPopover({
 													: "bg-surface border-border/80 hover:border-accent hover:bg-accent-soft/20"
 											}`}
 										>
-											<div className="w-6 h-6 rounded bg-surface-secondary border border-border/60 flex items-center justify-center shrink-0 text-foreground/80 mt-0.5">
+											<div
+												className="w-6 h-6 rounded border flex items-center justify-center shrink-0 mt-0.5 transition-colors"
+												style={{
+													backgroundColor: f.color
+														? `${f.color}18`
+														: "var(--surface-secondary)",
+													borderColor: f.color
+														? `${f.color}40`
+														: "var(--border)",
+													color: f.color || "inherit",
+												}}
+											>
 												<FolderIconLucide className="w-3 h-3" />
 											</div>
 											<div className="flex-1 min-w-0 flex flex-col">

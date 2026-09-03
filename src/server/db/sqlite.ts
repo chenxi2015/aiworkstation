@@ -36,12 +36,23 @@ export class WorkbenchDatabase {
 		return this.folderRepo.getAllFolders();
 	}
 
-	createFolder(name: string, category: string, desc: string): Folder {
-		return this.folderRepo.createFolder(name, category, desc);
+	createFolder(
+		name: string,
+		category: string,
+		desc: string,
+		color?: string,
+	): Folder {
+		return this.folderRepo.createFolder(name, category, desc, color);
 	}
 
-	updateFolder(id: number, name: string, category: string, desc: string): void {
-		this.folderRepo.updateFolder(id, name, category, desc);
+	updateFolder(
+		id: number,
+		name: string,
+		category: string,
+		desc: string,
+		color?: string,
+	): void {
+		this.folderRepo.updateFolder(id, name, category, desc, color);
 	}
 
 	deleteFolder(id: number): void {
