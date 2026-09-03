@@ -1,4 +1,3 @@
-import { CapsuleBannerSkeleton } from "./CapsuleBannerSkeleton";
 import { ChatWithBookmarksSkeleton } from "./ChatWithBookmarksSkeleton";
 import { FolderDetailSkeleton } from "./FolderDetailSkeleton";
 import { FolderGridSkeleton } from "./FolderGridSkeleton";
@@ -45,7 +44,6 @@ export function WorkbenchSkeleton() {
 
 				{/* 2. Center Column Skeleton */}
 				<main className="flex-1 p-6 lg:p-7 min-w-0 flex flex-col overflow-y-auto h-full">
-					<CapsuleBannerSkeleton />
 					<div className="space-y-2 mb-6">
 						<div className="w-32 h-7 rounded-lg bg-surface-secondary/70 animate-pulse" />
 						<div className="w-64 h-3.5 rounded bg-surface-secondary/40 animate-pulse" />

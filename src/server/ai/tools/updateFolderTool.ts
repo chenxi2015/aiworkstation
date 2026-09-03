@@ -3,16 +3,19 @@ import { z } from "zod";
 import { workbenchDb } from "../../db/sqlite.ts";
 import type { ToolExecutionResult } from "./types";
 
-export const updateFolderInputSchema = z.object({
-	folderName: z.string().describe("当前待修改的文件夹名称"),
-	newName: z.string().optional().describe("修改后的新文件夹名称"),
-	newCategory: z.string().optional().describe("修改后的新所属分类"),
-	newDesc: z.string().optional().describe("修改后的新描述"),
-	newColor: z
-		.string()
-		.optional()
-		.describe("修改后的新主题颜色 Hex 代码，例如 '#4f46e5'"),
-});
+export const updateFolderInputSchema = z
+	.object({
+		folderName: z.string().describe("当前待修改的文件夹名称"),
+		newName: z.string().nullable().optional().describe("修改后的新文件夹名称"),
+		newCategory: z.string().nullable().optional().describe("修改后的新所属分类"),
+		newDesc: z.string().nullable().optional().describe("修改后的新描述"),
+		newColor: z
+			.string()
+			.nullable()
+			.optional()
+			.describe("修改后的新主题颜色 Hex 代码，例如 '#4f46e5'"),
+	})
+	.passthrough();
 
 export type UpdateFolderInput = z.infer<typeof updateFolderInputSchema>;
 
@@ -23,7 +26,9 @@ export function executeUpdateFolder(
 	args: UpdateFolderInput,
 ): ToolExecutionResult {
 	const { folderName, newName, newCategory, newDesc, newColor } = args;
-	const nameTrimmed = (folderName || "").trim();
+	const cleanStr = (s?: string | null) =>
+		s && s !== "null" && s !== "undefined" ? s.trim() : undefined;
+	const nameTrimmed = cleanStr(folderName) || "";
 
 	const allFolders = workbenchDb.getAllFolders();
 	const folder = allFolders.find(
@@ -42,8 +47,12 @@ export function executeUpdateFolder(
 
 	const updatedName = newName?.trim() || folder.name;
 	const updatedCategory = newCategory?.trim() || folder.category;
-	const updatedDesc = newDesc !== undefined ? newDesc : folder.desc || "";
-	const updatedColor = newColor !== undefined ? newColor : folder.color;
+	const updatedDesc =
+		newDesc !== undefined && newDesc !== null ? newDesc : folder.desc || "";
+	const updatedColor =
+		newColor && newColor !== "null" && newColor !== "undefined"
+			? newColor
+			: folder.color || undefined;
 
 	workbenchDb.updateFolder(
 		folder.id,

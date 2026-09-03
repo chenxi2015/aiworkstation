@@ -5,17 +5,20 @@ import {
 	Search,
 	SearchX,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useEmbeddingStats } from "../../../../hooks/ai/useEmbeddingStats";
 import { useItemFolderAssign } from "../../../../hooks/ai/useItemFolderAssign";
+import { EmbeddingService } from "../../../../services/embeddingService";
 import { WorkbenchStorageService } from "../../../../services/workbenchStorage";
+import { CATEGORIES, ITEM_TYPES } from "../../types";
 import type {
 	Category,
 	Folder,
-	SearchMode,
+	ItemType,
+	SearchFacets,
 	SearchResultItem,
+	SearchScope,
 } from "../../types";
-import { CATEGORIES } from "../../types";
 import { EmbeddingStatusWidget } from "../shared/EmbeddingStatusWidget";
 import { ItemFolderAssignPopover } from "../shared/ItemFolderAssignPopover";
 import { SearchHeader } from "./SearchHeader";
@@ -26,24 +29,41 @@ export interface GlobalSearchModalProps {
 	onClose: () => void;
 	folders?: Folder[];
 	categories?: string[];
+	initialScope?: SearchScope;
 	onNavigateToFolder?: (folderId: number | null, category?: Category) => void;
 	onDataChanged?: () => void;
 }
 
 /**
- * Modular Global Search Modal with In-Place Folder Assignment and Multi-Mode Search
+ * Universal Global Search Modal with In-Place Folder Assignment
  */
 export function GlobalSearchModal({
 	isOpen,
 	onClose,
 	folders = [],
 	categories = CATEGORIES as unknown as string[],
+	initialScope,
 	onNavigateToFolder,
 	onDataChanged,
 }: GlobalSearchModalProps) {
 	const [query, setQuery] = useState("");
-	const [mode, setMode] = useState<SearchMode>("hybrid");
-	const [results, setResults] = useState<SearchResultItem[]>([]);
+	const [scope, setScope] = useState<SearchScope>(
+		initialScope || { type: "global" },
+	);
+	const [rawResults, setRawResults] = useState<SearchResultItem[]>([]);
+	// Derive facets directly from actual rawResults so category/type counts always match result items exactly
+	const facets: SearchFacets = useMemo(() => {
+		return EmbeddingService.computeFacets(rawResults);
+	}, [rawResults]);
+
+	const [activeCategoryFacet, setActiveCategoryFacet] = useState<string | null>(
+		null,
+	);
+	const [activeFolderFacet, setActiveFolderFacet] = useState<string | null>(
+		null,
+	);
+	const [activeTypeFacet, setActiveTypeFacet] = useState<string | null>(null);
+
 	const [isLoading, setIsLoading] = useState(false);
 	const [selectedIndex, setSelectedIndex] = useState<number>(0);
 	const inputRef = useRef<HTMLInputElement>(null);
@@ -56,11 +76,15 @@ export function GlobalSearchModal({
 		onDataChanged,
 	});
 
-	// Reset state when modal opens/closes
+	// Reset state when modal opens/closes or initialScope changes
 	useEffect(() => {
 		if (isOpen) {
 			fetchStats();
 			setSelectedIndex(0);
+			setScope(initialScope || { type: "global" });
+			setActiveCategoryFacet(null);
+			setActiveFolderFacet(null);
+			setActiveTypeFacet(null);
 			folderAssign.clearSelection();
 			folderAssign.closeAssign();
 			setTimeout(() => {
@@ -68,11 +92,14 @@ export function GlobalSearchModal({
 			}, 50);
 		} else {
 			setQuery("");
-			setResults([]);
+			setRawResults([]);
+			setActiveCategoryFacet(null);
+			setActiveFolderFacet(null);
+			setActiveTypeFacet(null);
 			folderAssign.clearSelection();
 			folderAssign.closeAssign();
 		}
-	}, [isOpen]);
+	}, [isOpen, initialScope]);
 
 	// Debounced Search Request
 	useEffect(() => {
@@ -80,7 +107,10 @@ export function GlobalSearchModal({
 
 		const q = query.trim();
 		if (!q) {
-			setResults([]);
+			setRawResults([]);
+			setActiveCategoryFacet(null);
+			setActiveFolderFacet(null);
+			setActiveTypeFacet(null);
 			setIsLoading(false);
 			return;
 		}
@@ -97,12 +127,13 @@ export function GlobalSearchModal({
 
 				const searchRes = await WorkbenchStorageService.searchItems({
 					query: q,
-					mode,
+					mode: "hybrid",
 					embeddingConfig,
-					limit: 40,
+					limit: 200,
+					scope,
 				});
 
-				setResults(searchRes);
+				setRawResults(searchRes.items);
 				setSelectedIndex(0);
 			} catch (err) {
 				console.error("[GlobalSearch] search error:", err);
@@ -113,7 +144,21 @@ export function GlobalSearchModal({
 		}, 180);
 
 		return () => clearTimeout(timer);
-	}, [query, mode, isOpen]);
+	}, [query, scope, isOpen]);
+
+	// Filtered results based on client-side active facet pills
+	const results = rawResults.filter((item) => {
+		if (activeCategoryFacet && item.category !== activeCategoryFacet) {
+			return false;
+		}
+		if (activeFolderFacet && (item.folderName || "未分类") !== activeFolderFacet) {
+			return false;
+		}
+		if (activeTypeFacet && item.type !== activeTypeFacet) {
+			return false;
+		}
+		return true;
+	});
 
 	// Keyboard Navigation
 	const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -150,7 +195,7 @@ export function GlobalSearchModal({
 	// Update results in memory when moved to a folder
 	const handleItemsMoved = (movedItems: SearchResultItem[], targetFolder: Folder) => {
 		const movedKeys = new Set(movedItems.map((i) => i.id || i.url));
-		setResults((prev) =>
+		setRawResults((prev) =>
 			prev.map((r) => {
 				if (movedKeys.has(r.id || r.url)) {
 					return {
@@ -177,18 +222,22 @@ export function GlobalSearchModal({
 			variant="blur"
 		>
 			<Modal.Container size="lg" className="max-w-4xl w-full mx-auto p-4">
-				<div
-					className="bg-surface border border-border shadow-2xl rounded-2xl overflow-hidden flex flex-col max-h-[85vh] outline-none"
-					onKeyDown={handleKeyDown}
-					tabIndex={-1}
+				<Modal.Dialog
+					aria-label="全局智能搜索"
+					className="p-0 border-none bg-transparent shadow-none max-w-none w-full"
 				>
-					{/* Search Topbar */}
+					<div
+						className="bg-surface border border-border shadow-2xl rounded-2xl overflow-hidden flex flex-col max-h-[85vh] outline-none w-full"
+						onKeyDown={handleKeyDown}
+						onClick={(e) => e.stopPropagation()}
+						tabIndex={-1}
+					>
 					<SearchHeader
 						query={query}
-						mode={mode}
+						scope={scope}
 						inputRef={inputRef}
 						onChangeQuery={setQuery}
-						onChangeMode={setMode}
+						onChangeScope={setScope}
 						onClose={onClose}
 					/>
 
@@ -206,7 +255,7 @@ export function GlobalSearchModal({
 						{selectedCount > 0 && (
 							<div className="flex items-center gap-1.5 animate-in fade-in duration-200">
 								<span className="text-xs text-foreground font-medium mr-1">
-									已选中 {selectedCount} 项
+									已选 {selectedCount} 项
 								</span>
 								<Button
 									variant="secondary"
@@ -289,13 +338,167 @@ export function GlobalSearchModal({
 									未找到与「{query}」相关的书签
 								</p>
 								<p className="text-xs mt-1">
-									尝试切换为“向量语义”或“关键词”模式，或重新构建向量索引。
+									尝试更换搜索关键词，或在上方重新构建向量索引。
 								</p>
 							</div>
 						) : (
-							<div className="flex flex-col gap-2">
-								<div className="flex items-center justify-between text-xs text-muted mb-1 px-1">
-									<span>共找到 {results.length} 条相关结果</span>
+							<div className="flex flex-col gap-3">
+								{/* Facet Filters Bar */}
+								{rawResults.length > 0 && (
+									<div className="flex flex-col gap-2 p-2.5 rounded-xl bg-surface-secondary/40 border border-border/50 text-xs">
+										{/* Category Facets */}
+										{facets.categories.length > 1 && (
+											<div className="flex items-center gap-1.5 flex-wrap">
+												<span className="text-[11px] text-muted shrink-0 mr-0.5">
+													分类:
+												</span>
+												<button
+													type="button"
+													onClick={() => setActiveCategoryFacet(null)}
+													className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
+														activeCategoryFacet === null
+															? "bg-accent text-accent-foreground font-semibold"
+															: "bg-surface text-muted hover:text-foreground border border-border/60"
+													}`}
+												>
+													全部 ({rawResults.length})
+												</button>
+												{facets.categories.map((c) => {
+													const isActive = activeCategoryFacet === c.name;
+													return (
+														<button
+															key={c.name}
+															type="button"
+															onClick={() =>
+																setActiveCategoryFacet(isActive ? null : c.name)
+															}
+															className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors cursor-pointer inline-flex items-center gap-1 ${
+																isActive
+																	? "bg-accent text-accent-foreground font-semibold"
+																	: "bg-surface text-muted hover:text-foreground border border-border/60"
+															}`}
+														>
+															<span>{c.name}</span>
+															<span
+																className={`text-[10px] ${
+																	isActive ? "opacity-90" : "opacity-60"
+																}`}
+															>
+																{c.count}
+															</span>
+														</button>
+													);
+												})}
+											</div>
+										)}
+
+										{/* Folder Facets */}
+										{facets.folders.length > 1 && (
+											<div className="flex items-center gap-1.5 flex-wrap">
+												<span className="text-[11px] text-muted shrink-0 mr-0.5">
+													文件夹:
+												</span>
+												<button
+													type="button"
+													onClick={() => setActiveFolderFacet(null)}
+													className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
+														activeFolderFacet === null
+															? "bg-accent text-accent-foreground font-semibold"
+															: "bg-surface text-muted hover:text-foreground border border-border/60"
+													}`}
+												>
+													全部
+												</button>
+												{facets.folders.slice(0, 8).map((f) => {
+													const isActive = activeFolderFacet === f.name;
+													return (
+														<button
+															key={f.name}
+															type="button"
+															onClick={() =>
+																setActiveFolderFacet(isActive ? null : f.name)
+															}
+															className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors cursor-pointer inline-flex items-center gap-1 ${
+																isActive
+																	? "bg-accent text-accent-foreground font-semibold"
+																	: "bg-surface text-muted hover:text-foreground border border-border/60"
+															}`}
+														>
+															<span>{f.name}</span>
+															<span
+																className={`text-[10px] ${
+																	isActive ? "opacity-90" : "opacity-60"
+																}`}
+															>
+																{f.count}
+															</span>
+														</button>
+													);
+												})}
+											</div>
+										)}
+
+										{/* Type Facets */}
+										{facets.types.length > 1 && (
+											<div className="flex items-center gap-1.5 flex-wrap">
+												<span className="text-[11px] text-muted shrink-0 mr-0.5">
+													类型:
+												</span>
+												<button
+													type="button"
+													onClick={() => setActiveTypeFacet(null)}
+													className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
+														activeTypeFacet === null
+															? "bg-accent text-accent-foreground font-semibold"
+															: "bg-surface text-muted hover:text-foreground border border-border/60"
+													}`}
+												>
+													全部
+												</button>
+												{facets.types.map((t) => {
+													const isActive = activeTypeFacet === t.name;
+													const typeLabel =
+														ITEM_TYPES[t.name as ItemType]?.label || t.name;
+													return (
+														<button
+															key={t.name}
+															type="button"
+															onClick={() =>
+																setActiveTypeFacet(isActive ? null : t.name)
+															}
+															className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors cursor-pointer inline-flex items-center gap-1 ${
+																isActive
+																	? "bg-accent text-accent-foreground font-semibold"
+																	: "bg-surface text-muted hover:text-foreground border border-border/60"
+															}`}
+														>
+															<span>{typeLabel}</span>
+															<span
+																className={`text-[10px] ${
+																	isActive ? "opacity-90" : "opacity-60"
+																}`}
+															>
+																{t.count}
+															</span>
+														</button>
+													);
+												})}
+											</div>
+										)}
+									</div>
+								)}
+
+								<div className="flex items-center justify-between text-xs text-muted mb-0.5 px-1">
+									<div className="flex items-center gap-2">
+										<span>
+											共找到 {results.length} 条相关结果
+											{results.length !== rawResults.length && (
+												<span className="text-[10px] text-accent ml-1">
+													(已通过 Facet 过滤，原 {rawResults.length} 条)
+												</span>
+											)}
+										</span>
+									</div>
 									<button
 										type="button"
 										onClick={() => {
@@ -364,7 +567,8 @@ export function GlobalSearchModal({
 						</div>
 					</div>
 				</div>
-			</Modal.Container>
-		</Modal.Backdrop>
+			</Modal.Dialog>
+		</Modal.Container>
+	</Modal.Backdrop>
 	);
 }

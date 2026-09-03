@@ -35,6 +35,11 @@ const SettingsModal = lazy(() =>
 		default: m.SettingsModal,
 	})),
 );
+const GlobalSearchModal = lazy(() =>
+	import("../components/workbench/ai/search/GlobalSearchModal").then((m) => ({
+		default: m.GlobalSearchModal,
+	})),
+);
 
 export const Route = createFileRoute("/")({
 	loader: async () => {
@@ -51,7 +56,7 @@ export const Route = createFileRoute("/")({
 /**
  * Main Workbench Home Page:
  * Left: 文件夹详情与快捷看板 (Folder Detail Panel)
- * Center: 文件夹列表/卡片区 (Category Folders Grid & Daily Capsules)
+ * Center: 文件夹列表/卡片区 (Category Folders Grid)
  * Right: 常驻 AI 搜索与知识对话中心 (Resident AI Search & Q&A Hub - Single Search Entry)
  */
 function WorkbenchHome() {
@@ -94,6 +99,8 @@ function WorkbenchHome() {
 		setIsAIClassifyModalOpen,
 		isSettingsModalOpen,
 		setIsSettingsModalOpen,
+		isGlobalSearchOpen,
+		setIsGlobalSearchOpen,
 	} = useWorkbenchModals();
 
 	// Direct and instant folder selection without unnecessary re-render triggers
@@ -109,10 +116,10 @@ function WorkbenchHome() {
 		chatPanelRef.current?.sendPrompt(prompt);
 	}, []);
 
-	// 3. Focus Right AI Search Input on Cmd+K
+	// 3. Switch to Fast Search in Right Panel on Cmd+K
 	useGlobalShortcuts({
 		onToggleSearch: () => {
-			chatPanelRef.current?.focusInput();
+			chatPanelRef.current?.openSearchTab();
 		},
 	});
 
@@ -127,7 +134,7 @@ function WorkbenchHome() {
 				unclassifiedCount={unclassified.length}
 				folders={folders}
 				onSelectCategory={handleCategoryChange}
-				onOpenSearch={() => chatPanelRef.current?.focusInput()}
+				onOpenSearch={() => chatPanelRef.current?.openSearchTab()}
 				onOpenSync={() => setIsSyncModalOpen(true)}
 				onOpenCreateFolder={openCreateFolderModal}
 				onOpenSettings={() => setIsSettingsModalOpen(true)}
@@ -173,6 +180,7 @@ function WorkbenchHome() {
 						<ChatWithBookmarksPanel
 							ref={chatPanelRef}
 							selectedFolder={null}
+							activeCategory={activeCategory}
 							folders={folders}
 							categories={dynamicCategories}
 							onNavigateToFolder={handleNavigateFromSearch}
@@ -227,8 +235,10 @@ function WorkbenchHome() {
 						<ChatWithBookmarksPanel
 							ref={chatPanelRef}
 							selectedFolder={selectedFolder}
+							activeCategory={activeCategory}
 							folders={folders}
 							categories={dynamicCategories}
+							settings={settings}
 							onNavigateToFolder={handleNavigateFromSearch}
 							onDataChanged={reloadFromDb}
 						/>
@@ -283,6 +293,31 @@ function WorkbenchHome() {
 						isOpen={isSettingsModalOpen}
 						onClose={() => setIsSettingsModalOpen(false)}
 						onSettingsUpdated={setSettings}
+					/>
+				)}
+
+				{isGlobalSearchOpen && (
+					<GlobalSearchModal
+						isOpen={isGlobalSearchOpen}
+						onClose={() => setIsGlobalSearchOpen(false)}
+						folders={folders}
+						categories={dynamicCategories}
+						initialScope={
+							selectedFolder
+								? {
+										type: "folder",
+										folderId: selectedFolder.id,
+										folderName: selectedFolder.name,
+									}
+								: isUnclassified
+									? { type: "global" }
+									: {
+											type: "category",
+											categoryName: activeCategory,
+										}
+						}
+						onNavigateToFolder={handleNavigateFromSearch}
+						onDataChanged={reloadFromDb}
 					/>
 				)}
 			</Suspense>

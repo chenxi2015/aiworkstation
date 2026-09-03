@@ -4,17 +4,18 @@ import type {
 	EmbeddingStats,
 	Folder,
 	SearchMode,
-	SearchResultItem,
+	SearchResponse,
+	SearchScope,
 	WorkbenchItem,
 	WorkbenchSettings,
 } from "../components/workbench/types";
+import { getAvailableModels } from "../server/functions/models.ts";
 import {
 	type ChatMessage,
-	type FolderDossierResult,
-	type RAGChatResult,
 	chatWithBookmarks,
+	type FolderDossierResult,
 	generateFolderDossier,
-	getDailyCapsules,
+	type RAGChatResult,
 } from "../server/functions/rag.ts";
 import {
 	batchGenerateEmbeddings,
@@ -165,12 +166,17 @@ export class WorkbenchStorageService {
 		mode?: SearchMode;
 		embeddingConfig?: EmbeddingConfig;
 		limit?: number;
-	}): Promise<SearchResultItem[]> {
+		scope?: SearchScope;
+	}): Promise<SearchResponse> {
 		try {
 			return await searchWorkbenchItems({ data: params });
 		} catch (err) {
 			console.warn("[WorkbenchStorage] searchWorkbenchItems error:", err);
-			return [];
+			return {
+				items: [],
+				facets: { categories: [], folders: [], types: [] },
+				total: 0,
+			};
 		}
 	}
 
@@ -230,21 +236,6 @@ export class WorkbenchStorageService {
 		};
 	}): Promise<FolderDossierResult> {
 		return await generateFolderDossier({ data: params });
-	}
-
-	/**
-	 * Fetch daily inspiration capsules from SQLite bookmarks
-	 */
-	static async fetchDailyCapsules(params: {
-		count?: number;
-		excludeIds?: string[];
-	}): Promise<WorkbenchItem[]> {
-		try {
-			return await getDailyCapsules({ data: params });
-		} catch (err) {
-			console.warn("[WorkbenchStorage] fetchDailyCapsules error:", err);
-			return [];
-		}
 	}
 
 	/**
@@ -358,11 +349,27 @@ export class WorkbenchStorageService {
 	static deleteChatSession(sessionId: string): void {
 		if (typeof window === "undefined") return;
 		try {
-			const sessions = this.getChatSessions().filter((s) => s.id !== sessionId);
-			this.saveChatSessions(sessions);
+			const sessions = WorkbenchStorageService.getChatSessions().filter(
+				(s) => s.id !== sessionId,
+			);
+			WorkbenchStorageService.saveChatSessions(sessions);
 		} catch (err) {
 			console.error("Failed to delete chat session:", err);
 		}
+	}
+
+	/**
+	 * Fetch available models from OpenAI-compatible / DeepSeek / Ollama endpoint
+	 */
+	static async fetchAvailableModels(params: {
+		baseUrl: string;
+		apiKey?: string;
+	}): Promise<string[]> {
+		const res = await getAvailableModels({ data: params });
+		if (!res.success) {
+			throw new Error(res.error || "获取模型列表失败");
+		}
+		return res.models;
 	}
 
 	/**

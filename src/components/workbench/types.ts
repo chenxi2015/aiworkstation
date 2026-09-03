@@ -84,6 +84,32 @@ export interface SearchResultItem extends WorkbenchItem {
 	similarityPercent?: number;
 	matchType: "semantic" | "keyword" | "hybrid";
 	matchReason?: string;
+	highlights?: {
+		name?: string;
+		summary?: string;
+	};
+}
+
+// Search scope for limiting search range
+export interface SearchScope {
+	type: "global" | "category" | "folder";
+	categoryName?: string;
+	folderId?: number;
+	folderName?: string;
+}
+
+// Facet distribution counts from search results
+export interface SearchFacets {
+	categories: { name: string; count: number }[];
+	folders: { name: string; folderId: number | null; count: number }[];
+	types: { name: string; count: number }[];
+}
+
+// Enhanced search response with facets
+export interface SearchResponse {
+	items: SearchResultItem[];
+	facets: SearchFacets;
+	total: number;
 }
 
 export interface EmbeddingStats {

@@ -13,6 +13,7 @@ export * from "./chat/ChatWithBookmarksPanel";
 // Search Module
 export * from "./search/SearchHeader";
 export * from "./search/SearchResultItemRow";
+export * from "./search/SearchTabContent";
 export * from "./search/GlobalSearchModal";
 
 // Classify Module
@@ -21,5 +22,3 @@ export * from "./classify/AIClassifyModal";
 // Dossier Module
 export * from "./dossier/FolderDossierModal";
 
-// Capsule Module
-export * from "./capsule/DailyCapsuleBanner";

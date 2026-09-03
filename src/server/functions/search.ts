@@ -2,7 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import type {
 	EmbeddingStats,
 	SearchMode,
-	SearchResultItem,
+	SearchResponse,
+	SearchScope,
 } from "../../components/workbench/types";
 import {
 	type EmbeddingConfig,
@@ -20,13 +21,25 @@ export const searchWorkbenchItems = createServerFn({ method: "POST" })
 			mode?: SearchMode;
 			embeddingConfig?: EmbeddingConfig;
 			limit?: number;
+			scope?: SearchScope;
 		}) => data,
 	)
-	.handler(async ({ data }): Promise<SearchResultItem[]> => {
-		const { query, mode = "hybrid", embeddingConfig = {}, limit = 50 } = data;
+	.handler(async ({ data }): Promise<SearchResponse> => {
+		const {
+			query,
+			mode = "hybrid",
+			embeddingConfig = {},
+			limit = 200,
+			scope,
+		} = data;
 
 		const q = query?.trim() || "";
-		if (!q) return [];
+		if (!q)
+			return {
+				items: [],
+				facets: { categories: [], folders: [], types: [] },
+				total: 0,
+			};
 
 		// Retrieve all candidate bookmarks from SQLite
 		const candidateItems = workbenchDb.getAllBookmarksForSearch();
@@ -40,15 +53,26 @@ export const searchWorkbenchItems = createServerFn({ method: "POST" })
 			);
 		}
 
-		// Rank items
+		// Rank items with scope filtering
 		const ranked = EmbeddingService.rankItems(
 			candidateItems,
 			q,
 			queryVector,
 			mode,
+			scope,
 		);
 
-		return ranked.slice(0, limit);
+		// Return limited items (default up to 200)
+		const limitedItems = ranked.slice(0, limit);
+
+		// Compute facets from the items actually returned so facet counts match item counts
+		const facets = EmbeddingService.computeFacets(limitedItems);
+
+		return {
+			items: limitedItems,
+			facets,
+			total: ranked.length,
+		};
 	});
 
 /**

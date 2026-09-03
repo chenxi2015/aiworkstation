@@ -5,7 +5,9 @@
 
 ## 一句话定位
 
-**本地优先的 AI 内容工作台**：把散落在各平台（推特、小红书、微信公众号等）的收藏/点赞内容归集到本地，以"文件夹"（类似手机 App 分组）的方式按工作主题组织，并借助 AI 完成热帖回复、内容二创，最终一键分发回各平台。
+**本地优先的个人知识 Agent 工作台**：把散落在各平台（推特、小红书、微信公众号等）的收藏/点赞内容归集到本地，以"文件夹"（类似手机 App 分组）的方式按工作主题组织，通过 RAG 混合检索激活沉睡收藏，借助 AI Agent 自主完成知识整理、深度调研、趋势洞察与内容二创，最终一键分发回各平台。
+
+> **产品愿景**：从「收藏工具」进化为「个人知识 Agent」——市面上的书签管理工具（Raindrop / Pocket / Notion Web Clipper）停留在「人驱动 → 系统响应」的被动模式。AI Workstation 的终极目标是让 Agent 自主规划、多步执行、主动发现，从「管理工具」跃迁为「知识 Agent」。
 
 ## 核心产品形态
 
@@ -105,15 +107,76 @@ extension/             # Chrome 插件（MV3）：manifest、background、conten
 3. **书签活化与二创赋能**：
    - **全局快捷搜索（Cmd+K）**：随时唤起，精准快速找到模糊记忆中的工具与资料；
    - **Chat with Bookmarks（RAG 问答）**：基于个人收藏库向 AI 提问并获取引用佐证；
-   - **文件夹专题提炼（Dossier）**：一键将成批碎片书签总结为体系化研究综述与备忘单；
-   - **每日灵感胶囊（Daily Capsule）**：主动唤醒沉睡的高价值工具与干货。
+   - **文件夹专题提炼（Dossier）**：一键将成批碎片书签总结为体系化研究综述与备忘单。
+
+## AI Agent 能力演进（规划方向）
+
+### Agent 成熟度模型
+
+| 等级 | 能力描述 | 当前状态 |
+|------|---------|----------|
+| **L0 — 纯检索** | 用户搜索 → 返回列表 | ✅ 已实现 (`searchWorkbenchItems`) |
+| **L1 — RAG 问答** | 检索 + LLM 总结回答 | ✅ 已实现 (`chatWithBookmarks`) |
+| **L2 — ReAct Tool Calling** | LLM 自主决定调用哪个 Tool | ✅ 已实现（4 个 Tool：query/create/move/update） |
+| **L3 — 多步规划执行** | Agent 拆解复杂任务 → 多步 Tool 链式执行 | 🎯 下一阶段目标 |
+| **L4 — 自主后台 Agent** | 无需用户触发，后台持续运行巡检 | 📋 远期规划 |
+| **L5 — 多 Agent 协作** | 多个专业 Agent 协同完成复杂任务 | 📋 远期规划 |
+
+> **核心策略**：不引入重量级 Agent 框架。TanStack AI 的 `chat()` 天然支持 agent loop（多轮 Tool Calling），只需扩展 Tool 集 + 增强 System Prompt 的规划引导，即可自然演化为多步 Agent。
+
+### 六大 Agent 方向
+
+1. **🏠 知识管家 Agent（后台自治）**
+   - 新书签入库自动触发 AI 分类归档
+   - 定期巡检：失效 URL 检测、重复合并、大文件夹拆分建议
+   - 知识库健康报告推送
+
+2. **🔬 研究员 Agent（深度调研）**
+   - 用户给出研究主题 → Agent 多步执行：先查本地 → 联网搜索补充 → 对比矩阵 → 入库归档 → 生成报告
+   - 从「搜存量」升级为「探增量」
+
+3. **⚡ 工作流编排 Agent（Plan-Execute）**
+   - 一句话描述复杂意图（如「把所有 AI 相关但未归档的书签按子主题自动整理」）
+   - Agent 自动拆解为多步 Tool 调用，逐步执行并汇报进度
+
+4. **📊 资产看板 Agent（定期洞察）**
+   - 自动生成知识资产周报：新增趋势、热点主题、未覆盖领域
+   - 收藏兴趣漂移分析与工具推荐
+
+5. **🌐 协同 Agent（跨源联邦）**
+   - 跨多个知识源协同检索（本地书签 + Notion + Raindrop 等）
+   - Connector Plugin 扩展架构
+
+6. **🎯 学习路径 Agent（知识图谱）**
+   - 基于收藏资源构建知识图谱，分析难度和依赖关系
+   - 自动规划学习路径，发现知识盲区
+
+### Tool 扩展规划
+
+现有 4 个 Tool 是 Agent 行动的基础，需逐步扩展：
+
+| Tool | 用途 | 优先级 |
+|------|------|--------|
+| `query_bookmarks` | 结构化条件查询 | ✅ 已有 |
+| `create_folder` | 创建文件夹 | ✅ 已有 |
+| `move_bookmarks_to_folder` | 批量归档 | ✅ 已有 |
+| `update_folder` | 更新文件夹 | ✅ 已有 |
+| `get_stats` | 统计分析（按分类/时间/标签分布） | P1 |
+| `find_duplicates` | 基于 URL 和语义的重复检测 | P1 |
+| `batch_classify` | 批量智能分类（复用 AIClassifier） | P1 |
+| `delete_bookmark` | 删除书签 | P1 |
+| `check_url_health` | 链接有效性检测 | P2 |
+| `web_search` | 联网搜索补充本地库外的资源 | P2 |
+| `extract_page_info` | 抓取 URL 页面 TDK 信息 | P2 |
+| `compare_items` | 多工具结构化对比矩阵 | P2 |
+| `get_collection_trends` | 收藏趋势统计与漂移分析 | P3 |
 
 ## Roadmap
 
 1. **M1 采集闭环**（✅ 已完成）：folders/items 数据模型 + SQLite 落盘 + Chrome 插件主动同步 + DeepSeek 批量智能归类 + 文件夹网格 UI
 2. **M2 搜索与 RAG 知识活化**：
    - **阶段一（✅ 已完成）**：全局快捷搜索（Cmd+K）+ SQLite 向量持久化 + TS 高效余弦相似度引擎 + 混合检索 + 索引构建流水线
-   - **阶段二（🚀 进行中）**：RAG 智能问答侧栏（Chat with Bookmarks）+ 文件夹一键专题综述提炼 + 首页每日灵感胶囊
+   - **阶段二（✅ 已完成）**：RAG 智能问答侧栏（Chat with Bookmarks）+ 文件夹一键专题综述提炼 + ReAct Tool Calling（4 Tools）
 3. **M3 创作与二创矩阵**：
    - 写作时自动关联并引用收藏库中的工具/素材
    - 推文/小红书/视频脚本二创与草稿生成
@@ -122,3 +185,10 @@ extension/             # Chrome 插件（MV3）：manifest、background、conten
    - Chrome side panel 深度联动
    - 个人专属视觉导航页（Showcase）一键导出
    - 数据备份迁移与 skills 深度集成
+5. **M5 AI Agent 智能体演进**（L2 → L3 → L4）：
+   - **搜索增强**：Facet 聚合过滤 + 搜索 Scope 限定 + 搜索结果高亮 + 搜索历史热搜
+   - **Tool 集扩展**：`get_stats` / `find_duplicates` / `batch_classify` / `delete_bookmark` / `check_url_health`
+   - **多步 Agent**：复杂意图自动拆解为多步 Tool 链执行（Plan → Execute → Verify）
+   - **后台自治**：新书签入库自动归档 + 定期知识库巡检 + 知识资产周报
+   - **联网研究**：`web_search` + `extract_page_info` 联网补充，深度调研生成对比报告
+   - **跨源协同**：Connector Plugin 架构，联邦检索 Notion / Raindrop 等外部知识源

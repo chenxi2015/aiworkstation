@@ -1,11 +1,50 @@
-import { Button, Input, Label, Modal, TextField, toast } from "@heroui/react";
-import { Brain, RotateCcw, Save, Sparkles } from "lucide-react";
+import {
+	Button,
+	Input,
+	Label,
+	ListBox,
+	ListBoxItem,
+	Modal,
+	Select,
+	SelectPopover,
+	SelectTrigger,
+	SelectValue,
+	TextField,
+	toast,
+} from "@heroui/react";
+import {
+	Brain,
+	Loader2,
+	PenLine,
+	RefreshCw,
+	RotateCcw,
+	Save,
+	Sparkles,
+} from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
-import type { WorkbenchSettings } from "./types";
 import {
 	DEFAULT_SETTINGS,
 	WorkbenchStorageService,
 } from "../../services/workbenchStorage";
+import type { WorkbenchSettings } from "./types";
+
+const PRESET_LLM_MODELS = [
+	"deepseek-chat",
+	"deepseek-reasoner",
+	"gpt-4o",
+	"gpt-4o-mini",
+	"qwen-plus",
+	"qwen-max",
+	"claude-3-5-sonnet-20241022",
+];
+
+const PRESET_EMBEDDING_MODELS = [
+	"BAAI/bge-m3",
+	"BAAI/bge-large-zh-v1.5",
+	"text-embedding-3-small",
+	"text-embedding-3-large",
+	"text-embedding-v3",
+];
 
 interface SettingsModalProps {
 	isOpen: boolean;
@@ -23,28 +62,119 @@ export function SettingsModal({
 	const [model, setModel] = useState("");
 	const [batchSize, setBatchSize] = useState("15");
 
+	// LLM Models state
+	const [llmModelList, setLlmModelList] = useState<string[]>(PRESET_LLM_MODELS);
+	const [loadingLlmModels, setLoadingLlmModels] = useState(false);
+	const [isCustomLlmModel, setIsCustomLlmModel] = useState(false);
+
 	// Embedding Settings
 	const [embeddingApiKey, setEmbeddingApiKey] = useState("");
 	const [embeddingBaseUrl, setEmbeddingBaseUrl] = useState("");
 	const [embeddingModel, setEmbeddingModel] = useState("");
 
+	// Embedding Models state
+	const [embeddingModelList, setEmbeddingModelList] = useState<string[]>(
+		PRESET_EMBEDDING_MODELS,
+	);
+	const [loadingEmbeddingModels, setLoadingEmbeddingModels] = useState(false);
+	const [isCustomEmbeddingModel, setIsCustomEmbeddingModel] = useState(false);
+
 	useEffect(() => {
 		if (isOpen) {
 			const settings = WorkbenchStorageService.getSettings();
+			const currentModel =
+				settings.deepseekModel || DEFAULT_SETTINGS.deepseekModel;
 			setApiKey(settings.deepseekApiKey || DEFAULT_SETTINGS.deepseekApiKey);
 			setBaseUrl(settings.deepseekBaseUrl || DEFAULT_SETTINGS.deepseekBaseUrl);
-			setModel(settings.deepseekModel || DEFAULT_SETTINGS.deepseekModel);
+			setModel(currentModel);
 			setBatchSize(String(settings.batchSize || 15));
 
 			setEmbeddingApiKey(settings.embeddingApiKey || "");
 			setEmbeddingBaseUrl(
 				settings.embeddingBaseUrl || DEFAULT_SETTINGS.embeddingBaseUrl || "",
 			);
-			setEmbeddingModel(
-				settings.embeddingModel || DEFAULT_SETTINGS.embeddingModel || "",
+			const currentEmbModel =
+				settings.embeddingModel || DEFAULT_SETTINGS.embeddingModel || "";
+			setEmbeddingModel(currentEmbModel);
+
+			// Populate model options with current saved values
+			setLlmModelList((prev) =>
+				Array.from(new Set([currentModel, ...prev].filter(Boolean))),
+			);
+			setEmbeddingModelList((prev) =>
+				Array.from(new Set([currentEmbModel, ...prev].filter(Boolean))),
 			);
 		}
 	}, [isOpen]);
+
+	const handleFetchLlmModels = async () => {
+		const targetUrl = baseUrl.trim() || DEFAULT_SETTINGS.deepseekBaseUrl;
+		if (!targetUrl) {
+			toast.danger("请先填写 API Base URL");
+			return;
+		}
+		setLoadingLlmModels(true);
+		try {
+			const fetched = await WorkbenchStorageService.fetchAvailableModels({
+				baseUrl: targetUrl,
+				apiKey: apiKey.trim(),
+			});
+			if (fetched.length > 0) {
+				const combined = Array.from(
+					new Set([...(model ? [model] : []), ...fetched]),
+				);
+				setLlmModelList(combined);
+				if (!model || !combined.includes(model)) {
+					setModel(fetched[0]);
+				}
+				setIsCustomLlmModel(false);
+				toast.success(`成功获取 ${fetched.length} 个可用模型`);
+			} else {
+				toast.warning("接口未返回任何可用模型");
+			}
+		} catch (err: unknown) {
+			const error = err as Error;
+			toast.danger(
+				error.message || "获取模型列表失败，请检查 Base URL 和 API Key",
+			);
+		} finally {
+			setLoadingLlmModels(false);
+		}
+	};
+
+	const handleFetchEmbeddingModels = async () => {
+		const targetUrl =
+			embeddingBaseUrl.trim() || DEFAULT_SETTINGS.embeddingBaseUrl;
+		if (!targetUrl) {
+			toast.danger("请先填写 Embedding Base URL");
+			return;
+		}
+		setLoadingEmbeddingModels(true);
+		try {
+			const fetched = await WorkbenchStorageService.fetchAvailableModels({
+				baseUrl: targetUrl,
+				apiKey: embeddingApiKey.trim(),
+			});
+			if (fetched.length > 0) {
+				const combined = Array.from(
+					new Set([...(embeddingModel ? [embeddingModel] : []), ...fetched]),
+				);
+				setEmbeddingModelList(combined);
+				if (!embeddingModel || !combined.includes(embeddingModel)) {
+					setEmbeddingModel(fetched[0]);
+				}
+				setIsCustomEmbeddingModel(false);
+				toast.success(`成功获取 ${fetched.length} 个 Embedding 模型`);
+			} else {
+				toast.warning("接口未返回任何模型");
+			}
+		} catch (err: unknown) {
+			const error = err as Error;
+			toast.danger(error.message || "获取 Embedding 模型列表失败");
+		} finally {
+			setLoadingEmbeddingModels(false);
+		}
+	};
 
 	const handleSubmit = (e: FormEvent) => {
 		e.preventDefault();
@@ -76,6 +206,23 @@ export function SettingsModal({
 		setEmbeddingApiKey("");
 		setEmbeddingBaseUrl(DEFAULT_SETTINGS.embeddingBaseUrl || "");
 		setEmbeddingModel(DEFAULT_SETTINGS.embeddingModel || "");
+		setIsCustomLlmModel(false);
+		setIsCustomEmbeddingModel(false);
+		setLlmModelList(
+			Array.from(
+				new Set([DEFAULT_SETTINGS.deepseekModel, ...PRESET_LLM_MODELS]),
+			),
+		);
+		setEmbeddingModelList(
+			Array.from(
+				new Set(
+					[
+						DEFAULT_SETTINGS.embeddingModel || "",
+						...PRESET_EMBEDDING_MODELS,
+					].filter(Boolean),
+				),
+			),
+		);
 	};
 
 	return (
@@ -84,7 +231,7 @@ export function SettingsModal({
 			onOpenChange={(open) => !open && onClose()}
 			variant="blur"
 		>
-			<Modal.Container size="md">
+			<Modal.Container size="lg" className="max-w-xl w-full">
 				<Modal.Dialog aria-label="AI 与模型配置">
 					<Modal.CloseTrigger />
 					<Modal.Header>
@@ -118,10 +265,10 @@ export function SettingsModal({
 									/>
 								</TextField>
 
-								<div className="grid grid-cols-2 gap-3">
+								<div className="grid grid-cols-2 gap-4 items-end">
 									{/* DeepSeek Base URL */}
 									<TextField value={baseUrl} onChange={setBaseUrl}>
-										<Label>API Base URL</Label>
+										<Label className="whitespace-nowrap">API Base URL</Label>
 										<Input
 											placeholder="https://api.deepseek.com"
 											variant="secondary"
@@ -129,10 +276,81 @@ export function SettingsModal({
 									</TextField>
 
 									{/* DeepSeek Model */}
-									<TextField value={model} onChange={setModel}>
-										<Label>Model 模型名称</Label>
-										<Input placeholder="deepseek-chat" variant="secondary" />
-									</TextField>
+									<div className="flex flex-col gap-1.5">
+										<div className="flex items-center justify-between gap-2">
+											<Label className="whitespace-nowrap">
+												Model 模型名称
+											</Label>
+											<div className="flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+												<button
+													type="button"
+													onClick={handleFetchLlmModels}
+													disabled={loadingLlmModels}
+													className="text-[11px] text-accent hover:opacity-80 flex items-center gap-1 cursor-pointer disabled:opacity-50 transition-opacity"
+													title="通过当前 Base URL 和 API Key 获取可用模型列表"
+												>
+													{loadingLlmModels ? (
+														<Loader2 className="w-3 h-3 animate-spin" />
+													) : (
+														<RefreshCw className="w-3 h-3" />
+													)}
+													<span>
+														{loadingLlmModels ? "获取中..." : "获取模型"}
+													</span>
+												</button>
+												<span className="text-muted/40 text-[10px]">|</span>
+												<button
+													type="button"
+													onClick={() => setIsCustomLlmModel(!isCustomLlmModel)}
+													className="text-[11px] text-muted hover:text-foreground flex items-center gap-0.5 cursor-pointer transition-colors"
+													title={
+														isCustomLlmModel
+															? "切换为下拉选择"
+															: "切换为手动输入"
+													}
+												>
+													<PenLine className="w-2.5 h-2.5" />
+													<span>{isCustomLlmModel ? "选择" : "手动"}</span>
+												</button>
+											</div>
+										</div>
+
+										{isCustomLlmModel ? (
+											<TextField
+												value={model}
+												onChange={setModel}
+												className="w-full"
+											>
+												<Input
+													placeholder="deepseek-chat"
+													variant="secondary"
+												/>
+											</TextField>
+										) : (
+											<Select
+												aria-label="Model 模型名称"
+												selectedKey={model}
+												onSelectionChange={(key) => {
+													if (key) setModel(String(key));
+												}}
+												variant="secondary"
+												className="w-full"
+											>
+												<SelectTrigger>
+													<SelectValue />
+												</SelectTrigger>
+												<SelectPopover className="max-h-60 overflow-y-auto min-w-[220px]">
+													<ListBox>
+														{llmModelList.map((m) => (
+															<ListBoxItem key={m} id={m} textValue={m}>
+																{m}
+															</ListBoxItem>
+														))}
+													</ListBox>
+												</SelectPopover>
+											</Select>
+										)}
+									</div>
 								</div>
 
 								{/* Batch Size */}
@@ -174,13 +392,15 @@ export function SettingsModal({
 									/>
 								</TextField>
 
-								<div className="grid grid-cols-2 gap-3">
+								<div className="grid grid-cols-2 gap-4 items-end">
 									{/* Embedding Base URL */}
 									<TextField
 										value={embeddingBaseUrl}
 										onChange={setEmbeddingBaseUrl}
 									>
-										<Label>Embedding Base URL</Label>
+										<Label className="whitespace-nowrap">
+											Embedding Base URL
+										</Label>
 										<Input
 											placeholder="https://api.siliconflow.cn/v1"
 											variant="secondary"
@@ -188,13 +408,82 @@ export function SettingsModal({
 									</TextField>
 
 									{/* Embedding Model */}
-									<TextField
-										value={embeddingModel}
-										onChange={setEmbeddingModel}
-									>
-										<Label>Embedding Model</Label>
-										<Input placeholder="BAAI/bge-m3" variant="secondary" />
-									</TextField>
+									<div className="flex flex-col gap-1.5">
+										<div className="flex items-center justify-between gap-2">
+											<Label className="whitespace-nowrap">
+												Embedding Model
+											</Label>
+											<div className="flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+												<button
+													type="button"
+													onClick={handleFetchEmbeddingModels}
+													disabled={loadingEmbeddingModels}
+													className="text-[11px] text-accent hover:opacity-80 flex items-center gap-1 cursor-pointer disabled:opacity-50 transition-opacity"
+													title="通过当前 Embedding Base URL 和 Key 获取可用模型"
+												>
+													{loadingEmbeddingModels ? (
+														<Loader2 className="w-3 h-3 animate-spin" />
+													) : (
+														<RefreshCw className="w-3 h-3" />
+													)}
+													<span>
+														{loadingEmbeddingModels ? "获取中..." : "获取模型"}
+													</span>
+												</button>
+												<span className="text-muted/40 text-[10px]">|</span>
+												<button
+													type="button"
+													onClick={() =>
+														setIsCustomEmbeddingModel(!isCustomEmbeddingModel)
+													}
+													className="text-[11px] text-muted hover:text-foreground flex items-center gap-0.5 cursor-pointer transition-colors"
+													title={
+														isCustomEmbeddingModel
+															? "切换为下拉选择"
+															: "切换为手动输入"
+													}
+												>
+													<PenLine className="w-2.5 h-2.5" />
+													<span>
+														{isCustomEmbeddingModel ? "选择" : "手动"}
+													</span>
+												</button>
+											</div>
+										</div>
+
+										{isCustomEmbeddingModel ? (
+											<TextField
+												value={embeddingModel}
+												onChange={setEmbeddingModel}
+												className="w-full"
+											>
+												<Input placeholder="BAAI/bge-m3" variant="secondary" />
+											</TextField>
+										) : (
+											<Select
+												aria-label="Embedding Model"
+												selectedKey={embeddingModel}
+												onSelectionChange={(key) => {
+													if (key) setEmbeddingModel(String(key));
+												}}
+												variant="secondary"
+												className="w-full"
+											>
+												<SelectTrigger>
+													<SelectValue />
+												</SelectTrigger>
+												<SelectPopover className="max-h-60 overflow-y-auto min-w-[220px]">
+													<ListBox>
+														{embeddingModelList.map((m) => (
+															<ListBoxItem key={m} id={m} textValue={m}>
+																{m}
+															</ListBoxItem>
+														))}
+													</ListBox>
+												</SelectPopover>
+											</Select>
+										)}
+									</div>
 								</div>
 							</div>
 						</Modal.Body>
@@ -238,4 +527,3 @@ export function SettingsModal({
 		</Modal.Backdrop>
 	);
 }
-

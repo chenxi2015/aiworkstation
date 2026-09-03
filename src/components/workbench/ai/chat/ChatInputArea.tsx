@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import type { RefObject } from "react";
 import { memo } from "react";
+import { WorkbenchStorageService } from "../../../../services/workbenchStorage";
 
 export interface ChatInputAreaProps {
 	input: string;
@@ -19,6 +20,7 @@ export interface ChatInputAreaProps {
 	onOpenHistory?: () => void;
 	onNewChat?: () => void;
 	onClearHistory?: () => void;
+	model?: string;
 }
 
 /**
@@ -32,13 +34,23 @@ export const ChatInputArea = memo(function ChatInputArea({
 	onSend,
 	onOpenHistory,
 	onNewChat,
+	model,
 }: ChatInputAreaProps) {
+	const displayModel =
+		model ||
+		(typeof window !== "undefined"
+			? WorkbenchStorageService.getSettings().deepseekModel
+			: "") ||
+		"DeepSeek";
+
 	return (
 		<div className="p-3 border-t border-border bg-surface-secondary/40 shrink-0 flex flex-col gap-1.5">
 			{/* Top action toolbar (Figure 2: History & New Chat) */}
 			<div className="flex items-center justify-between px-0.5">
 				<div className="flex items-center gap-1.5 text-muted text-[11px]">
-					<span className="text-[10px] text-muted font-medium">统一问答与检索</span>
+					<span className="text-[10px] text-muted font-medium">
+						统一问答与检索
+					</span>
 				</div>
 
 				<div className="flex items-center gap-1">
@@ -123,7 +135,12 @@ export const ChatInputArea = memo(function ChatInputArea({
 
 			<div className="flex items-center justify-between px-1 text-[10px] text-muted">
 				<span>按 Enter 智能搜索或提问，Shift+Enter 换行</span>
-				<span className="hidden sm:inline">DeepSeek V3 / RAG 本地驱动</span>
+				<span
+					className="hidden sm:inline truncate max-w-[220px]"
+					title={`${displayModel} / RAG 本地驱动`}
+				>
+					{displayModel} / RAG 本地驱动
+				</span>
 			</div>
 		</div>
 	);

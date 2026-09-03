@@ -1,10 +1,7 @@
 import { chat } from "@tanstack/ai";
 import { openaiCompatibleText } from "@tanstack/ai-openai/compatible";
 import { createServerFn } from "@tanstack/react-start";
-import type {
-	SearchResultItem,
-	WorkbenchItem,
-} from "../../components/workbench/types";
+import type { SearchResultItem } from "../../components/workbench/types";
 import {
 	type EmbeddingConfig,
 	EmbeddingService,
@@ -133,12 +130,19 @@ export const chatWithBookmarks = createServerFn({ method: "POST" })
 - 当前时间: ${timeStr}
 
 【重要能力与执行规范】:
-1. 【精准查询】：当用户询问涉及【时间范围】（例如：“我今天/本周/上周/本月/最近7天收藏了哪些网站”、“昨天添加了什么”）、【特定分类/文件夹汇总】（例如：“自媒体分类下有哪些”、“看下设计工具文件夹”）或【数量盘点】时，你必须主动调用 \`query_bookmarks\` 工具从 SQLite 数据库获取最精准的结构化最新数据。
-2. 【创建文件夹】：当用户明确要求新建文件夹（例如：“新建一个名为「自媒体剪辑」的文件夹”、“帮我在技能分类下建一个文件夹”）时，调用 \`create_folder\` 工具。
-3. 【归类与移动书签】：当用户要求将某些内容/书签整理或放入指定文件夹（例如：“把刚才提到的几个视频工具放在一个新的自媒体文件夹中”、“把这篇教程移到技能文件夹”）时，调用 \`move_bookmarks_to_folder\` 工具（支持自动创建尚不存在的目标文件夹）。
-4. 【更新文件夹】：当用户要求修改文件夹名称、分类或描述时，调用 \`update_folder\` 工具。
-5. 【结果确认】：执行完任何写入操作后，在回复中清晰告知用户操作结果（例如：创建了什么文件夹、移入了哪些书签），并保持语言专业、排版清晰优雅（Markdown 格式）。
-6. 【常规推荐】：当进行概念探讨或工具推荐时，优先结合给出的参考来源进行总结分析，并用 《书签名称》 明确标识工具。
+1. 【精准查询】：当用户询问涉及【时间范围】（例如：“我今天/本周/上周/本月/最近7天收藏了哪些网站”、“昨天添加了什么”）、【特定分类/文件夹汇总】（例如：“自媒体分类下有哪些”、“看下设计工具文件夹”）或【全量统计盘点】时，主动调用 \`query_bookmarks\` 工具从 SQLite 获取最新数据。
+2. 【具体工具定位与解答】：当用户询问某个具体工具/网站“在哪里”、“属于哪个分类/文件夹”或“网址是什么”时，若下方【参考来源】中已经命中了该工具，**直接根据参考来源作答**（明确说明其所在的文件夹名称、网址与用途），无需重复发起数据库查询。
+3. 【创建文件夹】：当用户明确要求新建文件夹时，调用 \`create_folder\` 工具。
+4. 【归类与移动书签】：当用户要求将内容整理或放入指定文件夹时，调用 \`move_bookmarks_to_folder\` 工具。
+5. 【更新文件夹】：当用户要求修改文件夹名称、分类或描述时，调用 \`update_folder\` 工具。
+6. 【工具调用参数规范（非常关键）】：
+   - 工具参数必须是严格符合 RFC 8259 规范的标准合法 JSON 对象。
+   - 所有键与字符串值必须严格使用英文双引号闭合（例如：{"keyword": "视频"}，绝对禁止写成未加引号的裸字如 {"keyword": 视频}）。
+   - **只传递需要生效的参数**。对于不需要过滤的条件，请直接在 JSON 中彻底省略该字段，不要传递 null 或空键。
+   - 一次用户意图只需精准调用一次工具，避免同时并发多个相似查询。
+7. 【严禁自言自语/思考过程外泄】：
+   - 严禁向用户输出内部反思或工具调用意图（如“我需要用 folderName 参数查询”、“正在为您检索”等）。
+   - 请静默发起工具调用，获取结果后直接呈现专业、结构清晰的 Markdown 回答。
 
 以下是从本地知识库初步语义检索到的相关背景资料（常规参考）：
 ${contextSnippets}`;
@@ -357,42 +361,4 @@ export const generateFolderDossier = createServerFn({ method: "POST" })
 		};
 	});
 
-/**
- * Server Function: Fetch daily inspiration capsules randomly/intelligently from bookmarks
- */
-export const getDailyCapsules = createServerFn({ method: "POST" })
-	.validator((data: { count?: number; excludeIds?: string[] }) => data)
-	.handler(async ({ data }): Promise<WorkbenchItem[]> => {
-		const { count = 3, excludeIds = [] } = data;
-		const candidateItems = workbenchDb.getAllBookmarksForSearch();
-		if (candidateItems.length === 0) return [];
 
-		// Filter out excluded items and items without name
-		const excludeSet = new Set(excludeIds);
-		const eligible = candidateItems.filter(
-			(item) => !excludeSet.has(item.id) && item.name,
-		);
-
-		// Shuffle with Fisher-Yates
-		const shuffled = [...eligible];
-		for (let i = shuffled.length - 1; i > 0; i--) {
-			const j = Math.floor(Math.random() * (i + 1));
-			[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-		}
-
-		return shuffled.slice(0, count).map((item) => ({
-			id: item.id,
-			name: item.name,
-			url: item.url,
-			type: item.type,
-			description: item.description,
-			keywords: item.keywords,
-			summary: item.summary,
-			tags: item.tags,
-			favicon: item.favicon,
-			folderId: item.folderId,
-			folderName: item.folderName,
-			category: item.category,
-			createdAt: item.createdAt,
-		}));
-	});

@@ -117,6 +117,7 @@ Guidelines for categorization:
 		const adapter = openaiCompatibleText(model, {
 			baseURL: baseUrl,
 			apiKey,
+			dangerouslyAllowBrowser: true,
 		});
 
 		// 2. Setup cancellation controller

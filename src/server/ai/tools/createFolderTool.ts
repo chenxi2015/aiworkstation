@@ -3,22 +3,26 @@ import { z } from "zod";
 import { workbenchDb } from "../../db/sqlite.ts";
 import type { ToolExecutionResult } from "./types";
 
-export const createFolderInputSchema = z.object({
-	name: z
-		.string()
-		.describe("文件夹名称，例如：'AI 剪辑工具库'、'小红书爆款文案'"),
-	category: z
-		.string()
-		.optional()
-		.describe(
-			"所属工作台大分类（如：工作台、自媒体、技能、电商、收藏等），默认'工作台'",
-		),
-	desc: z.string().optional().describe("文件夹主题说明或使用场景描述"),
-	color: z
-		.string()
-		.optional()
-		.describe("文件夹主题颜色 Hex 代码，例如 '#4f46e5'"),
-});
+export const createFolderInputSchema = z
+	.object({
+		name: z
+			.string()
+			.describe("文件夹名称，例如：'AI 剪辑工具库'、'小红书爆款文案'"),
+		category: z
+			.string()
+			.nullable()
+			.optional()
+			.describe(
+				"所属工作台大分类（如：工作台、自媒体、技能、电商、收藏等），默认'工作台'",
+			),
+		desc: z.string().nullable().optional().describe("文件夹主题说明或使用场景描述"),
+		color: z
+			.string()
+			.nullable()
+			.optional()
+			.describe("文件夹主题颜色 Hex 代码，例如 '#4f46e5'"),
+	})
+	.passthrough();
 
 export type CreateFolderInput = z.infer<typeof createFolderInputSchema>;
 
@@ -28,8 +32,16 @@ export type CreateFolderInput = z.infer<typeof createFolderInputSchema>;
 export function executeCreateFolder(
 	args: CreateFolderInput,
 ): ToolExecutionResult {
-	const { name, category = "工作台", desc = "", color } = args;
+	const { name, category, desc = "", color } = args;
 	const trimmedName = (name || "").trim();
+	const effectiveCategory =
+		category && category !== "null" && category !== "undefined"
+			? category.trim()
+			: "工作台";
+	const effectiveDesc =
+		desc && desc !== "null" && desc !== "undefined" ? desc.trim() : "";
+	const effectiveColor =
+		color && color !== "null" && color !== "undefined" ? color.trim() : undefined;
 
 	if (!trimmedName) {
 		return {
@@ -58,9 +70,9 @@ export function executeCreateFolder(
 
 	const created = workbenchDb.createFolder(
 		trimmedName,
-		category,
-		desc || `${trimmedName} 主题资产库`,
-		color,
+		effectiveCategory,
+		effectiveDesc || `${trimmedName} 主题资产库`,
+		effectiveColor,
 	);
 
 	return {

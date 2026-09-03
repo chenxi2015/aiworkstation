@@ -2,6 +2,8 @@ import type {
 	ItemType,
 	SearchMode,
 	SearchResultItem,
+	SearchFacets,
+	SearchScope,
 } from "../components/workbench/types";
 
 export const DEFAULT_EMBEDDING_BASE_URL =
@@ -189,7 +191,7 @@ export class EmbeddingService {
 			tags?: string[];
 			folderName?: string;
 		},
-	): { score: number; reason?: string } {
+	): { score: number; reason?: string; highlights?: { name?: string; summary?: string } } {
 		const q = query.trim().toLowerCase();
 		if (!q) return { score: 0 };
 
@@ -239,11 +241,82 @@ export class EmbeddingService {
 			}
 		}
 
+		// 3. Build highlights by wrapping matched terms with <mark>
+		const highlights = this.buildHighlights(terms, item.name, item.summary || item.description);
+
 		// Normalize score to 0~1 range
 		const normalized = Math.min(1, score);
 		return {
 			score: normalized,
 			reason: reasons.length > 0 ? reasons.slice(0, 2).join(" · ") : undefined,
+			highlights,
+		};
+	}
+
+	/**
+	 * Build highlight HTML by wrapping query terms with <mark> tags
+	 */
+	private static buildHighlights(
+		terms: string[],
+		name?: string,
+		summary?: string,
+	): { name?: string; summary?: string } | undefined {
+		if (terms.length === 0) return undefined;
+
+		const wrapMatches = (text: string): string | undefined => {
+			if (!text) return undefined;
+			// Escape HTML entities first for safety
+			const escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+			// Build regex from terms (escaped for regex safety)
+			const safeTerms = terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+			const regex = new RegExp(`(${safeTerms.join("|")})`, "gi");
+			const result = escaped.replace(regex, "<mark>$1</mark>");
+			return result !== escaped ? result : undefined;
+		};
+
+		const nameHL = wrapMatches(name || "");
+		const summaryHL = wrapMatches(summary || "");
+
+		if (!nameHL && !summaryHL) return undefined;
+		return { name: nameHL, summary: summaryHL };
+	}
+
+	/**
+	 * Compute facet distributions from ranked search result items
+	 */
+	static computeFacets(items: SearchResultItem[]): SearchFacets {
+		const catMap = new Map<string, number>();
+		const folderMap = new Map<string, { folderId: number | null; count: number }>();
+		const typeMap = new Map<string, number>();
+
+		for (const item of items) {
+			const cat = item.category || "未分类";
+			catMap.set(cat, (catMap.get(cat) || 0) + 1);
+
+			const fn = item.folderName || "未分类";
+			const existing = folderMap.get(fn);
+			if (existing) {
+				existing.count++;
+			} else {
+				folderMap.set(fn, { folderId: item.folderId ?? null, count: 1 });
+			}
+
+			const t = item.type || "link";
+			typeMap.set(t, (typeMap.get(t) || 0) + 1);
+		}
+
+		const sortDesc = (a: { count: number }, b: { count: number }) => b.count - a.count;
+
+		return {
+			categories: Array.from(catMap.entries())
+				.map(([name, count]) => ({ name, count }))
+				.sort(sortDesc),
+			folders: Array.from(folderMap.entries())
+				.map(([name, v]) => ({ name, folderId: v.folderId, count: v.count }))
+				.sort(sortDesc),
+			types: Array.from(typeMap.entries())
+				.map(([name, count]) => ({ name, count }))
+				.sort(sortDesc),
 		};
 	}
 
@@ -270,14 +343,29 @@ export class EmbeddingService {
 		query: string,
 		queryVector: number[] | null,
 		mode: SearchMode = "hybrid",
+		scope?: SearchScope,
 	): SearchResultItem[] {
 		const q = query.trim();
 		if (!q && !queryVector) return [];
 
+		// Apply scope filter before ranking
+		let filtered = items;
+		if (scope && scope.type !== "global") {
+			filtered = items.filter((item) => {
+				if (scope.type === "category") {
+					return item.category === scope.categoryName;
+				}
+				if (scope.type === "folder") {
+					return item.folderId === scope.folderId;
+				}
+				return true;
+			});
+		}
+
 		const results: SearchResultItem[] = [];
 
-		for (const item of items) {
-			const { score: kwScore, reason: kwReason } = this.computeKeywordScore(
+		for (const item of filtered) {
+			const { score: kwScore, reason: kwReason, highlights } = this.computeKeywordScore(
 				q,
 				item,
 			);
@@ -346,6 +434,7 @@ export class EmbeddingService {
 					category: item.category,
 					createdAt: item.createdAt,
 					score: finalScore,
+					highlights,
 					similarityPercent:
 						semScore > 0 ? Math.round(semScore * 100) : undefined,
 					matchType,

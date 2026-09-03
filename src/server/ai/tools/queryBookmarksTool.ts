@@ -5,41 +5,75 @@ import { type BookmarkQueryParams, workbenchDb } from "../../db/sqlite.ts";
 import { resolveTimeRange } from "./timeResolver";
 import type { ToolExecutionResult } from "./types";
 
-export const queryBookmarksInputSchema = z.object({
-	timeRange: z
-		.enum([
-			"today",
-			"yesterday",
-			"this_week",
-			"last_week",
-			"this_month",
-			"recent_7_days",
-			"recent_30_days",
-			"all",
-		])
-		.optional()
-		.describe(
-			"时间范围预设。例如：用户询问'本周收藏'填 this_week，'今天添加'填 today，'最近7天'填 recent_7_days，'上周'填 last_week，'本月'填 this_month",
-		),
-	startDate: z.string().optional().describe("起始日期 (格式 YYYY-MM-DD)"),
-	endDate: z.string().optional().describe("截止日期 (格式 YYYY-MM-DD)"),
-	folderName: z
-		.string()
-		.optional()
-		.describe("所属文件夹或主题名称（模糊匹配）"),
-	category: z
-		.string()
-		.optional()
-		.describe("所属工作台大类（如：工作台、自媒体、技能、电商、收藏等）"),
-	tag: z.string().optional().describe("标签名称过滤"),
-	keyword: z
-		.string()
-		.optional()
-		.describe("关键词过滤（匹配标题、摘要、描述或关键字）"),
-	limit: z.number().optional().describe("返回数量上限，默认 20，最多 50"),
-});
+export const queryBookmarksInputSchema = z
+	.object({
+		timeRange: z
+			.enum([
+				"today",
+				"yesterday",
+				"this_week",
+				"last_week",
+				"this_month",
+				"recent_7_days",
+				"recent_30_days",
+			])
+			.nullable()
+			.optional()
+			.describe(
+				"时间范围预设（如 today, this_week, recent_7_days）。如无需按时间过滤请勿包含此字段",
+			),
+		startDate: z
+			.string()
+			.nullable()
+			.optional()
+			.describe("起始日期 (格式 YYYY-MM-DD)，无需过滤请勿包含此字段"),
+		endDate: z
+			.string()
+			.nullable()
+			.optional()
+			.describe("截止日期 (格式 YYYY-MM-DD)，无需过滤请勿包含此字段"),
+		folderName: z
+			.string()
+			.nullable()
+			.optional()
+			.describe("所属文件夹或主题名称（模糊匹配），无需过滤请勿包含此字段"),
+		category: z
+			.string()
+			.nullable()
+			.optional()
+			.describe(
+				"所属工作台大类（如：工作台、自媒体、技能、电商、收藏等），无需过滤请勿包含此字段",
+			),
+		tag: z
+			.string()
+			.nullable()
+			.optional()
+			.describe("标签名称过滤，无需过滤请勿包含此字段"),
+		keyword: z
+			.string()
+			.nullable()
+			.optional()
+			.describe(
+				"关键词过滤（匹配标题、摘要、描述或关键字），无需过滤请勿包含此字段",
+			),
+		limit: z
+			.number()
+			.nullable()
+			.optional()
+			.describe("返回数量上限，默认 20，最多 50"),
+	})
+	.passthrough();
 
 export type QueryBookmarksInput = z.infer<typeof queryBookmarksInputSchema>;
+
+/**
+ * Sanitize string filter parameter
+ */
+function cleanQueryParam(val?: string | null): string | undefined {
+	if (!val || val === "null" || val === "undefined") return undefined;
+	const trimmed = val.trim();
+	return trimmed === "" ? undefined : trimmed;
+}
 
 /**
  * Pure execution function to query bookmarks in SQLite
@@ -58,18 +92,30 @@ export function executeQueryBookmarks(
 		limit = 20,
 	} = args;
 
-	const timeResolution = resolveTimeRange(timeRange, startDate, endDate);
+	const cleanFolderName = cleanQueryParam(folderName);
+	const cleanCategory = cleanQueryParam(category);
+	const cleanTag = cleanQueryParam(tag);
+	const cleanKeyword = cleanQueryParam(keyword);
+	const cleanStartDate = cleanQueryParam(startDate);
+	const cleanEndDate = cleanQueryParam(endDate);
+	const effectiveLimit = limit && limit > 0 ? limit : 20;
+
+	const timeResolution = resolveTimeRange(
+		timeRange || undefined,
+		cleanStartDate,
+		cleanEndDate,
+	);
 
 	const queryParams: BookmarkQueryParams = {
 		startTimeMs: timeResolution.startTimeMs,
 		endTimeMs: timeResolution.endTimeMs,
 		startDate: timeResolution.startDateStr,
 		endDate: timeResolution.endDateStr,
-		folderName,
-		category,
-		tag,
-		keyword,
-		limit: Math.min(Math.max(limit, 1), 50),
+		folderName: cleanFolderName,
+		category: cleanCategory,
+		tag: cleanTag,
+		keyword: cleanKeyword,
+		limit: Math.min(Math.max(effectiveLimit, 1), 50),
 		sortBy: "date_added",
 		sortOrder: "DESC",
 	};

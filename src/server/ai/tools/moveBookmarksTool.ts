@@ -7,33 +7,39 @@ import type {
 import { workbenchDb } from "../../db/sqlite.ts";
 import type { ToolExecutionResult } from "./types";
 
-export const moveBookmarksToFolderInputSchema = z.object({
-	targetFolderName: z.string().describe("目标文件夹名称"),
-	itemIds: z
-		.array(z.string())
-		.optional()
-		.describe("待移动的书签 ID 数组（如果有准确 ID）"),
-	itemNamesOrUrls: z
-		.array(z.string())
-		.optional()
-		.describe(
-			"待移动的书签标题关键词或 URL 关键词数组（用于上下文模糊匹配，例如：['剪映', 'CapCut', 'Runway']）",
-		),
-	targetCategory: z
-		.string()
-		.optional()
-		.describe("目标文件夹所属分类（当需要自动新建文件夹时生效，默认'工作台'）"),
-	createIfNotExist: z
-		.boolean()
-		.optional()
-		.describe("若目标文件夹尚不存在，是否自动创建？默认 true"),
-});
+export const moveBookmarksToFolderInputSchema = z
+	.object({
+		targetFolderName: z.string().describe("目标文件夹名称"),
+		itemIds: z
+			.array(z.string())
+			.nullable()
+			.optional()
+			.describe("待移动的书签 ID 数组（如果有准确 ID）"),
+		itemNamesOrUrls: z
+			.array(z.string())
+			.nullable()
+			.optional()
+			.describe(
+				"待移动的书签标题关键词或 URL 关键词数组（用于上下文模糊匹配，例如：['剪映', 'CapCut', 'Runway']）",
+			),
+		targetCategory: z
+			.string()
+			.nullable()
+			.optional()
+			.describe("目标文件夹所属分类（当需要自动新建文件夹时生效，默认'工作台'）"),
+		createIfNotExist: z
+			.boolean()
+			.nullable()
+			.optional()
+			.describe("若目标文件夹尚不存在，是否自动创建？默认 true"),
+	})
+	.passthrough();
 
 export type MoveBookmarksToFolderInput = z.infer<
 	typeof moveBookmarksToFolderInputSchema
 >;
 
-/**q q q q q q q q q q q q q q q
+/**
  * Pure execution function to move bookmarks into folder in SQLite
  */
 export function executeMoveBookmarks(
@@ -41,11 +47,24 @@ export function executeMoveBookmarks(
 ): ToolExecutionResult {
 	const {
 		targetFolderName,
-		itemIds = [],
-		itemNamesOrUrls = [],
-		targetCategory = "工作台",
+		itemIds,
+		itemNamesOrUrls,
+		targetCategory,
 		createIfNotExist = true,
 	} = args;
+
+	const effectiveItemIds = Array.isArray(itemIds)
+		? itemIds.filter(Boolean)
+		: [];
+	const effectiveItemNames = Array.isArray(itemNamesOrUrls)
+		? itemNamesOrUrls.filter(Boolean)
+		: [];
+	const effectiveCategory =
+		targetCategory &&
+		targetCategory !== "null" &&
+		targetCategory !== "undefined"
+			? targetCategory.trim()
+			: "工作台";
 
 	const targetNameTrimmed = (targetFolderName || "").trim();
 	if (!targetNameTrimmed) {
@@ -68,7 +87,7 @@ export function executeMoveBookmarks(
 	if (!targetFolder && createIfNotExist) {
 		targetFolder = workbenchDb.createFolder(
 			targetNameTrimmed,
-			targetCategory,
+			effectiveCategory,
 			`自动创建的「${targetNameTrimmed}」主题文件夹`,
 		);
 		newlyCreatedFolder = true;
@@ -88,26 +107,25 @@ export function executeMoveBookmarks(
 	// 2. Resolve target bookmarks to move
 	const targetItemIds = new Set<string>();
 
-	for (const id of itemIds) {
+	for (const id of effectiveItemIds) {
 		if (id) targetItemIds.add(String(id));
 	}
 
-	if (itemNamesOrUrls && itemNamesOrUrls.length > 0) {
+	if (effectiveItemNames.length > 0) {
 		const unclassified = workbenchDb.getUnclassifiedItems();
 		const allItems: WorkbenchItem[] = [
 			...unclassified,
 			...allFolders.flatMap((f) => f.items),
 		];
 
-		for (const term of itemNamesOrUrls) {
-			const termLower = String(term).toLowerCase().trim();
-			if (!termLower) continue;
-
+		for (const keyword of effectiveItemNames) {
+			const kw = keyword.toLowerCase().trim();
+			if (!kw) continue;
 			for (const item of allItems) {
-				const nameMatch = item.name.toLowerCase().includes(termLower);
-				const urlMatch = (item.url || "").toLowerCase().includes(termLower);
-				if (nameMatch || urlMatch) {
-					if (item.id) targetItemIds.add(String(item.id));
+				const matchName = item.name.toLowerCase().includes(kw);
+				const matchUrl = (item.url || "").toLowerCase().includes(kw);
+				if (matchName || matchUrl) {
+					targetItemIds.add(String(item.id));
 				}
 			}
 		}
