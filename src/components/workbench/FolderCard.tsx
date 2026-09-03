@@ -63,25 +63,25 @@ export const FolderCard = memo(function FolderCard({
 						: "hover:border-opacity-90"
 			}`}
 		>
-			<Card.Header className="flex flex-row items-center justify-between pb-2 pt-3.5 px-4">
+			<Card.Header className="flex flex-row items-center justify-between pb-1 pt-2.5 px-3.5">
 				{/* Mobile-style app micro-grid cover displaying website favicons */}
-				<FolderAppGridCover folder={folder} size="md" />
+				<FolderAppGridCover folder={folder} size="sm" />
 
 				{/* Right status & micro-action indicator */}
 				<div className="flex items-center gap-1.5 shrink-0">
 					{/* When selected: refined check badge */}
 					{isSelected ? (
 						<span
-							className="w-5 h-5 rounded-full flex items-center justify-center text-white shadow-2xs transition-transform"
+							className="w-4.5 h-4.5 rounded-full flex items-center justify-center text-white shadow-2xs transition-transform"
 							style={{ backgroundColor: activeColor }}
 							title="已选定当前文件夹"
 						>
-							<Check className="w-3 h-3 stroke-[2.5]" />
+							<Check className="w-2.5 h-2.5 stroke-[2.5]" />
 						</span>
 					) : color ? (
 						/* Color breathing halo ring with seamless hover arrow transform */
 						<div
-							className="relative flex items-center justify-center w-5 h-5 rounded-full transition-transform"
+							className="relative flex items-center justify-center w-4.5 h-4.5 rounded-full transition-transform"
 							title={`文件夹主题色：${color}`}
 						>
 							<span
@@ -89,37 +89,37 @@ export const FolderCard = memo(function FolderCard({
 								style={{ backgroundColor: color }}
 							/>
 							<span
-								className="w-2.5 h-2.5 rounded-full shadow-2xs ring-2 ring-surface group-hover:scale-0 transition-transform duration-200"
+								className="w-2 h-2 rounded-full shadow-2xs ring-2 ring-surface group-hover:scale-0 transition-transform duration-200"
 								style={{ backgroundColor: color }}
 							/>
 							{/* Hover micro navigation hint with matching folder color */}
 							<ArrowUpRight
-								className="w-3.5 h-3.5 absolute opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100 transition-all duration-200"
+								className="w-3 h-3 absolute opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100 transition-all duration-200"
 								style={{ color }}
 							/>
 						</div>
 					) : (
 						/* Neutral subtle arrow indicator appearing smoothly on hover */
-						<div className="w-5 h-5 rounded-full flex items-center justify-center opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100 transition-all duration-200 text-muted hover:text-foreground">
-							<ArrowUpRight className="w-3.5 h-3.5" />
+						<div className="w-4.5 h-4.5 rounded-full flex items-center justify-center opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100 transition-all duration-200 text-muted hover:text-foreground">
+							<ArrowUpRight className="w-3 h-3" />
 						</div>
 					)}
 				</div>
 			</Card.Header>
 
-			<Card.Content className="py-1 px-4">
-				<Card.Title className="text-[15px] font-bold tracking-tight text-foreground group-hover:text-primary transition-colors line-clamp-1 break-all">
+			<Card.Content className="py-0.5 px-3.5">
+				<Card.Title className="text-[13.5px] font-semibold tracking-tight leading-snug text-foreground group-hover:text-primary transition-colors line-clamp-1 break-all">
 					{folder.name}
 				</Card.Title>
-				<p className="text-[11px] text-muted/70 line-clamp-1 mt-0.5 break-all">
+				<p className="text-[11px] text-muted/70 line-clamp-1 mt-0.5 leading-normal break-all">
 					{subtitle}
 				</p>
 			</Card.Content>
 
-			<Card.Footer className="pt-2 pb-3 px-4 flex items-center justify-between">
+			<Card.Footer className="pt-1 pb-2.5 px-3.5 flex items-center justify-between">
 				{/* Refined lightweight count badge replacing bulky gray chip */}
-				<div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-foreground/[0.04] dark:bg-white/[0.06] border border-border/40 text-[11px] font-medium text-muted">
-					<Bookmark className="w-3 h-3 opacity-60 shrink-0" />
+				<div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-foreground/[0.03] dark:bg-white/[0.05] border border-border/40 text-[10.5px] font-medium text-muted/80">
+					<Bookmark className="w-2.5 h-2.5 opacity-60 shrink-0" />
 					<span>{folder.items.length} 项内容</span>
 				</div>
 			</Card.Footer>
