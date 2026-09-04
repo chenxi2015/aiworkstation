@@ -137,6 +137,28 @@ export const FOLDER_CATEGORIES = CATEGORIES.filter((c) => c !== "未分类");
 
 export type Category = (typeof CATEGORIES)[number] | string;
 
+/**
+ * Sort category list according to the top navigation order
+ */
+export function sortCategoriesByNavOrder(
+	categoryList: string[],
+	baseOrder: readonly string[] | string[] = CATEGORIES,
+): string[] {
+	const orderMap = new Map<string, number>();
+	baseOrder.forEach((cat, index) => {
+		orderMap.set(cat, index);
+	});
+
+	return [...categoryList].sort((a, b) => {
+		const aIndex = orderMap.has(a) ? (orderMap.get(a) as number) : 9999;
+		const bIndex = orderMap.has(b) ? (orderMap.get(b) as number) : 9999;
+		if (aIndex !== bIndex) {
+			return aIndex - bIndex;
+		}
+		return a.localeCompare(b);
+	});
+}
+
 export interface ItemTypeMeta {
 	label: string;
 	color: string;

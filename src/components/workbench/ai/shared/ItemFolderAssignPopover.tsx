@@ -8,7 +8,12 @@ import {
 	Search,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import type { Folder, SearchResultItem } from "../../types";
+import {
+	CATEGORIES,
+	type Folder,
+	type SearchResultItem,
+	sortCategoriesByNavOrder,
+} from "../../types";
 
 export interface ItemFolderAssignPopoverProps {
 	assigningItems: SearchResultItem[] | null;
@@ -87,7 +92,15 @@ export function ItemFolderAssignPopover({
 			}
 		}
 
-		const list = ["全部", ...Array.from(map.keys())];
+		// Sort tab categories by top navigation order
+		const baseOrder =
+			categories && categories.length > 0 ? categories : CATEGORIES;
+		const sortedCategories = sortCategoriesByNavOrder(
+			Array.from(map.keys()),
+			baseOrder,
+		);
+
+		const list = ["全部", ...sortedCategories];
 		return {
 			tabCategories: list,
 			categoryCountMap: map,

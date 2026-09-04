@@ -1,13 +1,17 @@
 import { Dropdown, Tooltip } from "@heroui/react";
 import { Folder as FolderIconLucide, FolderInput } from "lucide-react";
 import { memo, useMemo, useState } from "react";
-import type { Folder } from "../types";
+import { CATEGORIES, type Folder, sortCategoriesByNavOrder } from "../types";
 
 export interface FolderAssignMenuProps {
 	/**
 	 * All available folders to choose from
 	 */
 	folders: Folder[];
+	/**
+	 * Optional navigation categories order reference (defaults to workbench CATEGORIES)
+	 */
+	categories?: string[];
 	/**
 	 * Callback when a target folder is selected
 	 */
@@ -50,6 +54,7 @@ export interface FolderAssignMenuProps {
  */
 export const FolderAssignMenu = memo(function FolderAssignMenu({
 	folders = [],
+	categories: propCategories,
 	onSelectFolder,
 	currentFolderId = null,
 	originalFolderName,
@@ -92,13 +97,21 @@ export const FolderAssignMenu = memo(function FolderAssignMenu({
 			}
 		}
 
-		const catList = ["全部", ...Array.from(map.keys())];
+		// Sort categories by top navigation order
+		const baseOrder =
+			propCategories && propCategories.length > 0 ? propCategories : CATEGORIES;
+		const sortedCategories = sortCategoriesByNavOrder(
+			Array.from(map.keys()),
+			baseOrder,
+		);
+
+		const catList = ["全部", ...sortedCategories];
 		return {
 			categories: catList,
 			categoryCountMap: map,
 			defaultTab: matchedCategory || "全部",
 		};
-	}, [validFolders, normalizedOriginalFolder]);
+	}, [validFolders, normalizedOriginalFolder, propCategories]);
 
 	const [activeTab, setActiveTab] = useState<string>(defaultTab);
 
@@ -115,6 +128,13 @@ export const FolderAssignMenu = memo(function FolderAssignMenu({
 						return cat === activeTab;
 					});
 
+		const baseOrder =
+			propCategories && propCategories.length > 0 ? propCategories : CATEGORIES;
+		const orderMap = new Map<string, number>();
+		baseOrder.forEach((cat, index) => {
+			orderMap.set(cat, index);
+		});
+
 		return [...targetList].sort((a, b) => {
 			if (normalizedOriginalFolder) {
 				const aMatch = a.name.trim().toLowerCase() === normalizedOriginalFolder;
@@ -122,12 +142,19 @@ export const FolderAssignMenu = memo(function FolderAssignMenu({
 				if (aMatch && !bMatch) return -1;
 				if (!aMatch && bMatch) return 1;
 			}
-			if (a.category !== b.category) {
-				return a.category.localeCompare(b.category);
+			const aCat =
+				!a.category || a.category === "未分类" ? "工作台" : a.category.trim();
+			const bCat =
+				!b.category || b.category === "未分类" ? "工作台" : b.category.trim();
+			if (aCat !== bCat) {
+				const aIdx = orderMap.has(aCat) ? (orderMap.get(aCat) as number) : 9999;
+				const bIdx = orderMap.has(bCat) ? (orderMap.get(bCat) as number) : 9999;
+				if (aIdx !== bIdx) return aIdx - bIdx;
+				return aCat.localeCompare(bCat);
 			}
 			return a.name.localeCompare(b.name);
 		});
-	}, [validFolders, activeTab, normalizedOriginalFolder]);
+	}, [validFolders, activeTab, normalizedOriginalFolder, propCategories]);
 
 	const actionLabel =
 		label || (currentFolderId ? "移动至其他文件夹" : "放入文件夹");
