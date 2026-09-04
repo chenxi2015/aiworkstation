@@ -254,9 +254,10 @@ export const FolderItemList = memo(function FolderItemList({
 							key={item.id || `${item.name}-${index}`}
 							item={item}
 							sourceFolderId={folder.id}
+							className="min-w-0 w-full"
 						>
 							<Tooltip>
-								<Tooltip.Trigger>
+								<Tooltip.Trigger className="w-full min-w-0 block">
 									<button
 										type="button"
 										onClick={() => {
@@ -264,7 +265,7 @@ export const FolderItemList = memo(function FolderItemList({
 												window.open(item.url, "_blank", "noopener,noreferrer");
 											}
 										}}
-										className="group aspect-square rounded-xl bg-surface-secondary/60 hover:bg-accent-soft/80 border border-border/70 hover:border-accent/30 hover:scale-[1.04] transition-all duration-150 flex flex-col items-center justify-center p-1.5 cursor-pointer text-center relative overflow-hidden shadow-2xs w-full"
+										className="group aspect-square w-full h-auto min-w-0 max-w-full rounded-xl bg-surface-secondary/60 hover:bg-accent-soft/80 border border-border/70 hover:border-accent/30 hover:scale-[1.04] transition-all duration-150 flex flex-col items-center justify-center p-1.5 cursor-pointer text-center relative overflow-hidden shadow-2xs"
 									>
 										<div className="w-6 h-6 rounded-lg bg-surface flex items-center justify-center shrink-0 shadow-2xs group-hover:bg-surface/90 transition-colors">
 											<ItemFavicon
@@ -277,7 +278,10 @@ export const FolderItemList = memo(function FolderItemList({
 												iconClassName="opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-transform"
 											/>
 										</div>
-										<span className="text-[9px] font-medium text-foreground/80 group-hover:text-accent mt-1 line-clamp-1 truncate w-full px-0.5 text-center leading-tight">
+										<span
+											className="text-[9px] font-medium text-foreground/80 group-hover:text-accent mt-1 truncate block w-full min-w-0 px-0.5 text-center leading-tight"
+											title={item.name}
+										>
 											{item.name}
 										</span>
 									</button>

@@ -1,12 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { lazy, Suspense, useCallback, useRef } from "react";
+import { lazy, Suspense, useCallback, useRef, useState } from "react";
 import {
 	CategoryView,
 	ChatWithBookmarksPanel,
 	type ChatWithBookmarksPanelRef,
+	ConfirmDialog,
 	FolderDetailPanel,
 	UnclassifiedView,
 	WorkbenchHeader,
+	type WorkbenchItem,
 	WorkbenchSkeleton,
 } from "../components/workbench";
 import { WorkbenchDndProvider } from "../components/workbench/dnd/WorkbenchDnd";
@@ -151,16 +153,21 @@ function WorkbenchHome() {
 		[handleAskAIAboutFolder],
 	);
 
+	// Destructive actions pending user confirmation via HeroUI AlertDialog
+	const [folderPendingDelete, setFolderPendingDelete] = useState<
+		(typeof folders)[number] | null
+	>(null);
+	const [itemPendingDelete, setItemPendingDelete] = useState<{
+		item: WorkbenchItem;
+		folderId: number | null;
+	} | null>(null);
+
 	// Delete a folder from its card menu with confirmation
 	const handleDeleteFolderFromCard = useCallback(
 		(folder: (typeof folders)[number]) => {
-			if (
-				window.confirm(`确定删除文件夹「${folder.name}」吗？此操作不可撤销。`)
-			) {
-				handleDeleteFolder(folder.id);
-			}
+			setFolderPendingDelete(folder);
 		},
-		[handleDeleteFolder],
+		[],
 	);
 
 	// 3. Switch to Fast Search in Right Panel on Cmd+K
@@ -216,7 +223,9 @@ function WorkbenchHome() {
 								unclassified={filteredUnclassified}
 								folders={folders}
 								onOpenAIClassify={() => setIsAIClassifyModalOpen(true)}
-								onDeleteItem={handleDeleteUnclassifiedItem}
+								onDeleteItem={(item) =>
+									setItemPendingDelete({ item, folderId: null })
+								}
 								onMoveItem={(item, targetFolderId) =>
 									handleMoveItem(item, null, targetFolderId)
 								}
@@ -250,7 +259,9 @@ function WorkbenchHome() {
 								onSelectFolder={handleSelectFolder}
 								onCreateFolder={openCreateFolderModal}
 								onEdit={openEditFolderModal}
-								onDeleteItem={handleDeleteItemFromFolder}
+								onDeleteItem={(item, folderId) =>
+									setItemPendingDelete({ item, folderId })
+								}
 								onMoveItem={handleMoveItem}
 								onAskAIAboutFolder={handleAskAIAboutFolder}
 							/>
@@ -408,6 +419,48 @@ function WorkbenchHome() {
 					/>
 				)}
 			</Suspense>
+
+			{/* Folder deletion confirmation */}
+			<ConfirmDialog
+				isOpen={!!folderPendingDelete}
+				onOpenChange={(open) => !open && setFolderPendingDelete(null)}
+				title="删除文件夹"
+				description={
+					folderPendingDelete
+						? `确定删除文件夹「${folderPendingDelete.name}」吗？此操作不可撤销。`
+						: undefined
+				}
+				confirmLabel="删除文件夹"
+				onConfirm={async () => {
+					if (folderPendingDelete) {
+						await handleDeleteFolder(folderPendingDelete.id);
+					}
+				}}
+			/>
+
+			{/* Bookmark item deletion confirmation */}
+			<ConfirmDialog
+				isOpen={!!itemPendingDelete}
+				onOpenChange={(open) => !open && setItemPendingDelete(null)}
+				title="删除书签"
+				description={
+					itemPendingDelete
+						? `确定删除「${itemPendingDelete.item.name}」吗？此操作不可撤销。`
+						: undefined
+				}
+				confirmLabel="删除"
+				onConfirm={async () => {
+					if (!itemPendingDelete) return;
+					if (itemPendingDelete.folderId === null) {
+						await handleDeleteUnclassifiedItem(itemPendingDelete.item);
+					} else {
+						await handleDeleteItemFromFolder(
+							itemPendingDelete.item,
+							itemPendingDelete.folderId,
+						);
+					}
+				}}
+			/>
 		</div>
 	);
 }

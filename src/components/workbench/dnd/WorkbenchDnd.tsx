@@ -314,6 +314,7 @@ export interface DraggableItemProps {
 	item: WorkbenchItem;
 	sourceFolderId: number | null;
 	children: ReactNode;
+	className?: string;
 }
 
 /** Wraps a bookmark row so it can be dragged onto folder cards / breadcrumbs */
@@ -321,6 +322,7 @@ export function DraggableItem({
 	item,
 	sourceFolderId,
 	children,
+	className,
 }: DraggableItemProps) {
 	const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
 		id: itemDragId(item.id ?? item.name, sourceFolderId),
@@ -332,7 +334,7 @@ export function DraggableItem({
 			ref={setNodeRef}
 			{...listeners}
 			{...attributes}
-			className={isDragging ? "opacity-40" : undefined}
+			className={`min-w-0 ${isDragging ? "opacity-40" : ""} ${className || ""}`.trim()}
 		>
 			{children}
 		</div>

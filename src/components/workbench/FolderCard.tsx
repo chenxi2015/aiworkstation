@@ -155,7 +155,7 @@ export const FolderCard = memo(function FolderCard({
 				<Card.Title className="text-[13.5px] font-semibold tracking-tight leading-snug text-foreground group-hover:text-primary transition-colors line-clamp-1 break-all">
 					{folder.name}
 				</Card.Title>
-				<p className="text-[11px] text-muted/70 line-clamp-1 mt-0.5 leading-normal break-all">
+				<p className="text-[11px] text-muted/70 line-clamp-2 min-h-[2lh] mt-0.5 leading-normal break-all">
 					{subtitle}
 				</p>
 			</Card.Content>
