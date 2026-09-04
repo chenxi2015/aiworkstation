@@ -2,6 +2,7 @@ import { Button, toast } from "@heroui/react";
 import {
 	FolderInput,
 	FolderPlus,
+	RotateCcw,
 	Search,
 	SearchX,
 	Sparkles,
@@ -23,6 +24,7 @@ import { ItemFolderAssignPopover } from "../shared/ItemFolderAssignPopover";
 import { SearchHeader } from "./SearchHeader";
 import { SearchResultItemRow } from "./SearchResultItemRow";
 import { SearchResultsSkeleton } from "./SearchResultsSkeleton";
+import { getSearchTabSnapshot, saveSearchTabSnapshot } from "./searchTabState";
 
 export interface SearchTabContentProps {
 	folders?: Folder[];
@@ -46,8 +48,14 @@ export function SearchTabContent({
 	onTransferToAiChat,
 	onDataChanged,
 }: SearchTabContentProps) {
-	const [query, setQuery] = useState("");
+	// Restore the last search session (survives tab switches & route navigation)
+	const [snapshot] = useState(getSearchTabSnapshot);
+
+	const [query, setQuery] = useState(snapshot.query);
 	const [scope, setScope] = useState<SearchScope>(() => {
+		if (snapshot.scope) {
+			return snapshot.scope;
+		}
 		if (selectedFolder) {
 			return {
 				type: "folder",
@@ -64,19 +72,23 @@ export function SearchTabContent({
 		return { type: "global" };
 	});
 
-	const [rawResults, setRawResults] = useState<SearchResultItem[]>([]);
+	const [rawResults, setRawResults] = useState<SearchResultItem[]>(
+		snapshot.results,
+	);
 	// Derive facets directly from actual rawResults so category/type counts always match result items exactly
 	const facets: SearchFacets = useMemo(() => {
 		return EmbeddingService.computeFacets(rawResults);
 	}, [rawResults]);
 
 	const [activeCategoryFacet, setActiveCategoryFacet] = useState<string | null>(
-		null,
+		snapshot.activeCategoryFacet,
 	);
 	const [activeFolderFacet, setActiveFolderFacet] = useState<string | null>(
-		null,
+		snapshot.activeFolderFacet,
 	);
-	const [activeTypeFacet, setActiveTypeFacet] = useState<string | null>(null);
+	const [activeTypeFacet, setActiveTypeFacet] = useState<string | null>(
+		snapshot.activeTypeFacet,
+	);
 
 	const [isLoading, setIsLoading] = useState(false);
 	const [selectedIndex, setSelectedIndex] = useState<number>(0);
@@ -87,8 +99,34 @@ export function SearchTabContent({
 		onDataChanged,
 	});
 
+	// Persist the search session so tab switches / route navigation restore it
+	useEffect(() => {
+		saveSearchTabSnapshot({
+			query,
+			scope,
+			results: rawResults,
+			activeCategoryFacet,
+			activeFolderFacet,
+			activeTypeFacet,
+		});
+	}, [
+		query,
+		scope,
+		rawResults,
+		activeCategoryFacet,
+		activeFolderFacet,
+		activeTypeFacet,
+	]);
+
+	// A restored scope must not be overridden by the initial external sync below
+	const skipInitialScopeSync = useRef(snapshot.scope !== null);
+
 	// Sync scope when selected folder or category changes externally
 	useEffect(() => {
+		if (skipInitialScopeSync.current) {
+			skipInitialScopeSync.current = false;
+			return;
+		}
 		if (selectedFolder) {
 			setScope({
 				type: "folder",
@@ -150,20 +188,30 @@ export function SearchTabContent({
 
 	// Filtered results based on client-side active facet pills
 	const results = rawResults.filter((item) => {
-		if (activeCategoryFacet && item.category !== activeCategoryFacet) {
+		const itemCat = item.category || "未分类";
+		if (activeCategoryFacet && itemCat !== activeCategoryFacet) {
 			return false;
 		}
-		if (
-			activeFolderFacet &&
-			(item.folderName || "未分类") !== activeFolderFacet
-		) {
+		const itemFolder = item.folderName || "未分类";
+		if (activeFolderFacet && itemFolder !== activeFolderFacet) {
 			return false;
 		}
-		if (activeTypeFacet && item.type !== activeTypeFacet) {
+		const itemType = item.type || "link";
+		if (activeTypeFacet && itemType !== activeTypeFacet) {
 			return false;
 		}
 		return true;
 	});
+
+	const hasActiveFacets = Boolean(
+		activeCategoryFacet || activeFolderFacet || activeTypeFacet,
+	);
+
+	const resetFacets = () => {
+		setActiveCategoryFacet(null);
+		setActiveFolderFacet(null);
+		setActiveTypeFacet(null);
+	};
 
 	// Update results in memory when moved to a folder
 	const handleItemsMoved = (
@@ -270,7 +318,7 @@ export function SearchTabContent({
 					/>
 				)}
 
-				{isLoading ? (
+				{isLoading && rawResults.length === 0 ? (
 					<SearchResultsSkeleton rows={4} />
 				) : !query.trim() ? (
 					<div className="flex flex-col items-center justify-center text-center py-12 px-3 text-muted">
@@ -284,7 +332,7 @@ export function SearchTabContent({
 							输入关键词或意图，即可秒级过滤检索全库书签与工具。
 						</p>
 					</div>
-				) : results.length === 0 ? (
+				) : rawResults.length === 0 ? (
 					<div className="flex flex-col items-center justify-center text-center py-10 px-3 text-muted">
 						<SearchX className="w-8 h-8 mb-2 opacity-50" />
 						<p className="text-xs font-medium text-foreground">
@@ -302,8 +350,24 @@ export function SearchTabContent({
 				) : (
 					<div className="flex flex-col gap-2.5">
 						{/* Facet Filters Bar */}
-						{rawResults.length > 0 && (
+						{(facets.categories.length > 1 ||
+							facets.folders.length > 1 ||
+							facets.types.length > 1) && (
 							<div className="flex flex-col gap-1.5 p-2 rounded-xl bg-surface-secondary/50 border border-border/60 text-xs">
+								{hasActiveFacets && (
+									<div className="flex items-center justify-between pb-1 border-b border-border/40 text-[10px]">
+										<span className="text-muted">已应用自定义筛选</span>
+										<button
+											type="button"
+											onClick={resetFacets}
+											className="text-accent hover:underline flex items-center gap-1 cursor-pointer font-medium"
+										>
+											<RotateCcw className="w-2.5 h-2.5" />
+											<span>重置筛选</span>
+										</button>
+									</div>
+								)}
+
 								{/* Category Facets */}
 								{facets.categories.length > 1 && (
 									<div className="flex items-center gap-1 flex-wrap">
@@ -436,44 +500,66 @@ export function SearchTabContent({
 									<span className="text-accent ml-1 font-medium">(筛选后)</span>
 								)}
 							</span>
-							<button
-								type="button"
-								onClick={() => {
-									if (selectedCount === results.length) {
-										folderAssign.clearSelection();
-									} else {
-										folderAssign.selectAll(results);
-									}
-								}}
-								className="text-accent hover:underline cursor-pointer"
-							>
-								{selectedCount === results.length ? "取消全选" : "全选"}
-							</button>
+							{results.length > 0 && (
+								<button
+									type="button"
+									onClick={() => {
+										if (selectedCount === results.length) {
+											folderAssign.clearSelection();
+										} else {
+											folderAssign.selectAll(results);
+										}
+									}}
+									className="text-accent hover:underline cursor-pointer"
+								>
+									{selectedCount === results.length ? "取消全选" : "全选"}
+								</button>
+							)}
 						</div>
 
-						{/* Results Rows */}
-						{results.map((item, idx) => {
-							const itemKey = item.id || item.url || idx;
-							const isChecked = folderAssign.selectedItemKeys.has(itemKey);
-							const isSelected = selectedIndex === idx;
+						{/* Results Rows or Empty Filter State */}
+						{results.length === 0 ? (
+							<div className="flex flex-col items-center justify-center text-center py-8 px-3 text-muted bg-surface-secondary/20 rounded-xl border border-dashed border-border/80">
+								<SearchX className="w-7 h-7 mb-2 opacity-50 text-muted" />
+								<p className="text-xs font-medium text-foreground">
+									当前筛选组合下无匹配书签
+								</p>
+								<p className="text-[11px] text-muted mt-1 max-w-[240px]">
+									可点击上方已选中的标签取消筛选，或一键恢复全部结果。
+								</p>
+								<button
+									type="button"
+									onClick={resetFacets}
+									className="mt-3 px-3 py-1.5 rounded-lg bg-accent text-accent-foreground text-xs font-medium hover:opacity-90 flex items-center gap-1.5 cursor-pointer transition-opacity"
+								>
+									<RotateCcw className="w-3 h-3" />
+									<span>清除筛选条件 (共 {rawResults.length} 项)</span>
+								</button>
+							</div>
+						) : (
+							results.map((item, idx) => {
+								const itemKey = item.id || item.url || idx;
+								const isChecked = folderAssign.selectedItemKeys.has(itemKey);
+								const isSelected = selectedIndex === idx;
 
-							return (
-								<SearchResultItemRow
-									key={itemKey}
-									item={item}
-									isSelected={isSelected}
-									isChecked={isChecked}
-									onToggleCheck={(e) => {
-										e.stopPropagation();
-										folderAssign.toggleSelectItem(itemKey);
-									}}
-									onSelectRow={() => setSelectedIndex(idx)}
-									onOpenAssign={(e) => folderAssign.openAssignSingle(item, e)}
-									onNavigateToFolder={onNavigateToFolder}
-									onCloseModal={() => {}}
-								/>
-							);
-						})}
+								return (
+									<SearchResultItemRow
+										key={itemKey}
+										item={item}
+										isSelected={isSelected}
+										isChecked={isChecked}
+										onToggleCheck={(e) => {
+											e.stopPropagation();
+											folderAssign.toggleSelectItem(itemKey);
+										}}
+										onSelectRow={() => setSelectedIndex(idx)}
+										onOpenAssign={(e) => folderAssign.openAssignSingle(item, e)}
+										onNavigateToFolder={onNavigateToFolder}
+										onCloseModal={() => {}}
+									/>
+								);
+							})
+						)}
 
 						{/* Transfer to AI Deep Chat Action Banner */}
 						<div className="mt-2 p-3 rounded-xl bg-accent-soft/30 border border-accent/30 flex flex-col gap-2">

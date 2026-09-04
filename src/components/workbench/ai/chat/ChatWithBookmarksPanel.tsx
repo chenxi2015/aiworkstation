@@ -187,8 +187,13 @@ export const ChatWithBookmarksPanel = forwardRef<
 				</div>
 			</div>
 
-			{/* Tab Body: Search Tab or Chat Tab */}
-			{activeTab === "search" ? (
+			{/* Tab Body: keep both tabs mounted and toggle visibility so that
+				switching tabs never resets search state or chat scroll position */}
+			<div
+				className={
+					activeTab === "search" ? "flex-1 min-h-0 flex flex-col" : "hidden"
+				}
+			>
 				<SearchTabContent
 					folders={folders}
 					categories={categories}
@@ -203,85 +208,88 @@ export const ChatWithBookmarksPanel = forwardRef<
 					}}
 					onDataChanged={onDataChanged}
 				/>
-			) : (
-				<>
-					{/* Message History & Cards */}
-					<ChatMessageList
-						messages={messages}
-						isLoading={isLoading}
-						selectedFolder={selectedFolder}
-						selectedRefKeys={folderAssign.selectedItemKeys}
-						messagesEndRef={messagesEndRef}
-						onToggleRefCheck={folderAssign.toggleSelectItem}
-						onToggleSelectGroup={folderAssign.toggleSelectGroup}
-						onOpenAssignSingle={folderAssign.openAssignSingle}
-						onOpenAssignMultiple={folderAssign.openAssignMultiple}
-						onSelectPrompt={(p) => sendPrompt(p)}
-						onNavigateToFolder={onNavigateToFolder}
-					/>
+			</div>
+			<div
+				className={
+					activeTab === "chat" ? "flex-1 min-h-0 flex flex-col" : "hidden"
+				}
+			>
+				{/* Message History & Cards */}
+				<ChatMessageList
+					messages={messages}
+					isLoading={isLoading}
+					selectedFolder={selectedFolder}
+					selectedRefKeys={folderAssign.selectedItemKeys}
+					messagesEndRef={messagesEndRef}
+					onToggleRefCheck={folderAssign.toggleSelectItem}
+					onToggleSelectGroup={folderAssign.toggleSelectGroup}
+					onOpenAssignSingle={folderAssign.openAssignSingle}
+					onOpenAssignMultiple={folderAssign.openAssignMultiple}
+					onSelectPrompt={(p) => sendPrompt(p)}
+					onNavigateToFolder={onNavigateToFolder}
+				/>
 
-					{/* Shared In-Place Folder Assignment Drawer */}
-					<ItemFolderAssignPopover
-						assigningItems={folderAssign.assigningItems}
-						folders={folders}
-						categories={categories}
-						isCreateMode={folderAssign.isCreateMode}
-						newFolderName={folderAssign.newFolderName}
-						newFolderCategory={folderAssign.newFolderCategory}
-						folderFilterQuery={folderAssign.folderFilterQuery}
-						isProcessingMove={folderAssign.isProcessingMove}
-						onToggleCreateMode={() =>
-							folderAssign.setIsCreateMode(!folderAssign.isCreateMode)
-						}
-						onChangeNewFolderName={folderAssign.setNewFolderName}
-						onChangeNewFolderCategory={folderAssign.setNewFolderCategory}
-						onChangeFilterQuery={folderAssign.setFolderFilterQuery}
-						onClose={folderAssign.closeAssign}
-						onMoveToExistingFolder={(targetFolder: Folder) =>
-							folderAssign.moveToExistingFolder(
-								targetFolder,
-								(moved: SearchResultItem[]) => {
-									updateMessageReferences(moved, targetFolder);
-								},
-							)
-						}
-						onCreateFolderAndMove={() =>
-							folderAssign.createFolderAndMove(
-								(newFolder: Folder, moved: SearchResultItem[]) => {
-									updateMessageReferences(moved, newFolder);
-								},
-							)
-						}
-						variant="drawer"
-					/>
+				{/* Shared In-Place Folder Assignment Drawer */}
+				<ItemFolderAssignPopover
+					assigningItems={folderAssign.assigningItems}
+					folders={folders}
+					categories={categories}
+					isCreateMode={folderAssign.isCreateMode}
+					newFolderName={folderAssign.newFolderName}
+					newFolderCategory={folderAssign.newFolderCategory}
+					folderFilterQuery={folderAssign.folderFilterQuery}
+					isProcessingMove={folderAssign.isProcessingMove}
+					onToggleCreateMode={() =>
+						folderAssign.setIsCreateMode(!folderAssign.isCreateMode)
+					}
+					onChangeNewFolderName={folderAssign.setNewFolderName}
+					onChangeNewFolderCategory={folderAssign.setNewFolderCategory}
+					onChangeFilterQuery={folderAssign.setFolderFilterQuery}
+					onClose={folderAssign.closeAssign}
+					onMoveToExistingFolder={(targetFolder: Folder) =>
+						folderAssign.moveToExistingFolder(
+							targetFolder,
+							(moved: SearchResultItem[]) => {
+								updateMessageReferences(moved, targetFolder);
+							},
+						)
+					}
+					onCreateFolderAndMove={() =>
+						folderAssign.createFolderAndMove(
+							(newFolder: Folder, moved: SearchResultItem[]) => {
+								updateMessageReferences(moved, newFolder);
+							},
+						)
+					}
+					variant="drawer"
+				/>
 
-					{/* History Sessions Slide-over Drawer */}
-					<ChatHistoryDrawer
-						isOpen={isHistoryOpen}
-						sessions={sessions}
-						currentSessionId={currentSessionId}
-						onClose={() => setIsHistoryOpen(false)}
-						onSelectSession={loadSession}
-						onNewChat={createNewChat}
-						onDeleteSession={deleteSession}
-						onClearAllSessions={clearAllSessions}
-					/>
+				{/* History Sessions Slide-over Drawer */}
+				<ChatHistoryDrawer
+					isOpen={isHistoryOpen}
+					sessions={sessions}
+					currentSessionId={currentSessionId}
+					onClose={() => setIsHistoryOpen(false)}
+					onSelectSession={loadSession}
+					onNewChat={createNewChat}
+					onDeleteSession={deleteSession}
+					onClearAllSessions={clearAllSessions}
+				/>
 
-					{/* Bottom Input Area with Top Action Bar */}
-					<ChatInputArea
-						input={input}
-						isLoading={isLoading}
-						hasMessages={messages.length > 0}
-						inputRef={inputRef}
-						onChangeInput={setInput}
-						onSend={() => sendPrompt()}
-						onOpenHistory={() => setIsHistoryOpen(true)}
-						onNewChat={createNewChat}
-						onClearHistory={clearHistory}
-						model={settings?.deepseekModel}
-					/>
-				</>
-			)}
+				{/* Bottom Input Area with Top Action Bar */}
+				<ChatInputArea
+					input={input}
+					isLoading={isLoading}
+					hasMessages={messages.length > 0}
+					inputRef={inputRef}
+					onChangeInput={setInput}
+					onSend={() => sendPrompt()}
+					onOpenHistory={() => setIsHistoryOpen(true)}
+					onNewChat={createNewChat}
+					onClearHistory={clearHistory}
+					model={settings?.deepseekModel}
+				/>
+			</div>
 		</aside>
 	);
 });

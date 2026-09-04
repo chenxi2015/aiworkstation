@@ -1,5 +1,11 @@
 import { Button, Modal, toast } from "@heroui/react";
-import { FolderInput, FolderPlus, Search, SearchX } from "lucide-react";
+import {
+	FolderInput,
+	FolderPlus,
+	RotateCcw,
+	Search,
+	SearchX,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useEmbeddingStats } from "../../../../hooks/ai/useEmbeddingStats";
 import { useItemFolderAssign } from "../../../../hooks/ai/useItemFolderAssign";
@@ -145,20 +151,30 @@ export function GlobalSearchModal({
 
 	// Filtered results based on client-side active facet pills
 	const results = rawResults.filter((item) => {
-		if (activeCategoryFacet && item.category !== activeCategoryFacet) {
+		const itemCat = item.category || "未分类";
+		if (activeCategoryFacet && itemCat !== activeCategoryFacet) {
 			return false;
 		}
-		if (
-			activeFolderFacet &&
-			(item.folderName || "未分类") !== activeFolderFacet
-		) {
+		const itemFolder = item.folderName || "未分类";
+		if (activeFolderFacet && itemFolder !== activeFolderFacet) {
 			return false;
 		}
-		if (activeTypeFacet && item.type !== activeTypeFacet) {
+		const itemType = item.type || "link";
+		if (activeTypeFacet && itemType !== activeTypeFacet) {
 			return false;
 		}
 		return true;
 	});
+
+	const hasActiveFacets = Boolean(
+		activeCategoryFacet || activeFolderFacet || activeTypeFacet,
+	);
+
+	const resetFacets = () => {
+		setActiveCategoryFacet(null);
+		setActiveFolderFacet(null);
+		setActiveTypeFacet(null);
+	};
 
 	// Keyboard Navigation
 	const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -336,7 +352,7 @@ export function GlobalSearchModal({
 										支持向量语义检索，例如搜索「做自媒体好用的剪辑神器」即可智能召回相关工具。
 									</p>
 								</div>
-							) : results.length === 0 ? (
+							) : rawResults.length === 0 ? (
 								<div className="flex flex-col items-center justify-center text-center py-16 text-muted">
 									<SearchX className="w-10 h-10 mb-2 opacity-50" />
 									<p className="text-sm font-medium text-foreground">
@@ -349,8 +365,24 @@ export function GlobalSearchModal({
 							) : (
 								<div className="flex flex-col gap-3">
 									{/* Facet Filters Bar */}
-									{rawResults.length > 0 && (
+									{(facets.categories.length > 1 ||
+										facets.folders.length > 1 ||
+										facets.types.length > 1) && (
 										<div className="flex flex-col gap-2 p-2.5 rounded-xl bg-surface-secondary/40 border border-border/50 text-xs">
+											{hasActiveFacets && (
+												<div className="flex items-center justify-between pb-1.5 border-b border-border/40 text-[11px]">
+													<span className="text-muted">已应用自定义筛选</span>
+													<button
+														type="button"
+														onClick={resetFacets}
+														className="text-accent hover:underline flex items-center gap-1 cursor-pointer font-medium"
+													>
+														<RotateCcw className="w-3 h-3" />
+														<span>重置筛选</span>
+													</button>
+												</div>
+											)}
+
 											{/* Category Facets */}
 											{facets.categories.length > 1 && (
 												<div className="flex items-center gap-1.5 flex-wrap">
@@ -506,48 +538,70 @@ export function GlobalSearchModal({
 												)}
 											</span>
 										</div>
-										<button
-											type="button"
-											onClick={() => {
-												if (selectedCount === results.length) {
-													folderAssign.clearSelection();
-												} else {
-													folderAssign.selectAll(results);
-												}
-											}}
-											className="text-accent hover:underline cursor-pointer"
-										>
-											{selectedCount === results.length
-												? "取消全选"
-												: "全选结果"}
-										</button>
+										{results.length > 0 && (
+											<button
+												type="button"
+												onClick={() => {
+													if (selectedCount === results.length) {
+														folderAssign.clearSelection();
+													} else {
+														folderAssign.selectAll(results);
+													}
+												}}
+												className="text-accent hover:underline cursor-pointer"
+											>
+												{selectedCount === results.length
+													? "取消全选"
+													: "全选结果"}
+											</button>
+										)}
 									</div>
 
-									{results.map((item, idx) => {
-										const itemKey = item.id || item.url || idx;
-										const isChecked =
-											folderAssign.selectedItemKeys.has(itemKey);
-										const isSelected = selectedIndex === idx;
+									{results.length === 0 ? (
+										<div className="flex flex-col items-center justify-center text-center py-12 text-muted bg-surface-secondary/20 rounded-xl border border-dashed border-border/80">
+											<SearchX className="w-8 h-8 mb-2 opacity-50 text-muted" />
+											<p className="text-sm font-medium text-foreground">
+												当前筛选组合下无匹配书签
+											</p>
+											<p className="text-xs text-muted mt-1 max-w-sm">
+												可点击上方已选中的分类或标签取消筛选，或一键恢复全部结果。
+											</p>
+											<button
+												type="button"
+												onClick={resetFacets}
+												className="mt-4 px-3.5 py-1.5 rounded-lg bg-accent text-accent-foreground text-xs font-medium hover:opacity-90 flex items-center gap-1.5 cursor-pointer transition-opacity"
+											>
+												<RotateCcw className="w-3.5 h-3.5" />
+												<span>清除筛选条件 (共 {rawResults.length} 条)</span>
+											</button>
+										</div>
+									) : (
+										results.map((item, idx) => {
+											const itemKey = item.id || item.url || idx;
+											const isChecked =
+												folderAssign.selectedItemKeys.has(itemKey);
+											const isSelected = selectedIndex === idx;
 
-										return (
-											<SearchResultItemRow
-												key={itemKey}
-												item={item}
-												isSelected={isSelected}
-												isChecked={isChecked}
-												onToggleCheck={(e) => {
-													e.stopPropagation();
-													folderAssign.toggleSelectItem(itemKey);
-												}}
-												onSelectRow={() => setSelectedIndex(idx)}
-												onOpenAssign={(e) =>
-													folderAssign.openAssignSingle(item, e)
-												}
-												onNavigateToFolder={onNavigateToFolder}
-												onCloseModal={onClose}
-											/>
-										);
-									})}
+											return (
+												<SearchResultItemRow
+													key={itemKey}
+													item={item}
+													isSelected={isSelected}
+													isChecked={isChecked}
+													onToggleCheck={(e) => {
+														e.stopPropagation();
+														folderAssign.toggleSelectItem(itemKey);
+													}}
+													onSelectRow={() => setSelectedIndex(idx)}
+													onOpenAssign={(e) =>
+														folderAssign.openAssignSingle(item, e)
+													}
+													onNavigateToFolder={onNavigateToFolder}
+													onCloseModal={onClose}
+												/>
+											);
+										})
+									)}
 								</div>
 							)}
 						</div>
