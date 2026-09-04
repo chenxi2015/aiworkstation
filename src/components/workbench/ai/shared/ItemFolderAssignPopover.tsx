@@ -76,10 +76,7 @@ export function ItemFolderAssignPopover({
 			isDismissable
 			className="z-60"
 		>
-			<Drawer.Content
-				placement="bottom"
-				className="w-full sm:max-w-xl mx-auto"
-			>
+			<Drawer.Content placement="bottom" className="w-full sm:max-w-xl mx-auto">
 				<Drawer.Dialog
 					aria-label={isCreateMode ? "新建文件夹并归入" : "归入文件夹"}
 					className="bg-surface border-t border-border shadow-2xl rounded-t-2xl max-h-[82vh] flex flex-col p-4 sm:p-5"
@@ -160,16 +157,16 @@ export function ItemFolderAssignPopover({
 									<select
 										id="shared-new-folder-category"
 										value={newFolderCategory}
-										onChange={(e) =>
-											onChangeNewFolderCategory(e.target.value)
-										}
+										onChange={(e) => onChangeNewFolderCategory(e.target.value)}
 										className="w-full bg-surface-secondary/70 border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:border-accent cursor-pointer transition-colors"
 									>
-										{categories.map((cat) => (
-											<option key={cat} value={cat}>
-												{cat}
-											</option>
-										))}
+										{categories
+											.filter((cat) => cat !== "未分类")
+											.map((cat) => (
+												<option key={cat} value={cat}>
+													{cat}
+												</option>
+											))}
 									</select>
 								</div>
 							</div>
@@ -213,9 +210,7 @@ export function ItemFolderAssignPopover({
 													key={f.id}
 													type="button"
 													onClick={() => onMoveToExistingFolder(f)}
-													disabled={
-														isProcessingMove || isCurrentSingleFolder
-													}
+													disabled={isProcessingMove || isCurrentSingleFolder}
 													className={`p-2.5 rounded-xl border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
 														isCurrentSingleFolder
 															? "bg-surface-secondary/40 border-border opacity-60 cursor-not-allowed"
@@ -247,9 +242,7 @@ export function ItemFolderAssignPopover({
 														</div>
 														<span className="text-[10px] text-muted mt-0.5">
 															{f.items?.length || 0} 项
-															{isCurrentSingleFolder
-																? " (当前所在)"
-																: ""}
+															{isCurrentSingleFolder ? " (当前所在)" : ""}
 														</span>
 													</div>
 												</button>
@@ -298,4 +291,3 @@ export function ItemFolderAssignPopover({
 		</Drawer.Backdrop>
 	);
 }
-

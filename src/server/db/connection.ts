@@ -7,11 +7,11 @@ import type { SqliteDatabase } from "./types.ts";
 export type { SqliteDatabase };
 
 // Determine database file path (stored in local .aiworkstation directory)
-const DB_DIR = path.resolve(process.cwd(), ".aiworkstation");
+export const DB_DIR = path.resolve(process.cwd(), ".aiworkstation");
 if (!fs.existsSync(DB_DIR)) {
 	fs.mkdirSync(DB_DIR, { recursive: true });
 }
-const DB_PATH = path.join(DB_DIR, "workbench.db");
+export const DB_PATH = path.join(DB_DIR, "workbench.db");
 
 let dbInstance: SqliteDatabase | null = null;
 

@@ -10,6 +10,7 @@ export function initSchema(db: SqliteDatabase): void {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       category TEXT NOT NULL DEFAULT '工作台',
+      parent_id INTEGER DEFAULT NULL,
       description TEXT DEFAULT '',
       color TEXT DEFAULT '',
       icon TEXT DEFAULT '',
@@ -81,6 +82,9 @@ export function initSchema(db: SqliteDatabase): void {
 		const folderColNames = new Set(folderCols.map((c) => c.name));
 		if (!folderColNames.has("color")) {
 			db.exec("ALTER TABLE folders ADD COLUMN color TEXT DEFAULT ''");
+		}
+		if (!folderColNames.has("parent_id")) {
+			db.exec("ALTER TABLE folders ADD COLUMN parent_id INTEGER DEFAULT NULL");
 		}
 	} catch (err) {
 		console.warn("[DatabaseSchema] Migration pragma error:", err);

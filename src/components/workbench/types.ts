@@ -58,6 +58,7 @@ export interface Folder {
 	id: number;
 	name: string;
 	category: string;
+	parentId?: number | null;
 	createdAt: string;
 	desc?: string;
 	color?: string;
@@ -96,6 +97,7 @@ export interface SearchScope {
 	categoryName?: string;
 	folderId?: number;
 	folderName?: string;
+	folderIds?: number[];
 }
 
 // Facet distribution counts from search results
@@ -129,6 +131,9 @@ export const CATEGORIES = [
 	"skills",
 	"未分类",
 ] as const;
+
+// "未分类" 是未整理书签缓冲池的伪分类，文件夹不可归入
+export const FOLDER_CATEGORIES = CATEGORIES.filter((c) => c !== "未分类");
 
 export type Category = (typeof CATEGORIES)[number] | string;
 

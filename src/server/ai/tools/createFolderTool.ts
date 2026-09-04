@@ -15,7 +15,11 @@ export const createFolderInputSchema = z
 			.describe(
 				"所属工作台大分类（如：工作台、自媒体、技能、电商、收藏等），默认'工作台'",
 			),
-		desc: z.string().nullable().optional().describe("文件夹主题说明或使用场景描述"),
+		desc: z
+			.string()
+			.nullable()
+			.optional()
+			.describe("文件夹主题说明或使用场景描述"),
 		color: z
 			.string()
 			.nullable()
@@ -41,7 +45,9 @@ export function executeCreateFolder(
 	const effectiveDesc =
 		desc && desc !== "null" && desc !== "undefined" ? desc.trim() : "";
 	const effectiveColor =
-		color && color !== "null" && color !== "undefined" ? color.trim() : undefined;
+		color && color !== "null" && color !== "undefined"
+			? color.trim()
+			: undefined;
 
 	if (!trimmedName) {
 		return {

@@ -6,6 +6,12 @@ import type {
 	WorkbenchItem,
 } from "../../components/workbench/types";
 import { workbenchDb } from "../db/sqlite.ts";
+import {
+	backupDatabase,
+	type DeadLinkScanJob,
+	getDeadLinkScanStatus,
+	startDeadLinkScan,
+} from "../maintenance.ts";
 
 /**
  * Server Function: Fetch all folders and unclassified items from SQLite
@@ -29,9 +35,11 @@ export const saveFolder = createServerFn({ method: "POST" })
 			category: string;
 			desc: string;
 			color?: string;
+			parentId?: number | null;
 		}) => data,
 	)
 	.handler(async ({ data }): Promise<Folder[]> => {
+		let folderId: number;
 		if (data.id) {
 			workbenchDb.updateFolder(
 				data.id,
@@ -40,8 +48,20 @@ export const saveFolder = createServerFn({ method: "POST" })
 				data.desc,
 				data.color,
 			);
+			folderId = data.id;
 		} else {
-			workbenchDb.createFolder(data.name, data.category, data.desc, data.color);
+			folderId = workbenchDb.createFolder(
+				data.name,
+				data.category,
+				data.desc,
+				data.color,
+			).id;
+		}
+		if (data.parentId !== undefined) {
+			const target = data.parentId ?? null;
+			if (workbenchDb.getFolderParentId(folderId) !== target) {
+				workbenchDb.moveFolder(folderId, target);
+			}
 		}
 		return workbenchDb.getAllFolders();
 	});
@@ -117,6 +137,29 @@ export const deleteItem = createServerFn({ method: "POST" })
 	);
 
 /**
+ * Server Function: Move a folder into another folder (or to top-level).
+ * Cycle-safe: the repo rejects moves into itself or its descendants.
+ */
+export const moveFolder = createServerFn({ method: "POST" })
+	.validator(
+		(data: { folderId: number; targetParentId: number | null }) => data,
+	)
+	.handler(async ({ data }): Promise<{ folders: Folder[] }> => {
+		workbenchDb.moveFolder(data.folderId, data.targetParentId);
+		return { folders: workbenchDb.getAllFolders() };
+	});
+
+/**
+ * Server Function: Persist sibling folder order after drag-sorting
+ */
+export const reorderFolders = createServerFn({ method: "POST" })
+	.validator((data: { orderedIds: number[] }) => data)
+	.handler(async ({ data }): Promise<{ folders: Folder[] }> => {
+		workbenchDb.reorderFolders(data.orderedIds);
+		return { folders: workbenchDb.getAllFolders() };
+	});
+
+/**
  * Server Function: Batch add bookmarks to SQLite
  */
 export const addBookmarks = createServerFn({ method: "POST" })
@@ -128,5 +171,78 @@ export const addBookmarks = createServerFn({ method: "POST" })
 			const count = workbenchDb.insertBookmarksBatch(items);
 			const unclassified = workbenchDb.getUnclassifiedItems();
 			return { count, unclassified };
+		},
+	);
+
+/**
+ * Server Function: Manually add a single link into a folder
+ */
+export const addLinkToFolder = createServerFn({ method: "POST" })
+	.validator(
+		(data: {
+			folderId: number;
+			url: string;
+			title?: string;
+			description?: string;
+		}) => data,
+	)
+	.handler(async ({ data }): Promise<Folder[]> => {
+		workbenchDb.insertLinkIntoFolder(data.folderId, {
+			url: data.url,
+			title: data.title?.trim() || data.url,
+			description: data.description?.trim() || "",
+		});
+		return workbenchDb.getAllFolders();
+	});
+
+/**
+ * Server Function: Clear ALL workbench data (folders, bookmarks, relations).
+ * A timestamped SQLite backup is created before wiping. Settings live in
+ * localStorage and are intentionally preserved.
+ */
+export const clearAllData = createServerFn({ method: "POST" }).handler(
+	async (): Promise<{ backupPath: string | null }> => {
+		const backupPath = backupDatabase();
+		workbenchDb.clearAll();
+		return { backupPath };
+	},
+);
+
+/**
+ * Server Function: Start an async dead-link scan job over all bookmarks.
+ * Returns immediately; poll getDeadLinkScanStatus for progress and results.
+ */
+export const startDeadLinkScanFn = createServerFn({ method: "POST" }).handler(
+	async (): Promise<{ jobId: string; total: number }> => {
+		return startDeadLinkScan();
+	},
+);
+
+/**
+ * Server Function: Poll progress/results of a dead-link scan job
+ */
+export const getDeadLinkScanStatusFn = createServerFn({ method: "GET" })
+	.validator((jobId: string) => jobId)
+	.handler(async ({ data: jobId }): Promise<DeadLinkScanJob | null> => {
+		return getDeadLinkScanStatus(jobId);
+	});
+
+/**
+ * Server Function: Batch delete bookmarks globally (used by dead link cleanup)
+ */
+export const deleteItemsBatch = createServerFn({ method: "POST" })
+	.validator((ids: string[]) => ids)
+	.handler(
+		async ({
+			data: ids,
+		}): Promise<{
+			deleted: number;
+			folders: Folder[];
+			unclassified: WorkbenchItem[];
+		}> => {
+			const deleted = workbenchDb.deleteItems(ids);
+			const folders = workbenchDb.getAllFolders();
+			const unclassified = workbenchDb.getUnclassifiedItems();
+			return { deleted, folders, unclassified };
 		},
 	);

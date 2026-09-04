@@ -1,4 +1,4 @@
-import { Button, Skeleton, toast } from "@heroui/react";
+import { Button, toast } from "@heroui/react";
 import {
 	FolderInput,
 	FolderPlus,
@@ -10,7 +10,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useItemFolderAssign } from "../../../../hooks/ai/useItemFolderAssign";
 import { EmbeddingService } from "../../../../services/embeddingService";
 import { WorkbenchStorageService } from "../../../../services/workbenchStorage";
-import { CATEGORIES, ITEM_TYPES } from "../../types";
 import type {
 	Category,
 	Folder,
@@ -19,9 +18,11 @@ import type {
 	SearchResultItem,
 	SearchScope,
 } from "../../types";
+import { CATEGORIES, ITEM_TYPES } from "../../types";
 import { ItemFolderAssignPopover } from "../shared/ItemFolderAssignPopover";
 import { SearchHeader } from "./SearchHeader";
 import { SearchResultItemRow } from "./SearchResultItemRow";
+import { SearchResultsSkeleton } from "./SearchResultsSkeleton";
 
 export interface SearchTabContentProps {
 	folders?: Folder[];
@@ -196,6 +197,7 @@ export function SearchTabContent({
 			<SearchHeader
 				query={query}
 				scope={scope}
+				folders={folders}
 				inputRef={inputRef}
 				onChangeQuery={setQuery}
 				onChangeScope={setScope}
@@ -269,11 +271,7 @@ export function SearchTabContent({
 				)}
 
 				{isLoading ? (
-					<div className="space-y-2 py-2">
-						<Skeleton className="h-16 w-full rounded-xl" />
-						<Skeleton className="h-16 w-full rounded-xl" />
-						<Skeleton className="h-16 w-full rounded-xl" />
-					</div>
+					<SearchResultsSkeleton rows={4} />
 				) : !query.trim() ? (
 					<div className="flex flex-col items-center justify-center text-center py-12 px-3 text-muted">
 						<div className="w-10 h-10 rounded-xl bg-surface-secondary border border-border flex items-center justify-center text-accent mb-2.5">
@@ -435,9 +433,7 @@ export function SearchTabContent({
 							<span>
 								找到 {results.length} 项
 								{results.length !== rawResults.length && (
-									<span className="text-accent ml-1 font-medium">
-										(筛选后)
-									</span>
+									<span className="text-accent ml-1 font-medium">(筛选后)</span>
 								)}
 							</span>
 							<button

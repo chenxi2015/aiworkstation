@@ -24,13 +24,21 @@ import {
 } from "../server/functions/search.ts";
 import {
 	addBookmarks,
+	addLinkToFolder,
 	applyAIClassification,
+	clearAllData,
 	deleteFolder,
 	deleteItem,
+	deleteItemsBatch,
+	getDeadLinkScanStatusFn,
 	getWorkbenchData,
+	moveFolder,
 	moveItem,
+	reorderFolders,
 	saveFolder,
+	startDeadLinkScanFn,
 } from "../server/functions/workbench.ts";
+import type { DeadLinkScanJob } from "../server/maintenance.ts";
 import {
 	DEFAULT_DEEPSEEK_BASE_URL,
 	DEFAULT_DEEPSEEK_KEY,
@@ -97,6 +105,7 @@ export class WorkbenchStorageService {
 		category: string;
 		desc: string;
 		color?: string;
+		parentId?: number | null;
 	}): Promise<Folder[]> {
 		return await saveFolder({ data: folderData });
 	}
@@ -106,6 +115,25 @@ export class WorkbenchStorageService {
 	 */
 	static async deleteFolderFromDb(id: number): Promise<Folder[]> {
 		return await deleteFolder({ data: id });
+	}
+
+	/**
+	 * Move a folder into another folder (or to top-level) via createServerFn
+	 */
+	static async moveFolderInDb(
+		folderId: number,
+		targetParentId: number | null,
+	): Promise<Folder[]> {
+		const res = await moveFolder({ data: { folderId, targetParentId } });
+		return res.folders;
+	}
+
+	/**
+	 * Persist sibling folder order via createServerFn
+	 */
+	static async reorderFoldersInDb(orderedIds: number[]): Promise<Folder[]> {
+		const res = await reorderFolders({ data: { orderedIds } });
+		return res.folders;
 	}
 
 	/**
@@ -156,6 +184,18 @@ export class WorkbenchStorageService {
 		bookmarks: BookmarkTDKItem[],
 	): Promise<{ count: number; unclassified: WorkbenchItem[] }> {
 		return await addBookmarks({ data: bookmarks });
+	}
+
+	/**
+	 * Manually add a single link into a folder
+	 */
+	static async addLinkToFolder(params: {
+		folderId: number;
+		url: string;
+		title?: string;
+		description?: string;
+	}): Promise<Folder[]> {
+		return await addLinkToFolder({ data: params });
 	}
 
 	/**
@@ -297,6 +337,54 @@ export class WorkbenchStorageService {
 			);
 		} catch (err) {
 			console.error("Failed to save chat history to localStorage:", err);
+		}
+	}
+
+	/**
+	 * Clear ALL workbench data in SQLite (creates a timestamped backup first).
+	 * AI settings in localStorage are preserved.
+	 */
+	static async clearAllDataInDb(): Promise<{ backupPath: string | null }> {
+		return await clearAllData();
+	}
+
+	/**
+	 * Start an async dead-link scan job (server-side background task)
+	 */
+	static async startDeadLinkScan(): Promise<{ jobId: string; total: number }> {
+		return await startDeadLinkScanFn();
+	}
+
+	/**
+	 * Poll progress/results of a dead-link scan job
+	 */
+	static async getDeadLinkScanStatus(
+		jobId: string,
+	): Promise<DeadLinkScanJob | null> {
+		return await getDeadLinkScanStatusFn({ data: jobId });
+	}
+
+	/**
+	 * Batch delete bookmarks globally (dead link cleanup)
+	 */
+	static async deleteItemsBatchInDb(ids: string[]): Promise<{
+		deleted: number;
+		folders: Folder[];
+		unclassified: WorkbenchItem[];
+	}> {
+		return await deleteItemsBatch({ data: ids });
+	}
+
+	/**
+	 * Clear all local chat data (legacy history + sessions)
+	 */
+	static clearAllChatData(): void {
+		if (typeof window === "undefined") return;
+		try {
+			window.localStorage.removeItem(STORAGE_KEYS.CHAT_HISTORY);
+			window.localStorage.removeItem(STORAGE_KEYS.CHAT_SESSIONS);
+		} catch (err) {
+			console.error("Failed to clear chat data from localStorage:", err);
 		}
 	}
 

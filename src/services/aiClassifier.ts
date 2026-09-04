@@ -47,6 +47,18 @@ const classificationBatchSchema = z.object({
 });
 
 /**
+ * "未分类" 是未整理书签缓冲池的伪分类，不能作为文件夹的真实分类；
+ * 模型返回空或"未分类"时统一回退到"工作台"
+ */
+const DEFAULT_FOLDER_CATEGORY = "工作台";
+
+function sanitizeFolderCategory(category?: string): string {
+	const trimmed = category?.trim();
+	if (!trimmed || trimmed === "未分类") return DEFAULT_FOLDER_CATEGORY;
+	return trimmed;
+}
+
+/**
  * Options for AI bookmark classification
  */
 export interface ClassifyOptions {
@@ -76,6 +88,9 @@ export class AIClassifierService {
 			settings.deepseekBaseUrl || DEFAULT_DEEPSEEK_BASE_URL
 		).replace(/\/+$/, "");
 		const model = settings.deepseekModel || DEFAULT_DEEPSEEK_MODEL;
+		const validCategories = existingCategories.filter(
+			(c) => c && c !== "未分类",
+		);
 
 		if (!apiKey) {
 			throw new Error("DeepSeek API Key is required for classification");
@@ -85,7 +100,7 @@ export class AIClassifierService {
 Your task is to analyze an array of web bookmarks with their TDK metadata (Title, Description, Keywords, URL, and folder hierarchy) and categorize them into appropriate workspace categories and theme folders.
 
 Available workspace categories:
-${JSON.stringify(existingCategories)}
+${JSON.stringify(validCategories)}
 
 Existing reference folders:
 ${JSON.stringify(existingFolders.slice(0, 30))}
@@ -161,7 +176,7 @@ Guidelines for categorization:
 				id: item.id,
 				title: item.title || matched?.title || item.url,
 				url: item.url,
-				category: matched?.category || "未分类",
+				category: sanitizeFolderCategory(matched?.category),
 				folderName: matched?.folderName || item.parentTitle || "常用收藏",
 				folderDesc: matched?.folderDesc || "",
 				itemType,
@@ -203,7 +218,7 @@ Guidelines for categorization:
 			);
 
 			try {
-				const batchResults = await this.classifyBatch(
+				const batchResults = await AIClassifierService.classifyBatch(
 					chunk,
 					options.existingCategories,
 					options.existingFolders,
@@ -221,7 +236,7 @@ Guidelines for categorization:
 					id: item.id,
 					title: item.title,
 					url: item.url,
-					category: "未分类",
+					category: DEFAULT_FOLDER_CATEGORY,
 					folderName: item.parentTitle || "常用收藏",
 					folderDesc: "未分类书签归集",
 					itemType: (item.url.includes("github.com")

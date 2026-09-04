@@ -163,9 +163,14 @@ export class BookmarkRepository {
 					if (folderRow) {
 						folderId = folderRow.id;
 					} else {
+						// "未分类" 是缓冲池伪分类，不能落为文件夹分类
+						const folderCategory =
+							!res.category || res.category === "未分类"
+								? "工作台"
+								: res.category;
 						const ins = insertFolderStmt.run(
 							res.folderName,
-							res.category || "工作台",
+							folderCategory,
 							res.folderDesc || `${res.folderName} 主题工具与资源归集。`,
 							today,
 							today,
@@ -202,6 +207,58 @@ export class BookmarkRepository {
 	}
 
 	/**
+	 * Insert a single manually-added link and bind it to a folder
+	 */
+	insertLinkIntoFolder(
+		folderId: number,
+		item: { url: string; title: string; description?: string },
+	): string {
+		const today = new Date().toISOString().split("T")[0];
+
+		const transaction = this.db.transaction(() => {
+			this.db
+				.prepare(`
+        INSERT INTO bookmarks (
+          id, url, title, description, summary, item_type, source,
+          date_added, created_at, updated_at
+        ) VALUES (
+          @id, @url, @title, @description, @summary, 'link', 'manual',
+          @date_added, @created_at, @updated_at
+        )
+        ON CONFLICT(url) DO UPDATE SET
+          title = CASE WHEN excluded.title != '' THEN excluded.title ELSE bookmarks.title END,
+          description = CASE WHEN excluded.description != '' THEN excluded.description ELSE bookmarks.description END,
+          updated_at = excluded.updated_at
+      `)
+				.run({
+					id: `bm_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+					url: item.url,
+					title: item.title || item.url,
+					description: item.description || "",
+					summary: item.title || item.url,
+					date_added: Date.now(),
+					created_at: today,
+					updated_at: today,
+				});
+
+			const row = this.db
+				.prepare("SELECT id FROM bookmarks WHERE url = ?")
+				.get(item.url) as { id: string } | undefined;
+			if (!row) throw new Error("Failed to insert bookmark");
+
+			this.db
+				.prepare(
+					"INSERT OR IGNORE INTO folder_items (folder_id, item_id, created_at) VALUES (?, ?, ?)",
+				)
+				.run(folderId, row.id, today);
+
+			return row.id;
+		});
+
+		return transaction();
+	}
+
+	/**
 	 * Move item between folders
 	 */
 	moveItem(
@@ -222,6 +279,45 @@ export class BookmarkRepository {
 				)
 				.run(targetFolderId, itemId, today);
 		}
+	}
+
+	/**
+	 * Get all bookmark URLs for maintenance tasks (e.g. dead link scanning)
+	 */
+	getAllUrls(): Array<{ id: string; url: string; title: string }> {
+		return this.db
+			.prepare("SELECT id, url, title FROM bookmarks ORDER BY created_at DESC")
+			.all() as Array<{ id: string; url: string; title: string }>;
+	}
+
+	/**
+	 * Batch delete bookmarks globally by ids (folder_items cascade via FK)
+	 */
+	deleteItems(ids: string[]): number {
+		if (ids.length === 0) return 0;
+		const deleteStmt = this.db.prepare("DELETE FROM bookmarks WHERE id = ?");
+		const transaction = this.db.transaction((list: string[]) => {
+			let count = 0;
+			for (const id of list) {
+				const res = deleteStmt.run(id);
+				if (res.changes > 0) count++;
+			}
+			return count;
+		});
+		return transaction(ids);
+	}
+
+	/**
+	 * Clear all workbench data (folders, bookmarks and their relations)
+	 */
+	clearAll(): void {
+		const transaction = this.db.transaction(() => {
+			this.db.prepare("DELETE FROM folder_items").run();
+			this.db.prepare("DELETE FROM bookmarks").run();
+			this.db.prepare("DELETE FROM folders").run();
+		});
+		transaction();
+		this.db.exec("VACUUM");
 	}
 
 	/**

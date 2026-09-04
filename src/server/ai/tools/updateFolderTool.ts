@@ -7,7 +7,11 @@ export const updateFolderInputSchema = z
 	.object({
 		folderName: z.string().describe("当前待修改的文件夹名称"),
 		newName: z.string().nullable().optional().describe("修改后的新文件夹名称"),
-		newCategory: z.string().nullable().optional().describe("修改后的新所属分类"),
+		newCategory: z
+			.string()
+			.nullable()
+			.optional()
+			.describe("修改后的新所属分类"),
 		newDesc: z.string().nullable().optional().describe("修改后的新描述"),
 		newColor: z
 			.string()

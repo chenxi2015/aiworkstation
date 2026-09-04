@@ -59,6 +59,18 @@ export class WorkbenchDatabase {
 		this.folderRepo.deleteFolder(id);
 	}
 
+	getFolderParentId(id: number): number | null {
+		return this.folderRepo.getFolderParentId(id);
+	}
+
+	moveFolder(id: number, targetParentId: number | null): void {
+		this.folderRepo.moveFolder(id, targetParentId);
+	}
+
+	reorderFolders(orderedIds: number[]): void {
+		this.folderRepo.reorderFolders(orderedIds);
+	}
+
 	// ================= Bookmark Operations =================
 	getUnclassifiedItems(): WorkbenchItem[] {
 		return this.bookmarkRepo.getUnclassifiedItems();
@@ -66,6 +78,13 @@ export class WorkbenchDatabase {
 
 	insertBookmarksBatch(items: BookmarkTDKItem[]): number {
 		return this.bookmarkRepo.insertBookmarksBatch(items);
+	}
+
+	insertLinkIntoFolder(
+		folderId: number,
+		item: { url: string; title: string; description?: string },
+	): string {
+		return this.bookmarkRepo.insertLinkIntoFolder(folderId, item);
 	}
 
 	applyAIClassification(results: AIClassificationResult[]): void {
@@ -82,6 +101,18 @@ export class WorkbenchDatabase {
 
 	deleteItem(itemId: string, folderId: number | null): void {
 		this.bookmarkRepo.deleteItem(itemId, folderId);
+	}
+
+	getAllUrls(): Array<{ id: string; url: string; title: string }> {
+		return this.bookmarkRepo.getAllUrls();
+	}
+
+	deleteItems(ids: string[]): number {
+		return this.bookmarkRepo.deleteItems(ids);
+	}
+
+	clearAll(): void {
+		this.bookmarkRepo.clearAll();
 	}
 
 	// ================= Embedding & Search Operations =================

@@ -9,6 +9,7 @@ import {
 	WorkbenchHeader,
 	WorkbenchSkeleton,
 } from "../components/workbench";
+import { WorkbenchDndProvider } from "../components/workbench/dnd/WorkbenchDnd";
 import { useGlobalShortcuts } from "../hooks/useGlobalShortcuts";
 import { useWorkbenchData } from "../hooks/useWorkbenchData";
 import { useWorkbenchModals } from "../hooks/useWorkbenchModals";
@@ -18,6 +19,11 @@ import { WorkbenchStorageService } from "../services/workbenchStorage";
 const FolderModal = lazy(() =>
 	import("../components/workbench/FolderModal").then((m) => ({
 		default: m.FolderModal,
+	})),
+);
+const AddLinkModal = lazy(() =>
+	import("../components/workbench/AddLinkModal").then((m) => ({
+		default: m.AddLinkModal,
 	})),
 );
 const AIClassifyModal = lazy(() =>
@@ -33,6 +39,11 @@ const BookmarkSyncModal = lazy(() =>
 const SettingsModal = lazy(() =>
 	import("../components/workbench/SettingsModal").then((m) => ({
 		default: m.SettingsModal,
+	})),
+);
+const DeadLinksModal = lazy(() =>
+	import("../components/workbench/DeadLinksModal").then((m) => ({
+		default: m.DeadLinksModal,
 	})),
 );
 const GlobalSearchModal = lazy(() =>
@@ -70,6 +81,9 @@ function WorkbenchHome() {
 		settings,
 		activeCategory,
 		selectedFolder,
+		folderPath,
+		gridFolders,
+		childFolderCounts,
 		dynamicCategories,
 		filteredFolders,
 		filteredUnclassified,
@@ -78,8 +92,13 @@ function WorkbenchHome() {
 		handleCategoryChange,
 		handleSaveFolder,
 		handleDeleteFolder,
+		handleAddLink,
 		handleDeleteItemFromFolder,
 		handleMoveItem,
+		handleMoveFolder,
+		handleReorderFolders,
+		handleEnterFolder,
+		handleNavigateToContainer,
 		handleDeleteUnclassifiedItem,
 		handleClassificationComplete,
 		handleBookmarksImported,
@@ -93,12 +112,17 @@ function WorkbenchHome() {
 		openCreateFolderModal,
 		openEditFolderModal,
 		closeFolderModal,
+		addLinkFolder,
+		openAddLinkModal,
+		closeAddLinkModal,
 		isSyncModalOpen,
 		setIsSyncModalOpen,
 		isAIClassifyModalOpen,
 		setIsAIClassifyModalOpen,
 		isSettingsModalOpen,
 		setIsSettingsModalOpen,
+		isDeadLinksModalOpen,
+		setIsDeadLinksModalOpen,
 		isGlobalSearchOpen,
 		setIsGlobalSearchOpen,
 	} = useWorkbenchModals();
@@ -115,6 +139,29 @@ function WorkbenchHome() {
 	const handleAskAIAboutFolder = useCallback((prompt: string) => {
 		chatPanelRef.current?.sendPrompt(prompt);
 	}, []);
+
+	// Ask AI to summarize & review a specific folder from its card menu
+	const handleAskAISummarizeFolder = useCallback(
+		(folder: (typeof folders)[number]) => {
+			const count = folder.items?.length || 0;
+			handleAskAIAboutFolder(
+				`请深度总结与盘点「${folder.name}」文件夹中的 ${count} 个书签条目，分析核心亮点、适用场景与推荐使用工作流。`,
+			);
+		},
+		[handleAskAIAboutFolder],
+	);
+
+	// Delete a folder from its card menu with confirmation
+	const handleDeleteFolderFromCard = useCallback(
+		(folder: (typeof folders)[number]) => {
+			if (
+				window.confirm(`确定删除文件夹「${folder.name}」吗？此操作不可撤销。`)
+			) {
+				handleDeleteFolder(folder.id);
+			}
+		},
+		[handleDeleteFolder],
+	);
 
 	// 3. Switch to Fast Search in Right Panel on Cmd+K
 	useGlobalShortcuts({
@@ -188,61 +235,77 @@ function WorkbenchHome() {
 						/>
 					</div>
 				) : (
-					<div className="flex-1 flex w-full min-h-0 overflow-hidden">
-						{/* 1. Left Column: 文件夹详情与快捷看板 (Folder Details & Bookmarks) */}
-						<FolderDetailPanel
-							folder={selectedFolder}
-							categoryFolders={filteredFolders}
-							allFolders={folders}
-							onSelectFolder={handleSelectFolder}
-							onCreateFolder={openCreateFolderModal}
-							onEdit={openEditFolderModal}
-							onDeleteItem={handleDeleteItemFromFolder}
-							onMoveItem={handleMoveItem}
-							onAskAIAboutFolder={handleAskAIAboutFolder}
-						/>
-
-						{/* 2. Main Column: 文件夹列表与卡片区 (Category Folders Grid) */}
-						<main className="flex-1 p-6 lg:p-7 min-w-0 flex flex-col overflow-y-auto h-full">
-							{/* Workspace Title */}
-							<div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-4 mb-6">
-								<div>
-									<div className="flex items-center gap-2">
-										<h1 className="text-2xl font-bold tracking-tight text-foreground">
-											{activeCategory}
-										</h1>
-										<span className="text-xs font-medium text-muted">
-											{filteredFolders.length} 个文件夹
-										</span>
-									</div>
-									<p className="text-xs text-muted mt-1 leading-relaxed max-w-xl">
-										点击任意文件夹卡片，左侧将呈现其全部书签、九宫格预览与快捷外链看板；右侧随时进行
-										AI 搜索与知识问答。
-									</p>
-								</div>
-							</div>
-
-							{/* Folders Grid View */}
-							<CategoryView
-								folders={filteredFolders}
-								selectedFolderId={selectedFolder?.id ?? null}
+					<WorkbenchDndProvider
+						gridFolderIds={gridFolders.map((f) => f.id)}
+						onMoveItemToFolder={handleMoveItem}
+						onMoveFolder={handleMoveFolder}
+						onReorderFolders={handleReorderFolders}
+					>
+						<div className="flex-1 flex w-full min-h-0 overflow-hidden">
+							{/* 1. Left Column: 文件夹详情与快捷看板 (Folder Details & Bookmarks) */}
+							<FolderDetailPanel
+								folder={selectedFolder}
+								categoryFolders={filteredFolders}
+								allFolders={folders}
 								onSelectFolder={handleSelectFolder}
 								onCreateFolder={openCreateFolderModal}
+								onEdit={openEditFolderModal}
+								onDeleteItem={handleDeleteItemFromFolder}
+								onMoveItem={handleMoveItem}
+								onAskAIAboutFolder={handleAskAIAboutFolder}
 							/>
-						</main>
 
-						{/* 3. Right Column: Resident AI Search & Knowledge Q&A Central Hub */}
-						<ChatWithBookmarksPanel
-							ref={chatPanelRef}
-							selectedFolder={selectedFolder}
-							activeCategory={activeCategory}
-							folders={folders}
-							categories={dynamicCategories}
-							settings={settings}
-							onNavigateToFolder={handleNavigateFromSearch}
-							onDataChanged={reloadFromDb}
-						/>
-					</div>
+							{/* 2. Main Column: 文件夹列表与卡片区 (Category Folders Grid) */}
+							<main className="flex-1 p-6 lg:p-7 min-w-0 flex flex-col overflow-y-auto h-full">
+								{/* Workspace Title */}
+								<div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-4 mb-6">
+									<div>
+										<div className="flex items-center gap-2">
+											<h1 className="text-2xl font-bold tracking-tight text-foreground">
+												{activeCategory}
+											</h1>
+											<span className="text-xs font-medium text-muted">
+												{gridFolders.length} 个文件夹
+											</span>
+										</div>
+										<p className="text-xs text-muted mt-1 leading-relaxed max-w-2xl">
+											点击文件夹卡片可在左侧查看书签与快捷看板，支持自由拖拽排序与移动归类；右侧随时进行
+											AI 搜索与知识问答。
+										</p>
+									</div>
+								</div>
+
+								{/* Folders Grid View */}
+								<CategoryView
+									folders={gridFolders}
+									selectedFolderId={selectedFolder?.id ?? null}
+									categoryName={activeCategory}
+									folderPath={folderPath}
+									childFolderCounts={childFolderCounts}
+									onSelectFolder={handleSelectFolder}
+									onCreateFolder={openCreateFolderModal}
+									onEnterFolder={handleEnterFolder}
+									onNavigateBreadcrumb={handleNavigateToContainer}
+									onEditFolder={openEditFolderModal}
+									onDeleteFolder={handleDeleteFolderFromCard}
+									onCreateLink={openAddLinkModal}
+									onAskAIAboutFolder={handleAskAISummarizeFolder}
+								/>
+							</main>
+
+							{/* 3. Right Column: Resident AI Search & Knowledge Q&A Central Hub */}
+							<ChatWithBookmarksPanel
+								ref={chatPanelRef}
+								selectedFolder={selectedFolder}
+								activeCategory={activeCategory}
+								folders={folders}
+								categories={dynamicCategories}
+								settings={settings}
+								onNavigateToFolder={handleNavigateFromSearch}
+								onDataChanged={reloadFromDb}
+							/>
+						</div>
+					</WorkbenchDndProvider>
 				)}
 			</div>
 
@@ -252,7 +315,9 @@ function WorkbenchHome() {
 					<FolderModal
 						isOpen={folderModalState.isOpen}
 						folder={folderModalState.folder}
+						folders={folders}
 						defaultCategory={isUnclassified ? "工作台" : activeCategory}
+						defaultParentId={folderModalState.defaultParentId}
 						onClose={closeFolderModal}
 						onSave={async (data) => {
 							await handleSaveFolder(data);
@@ -261,6 +326,18 @@ function WorkbenchHome() {
 						onDelete={async (id) => {
 							await handleDeleteFolder(id);
 							closeFolderModal();
+						}}
+					/>
+				)}
+
+				{addLinkFolder && (
+					<AddLinkModal
+						isOpen={!!addLinkFolder}
+						folder={addLinkFolder}
+						onClose={closeAddLinkModal}
+						onSave={async (data) => {
+							await handleAddLink(addLinkFolder.id, data);
+							closeAddLinkModal();
 						}}
 					/>
 				)}
@@ -293,6 +370,16 @@ function WorkbenchHome() {
 						isOpen={isSettingsModalOpen}
 						onClose={() => setIsSettingsModalOpen(false)}
 						onSettingsUpdated={setSettings}
+						onOpenDeadLinks={() => setIsDeadLinksModalOpen(true)}
+						onDataCleared={reloadFromDb}
+					/>
+				)}
+
+				{isDeadLinksModalOpen && (
+					<DeadLinksModal
+						isOpen={isDeadLinksModalOpen}
+						onClose={() => setIsDeadLinksModalOpen(false)}
+						onDataChanged={reloadFromDb}
 					/>
 				)}
 

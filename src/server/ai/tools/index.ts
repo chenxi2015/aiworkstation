@@ -4,15 +4,35 @@ import {
 	executeCreateFolder,
 } from "./createFolderTool.ts";
 import {
+	deleteFolderInputSchema,
+	deleteFolderToolDef,
+	executeDeleteFolder,
+} from "./deleteFolderTool.ts";
+import {
 	executeMoveBookmarks,
 	moveBookmarksToFolderInputSchema,
 	moveBookmarksToFolderToolDef,
 } from "./moveBookmarksTool.ts";
 import {
+	executeMoveFolder,
+	moveFolderInputSchema,
+	moveFolderToolDef,
+} from "./moveFolderTool.ts";
+import {
 	executeQueryBookmarks,
 	queryBookmarksInputSchema,
 	queryBookmarksToolDef,
 } from "./queryBookmarksTool.ts";
+import {
+	executeRemoveBookmarks,
+	removeBookmarksFromFolderToolDef,
+	removeBookmarksInputSchema,
+} from "./removeBookmarksTool.ts";
+import {
+	executeReorderFolders,
+	reorderFoldersInputSchema,
+	reorderFoldersToolDef,
+} from "./reorderFoldersTool.ts";
 import type { BookmarkToolHooks, ToolExecutionResult } from "./types.ts";
 import {
 	executeUpdateFolder,
@@ -21,8 +41,12 @@ import {
 } from "./updateFolderTool.ts";
 
 export * from "./createFolderTool.ts";
+export * from "./deleteFolderTool.ts";
 export * from "./moveBookmarksTool.ts";
+export * from "./moveFolderTool.ts";
 export * from "./queryBookmarksTool.ts";
+export * from "./removeBookmarksTool.ts";
+export * from "./reorderFoldersTool.ts";
 export * from "./timeResolver.ts";
 // Re-export all tool definitions and helpers
 export * from "./types.ts";
@@ -59,6 +83,34 @@ export function createBookmarkServerTools(hooks?: BookmarkToolHooks) {
 		}),
 		updateFolderToolDef.server(async (args) => {
 			const res = executeUpdateFolder(args);
+			if (res.isMutation) {
+				hooks?.onMutated?.();
+			}
+			return res.summary;
+		}),
+		moveFolderToolDef.server(async (args) => {
+			const res = executeMoveFolder(args);
+			if (res.isMutation) {
+				hooks?.onMutated?.();
+			}
+			return res.summary;
+		}),
+		reorderFoldersToolDef.server(async (args) => {
+			const res = executeReorderFolders(args);
+			if (res.isMutation) {
+				hooks?.onMutated?.();
+			}
+			return res.summary;
+		}),
+		removeBookmarksFromFolderToolDef.server(async (args) => {
+			const res = executeRemoveBookmarks(args);
+			if (res.isMutation) {
+				hooks?.onMutated?.();
+			}
+			return res.summary;
+		}),
+		deleteFolderToolDef.server(async (args) => {
+			const res = executeDeleteFolder(args);
 			if (res.isMutation) {
 				hooks?.onMutated?.();
 			}
@@ -103,6 +155,22 @@ export async function executeBookmarkToolCall(
 			break;
 		case "update_folder":
 			result = executeUpdateFolder(updateFolderInputSchema.parse(parsedArgs));
+			break;
+		case "move_folder":
+			result = executeMoveFolder(moveFolderInputSchema.parse(parsedArgs));
+			break;
+		case "reorder_folders":
+			result = executeReorderFolders(
+				reorderFoldersInputSchema.parse(parsedArgs),
+			);
+			break;
+		case "remove_bookmarks_from_folder":
+			result = executeRemoveBookmarks(
+				removeBookmarksInputSchema.parse(parsedArgs),
+			);
+			break;
+		case "delete_folder":
+			result = executeDeleteFolder(deleteFolderInputSchema.parse(parsedArgs));
 			break;
 		default:
 			result = {

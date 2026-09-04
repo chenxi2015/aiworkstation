@@ -1,6 +1,7 @@
 import { Button, EmptyState, InputGroup, Tooltip } from "@heroui/react";
 import { ChevronDown, LayoutGrid, List, Search, X } from "lucide-react";
 import { memo, useEffect, useMemo, useState } from "react";
+import { DraggableItem } from "../dnd/WorkbenchDnd";
 import { ItemFavicon } from "../ItemFavicon";
 import { WorkbenchItemCard } from "../item/WorkbenchItemCard";
 import {
@@ -222,64 +223,75 @@ export const FolderItemList = memo(function FolderItemList({
 				/* Compact List Mode */
 				<div className="space-y-1">
 					{visibleItems.map((item, index) => (
-						<WorkbenchItemCard
+						<DraggableItem
 							key={item.id || `${item.name}-${index}`}
 							item={item}
-							index={index}
-							compact={true}
-							otherFolders={otherFolders}
-							showMoveDropdown={true}
-							onDeleteItem={
-								onDeleteItem ? (it) => onDeleteItem(it, folder.id) : undefined
-							}
-							onMoveItem={
-								onMoveItem
-									? (it, targetId) => onMoveItem(it, folder.id, targetId)
-									: undefined
-							}
-						/>
+							sourceFolderId={folder.id}
+						>
+							<WorkbenchItemCard
+								item={item}
+								index={index}
+								compact={true}
+								otherFolders={otherFolders}
+								showMoveDropdown={true}
+								onDeleteItem={
+									onDeleteItem ? (it) => onDeleteItem(it, folder.id) : undefined
+								}
+								onMoveItem={
+									onMoveItem
+										? (it, targetId) => onMoveItem(it, folder.id, targetId)
+										: undefined
+								}
+							/>
+						</DraggableItem>
 					))}
 				</div>
 			) : (
 				/* App Icon Grid Mode */
 				<div className="grid grid-cols-4 gap-1.5 pt-0.5">
 					{visibleItems.map((item, index) => (
-						<Tooltip key={item.id || `${item.name}-${index}`}>
-							<Tooltip.Trigger>
-								<button
-									type="button"
-									onClick={() => {
-										if (item.url) {
-											window.open(item.url, "_blank", "noopener,noreferrer");
-										}
-									}}
-									className="group aspect-square rounded-xl bg-surface-secondary/60 hover:bg-accent-soft/80 border border-border/70 hover:border-accent/30 hover:scale-[1.04] transition-all duration-150 flex flex-col items-center justify-center p-1.5 cursor-pointer text-center relative overflow-hidden shadow-2xs w-full"
-								>
-									<div className="w-6 h-6 rounded-lg bg-surface flex items-center justify-center shrink-0 shadow-2xs group-hover:bg-surface/90 transition-colors">
-										<ItemFavicon
-											url={item.url}
-											favicon={item.favicon}
-											type={item.type}
-											name={item.name}
-											size="xs"
-											className="group-hover:scale-110 transition-transform"
-											iconClassName="opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-transform"
-										/>
-									</div>
-									<span className="text-[9px] font-medium text-foreground/80 group-hover:text-accent mt-1 line-clamp-1 truncate w-full px-0.5 text-center leading-tight">
+						<DraggableItem
+							key={item.id || `${item.name}-${index}`}
+							item={item}
+							sourceFolderId={folder.id}
+						>
+							<Tooltip>
+								<Tooltip.Trigger>
+									<button
+										type="button"
+										onClick={() => {
+											if (item.url) {
+												window.open(item.url, "_blank", "noopener,noreferrer");
+											}
+										}}
+										className="group aspect-square rounded-xl bg-surface-secondary/60 hover:bg-accent-soft/80 border border-border/70 hover:border-accent/30 hover:scale-[1.04] transition-all duration-150 flex flex-col items-center justify-center p-1.5 cursor-pointer text-center relative overflow-hidden shadow-2xs w-full"
+									>
+										<div className="w-6 h-6 rounded-lg bg-surface flex items-center justify-center shrink-0 shadow-2xs group-hover:bg-surface/90 transition-colors">
+											<ItemFavicon
+												url={item.url}
+												favicon={item.favicon}
+												type={item.type}
+												name={item.name}
+												size="xs"
+												className="group-hover:scale-110 transition-transform"
+												iconClassName="opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-transform"
+											/>
+										</div>
+										<span className="text-[9px] font-medium text-foreground/80 group-hover:text-accent mt-1 line-clamp-1 truncate w-full px-0.5 text-center leading-tight">
+											{item.name}
+										</span>
+									</button>
+								</Tooltip.Trigger>
+								<Tooltip.Content className="text-xs py-1.5 px-2.5 max-w-[220px]">
+									<div className="font-semibold text-foreground line-clamp-1">
 										{item.name}
-									</span>
-								</button>
-							</Tooltip.Trigger>
-							<Tooltip.Content className="text-xs py-1.5 px-2.5 max-w-[220px]">
-								<div className="font-semibold text-foreground line-clamp-1">
-									{item.name}
-								</div>
-								<div className="text-[10px] text-muted truncate mt-0.5">
-									{item.url}
-								</div>
-							</Tooltip.Content>
-						</Tooltip>
+									</div>
+									<div className="text-[10px] text-muted truncate mt-0.5">
+										{item.url}
+									</div>
+								</Tooltip.Content>
+							</Tooltip>
+						</DraggableItem>
 					))}
 				</div>
 			)}

@@ -26,7 +26,9 @@ export const moveBookmarksToFolderInputSchema = z
 			.string()
 			.nullable()
 			.optional()
-			.describe("目标文件夹所属分类（当需要自动新建文件夹时生效，默认'工作台'）"),
+			.describe(
+				"目标文件夹所属分类（当需要自动新建文件夹时生效，默认'工作台'）",
+			),
 		createIfNotExist: z
 			.boolean()
 			.nullable()

@@ -23,8 +23,11 @@ export interface ChatMessageListProps {
 	messagesEndRef: RefObject<HTMLDivElement | null>;
 	onToggleRefCheck: (refKey: string | number) => void;
 	onToggleSelectGroup?: (items: SearchResultItem[]) => void;
-	onOpenAssignSingle: (item: SearchResultItem, e: React.MouseEvent) => void;
-	onOpenAssignMultiple: (items: SearchResultItem[], createMode?: boolean) => void;
+	onOpenAssignSingle: (item: SearchResultItem, e?: React.MouseEvent) => void;
+	onOpenAssignMultiple: (
+		items: SearchResultItem[],
+		createMode?: boolean,
+	) => void;
 	onSelectPrompt: (prompt: string) => void;
 	onNavigateToFolder?: (folderId: number | null, category?: Category) => void;
 }
@@ -57,7 +60,8 @@ export function ChatMessageList({
 						工作台 AI 知识对话中心
 					</h3>
 					<p className="text-xs text-muted max-w-xs leading-relaxed">
-						基于本地 SQLite 与混合 RAG 检索，精准唤醒沉睡书签，智能答疑与盘点资产。
+						基于本地 SQLite 与混合 RAG
+						检索，精准唤醒沉睡书签，智能答疑与盘点资产。
 					</p>
 
 					{/* Prompt Suggestions */}
@@ -71,8 +75,8 @@ export function ChatMessageList({
 			{/* Message Bubbles */}
 			{messages.map((msg, idx) => {
 				const currentReferences = msg.references || [];
-				const selectedRefsInThisMsg = currentReferences.filter((r: SearchResultItem) =>
-					selectedRefKeys.has(r.id || r.url || ""),
+				const selectedRefsInThisMsg = currentReferences.filter(
+					(r: SearchResultItem) => selectedRefKeys.has(r.id || r.url || ""),
 				);
 				const isAllInMsgChecked =
 					currentReferences.length > 0 &&
@@ -133,7 +137,9 @@ export function ChatMessageList({
 														? "text-accent bg-accent-soft/50 hover:bg-accent-soft/80"
 														: "text-muted hover:text-foreground hover:bg-surface-secondary"
 												}`}
-												aria-label={isAllInMsgChecked ? "取消全选" : "全选全部网址"}
+												aria-label={
+													isAllInMsgChecked ? "取消全选" : "全选全部网址"
+												}
 											>
 												{isAllInMsgChecked ? (
 													<CheckSquare className="w-3 h-3 text-accent" />
@@ -148,21 +154,23 @@ export function ChatMessageList({
 
 								{/* Reference items list */}
 								<div className="flex flex-col gap-1.5">
-									{currentReferences.map((ref: SearchResultItem, rIdx: number) => {
-										const refKey = ref.id || ref.url || rIdx;
-										const isChecked = selectedRefKeys.has(refKey);
+									{currentReferences.map(
+										(ref: SearchResultItem, rIdx: number) => {
+											const refKey = ref.id || ref.url || rIdx;
+											const isChecked = selectedRefKeys.has(refKey);
 
-										return (
-											<ChatReferenceCard
-												key={refKey}
-												reference={ref}
-												isChecked={isChecked}
-												onToggleCheck={() => onToggleRefCheck(refKey)}
-												onOpenAssign={(e) => onOpenAssignSingle(ref, e)}
-												onNavigateToFolder={onNavigateToFolder}
-											/>
-										);
-									})}
+											return (
+												<ChatReferenceCard
+													key={refKey}
+													reference={ref}
+													isChecked={isChecked}
+													onToggleCheck={() => onToggleRefCheck(refKey)}
+													onOpenAssign={(e) => onOpenAssignSingle(ref, e)}
+													onNavigateToFolder={onNavigateToFolder}
+												/>
+											);
+										},
+									)}
 								</div>
 
 								{/* Batch Actions Bar for selected references */}

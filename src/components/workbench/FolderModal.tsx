@@ -1,11 +1,13 @@
 import {
 	Button,
+	ColorSwatchPicker,
 	FieldError,
 	Input,
 	Label,
 	ListBox,
 	ListBoxItem,
 	Modal,
+	parseColor,
 	Select,
 	SelectPopover,
 	SelectTrigger,
@@ -13,28 +15,28 @@ import {
 	TextArea,
 	TextField,
 } from "@heroui/react";
-import { Check, Palette, RotateCcw } from "lucide-react";
-import { type FormEvent, useEffect, useState } from "react";
+import { Palette, RotateCcw } from "lucide-react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { FolderAppGridCover } from "./folder/FolderAppGridCover";
 import type { Folder } from "./types";
-import { CATEGORIES } from "./types";
+import { FOLDER_CATEGORIES } from "./types";
 
-export const FOLDER_COLOR_PRESETS = [
-	{ name: "默认", value: "" },
-	{ name: "科技蓝", value: "#4f46e5" },
-	{ name: "翡翠绿", value: "#059669" },
-	{ name: "琥珀橙", value: "#d97706" },
-	{ name: "珊瑚粉", value: "#e11d48" },
-	{ name: "梦幻紫", value: "#7c3aed" },
-	{ name: "天空蓝", value: "#0284c7" },
-	{ name: "烈焰橙", value: "#ea580c" },
-	{ name: "高级灰", value: "#475569" },
+export const FOLDER_COLORS = [
+	"#F43F5E",
+	"#D946EF",
+	"#8B5CF6",
+	"#3B82F6",
+	"#06B6D4",
+	"#10B981",
+	"#84CC16",
 ];
 
 interface FolderModalProps {
 	isOpen: boolean;
 	folder: Folder | null;
+	folders: Folder[];
 	defaultCategory: string;
+	defaultParentId?: number | null;
 	onClose: () => void;
 	onSave: (data: {
 		id?: number;
@@ -42,6 +44,7 @@ interface FolderModalProps {
 		category: string;
 		desc: string;
 		color?: string;
+		parentId?: number | null;
 	}) => void;
 	onDelete: (id: number) => void;
 }
@@ -49,7 +52,9 @@ interface FolderModalProps {
 export function FolderModal({
 	isOpen,
 	folder,
+	folders,
 	defaultCategory,
+	defaultParentId = null,
 	onClose,
 	onSave,
 	onDelete,
@@ -58,9 +63,27 @@ export function FolderModal({
 	const [category, setCategory] = useState(defaultCategory);
 	const [desc, setDesc] = useState("");
 	const [color, setColor] = useState("");
+	const [parentId, setParentId] = useState<number | null>(null);
 	const [error, setError] = useState("");
 
 	const isEdit = !!folder;
+
+	// Parent candidates: all folders except the folder itself and its descendants
+	const parentOptions = useMemo(() => {
+		if (!folder) return folders;
+		const byId = new Map(folders.map((f) => [f.id, f]));
+		return folders.filter((candidate) => {
+			let current: number | null | undefined = candidate.id;
+			const visited = new Set<number>();
+			while (current != null) {
+				if (current === folder.id) return false;
+				if (visited.has(current)) return true;
+				visited.add(current);
+				current = byId.get(current)?.parentId ?? null;
+			}
+			return true;
+		});
+	}, [folders, folder]);
 
 	useEffect(() => {
 		if (isOpen) {
@@ -69,15 +92,21 @@ export function FolderModal({
 				setCategory(folder.category);
 				setDesc(folder.desc || "");
 				setColor(folder.color || "");
+				setParentId(folder.parentId ?? null);
 			} else {
 				setName("");
-				setCategory(defaultCategory || "工作台");
+				const parent =
+					defaultParentId != null
+						? folders.find((f) => f.id === defaultParentId)
+						: undefined;
+				setCategory(parent?.category || defaultCategory || "工作台");
 				setDesc("");
 				setColor("");
+				setParentId(parent?.id ?? null);
 			}
 			setError("");
 		}
-	}, [isOpen, folder, defaultCategory]);
+	}, [isOpen, folder, folders, defaultCategory, defaultParentId]);
 
 	const handleSubmit = (e: FormEvent) => {
 		e.preventDefault();
@@ -93,6 +122,7 @@ export function FolderModal({
 			category,
 			desc: desc.trim(),
 			color: color.trim() || undefined,
+			parentId,
 		});
 	};
 
@@ -104,6 +134,9 @@ export function FolderModal({
 			onDelete(folder.id);
 		}
 	};
+
+	const fieldClassName =
+		"rounded-xl border border-border bg-surface shadow-2xs transition-all hover:border-border/90 focus:border-accent focus:ring-2 focus:ring-accent/15";
 
 	return (
 		<Modal.Backdrop
@@ -140,10 +173,48 @@ export function FolderModal({
 								<Input
 									placeholder="例如：内容创作工具集"
 									maxLength={30}
-									variant="secondary"
+									className={fieldClassName}
 								/>
 								{error && <FieldError>{error}</FieldError>}
 							</TextField>
+
+							{/* Parent Folder Select */}
+							<Select
+								selectedKey={parentId === null ? "none" : String(parentId)}
+								onSelectionChange={(key) => {
+									if (key == null) return;
+									if (key === "none") {
+										setParentId(null);
+										return;
+									}
+									const parent = parentOptions.find(
+										(f) => f.id === Number(key),
+									);
+									setParentId(parent?.id ?? null);
+									if (parent) setCategory(parent.category);
+								}}
+							>
+								<Label>父级文件夹</Label>
+								<SelectTrigger className={fieldClassName}>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectPopover>
+									<ListBox>
+										<ListBoxItem id="none" textValue="无（顶级文件夹）">
+											无（顶级文件夹）
+										</ListBoxItem>
+										{parentOptions.map((f) => (
+											<ListBoxItem
+												key={f.id}
+												id={String(f.id)}
+												textValue={f.name}
+											>
+												{f.name}
+											</ListBoxItem>
+										))}
+									</ListBox>
+								</SelectPopover>
+							</Select>
 
 							{/* Category Select */}
 							<Select
@@ -151,15 +222,22 @@ export function FolderModal({
 								onSelectionChange={(key) => {
 									if (key) setCategory(String(key));
 								}}
-								variant="secondary"
+								isDisabled={parentId !== null}
 							>
-								<Label>所属分类</Label>
-								<SelectTrigger>
+								<Label>
+									所属分类
+									{parentId !== null && (
+										<span className="ml-1 text-[10px] text-muted font-normal">
+											（子文件夹跟随父级分类）
+										</span>
+									)}
+								</Label>
+								<SelectTrigger className={fieldClassName}>
 									<SelectValue />
 								</SelectTrigger>
 								<SelectPopover>
 									<ListBox>
-										{CATEGORIES.map((cat) => (
+										{FOLDER_CATEGORIES.map((cat) => (
 											<ListBoxItem key={cat} id={cat} textValue={cat}>
 												{cat}
 											</ListBoxItem>
@@ -175,7 +253,7 @@ export function FolderModal({
 									placeholder="这个文件夹用来归集什么？"
 									maxLength={120}
 									rows={2}
-									variant="secondary"
+									className={fieldClassName}
 								/>
 							</TextField>
 
@@ -197,81 +275,56 @@ export function FolderModal({
 									)}
 								</div>
 
-								{/* Color chips */}
-								<div className="flex items-center gap-2 flex-wrap">
-									{FOLDER_COLOR_PRESETS.map((p) => {
-										const isSelected =
-											p.value === ""
-												? !color
-												: color.toLowerCase() === p.value.toLowerCase();
-										return (
-											<button
-												key={p.name}
-												type="button"
-												title={p.name}
-												onClick={() => setColor(p.value)}
-												className={`relative w-7 h-7 rounded-full transition-all flex items-center justify-center cursor-pointer border ${
-													isSelected
-														? "ring-2 ring-accent ring-offset-2 scale-110 shadow-sm border-transparent"
-														: "border-border/60 hover:scale-105 opacity-85 hover:opacity-100"
+								{/* Color swatches */}
+								{(() => {
+									const isCustomColor =
+										color !== "" &&
+										!FOLDER_COLORS.some(
+											(c) => c.toLowerCase() === color.toLowerCase(),
+										);
+									return (
+										<div className="flex items-center gap-2 flex-wrap">
+											<ColorSwatchPicker
+												value={parseColor(color || "rgba(0,0,0,0)")}
+												onChange={(c) => setColor(c.toString("hex"))}
+											>
+												{FOLDER_COLORS.map((c) => (
+													<ColorSwatchPicker.Item key={c} color={c}>
+														<ColorSwatchPicker.Swatch />
+														<ColorSwatchPicker.Indicator />
+													</ColorSwatchPicker.Item>
+												))}
+											</ColorSwatchPicker>
+
+											{/* Custom Color Input */}
+											<label
+												title="自定义颜色"
+												className={`relative w-7 h-7 rounded-full flex items-center justify-center cursor-pointer border border-dashed border-border/80 hover:border-accent hover:scale-105 transition-all ${
+													isCustomColor
+														? "ring-2 ring-accent ring-offset-2 scale-110 shadow-sm"
+														: ""
 												}`}
 												style={{
-													backgroundColor:
-														p.value || "var(--surface-secondary)",
+													backgroundColor: isCustomColor ? color : undefined,
 												}}
 											>
-												{isSelected && (
-													<Check
-														className={`w-3.5 h-3.5 ${
-															p.value
-																? "text-white drop-shadow-sm"
-																: "text-foreground"
-														}`}
-													/>
-												)}
-											</button>
-										);
-									})}
-
-									{/* Custom Color Input */}
-									<label
-										title="自定义颜色"
-										className={`relative w-7 h-7 rounded-full flex items-center justify-center cursor-pointer border border-dashed border-border/80 hover:border-accent hover:scale-105 transition-all ${
-											color &&
-											!FOLDER_COLOR_PRESETS.some(
-												(p) => p.value.toLowerCase() === color.toLowerCase(),
-											)
-												? "ring-2 ring-accent ring-offset-2 scale-110 shadow-sm"
-												: ""
-										}`}
-										style={{
-											backgroundColor:
-												color &&
-												!FOLDER_COLOR_PRESETS.some(
-													(p) => p.value.toLowerCase() === color.toLowerCase(),
-												)
-													? color
-													: undefined,
-										}}
-									>
-										<Palette
-											className={`w-3.5 h-3.5 ${
-												color &&
-												!FOLDER_COLOR_PRESETS.some(
-													(p) => p.value.toLowerCase() === color.toLowerCase(),
-												)
-													? "text-white drop-shadow-sm"
-													: "text-muted"
-											}`}
-										/>
-										<input
-											type="color"
-											value={color || "#4f46e5"}
-											onChange={(e) => setColor(e.target.value)}
-											className="sr-only"
-										/>
-									</label>
-								</div>
+												<Palette
+													className={`w-3.5 h-3.5 ${
+														isCustomColor
+															? "text-white drop-shadow-sm"
+															: "text-muted"
+													}`}
+												/>
+												<input
+													type="color"
+													value={color || "#F43F5E"}
+													onChange={(e) => setColor(e.target.value)}
+													className="sr-only"
+												/>
+											</label>
+										</div>
+									);
+								})()}
 
 								{/* Live Preview Card */}
 								<div

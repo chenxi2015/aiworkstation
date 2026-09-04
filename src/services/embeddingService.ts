@@ -356,6 +356,9 @@ export class EmbeddingService {
 					return item.category === scope.categoryName;
 				}
 				if (scope.type === "folder") {
+					if (scope.folderIds && scope.folderIds.length > 0) {
+						return item.folderId != null && scope.folderIds.includes(item.folderId);
+					}
 					return item.folderId === scope.folderId;
 				}
 				return true;
