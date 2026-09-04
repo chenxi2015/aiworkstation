@@ -19,7 +19,6 @@ export function useWorkbenchModals() {
 	const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
 	const [isAIClassifyModalOpen, setIsAIClassifyModalOpen] = useState(false);
 	const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-	const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
 	const [isDeadLinksModalOpen, setIsDeadLinksModalOpen] = useState(false);
 	const [isChatModalOpen, setIsChatModalOpen] = useState(false);
 	const [dossierFolder, setDossierFolder] = useState<Folder | null>(null);
@@ -39,10 +38,6 @@ export function useWorkbenchModals() {
 
 	const closeFolderModal = useCallback(() => {
 		setFolderModalState({ isOpen: false, folder: null, defaultParentId: null });
-	}, []);
-
-	const toggleGlobalSearch = useCallback(() => {
-		setIsGlobalSearchOpen((prev) => !prev);
 	}, []);
 
 	const openDossierModal = useCallback((folder: Folder) => {
@@ -83,10 +78,7 @@ export function useWorkbenchModals() {
 		isDeadLinksModalOpen,
 		setIsDeadLinksModalOpen,
 
-		// Search & Chat modals
-		isGlobalSearchOpen,
-		setIsGlobalSearchOpen,
-		toggleGlobalSearch,
+		// Chat modal
 		isChatModalOpen,
 		setIsChatModalOpen,
 

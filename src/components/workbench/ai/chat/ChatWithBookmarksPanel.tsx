@@ -168,9 +168,6 @@ export const ChatWithBookmarksPanel = forwardRef<
 					>
 						<Search className="w-3.5 h-3.5" />
 						<span>极速检索</span>
-						<span className="text-[9px] font-mono px-1 py-0.2 rounded bg-accent-soft/70 text-accent font-normal">
-							0 Token
-						</span>
 					</button>
 					<button
 						type="button"

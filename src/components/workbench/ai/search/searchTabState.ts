@@ -1,4 +1,4 @@
-import type { SearchResultItem, SearchScope } from "../../types";
+import type { SearchMode, SearchResultItem, SearchScope } from "../../types";
 
 /**
  * Module-level cache for the Search Tab UI state.
@@ -10,6 +10,7 @@ import type { SearchResultItem, SearchScope } from "../../types";
  */
 export interface SearchTabSnapshot {
 	query: string;
+	mode?: SearchMode;
 	/** null means "never searched yet" → derive scope from page context */
 	scope: SearchScope | null;
 	results: SearchResultItem[];
@@ -20,6 +21,7 @@ export interface SearchTabSnapshot {
 
 let snapshot: SearchTabSnapshot = {
 	query: "",
+	mode: "keyword",
 	scope: null,
 	results: [],
 	activeCategoryFacet: null,

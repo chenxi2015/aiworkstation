@@ -14,7 +14,6 @@ export * from "./chat/ChatWithBookmarksPanel";
 export * from "./search/SearchHeader";
 export * from "./search/SearchResultItemRow";
 export * from "./search/SearchTabContent";
-export * from "./search/GlobalSearchModal";
 
 // Classify Module
 export * from "./classify/AIClassifyModal";

@@ -6,7 +6,7 @@ import {
 	ListBoxItem,
 	ListBoxItemIndicator,
 } from "@heroui/react";
-import { Globe, Search, X } from "lucide-react";
+import { FileText, Globe, Search, Sparkles, X } from "lucide-react";
 import type { RefObject } from "react";
 import { memo } from "react";
 import type { Folder, SearchMode, SearchScope } from "../../types";
@@ -24,14 +24,16 @@ export interface SearchHeaderProps {
 }
 
 /**
- * Top search input header (defaults to hybrid search)
+ * Top search input header with keyword/semantic mode toggle
  */
 export const SearchHeader = memo(function SearchHeader({
 	query,
+	mode = "keyword",
 	scope,
 	folders = [],
 	inputRef,
 	onChangeQuery,
+	onChangeMode,
 	onChangeScope,
 	onClose,
 }: SearchHeaderProps) {
@@ -146,9 +148,44 @@ export const SearchHeader = memo(function SearchHeader({
 					type="text"
 					value={query}
 					onChange={(e) => onChangeQuery(e.target.value)}
-					placeholder="搜索书签或意图..."
+					placeholder={
+						mode === "keyword"
+							? "输入关键词搜索书签..."
+							: "输入自然语言意图搜索..."
+					}
 					className="flex-1 bg-transparent border-none text-xs sm:text-sm text-foreground placeholder:text-muted focus:outline-none tracking-tight min-w-0"
 				/>
+				{/* Search mode toggle button */}
+				{onChangeMode && (
+					<button
+						type="button"
+						onClick={() =>
+							onChangeMode(mode === "hybrid" ? "keyword" : "hybrid")
+						}
+						className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium transition-all cursor-pointer shrink-0 border ${
+							mode === "hybrid"
+								? "bg-accent/15 text-accent border-accent/40 shadow-xs font-semibold"
+								: "bg-surface-secondary/70 text-muted hover:text-foreground border-border/60"
+						}`}
+						title={
+							mode === "hybrid"
+								? "当前为语义增强模式（调用向量模型匹配含义）。点击切换为关键词模式"
+								: "当前为关键词模式（本地极速匹配，不调用外部模型）。点击开启语义增强"
+						}
+					>
+						{mode === "hybrid" ? (
+							<>
+								<Sparkles className="w-3 h-3 text-accent" />
+								<span>语义增强</span>
+							</>
+						) : (
+							<>
+								<FileText className="w-3 h-3" />
+								<span>关键词</span>
+							</>
+						)}
+					</button>
+				)}
 				{query && (
 					<button
 						type="button"

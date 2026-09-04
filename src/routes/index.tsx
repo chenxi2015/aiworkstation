@@ -48,11 +48,6 @@ const DeadLinksModal = lazy(() =>
 		default: m.DeadLinksModal,
 	})),
 );
-const GlobalSearchModal = lazy(() =>
-	import("../components/workbench/ai/search/GlobalSearchModal").then((m) => ({
-		default: m.GlobalSearchModal,
-	})),
-);
 
 export const Route = createFileRoute("/")({
 	loader: async () => {
@@ -125,8 +120,6 @@ function WorkbenchHome() {
 		setIsSettingsModalOpen,
 		isDeadLinksModalOpen,
 		setIsDeadLinksModalOpen,
-		isGlobalSearchOpen,
-		setIsGlobalSearchOpen,
 	} = useWorkbenchModals();
 
 	// Direct and instant folder selection without unnecessary re-render triggers
@@ -390,31 +383,6 @@ function WorkbenchHome() {
 					<DeadLinksModal
 						isOpen={isDeadLinksModalOpen}
 						onClose={() => setIsDeadLinksModalOpen(false)}
-						onDataChanged={reloadFromDb}
-					/>
-				)}
-
-				{isGlobalSearchOpen && (
-					<GlobalSearchModal
-						isOpen={isGlobalSearchOpen}
-						onClose={() => setIsGlobalSearchOpen(false)}
-						folders={folders}
-						categories={dynamicCategories}
-						initialScope={
-							selectedFolder
-								? {
-										type: "folder",
-										folderId: selectedFolder.id,
-										folderName: selectedFolder.name,
-									}
-								: isUnclassified
-									? { type: "global" }
-									: {
-											type: "category",
-											categoryName: activeCategory,
-										}
-						}
-						onNavigateToFolder={handleNavigateFromSearch}
 						onDataChanged={reloadFromDb}
 					/>
 				)}

@@ -16,6 +16,7 @@ import type {
 	Folder,
 	ItemType,
 	SearchFacets,
+	SearchMode,
 	SearchResultItem,
 	SearchScope,
 } from "../../types";
@@ -52,6 +53,7 @@ export function SearchTabContent({
 	const [snapshot] = useState(getSearchTabSnapshot);
 
 	const [query, setQuery] = useState(snapshot.query);
+	const [mode, setMode] = useState<SearchMode>(snapshot.mode || "keyword");
 	const [scope, setScope] = useState<SearchScope>(() => {
 		if (snapshot.scope) {
 			return snapshot.scope;
@@ -103,6 +105,7 @@ export function SearchTabContent({
 	useEffect(() => {
 		saveSearchTabSnapshot({
 			query,
+			mode,
 			scope,
 			results: rawResults,
 			activeCategoryFacet,
@@ -111,6 +114,7 @@ export function SearchTabContent({
 		});
 	}, [
 		query,
+		mode,
 		scope,
 		rawResults,
 		activeCategoryFacet,
@@ -167,7 +171,7 @@ export function SearchTabContent({
 
 				const searchRes = await WorkbenchStorageService.searchItems({
 					query: q,
-					mode: "hybrid",
+					mode,
 					embeddingConfig,
 					limit: 200,
 					scope,
@@ -184,7 +188,7 @@ export function SearchTabContent({
 		}, 180);
 
 		return () => clearTimeout(timer);
-	}, [query, scope]);
+	}, [query, scope, mode]);
 
 	// Filtered results based on client-side active facet pills
 	const results = rawResults.filter((item) => {
@@ -244,10 +248,12 @@ export function SearchTabContent({
 			{/* Search Header */}
 			<SearchHeader
 				query={query}
+				mode={mode}
 				scope={scope}
 				folders={folders}
 				inputRef={inputRef}
 				onChangeQuery={setQuery}
+				onChangeMode={setMode}
 				onChangeScope={setScope}
 			/>
 
@@ -326,10 +332,10 @@ export function SearchTabContent({
 							<Search className="w-5 h-5" />
 						</div>
 						<h4 className="font-semibold text-xs text-foreground mb-1">
-							本地 0 Token 毫秒级检索
+							本地极速检索
 						</h4>
 						<p className="text-[11px] leading-relaxed max-w-[240px]">
-							输入关键词或意图，即可秒级过滤检索全库书签与工具。
+							输入关键词即刻秒级过滤，亦可在搜索框开启「语义增强」进行智能召回。
 						</p>
 					</div>
 				) : rawResults.length === 0 ? (
