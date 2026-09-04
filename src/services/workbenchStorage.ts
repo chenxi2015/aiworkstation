@@ -260,6 +260,8 @@ export class WorkbenchStorageService {
 			baseUrl?: string;
 			model?: string;
 		};
+		folderId?: number | null;
+		folderName?: string;
 	}): Promise<RAGChatResult> {
 		return await chatWithBookmarks({ data: params });
 	}

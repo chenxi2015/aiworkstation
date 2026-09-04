@@ -14,6 +14,7 @@ import {
 import { memo } from "react";
 import { useFolderDropIndicator } from "./dnd/WorkbenchDnd";
 import { FolderAppGridCover } from "./folder/FolderAppGridCover";
+import { FolderAssignMenu } from "./folder/FolderAssignMenu";
 import type { Folder as FolderType } from "./types";
 
 interface FolderCardProps {
@@ -27,6 +28,8 @@ interface FolderCardProps {
 	onCreateLink?: () => void;
 	onDelete?: () => void;
 	onAskAI?: () => void;
+	allFolders?: FolderType[];
+	onMoveFolder?: (folderId: number, targetParentId: number | null) => void;
 }
 
 // Default vibrant tech blue used for selection outline on folders without custom colors
@@ -53,13 +56,20 @@ export const FolderCard = memo(function FolderCard({
 	onCreateLink,
 	onDelete,
 	onAskAI,
+	allFolders,
+	onMoveFolder,
 }: FolderCardProps) {
 	const color = folder.color;
 	const activeColor = color || DEFAULT_SELECTED_COLOR;
 	const subtitle = folder.desc?.trim() || folder.category || "工作台文件夹";
 	const dropMode = useFolderDropIndicator(folder.id);
 	const hasActions =
-		onEdit || onCreateFolder || onCreateLink || onDelete || onAskAI;
+		onEdit ||
+		onCreateFolder ||
+		onCreateLink ||
+		onDelete ||
+		onAskAI ||
+		onMoveFolder;
 
 	return (
 		<Card
@@ -181,7 +191,7 @@ export const FolderCard = memo(function FolderCard({
 
 				{/* Folder action dropdown (edit / create / delete / AI summary) */}
 				{hasActions && (
-					// biome-ignore lint/a11y/useKeyWithClickEvents lint/a11y/noStaticElementInteractions: wrapper only stops card-level click/keyboard selection
+					// biome-ignore lint/a11y/noStaticElementInteractions: wrapper only stops card-level click/keyboard selection
 					<span
 						className="ml-auto shrink-0"
 						onClick={(e) => e.stopPropagation()}
@@ -267,6 +277,18 @@ export const FolderCard = memo(function FolderCard({
 												</Dropdown.Menu>
 											</Dropdown.Popover>
 										</Dropdown.SubmenuTrigger>
+									)}
+									{onMoveFolder && allFolders && allFolders.length > 1 && (
+										<FolderAssignMenu
+											mode="submenu"
+											label="放入文件夹"
+											folders={allFolders}
+											currentFolderId={folder.parentId}
+											excludeFolderId={folder.id}
+											onSelectFolder={(targetParentId) =>
+												onMoveFolder(folder.id, targetParentId)
+											}
+										/>
 									)}
 									{onDelete && (
 										<Dropdown.Item

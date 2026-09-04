@@ -23,6 +23,8 @@ export interface CategoryViewProps {
 	onDeleteFolder?: (folder: Folder) => void;
 	onCreateLink?: (folder: Folder) => void;
 	onAskAIAboutFolder?: (folder: Folder) => void;
+	allFolders?: Folder[];
+	onMoveFolder?: (folderId: number, targetParentId: number | null) => void;
 }
 
 /**
@@ -43,6 +45,8 @@ export const CategoryView = memo(function CategoryView({
 	onDeleteFolder,
 	onCreateLink,
 	onAskAIAboutFolder,
+	allFolders,
+	onMoveFolder,
 }: CategoryViewProps) {
 	if (isLoading) {
 		return (
@@ -139,6 +143,8 @@ export const CategoryView = memo(function CategoryView({
 										? () => onAskAIAboutFolder(folder)
 										: undefined
 								}
+								allFolders={allFolders || folders}
+								onMoveFolder={onMoveFolder}
 							/>
 						</FolderCardSlot>
 					))}

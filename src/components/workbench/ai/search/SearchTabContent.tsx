@@ -32,6 +32,7 @@ export interface SearchTabContentProps {
 	categories?: string[];
 	selectedFolder?: Folder | null;
 	activeCategory?: Category;
+	scopeMode?: "global" | "folder";
 	onNavigateToFolder?: (folderId: number | null, category?: Category) => void;
 	onTransferToAiChat: (query: string) => void;
 	onDataChanged?: () => void;
@@ -44,7 +45,8 @@ export function SearchTabContent({
 	folders = [],
 	categories = CATEGORIES as unknown as string[],
 	selectedFolder,
-	activeCategory,
+	activeCategory: _activeCategory,
+	scopeMode = "global",
 	onNavigateToFolder,
 	onTransferToAiChat,
 	onDataChanged,
@@ -55,20 +57,11 @@ export function SearchTabContent({
 	const [query, setQuery] = useState(snapshot.query);
 	const [mode, setMode] = useState<SearchMode>(snapshot.mode || "keyword");
 	const [scope, setScope] = useState<SearchScope>(() => {
-		if (snapshot.scope) {
-			return snapshot.scope;
-		}
-		if (selectedFolder) {
+		if (scopeMode === "folder" && selectedFolder) {
 			return {
 				type: "folder",
 				folderId: selectedFolder.id,
 				folderName: selectedFolder.name,
-			};
-		}
-		if (activeCategory && activeCategory !== "未分类") {
-			return {
-				type: "category",
-				categoryName: activeCategory,
 			};
 		}
 		return { type: "global" };
@@ -122,30 +115,18 @@ export function SearchTabContent({
 		activeTypeFacet,
 	]);
 
-	// A restored scope must not be overridden by the initial external sync below
-	const skipInitialScopeSync = useRef(snapshot.scope !== null);
-
-	// Sync scope when selected folder or category changes externally
+	// Sync scope when scopeMode or selected folder changes externally
 	useEffect(() => {
-		if (skipInitialScopeSync.current) {
-			skipInitialScopeSync.current = false;
-			return;
-		}
-		if (selectedFolder) {
+		if (scopeMode === "folder" && selectedFolder) {
 			setScope({
 				type: "folder",
 				folderId: selectedFolder.id,
 				folderName: selectedFolder.name,
 			});
-		} else if (activeCategory && activeCategory !== "未分类") {
-			setScope({
-				type: "category",
-				categoryName: activeCategory,
-			});
 		} else {
 			setScope({ type: "global" });
 		}
-	}, [selectedFolder, activeCategory]);
+	}, [scopeMode, selectedFolder]);
 
 	// Debounced Search Request
 	useEffect(() => {
@@ -249,12 +230,9 @@ export function SearchTabContent({
 			<SearchHeader
 				query={query}
 				mode={mode}
-				scope={scope}
-				folders={folders}
 				inputRef={inputRef}
 				onChangeQuery={setQuery}
 				onChangeMode={setMode}
-				onChangeScope={setScope}
 			/>
 
 			{/* Batch Selection Action Bar */}

@@ -1,4 +1,4 @@
-import { Bot, Search, Sparkles } from "lucide-react";
+import { Bot, Folder as FolderIcon, Globe, Search, Sparkles } from "lucide-react";
 import {
 	forwardRef,
 	useEffect,
@@ -24,10 +24,24 @@ import { ChatInputArea } from "./ChatInputArea";
 import { ChatMessageList } from "./ChatMessageList";
 
 export interface ChatWithBookmarksPanelRef {
-	sendPrompt: (prompt: string) => void;
+	sendPrompt: (
+		prompt: string,
+		options?: {
+			newChat?: boolean;
+			folderId?: number | null;
+			folderName?: string;
+		},
+	) => void;
 	focusInput: () => void;
 	openSearchTab: () => void;
-	openChatTab: (prompt?: string) => void;
+	openChatTab: (
+		prompt?: string,
+		options?: {
+			newChat?: boolean;
+			folderId?: number | null;
+			folderName?: string;
+		},
+	) => void;
 }
 
 export interface ChatWithBookmarksPanelProps {
@@ -61,6 +75,7 @@ export const ChatWithBookmarksPanel = forwardRef<
 	ref,
 ) {
 	const [activeTab, setActiveTab] = useState<"search" | "chat">("chat");
+	const [scopeMode, setScopeMode] = useState<"global" | "folder">("global");
 	const messagesEndRef = useRef<HTMLDivElement | null>(null);
 	const inputRef = useRef<HTMLTextAreaElement | null>(null);
 	const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
@@ -97,6 +112,26 @@ export const ChatWithBookmarksPanel = forwardRef<
 		},
 	});
 
+	// Helper to send prompts with active scope options
+	const handleSendPrompt = (
+		prompt?: string,
+		options?: {
+			newChat?: boolean;
+			folderId?: number | null;
+			folderName?: string;
+		},
+	) => {
+		const folderScope =
+			scopeMode === "folder" && selectedFolder
+				? { folderId: selectedFolder.id, folderName: selectedFolder.name }
+				: undefined;
+
+		sendPrompt(prompt, {
+			...folderScope,
+			...options,
+		});
+	};
+
 	// Auto scroll to bottom on new messages or loading state
 	// biome-ignore lint/correctness/useExhaustiveDependencies: scroll triggered on message update
 	useEffect(() => {
@@ -105,9 +140,16 @@ export const ChatWithBookmarksPanel = forwardRef<
 
 	// Expose methods for parent components
 	useImperativeHandle(ref, () => ({
-		sendPrompt: (prompt: string) => {
+		sendPrompt: (
+			prompt: string,
+			options?: {
+				newChat?: boolean;
+				folderId?: number | null;
+				folderName?: string;
+			},
+		) => {
 			setActiveTab("chat");
-			sendPrompt(prompt);
+			handleSendPrompt(prompt, options);
 		},
 		focusInput: () => {
 			if (activeTab === "chat") {
@@ -117,11 +159,21 @@ export const ChatWithBookmarksPanel = forwardRef<
 		openSearchTab: () => {
 			setActiveTab("search");
 		},
-		openChatTab: (prompt?: string) => {
+		openChatTab: (
+			prompt?: string,
+			options?: {
+				newChat?: boolean;
+				folderId?: number | null;
+				folderName?: string;
+			},
+		) => {
 			setActiveTab("chat");
 			if (prompt) {
-				sendPrompt(prompt);
+				handleSendPrompt(prompt, options);
 			} else {
+				if (options?.newChat) {
+					createNewChat();
+				}
 				setTimeout(() => inputRef.current?.focus(), 50);
 			}
 		},
@@ -142,9 +194,43 @@ export const ChatWithBookmarksPanel = forwardRef<
 							AI 知识中心与检索
 						</h3>
 					</div>
-					<span className="text-[10px] text-muted">
-						{selectedFolder ? `范围: ${selectedFolder.name}` : "全局资产"}
-					</span>
+
+					{/* Scope Switcher: defaults to Global */}
+					{selectedFolder ? (
+						<div className="inline-flex items-center p-0.5 rounded-lg bg-surface-secondary border border-border/80 text-[10px] shadow-2xs">
+							<button
+								type="button"
+								onClick={() => setScopeMode("global")}
+								className={`px-2 py-0.5 rounded-md transition-all font-medium flex items-center gap-1 cursor-pointer ${
+									scopeMode === "global"
+										? "bg-surface text-accent shadow-xs font-semibold border border-border/60"
+										: "text-muted hover:text-foreground"
+								}`}
+								title="全库所有书签与资产"
+							>
+								<Globe className="w-2.5 h-2.5 shrink-0" />
+								<span>全局</span>
+							</button>
+							<button
+								type="button"
+								onClick={() => setScopeMode("folder")}
+								className={`px-2 py-0.5 rounded-md transition-all font-medium flex items-center gap-1 cursor-pointer max-w-[120px] truncate ${
+									scopeMode === "folder"
+										? "bg-surface text-accent shadow-xs font-semibold border border-border/60"
+										: "text-muted hover:text-foreground"
+								}`}
+								title={`限定在此文件夹: ${selectedFolder.name}`}
+							>
+								<FolderIcon className="w-2.5 h-2.5 shrink-0" />
+								<span className="truncate">{selectedFolder.name}</span>
+							</button>
+						</div>
+					) : (
+						<span className="inline-flex items-center gap-1 text-[10px] text-muted bg-surface-secondary/60 px-2 py-0.5 rounded-md border border-border/50">
+							<Globe className="w-2.5 h-2.5 text-muted" />
+							全局资产
+						</span>
+					)}
 				</div>
 
 				{/* Shared Vector Embedding Status Widget */}
@@ -196,10 +282,11 @@ export const ChatWithBookmarksPanel = forwardRef<
 					categories={categories}
 					selectedFolder={selectedFolder}
 					activeCategory={activeCategory}
+					scopeMode={scopeMode}
 					onNavigateToFolder={onNavigateToFolder}
 					onTransferToAiChat={(query) => {
 						setActiveTab("chat");
-						sendPrompt(
+						handleSendPrompt(
 							`请根据我的书签库，深入分析与「${query}」相关的核心工具与最佳使用方案。`,
 						);
 					}}
@@ -222,7 +309,7 @@ export const ChatWithBookmarksPanel = forwardRef<
 					onToggleSelectGroup={folderAssign.toggleSelectGroup}
 					onOpenAssignSingle={folderAssign.openAssignSingle}
 					onOpenAssignMultiple={folderAssign.openAssignMultiple}
-					onSelectPrompt={(p) => sendPrompt(p)}
+					onSelectPrompt={(p) => handleSendPrompt(p)}
 					onNavigateToFolder={onNavigateToFolder}
 				/>
 
@@ -280,11 +367,16 @@ export const ChatWithBookmarksPanel = forwardRef<
 					hasMessages={messages.length > 0}
 					inputRef={inputRef}
 					onChangeInput={setInput}
-					onSend={() => sendPrompt()}
+					onSend={() => handleSendPrompt()}
 					onOpenHistory={() => setIsHistoryOpen(true)}
 					onNewChat={createNewChat}
 					onClearHistory={clearHistory}
 					model={settings?.deepseekModel}
+					scopeMode={scopeMode}
+					selectedFolder={selectedFolder}
+					onToggleScope={() =>
+						setScopeMode((prev) => (prev === "global" ? "folder" : "global"))
+					}
 				/>
 			</div>
 		</aside>

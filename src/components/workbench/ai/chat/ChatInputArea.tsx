@@ -1,6 +1,8 @@
 import { Button, Tooltip } from "@heroui/react";
 import {
 	CornerDownLeft,
+	Folder as FolderIcon,
+	Globe,
 	History,
 	Loader2,
 	MessageSquarePlus,
@@ -9,6 +11,7 @@ import {
 import type { RefObject } from "react";
 import { memo } from "react";
 import { WorkbenchStorageService } from "../../../../services/workbenchStorage";
+import type { Folder } from "../../types";
 
 export interface ChatInputAreaProps {
 	input: string;
@@ -21,6 +24,9 @@ export interface ChatInputAreaProps {
 	onNewChat?: () => void;
 	onClearHistory?: () => void;
 	model?: string;
+	scopeMode?: "global" | "folder";
+	selectedFolder?: Folder | null;
+	onToggleScope?: () => void;
 }
 
 /**
@@ -35,6 +41,9 @@ export const ChatInputArea = memo(function ChatInputArea({
 	onOpenHistory,
 	onNewChat,
 	model,
+	scopeMode = "global",
+	selectedFolder,
+	onToggleScope,
 }: ChatInputAreaProps) {
 	const displayModel =
 		model ||
@@ -48,9 +57,34 @@ export const ChatInputArea = memo(function ChatInputArea({
 			{/* Top action toolbar (Figure 2: History & New Chat) */}
 			<div className="flex items-center justify-between px-0.5">
 				<div className="flex items-center gap-1.5 text-muted text-[11px]">
-					<span className="text-[10px] text-muted font-medium">
-						统一问答与检索
-					</span>
+					{selectedFolder ? (
+						<button
+							type="button"
+							onClick={onToggleScope}
+							className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-md transition-colors cursor-pointer border ${
+								scopeMode === "folder"
+									? "bg-accent-soft/30 text-accent border-accent/40 font-semibold"
+									: "bg-surface text-muted border-border/60 hover:text-foreground"
+							}`}
+							title="点击切换问答范围（全局 / 当前文件夹）"
+						>
+							{scopeMode === "folder" ? (
+								<>
+									<FolderIcon className="w-2.5 h-2.5 shrink-0" />
+									<span className="max-w-[110px] truncate">限定: {selectedFolder.name}</span>
+								</>
+							) : (
+								<>
+									<Globe className="w-2.5 h-2.5 shrink-0" />
+									<span>范围: 全局</span>
+								</>
+							)}
+						</button>
+					) : (
+						<span className="text-[10px] text-muted font-medium">
+							统一问答与检索
+						</span>
+					)}
 				</div>
 
 				<div className="flex items-center gap-1">

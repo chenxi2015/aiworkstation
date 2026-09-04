@@ -130,9 +130,9 @@ function WorkbenchHome() {
 		[setSelectedFolderId],
 	);
 
-	// Direct prompt dispatch to chat assistant
+	// Direct prompt dispatch to chat assistant in a new session
 	const handleAskAIAboutFolder = useCallback((prompt: string) => {
-		chatPanelRef.current?.sendPrompt(prompt);
+		chatPanelRef.current?.sendPrompt(prompt, { newChat: true });
 	}, []);
 
 	// Ask AI to summarize & review a specific folder from its card menu
@@ -204,7 +204,7 @@ function WorkbenchHome() {
 											{unclassified.length} 条待整理书签
 										</span>
 									</div>
-									<p className="text-xs text-muted mt-1 leading-relaxed max-w-2xl">
+									<p className="text-xs text-muted mt-1 leading-relaxed max-w-3xl">
 										从 Chrome 扩展同步的未分类书签缓冲池。点击下方「启动
 										DeepSeek
 										一键智能分类」，将深度分析并自动生成主题文件夹入库。
@@ -282,6 +282,7 @@ function WorkbenchHome() {
 								{/* Folders Grid View */}
 								<CategoryView
 									folders={gridFolders}
+									allFolders={folders}
 									selectedFolderId={selectedFolder?.id ?? null}
 									categoryName={activeCategory}
 									folderPath={folderPath}
@@ -292,6 +293,7 @@ function WorkbenchHome() {
 									onNavigateBreadcrumb={handleNavigateToContainer}
 									onEditFolder={openEditFolderModal}
 									onDeleteFolder={handleDeleteFolderFromCard}
+									onMoveFolder={handleMoveFolder}
 									onCreateLink={openAddLinkModal}
 									onAskAIAboutFolder={handleAskAISummarizeFolder}
 								/>

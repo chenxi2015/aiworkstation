@@ -8,6 +8,7 @@ export * from "./ConfirmDialog";
 // Folder components
 export * from "./FolderCard";
 export * from "./FolderDetailPanel";
+export * from "./folder/FolderAssignMenu";
 export * from "./folder/FolderGridPreview";
 export * from "./folder/FolderHeader";
 export * from "./folder/FolderItemList";

@@ -45,6 +45,8 @@ export const chatWithBookmarks = createServerFn({ method: "POST" })
 				baseUrl?: string;
 				model?: string;
 			};
+			folderId?: number | null;
+			folderName?: string;
 		}) => data,
 	)
 	.handler(async ({ data }): Promise<RAGChatResult> => {
@@ -53,6 +55,8 @@ export const chatWithBookmarks = createServerFn({ method: "POST" })
 			history = [],
 			embeddingConfig = {},
 			llmConfig = {},
+			folderId,
+			folderName,
 		} = data;
 
 		const q = question?.trim();
@@ -60,12 +64,17 @@ export const chatWithBookmarks = createServerFn({ method: "POST" })
 			throw new Error("Question cannot be empty");
 		}
 
-		// 1. Retrieve Candidate Bookmarks from SQLite for standard RAG fallback
-		const candidateItems = workbenchDb.getAllBookmarksForSearch();
+		// 1. Retrieve Candidate Bookmarks from SQLite for standard RAG fallback (filter by folderId if specified)
+		let candidateItems = workbenchDb.getAllBookmarksForSearch();
+		if (folderId != null) {
+			candidateItems = candidateItems.filter((item) => item.folderId === folderId);
+		}
 		if (candidateItems.length === 0) {
 			return {
 				answer:
-					"你的收藏库中目前还没有书签数据，请先通过 Chrome 扩展同步或导入一些书签。",
+					folderName != null
+						? `当前文件夹「${folderName}」中暂无书签数据。`
+						: "你的收藏库中目前还没有书签数据，请先通过 Chrome 扩展同步或导入一些书签。",
 				references: [],
 				timestamp: new Date().toLocaleTimeString(),
 			};
@@ -122,12 +131,17 @@ export const chatWithBookmarks = createServerFn({ method: "POST" })
 						.join("\n\n")
 				: "（未在本地库中检索到高相关性的书签）";
 
+		const folderScopePrompt =
+			folderId != null && folderName
+				? `\n- 【当前问答限定范围】: 用户已启用【限定文件夹范围】模式，指定聚焦在文件夹「${folderName}」(ID: ${folderId})。除非用户在提问中明确要求跨文件夹或搜索全局，否则所有回答、盘点与分析请严格限制在该文件夹下的书签和资产；若调用 query_bookmarks 工具，请务必传入 folderName: "${folderName}" 或 folderId: ${folderId}。`
+				: "\n- 【当前问答范围】: 全局知识库（涵盖所有文件夹及未分类书签）。";
+
 		const systemPrompt = `你是一个内置于用户个人 AI 工作台（AI Workstation）的高级智能管家与私人知识外脑。
 你的任务是基于用户本地 SQLite 收藏库中的书签、工具、文章与素材，回答用户问题、提供深度洞察，并根据用户指令主动执行本地数据库的管理操作（如创建文件夹、整理移动书签）。
 
 【当前系统环境】:
 - 当前日期: ${dateStr} (${dayOfWeek})
-- 当前时间: ${timeStr}
+- 当前时间: ${timeStr}${folderScopePrompt}
 
 【重要能力与执行规范】:
 1. 【精准查询】：当用户询问涉及【时间范围】（例如：“我今天/本周/上周/本月/最近7天收藏了哪些网站”、“昨天添加了什么”）、【特定分类/文件夹汇总】（例如：“自媒体分类下有哪些”、“看下设计工具文件夹”）或【全量统计盘点】时，主动调用 \`query_bookmarks\` 工具从 SQLite 获取最新数据。

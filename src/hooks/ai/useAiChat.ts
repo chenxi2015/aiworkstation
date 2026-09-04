@@ -148,9 +148,33 @@ export function useAiChat(options?: UseAiChatOptions) {
 
 	// Send user prompt to LLM and retrieve RAG answer
 	const sendPrompt = useCallback(
-		async (userPrompt?: string) => {
+		async (
+			userPrompt?: string,
+			sendOptions?: {
+				newChat?: boolean;
+				folderId?: number | null;
+				folderName?: string;
+			},
+		) => {
 			const textToSend = (userPrompt || input).trim();
-			if (!textToSend || isLoading) return;
+			if (!textToSend) return;
+			if (isLoading) {
+				toast.warning("AI 正在回答中，请稍候...");
+				return;
+			}
+
+			const isNewChat = Boolean(sendOptions?.newChat);
+			let activeSessionId = currentSessionId;
+
+			if (isNewChat) {
+				if (messages.length > 0) {
+					syncSession(messages, currentSessionId);
+					toast.success("已开启新对话");
+				}
+				activeSessionId = `session_${Date.now()}`;
+				setCurrentSessionId(activeSessionId);
+				WorkbenchStorageService.clearChatHistory();
+			}
 
 			const timeStr = new Date().toLocaleTimeString([], {
 				hour: "2-digit",
@@ -163,17 +187,26 @@ export function useAiChat(options?: UseAiChatOptions) {
 				timestamp: timeStr,
 			};
 
-			setMessages((prev) => [...prev, userMsg]);
+			if (isNewChat) {
+				setMessages([userMsg]);
+				WorkbenchStorageService.saveChatHistory([userMsg]);
+			} else {
+				setMessages((prev) => [...prev, userMsg]);
+			}
+
 			if (!userPrompt) setInput("");
 			setIsLoading(true);
 			options?.onMessageSent?.();
 
 			try {
 				// Convert to ChatMessage history format (take last 8 messages)
-				const history: ChatMessage[] = messages.slice(-8).map((m) => ({
-					role: m.role,
-					content: m.content,
-				}));
+				// For new chat, pass empty history to prevent context pollution
+				const history: ChatMessage[] = isNewChat
+					? []
+					: messages.slice(-8).map((m) => ({
+							role: m.role,
+							content: m.content,
+					  }));
 
 				const settings = WorkbenchStorageService.getSettings();
 				const llmConfig = {
@@ -193,6 +226,8 @@ export function useAiChat(options?: UseAiChatOptions) {
 					history,
 					embeddingConfig,
 					llmConfig,
+					folderId: sendOptions?.folderId,
+					folderName: sendOptions?.folderName,
 				});
 
 				const assistantMsg: ChatItem = {
@@ -228,7 +263,7 @@ export function useAiChat(options?: UseAiChatOptions) {
 				setIsLoading(false);
 			}
 		},
-		[input, isLoading, messages, options],
+		[input, isLoading, messages, options, currentSessionId, syncSession],
 	);
 
 	// Update in-memory reference cards when items are moved to another folder
