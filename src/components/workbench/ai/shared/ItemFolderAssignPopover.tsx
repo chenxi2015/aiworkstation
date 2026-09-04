@@ -7,7 +7,7 @@ import {
 	Plus,
 	Search,
 } from "lucide-react";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Folder, SearchResultItem } from "../../types";
 
 export interface ItemFolderAssignPopoverProps {
@@ -50,16 +50,84 @@ export function ItemFolderAssignPopover({
 	onCreateFolderAndMove,
 }: ItemFolderAssignPopoverProps) {
 	const isOpen = Boolean(assigningItems && assigningItems.length > 0);
+	const initialItem =
+		assigningItems && assigningItems.length > 0 ? assigningItems[0] : null;
+
+	// Extract unique categories, counts, and determine default Tab
+	const { tabCategories, categoryCountMap, defaultTab } = useMemo(() => {
+		const map = new Map<string, number>();
+		let matchedCategory: string | null = null;
+
+		// Check if initialItem matches any category
+		let itemCategory = initialItem?.category?.trim();
+		if (!itemCategory && initialItem?.folderId) {
+			const parentFolder = folders.find((f) => f.id === initialItem.folderId);
+			if (parentFolder?.category) {
+				itemCategory = parentFolder.category.trim();
+			}
+		}
+
+		for (const f of folders) {
+			const rawCat = f.category?.trim();
+			const cat = !rawCat || rawCat === "未分类" ? "工作台" : rawCat;
+			map.set(cat, (map.get(cat) || 0) + 1);
+
+			if (itemCategory && cat.toLowerCase() === itemCategory.toLowerCase()) {
+				matchedCategory = cat;
+			}
+		}
+
+		// Also merge any categories from props
+		if (categories) {
+			for (const c of categories) {
+				const cat = !c || c === "未分类" ? "工作台" : c.trim();
+				if (cat && !map.has(cat)) {
+					map.set(cat, 0);
+				}
+			}
+		}
+
+		const list = ["全部", ...Array.from(map.keys())];
+		return {
+			tabCategories: list,
+			categoryCountMap: map,
+			defaultTab: matchedCategory || "全部",
+		};
+	}, [folders, categories, initialItem]);
+
+	const [activeTab, setActiveTab] = useState<string>("全部");
+
+	// Auto-select recommended or default tab when popover opens
+	useEffect(() => {
+		if (isOpen) {
+			setActiveTab(defaultTab);
+		}
+	}, [isOpen, defaultTab]);
 
 	const filteredFolders = useMemo(() => {
-		if (!folderFilterQuery.trim()) return folders;
-		const q = folderFilterQuery.toLowerCase();
-		return folders.filter(
-			(f) =>
-				f.name.toLowerCase().includes(q) ||
-				(f.category && f.category.toLowerCase().includes(q)),
-		);
-	}, [folders, folderFilterQuery]);
+		let list = folders;
+
+		// 1. Tab filter
+		if (activeTab !== "全部") {
+			list = list.filter((f) => {
+				const cat =
+					!f.category || f.category === "未分类" ? "工作台" : f.category.trim();
+				return cat === activeTab;
+			});
+		}
+
+		// 2. Query filter
+		if (folderFilterQuery.trim()) {
+			const q = folderFilterQuery.toLowerCase();
+			list = list.filter(
+				(f) =>
+					f.name.toLowerCase().includes(q) ||
+					Boolean(f.category?.toLowerCase().includes(q)),
+			);
+		}
+
+		return list;
+	}, [folders, activeTab, folderFilterQuery]);
 
 	if (!assigningItems || assigningItems.length === 0) return null;
 
@@ -185,6 +253,42 @@ export function ItemFolderAssignPopover({
 									/>
 								</div>
 
+								{/* Category Tabs */}
+								{tabCategories.length > 1 && (
+									<div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-0.5 no-scrollbar shrink-0">
+										{tabCategories.map((cat) => {
+											const count =
+												cat === "全部"
+													? folders.length
+													: categoryCountMap.get(cat) || 0;
+											const isActive = activeTab === cat;
+											return (
+												<button
+													key={cat}
+													type="button"
+													onClick={() => setActiveTab(cat)}
+													className={`text-xs px-2.5 py-1 rounded-lg font-medium whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+														isActive
+															? "bg-accent text-accent-foreground shadow-2xs font-semibold"
+															: "bg-surface-secondary/70 text-muted hover:text-foreground hover:bg-surface-secondary"
+													}`}
+												>
+													<span>{cat}</span>
+													<span
+														className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+															isActive
+																? "bg-white/20 text-white"
+																: "bg-surface text-muted border border-border/40"
+														}`}
+													>
+														{count}
+													</span>
+												</button>
+											);
+										})}
+									</div>
+								)}
+
 								{/* Folder cards list */}
 								{filteredFolders.length === 0 ? (
 									<div className="text-center py-8 text-xs text-muted flex flex-col items-center gap-2">
@@ -202,15 +306,18 @@ export function ItemFolderAssignPopover({
 								) : (
 									<div className="flex flex-col gap-1.5 max-h-[46vh] overflow-y-auto pr-0.5 scrollbar">
 										{filteredFolders.map((f) => {
-											const isCurrentSingleFolder =
-												isSingle && singleItem.folderId === f.id;
+											const isCurrentSingleFolder = Boolean(
+												isSingle && singleItem && singleItem.folderId === f.id,
+											);
 
 											return (
 												<button
 													key={f.id}
 													type="button"
 													onClick={() => onMoveToExistingFolder(f)}
-													disabled={isProcessingMove || isCurrentSingleFolder}
+													disabled={Boolean(
+														isProcessingMove || isCurrentSingleFolder,
+													)}
 													className={`p-2.5 rounded-xl border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
 														isCurrentSingleFolder
 															? "bg-surface-secondary/40 border-border opacity-60 cursor-not-allowed"
