@@ -206,6 +206,28 @@ export class WorkbenchService {
       return false;
     }
   }
+
+  /**
+   * Reveal a completed video task file in the operating system's file manager (Finder/Explorer)
+   */
+  static async revealVideoTaskFile(params: {
+    id?: string;
+    filename?: string;
+    outputPath?: string;
+  }): Promise<boolean> {
+    const baseUrl = await this.getWorkbenchUrl();
+    try {
+      const response = await fetch(`${baseUrl}/api/video-tasks/reveal`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+      });
+      const data = await response.json();
+      return !!data.success;
+    } catch {
+      return false;
+    }
+  }
 }
 
 export interface ServerVideoTaskState {

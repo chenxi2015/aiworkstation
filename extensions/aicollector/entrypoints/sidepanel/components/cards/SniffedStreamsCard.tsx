@@ -1,5 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Radar, Download, Loader2, Check, Trash2, AlertCircle, Pause, Play, X, Zap } from 'lucide-react';
+import {
+  Radar,
+  Download,
+  Loader2,
+  Check,
+  Trash2,
+  AlertCircle,
+  Pause,
+  Play,
+  X,
+  Zap,
+  FolderOpen,
+  RotateCcw,
+} from 'lucide-react';
 import type { SniffedStream } from '../../../../src/types';
 import { hlsDownloadManager, type HlsTaskState } from '../../../../src/utils/hlsDownloadManager';
 import { WorkbenchService, type ServerVideoTaskState } from '../../../../src/services/workbench';
@@ -10,14 +23,44 @@ interface SniffedStreamsCardProps {
   onClear: () => void;
 }
 
-function describeStream(url: string): { host: string; label: string } {
+function describeStream(
+  stream: SniffedStream,
+  serverTask?: ServerVideoTaskState,
+  clientTask?: HlsTaskState,
+): { title: string; host: string; rawFileName: string } {
+  let host = '';
+  let rawFileName = 'index.m3u8';
+  let pathToken = '';
+
   try {
-    const u = new URL(url);
-    const fileName = u.pathname.split('/').filter(Boolean).pop() || u.pathname;
-    return { host: u.hostname, label: decodeURIComponent(fileName) };
+    const u = new URL(stream.url);
+    host = u.hostname;
+    const parts = u.pathname.split('/').filter(Boolean);
+    const lastPart = parts[parts.length - 1];
+    if (lastPart) {
+      rawFileName = decodeURIComponent(lastPart);
+      const prevPart = parts[parts.length - 2];
+      if (prevPart) {
+        pathToken = decodeURIComponent(prevPart);
+      }
+    }
   } catch {
-    return { host: '', label: url };
+    // Keep defaults
   }
+
+  // Find most descriptive, human-readable video title
+  const candidate =
+    serverTask?.pageTitle?.trim() ||
+    stream.pageTitle?.trim() ||
+    serverTask?.filename?.replace(/\.mp4$/i, '').trim() ||
+    clientTask?.filename?.replace(/\.mp4$/i, '').trim();
+
+  let title = candidate || '';
+  if (!title || title.toLowerCase() === 'video' || title.toLowerCase() === 'untitled') {
+    title = pathToken ? `${pathToken} · ${rawFileName}` : rawFileName;
+  }
+
+  return { title, host, rawFileName };
 }
 
 function formatTime(timestamp: number): string {
@@ -79,10 +122,10 @@ export const SniffedStreamsCard: React.FC<SniffedStreamsCardProps> = ({
 
   const handleStart = async (stream: SniffedStream) => {
     if (isWorkbenchOnline) {
-      const { label } = describeStream(stream.url);
+      const { title, rawFileName } = describeStream(stream, serverTasks[stream.url], downloadStates[stream.url]);
       const res = await WorkbenchService.submitVideoTask({
         url: stream.url,
-        pageTitle: stream.pageTitle || label,
+        pageTitle: title || stream.pageTitle || rawFileName,
         pageUrl: stream.pageUrl,
       });
       if (res.success && res.task) {
@@ -103,6 +146,29 @@ export const SniffedStreamsCard: React.FC<SniffedStreamsCardProps> = ({
       setServerTasks(map);
     }
     hlsDownloadManager.cancel(streamUrl);
+  };
+
+  const handleView = async (stream: SniffedStream) => {
+    const serverTask = serverTasks[stream.url];
+    const clientTask = downloadStates[stream.url];
+    const filename = serverTask?.filename || clientTask?.filename;
+    const outputPath = serverTask?.outputPath;
+
+    if (isWorkbenchOnline) {
+      const ok = await WorkbenchService.revealVideoTaskFile({
+        id: serverTask?.id,
+        filename,
+        outputPath,
+      });
+      if (ok) return;
+    }
+
+    // Fallback: open chrome downloads page
+    try {
+      chrome.tabs.create({ url: 'chrome://downloads' });
+    } catch {
+      window.open('chrome://downloads', '_blank');
+    }
   };
 
   return (
@@ -143,7 +209,7 @@ export const SniffedStreamsCard: React.FC<SniffedStreamsCardProps> = ({
           const filename = useServer ? serverTask?.filename : clientTask?.filename;
           const warning = clientTask?.warning;
 
-          const { host, label } = describeStream(stream.url);
+          const { title: displayTitle, host, rawFileName } = describeStream(stream, serverTask, clientTask);
 
           return (
             <div key={stream.url} className="px-3 py-2 flex flex-col gap-1.5">
@@ -153,8 +219,11 @@ export const SniffedStreamsCard: React.FC<SniffedStreamsCardProps> = ({
                 </span>
                 <div className="flex flex-col min-w-0 flex-1">
                   <div className="flex items-center gap-1 min-w-0">
-                    <span className="text-[11px] text-foreground truncate" title={stream.url}>
-                      {label}
+                    <span
+                      className="text-[11px] font-medium text-foreground truncate"
+                      title={`${displayTitle}\n${stream.url}`}
+                    >
+                      {displayTitle}
                     </span>
                     {status === 'paused' && (
                       <span className="shrink-0 text-[9px] px-1 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-medium">
@@ -172,11 +241,13 @@ export const SniffedStreamsCard: React.FC<SniffedStreamsCardProps> = ({
                       </span>
                     )}
                   </div>
-                  <span className="text-[10px] text-muted/70 truncate">
-                    {host}
-                    {stream.bestResolution ? ` · 最高 ${stream.bestResolution}` : ''}
-                    {stream.hasAudio ? ' · 视频+音轨' : ''}
-                    {stream.detectedAt ? ` · ${formatTime(stream.detectedAt)}` : ''}
+                  <span className="text-[10px] text-muted/70 truncate flex items-center gap-1">
+                    <span className="font-mono text-[9px] opacity-75">{rawFileName}</span>
+                    <span>·</span>
+                    <span>{host}</span>
+                    {stream.bestResolution ? <span>· 最高 {stream.bestResolution}</span> : null}
+                    {stream.hasAudio ? <span>· 音视频</span> : null}
+                    {stream.detectedAt ? <span>· {formatTime(stream.detectedAt)}</span> : null}
                   </span>
                 </div>
 
@@ -224,15 +295,26 @@ export const SniffedStreamsCard: React.FC<SniffedStreamsCardProps> = ({
                       <span>{useServer ? '原生合成...' : '合成 MP4...'}</span>
                     </div>
                   ) : status === 'done' ? (
-                    <button
-                      type="button"
-                      onClick={() => handleStart(stream)}
-                      title={`已完成: ${filename || ''}（点击可重新下载）`}
-                      className="h-6 px-2 rounded-md flex items-center gap-1 text-[10px] font-medium bg-success/10 text-success border border-success/20 transition-all cursor-pointer hover:bg-success/20"
-                    >
-                      <Check className="w-3 h-3" />
-                      <span>{useServer ? '已存入Downloads' : '已下载'}</span>
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleView(stream)}
+                        title={filename ? `在访达/文件夹中查看: ${filename}` : '查看已下载文件'}
+                        className="h-6 px-2 rounded-md flex items-center gap-1 text-[10px] font-medium bg-success/10 text-success border border-success/20 transition-all cursor-pointer hover:bg-success/20"
+                      >
+                        <FolderOpen className="w-3 h-3" />
+                        <span>查看</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleStart(stream)}
+                        title="重新下载"
+                        aria-label="重新下载"
+                        className="h-6 w-6 rounded-md flex items-center justify-center text-muted hover:text-foreground hover:bg-surface-tertiary border border-border/50 transition-colors cursor-pointer"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                      </button>
+                    </div>
                   ) : status === 'error' ? (
                     <button
                       type="button"

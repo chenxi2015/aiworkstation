@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { readJsonBody, sendJson } from '../utils.ts';
-import { CreateVideoTaskSchema, CancelVideoTaskSchema } from '../schemas.ts';
+import { CreateVideoTaskSchema, CancelVideoTaskSchema, RevealVideoTaskSchema } from '../schemas.ts';
 
 /**
  * Handles /api/video-tasks endpoints with Zod validation
@@ -21,6 +21,18 @@ export async function handleVideoTasksRequest(
   if (req.method === 'POST') {
     try {
       const rawBody = await readJsonBody(req);
+
+      // Handle file reveal endpoint in OS file manager
+      if (pathname === '/api/video-tasks/reveal') {
+        const parsed = RevealVideoTaskSchema.safeParse(rawBody);
+        if (!parsed.success) {
+          sendJson(res, { success: false, error: parsed.error.issues[0]?.message || '查看文件参数校验失败' }, 400);
+          return;
+        }
+        const ok = videoDownloadManager.revealTaskFile(parsed.data);
+        sendJson(res, { success: ok, error: ok ? undefined : '未找到已完成的视频文件或文件已被移动' });
+        return;
+      }
 
       // Handle cancellation endpoint
       if (pathname === '/api/video-tasks/cancel') {

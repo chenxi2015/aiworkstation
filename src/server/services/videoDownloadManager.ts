@@ -1,4 +1,6 @@
-import { existsSync, mkdirSync, createWriteStream, createReadStream, rmSync, renameSync } from 'node:fs';
+import { promises as fs, existsSync, mkdirSync, createWriteStream, createReadStream } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { createDecipheriv } from 'node:crypto';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { remuxTsToMp4, muxDualTracksToMp4 } from './nativeFfmpeg.ts';
@@ -20,6 +22,17 @@ export interface ServerVideoTask {
   completedAt?: number;
 }
 
+export interface SegmentCryptoInfo {
+  method: 'AES-128';
+  keyUrl: string;
+  iv: Buffer;
+}
+
+export interface VideoSegmentItem {
+  url: string;
+  crypto?: SegmentCryptoInfo;
+}
+
 function sanitizeFilename(name: string): string {
   const cleaned = name
     .replace(/[\\/:*?"<>|#\s]+/g, '_')
@@ -37,6 +50,27 @@ async function fetchText(url: string, headers?: Record<string, string>): Promise
   const res = await fetch(url, { headers });
   if (!res.ok) throw new Error(`请求播放列表失败 (HTTP ${res.status}): ${url}`);
   return await res.text();
+}
+
+const keyCache = new Map<string, Promise<Buffer>>();
+
+function fetchKeyCached(
+  url: string,
+  headers?: Record<string, string>,
+  signal?: AbortSignal,
+): Promise<Buffer> {
+  const cached = keyCache.get(url);
+  if (cached) return cached;
+
+  const promise = (async () => {
+    const res = await fetch(url, { headers, signal });
+    if (!res.ok) throw new Error(`获取解密密钥失败 (HTTP ${res.status}): ${url}`);
+    const ab = await res.arrayBuffer();
+    return Buffer.from(ab);
+  })();
+
+  keyCache.set(url, promise);
+  return promise;
 }
 
 function parseMasterPlaylist(text: string, baseUrl: string): { url: string; bandwidth: number; audioGroup?: string }[] {
@@ -79,55 +113,152 @@ function parseAudioPlaylistUrl(text: string, baseUrl: string, targetAudioGroup?:
   return null;
 }
 
-function parseMediaPlaylist(text: string, baseUrl: string): { segments: string[]; isFmp4: boolean } {
-  const segments: string[] = [];
+function parseMediaPlaylist(text: string, baseUrl: string): { segments: VideoSegmentItem[]; isFmp4: boolean } {
+  const segments: VideoSegmentItem[] = [];
   let isFmp4 = false;
+
+  let currentCrypto: { method: string; keyUrl: string; rawIv?: string } | null = null;
+  let mediaSequence = 0;
 
   for (const raw of text.split('\n')) {
     const line = raw.trim();
     if (!line) continue;
 
+    if (line.startsWith('#EXT-X-MEDIA-SEQUENCE:')) {
+      const match = line.match(/#EXT-X-MEDIA-SEQUENCE:(\d+)/);
+      if (match?.[1]) {
+        mediaSequence = parseInt(match[1], 10);
+      }
+      continue;
+    }
+
+    if (line.startsWith('#EXT-X-KEY:')) {
+      const methodMatch = line.match(/METHOD=([^,\s]+)/);
+      const method = methodMatch?.[1]?.toUpperCase();
+
+      if (!method || method === 'NONE') {
+        currentCrypto = null;
+      } else if (method === 'AES-128') {
+        const uriMatch = line.match(/URI="([^"]+)"/) || line.match(/URI=([^,\s]+)/);
+        if (uriMatch?.[1]) {
+          const ivMatch = line.match(/IV=(0x[0-9a-fA-F]+)/i);
+          currentCrypto = {
+            method: 'AES-128',
+            keyUrl: resolveUrl(uriMatch[1], baseUrl),
+            rawIv: ivMatch?.[1],
+          };
+        }
+      }
+      continue;
+    }
+
     if (line.startsWith('#EXT-X-MAP')) {
       const uriMatch = line.match(/URI="([^"]+)"/);
       if (uriMatch?.[1]) {
         isFmp4 = true;
-        segments.unshift(resolveUrl(uriMatch[1], baseUrl));
+        segments.unshift({
+          url: resolveUrl(uriMatch[1], baseUrl),
+        });
       }
       continue;
     }
 
     if (line.startsWith('#')) continue;
-    segments.push(resolveUrl(line, baseUrl));
+
+    const segSeq = mediaSequence + segments.length;
+    let segCrypto: SegmentCryptoInfo | undefined;
+
+    if (currentCrypto && currentCrypto.method === 'AES-128') {
+      let ivBuf: Buffer;
+      if (currentCrypto.rawIv) {
+        const hex = currentCrypto.rawIv.slice(2).padStart(32, '0');
+        ivBuf = Buffer.from(hex, 'hex');
+      } else {
+        ivBuf = Buffer.alloc(16);
+        ivBuf.writeBigUInt64BE(BigInt(segSeq), 8);
+      }
+
+      segCrypto = {
+        method: 'AES-128',
+        keyUrl: currentCrypto.keyUrl,
+        iv: ivBuf,
+      };
+    }
+
+    segments.push({
+      url: resolveUrl(line, baseUrl),
+      crypto: segCrypto,
+    });
   }
 
   return { segments, isFmp4 };
 }
 
+/**
+ * Downloads a single segment to disk with timeout, retries, and atomic fs.writeFile.
+ * Transparently decrypts AES-128 encrypted HLS chunks.
+ */
 async function downloadSegmentToFile(
-  url: string,
+  segment: VideoSegmentItem,
   destPath: string,
   headers?: Record<string, string>,
   signal?: AbortSignal,
+  retries = 3,
 ): Promise<void> {
-  const res = await fetch(url, { headers, signal });
-  if (!res.ok) throw new Error(`分片下载失败 (HTTP ${res.status}): ${url}`);
-  const arrayBuffer = await res.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
+  let lastErr: any;
 
-  const fileStream = createWriteStream(destPath);
-  await new Promise<void>((resolve, reject) => {
-    fileStream.write(buffer, (err) => {
-      if (err) return reject(err);
-      fileStream.end(resolve);
-    });
-  });
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    if (signal?.aborted) throw new Error('Download aborted');
+    if (attempt > 0) {
+      await new Promise((r) => setTimeout(r, 500 * attempt));
+    }
+
+    const timeoutCtrl = new AbortController();
+    const timer = setTimeout(() => timeoutCtrl.abort(), 25000);
+
+    const onParentAbort = () => timeoutCtrl.abort();
+    signal?.addEventListener('abort', onParentAbort);
+
+    try {
+      const res = await fetch(segment.url, { headers, signal: timeoutCtrl.signal });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const arrayBuffer = await res.arrayBuffer();
+      let buffer = Buffer.from(arrayBuffer);
+
+      if (segment.crypto && segment.crypto.method === 'AES-128') {
+        const keyBuf = await fetchKeyCached(segment.crypto.keyUrl, headers, signal);
+        const decipher = createDecipheriv('aes-128-cbc', keyBuf, segment.crypto.iv);
+        decipher.setAutoPadding(true);
+        try {
+          buffer = Buffer.concat([decipher.update(buffer), decipher.final()]);
+        } catch {
+          const fallback = createDecipheriv('aes-128-cbc', keyBuf, segment.crypto.iv);
+          fallback.setAutoPadding(false);
+          buffer = Buffer.concat([fallback.update(buffer), fallback.final()]);
+        }
+      }
+
+      // Atomic write without unhandled stream error events
+      await fs.writeFile(destPath, buffer);
+      return;
+    } catch (err: any) {
+      lastErr = err;
+      if (signal?.aborted) throw err;
+    } finally {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onParentAbort);
+    }
+  }
+
+  throw new Error(`分片下载失败 (${lastErr?.message || '未知错误'}): ${segment.url}`);
 }
 
 /**
- * Downloads segments sequentially or with concurrency, streaming directly to disk
+ * Downloads segments with bounded concurrency, robust error containment and graceful abort.
  */
 async function downloadTrackSegments(
-  segments: string[],
+  segments: VideoSegmentItem[],
   tempDir: string,
   trackPrefix: string,
   headers: Record<string, string> | undefined,
@@ -137,47 +268,83 @@ async function downloadTrackSegments(
 ): Promise<string[]> {
   const downloadedFiles: string[] = new Array(segments.length);
   let cursor = 0;
+  let firstError: Error | null = null;
 
   const worker = async () => {
     while (true) {
-      if (signal.aborted) throw new Error('Download aborted by user');
+      if (signal.aborted || firstError) return;
       const index = cursor++;
       if (index >= segments.length) return;
 
-      const segUrl = segments[index];
+      const segment = segments[index];
       const segFile = join(tempDir, `${trackPrefix}_${String(index).padStart(6, '0')}.seg`);
-      await downloadSegmentToFile(segUrl, segFile, headers, signal);
-      downloadedFiles[index] = segFile;
-      onProgress();
+
+      try {
+        await downloadSegmentToFile(segment, segFile, headers, signal);
+        downloadedFiles[index] = segFile;
+        onProgress();
+      } catch (err: any) {
+        if (!firstError && !signal.aborted) {
+          firstError = err instanceof Error ? err : new Error(String(err));
+        }
+        return;
+      }
     }
   };
 
   const pool = Array.from({ length: Math.min(concurrency, segments.length) }, () => worker());
-  await Promise.all(pool);
+  // Wait for all workers to gracefully complete/exit before proceeding
+  await Promise.allSettled(pool);
+
+  if (firstError) {
+    throw firstError;
+  }
+  if (signal.aborted) {
+    throw new Error('Download aborted by user');
+  }
+
   return downloadedFiles;
 }
 
 /**
- * Concatenate multiple segment files on disk into one combined file without memory overhead
+ * Concatenate multiple segment files on disk into one combined file without memory overhead.
+ * Explicitly guards stream errors to prevent crashing the Node process.
  */
 function concatFilesOnDisk(files: string[], targetPath: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const outStream = createWriteStream(targetPath);
     let index = 0;
+    let isSettled = false;
+
+    const cleanupAndReject = (err: Error) => {
+      if (isSettled) return;
+      isSettled = true;
+      outStream.destroy();
+      reject(err);
+    };
+
+    outStream.on('error', cleanupAndReject);
 
     function next() {
+      if (isSettled) return;
       if (index >= files.length) {
+        isSettled = true;
         outStream.end(resolve);
         return;
       }
+
       const file = files[index++];
+      if (!file || !existsSync(file)) {
+        cleanupAndReject(new Error(`分片临时文件缺失: ${file}`));
+        return;
+      }
+
       const inStream = createReadStream(file);
+      inStream.on('error', cleanupAndReject);
       inStream.pipe(outStream, { end: false });
       inStream.on('end', next);
-      inStream.on('error', reject);
     }
 
-    outStream.on('error', reject);
     next();
   });
 }
@@ -218,6 +385,43 @@ export class VideoDownloadManager {
     return true;
   }
 
+  /**
+   * Reveal or select the downloaded video file in the host operating system file manager
+   */
+  public revealTaskFile(params: { id?: string; filename?: string; outputPath?: string }): boolean {
+    let filePath = params.outputPath;
+
+    if (!filePath && params.id) {
+      const task = this.tasks.get(params.id);
+      if (task?.outputPath) {
+        filePath = task.outputPath;
+      } else if (task?.filename) {
+        filePath = join(homedir(), 'Downloads', task.filename);
+      }
+    }
+
+    if (!filePath && params.filename) {
+      filePath = join(homedir(), 'Downloads', params.filename);
+    }
+
+    if (!filePath || !existsSync(filePath)) {
+      return false;
+    }
+
+    try {
+      if (process.platform === 'darwin') {
+        spawn('open', ['-R', filePath], { detached: true, stdio: 'ignore' }).unref();
+      } else if (process.platform === 'win32') {
+        spawn('explorer.exe', ['/select,', filePath], { detached: true, stdio: 'ignore' }).unref();
+      } else {
+        spawn('xdg-open', [join(filePath, '..')], { detached: true, stdio: 'ignore' }).unref();
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   public createTask(params: {
     url: string;
     pageTitle: string;
@@ -237,7 +441,10 @@ export class VideoDownloadManager {
     };
 
     this.tasks.set(id, task);
-    this.startTask(task);
+    // Fire and forget, errors are caught inside startTask
+    this.startTask(task).catch((err) => {
+      console.error(`[VideoDownloadManager] Unhandled task error for ${id}:`, err);
+    });
     return task;
   }
 
@@ -283,7 +490,7 @@ export class VideoDownloadManager {
       const { segments: videoSegments, isFmp4 } = parseMediaPlaylist(mediaText, mediaPlaylistUrl);
       if (videoSegments.length === 0) throw new Error('未解析到任何视频切片');
 
-      let audioSegments: string[] = [];
+      let audioSegments: VideoSegmentItem[] = [];
       if (audioPlaylistUrl) {
         const audioText = await fetchText(audioPlaylistUrl, baseHeaders);
         const parsedAudio = parseMediaPlaylist(audioText, audioPlaylistUrl);
@@ -349,7 +556,7 @@ export class VideoDownloadManager {
         if (!remuxRes.success) throw new Error(remuxRes.error || 'FFmpeg TS转MP4合成失败');
       } else {
         // Native fMP4 stream without separate audio track
-        renameSync(combinedVideoPath, outputMp4Path);
+        await fs.rename(combinedVideoPath, outputMp4Path);
       }
 
       task.status = 'done';
@@ -365,14 +572,16 @@ export class VideoDownloadManager {
       }
     } finally {
       this.abortControllers.delete(task.id);
-      // Clean up temporary disk segments
-      try {
-        if (existsSync(tempDir)) {
-          rmSync(tempDir, { recursive: true, force: true });
+      // Wait a moment and cleanly remove temp directory
+      setTimeout(async () => {
+        try {
+          if (existsSync(tempDir)) {
+            await fs.rm(tempDir, { recursive: true, force: true });
+          }
+        } catch {
+          // Ignore temp cleanup error
         }
-      } catch {
-        // Ignore cleanup errors
-      }
+      }, 3000);
     }
   }
 }

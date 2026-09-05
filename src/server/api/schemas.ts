@@ -21,6 +21,19 @@ export const CancelVideoTaskSchema = z.object({
 export type CancelVideoTaskInput = z.infer<typeof CancelVideoTaskSchema>;
 
 /**
+ * Schema for revealing a completed video task file in OS file explorer
+ */
+export const RevealVideoTaskSchema = z.object({
+  id: z.string().optional(),
+  filename: z.string().optional(),
+  outputPath: z.string().optional(),
+}).refine((data) => data.id || data.filename || data.outputPath, {
+  message: 'id、filename 或 outputPath 至少提供一个',
+});
+
+export type RevealVideoTaskInput = z.infer<typeof RevealVideoTaskSchema>;
+
+/**
  * Schema for individual bookmark items
  */
 export const BookmarkItemSchema = z.object({
