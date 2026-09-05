@@ -26,7 +26,7 @@ const VALID_ITEM_TYPES: ItemType[] = ["tool", "link", "doc", "skill", "note"];
  * stripping reasoning tags (<think>...</think>) and repairing malformed JSON
  */
 export function extractAndParseJSON(raw: unknown): unknown {
-	if (!raw) {
+	if (raw === null || raw === undefined || raw === "") {
 		throw new Error("Empty response from AI model");
 	}
 	if (typeof raw === "object") {

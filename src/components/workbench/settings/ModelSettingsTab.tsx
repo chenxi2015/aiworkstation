@@ -30,6 +30,7 @@ export interface ModelSettingsFormData {
 	baseUrl: string;
 	model: string;
 	batchSize: string;
+	concurrency: string;
 	embeddingProvider: string;
 	embeddingApiKey: string;
 	embeddingBaseUrl: string;
@@ -313,21 +314,37 @@ export function ModelSettingsTab({
 					)}
 				</div>
 
-				{/* Batch Size */}
-				<TextField
-					value={data.batchSize}
-					onChange={(val) => onChange("batchSize", val)}
-					className="min-w-0"
-				>
-					<Label>单批处理数量 (Batch Size)</Label>
-					<Input
-						type="number"
-						min={1}
-						max={50}
-						placeholder="15"
-						variant="secondary"
-					/>
-				</TextField>
+				{/* Batch Size + Concurrency */}
+				<div className="grid grid-cols-2 gap-3">
+					<TextField
+						value={data.batchSize}
+						onChange={(val) => onChange("batchSize", val)}
+						className="min-w-0"
+					>
+						<Label>单批数量 (Batch Size)</Label>
+						<Input
+							type="number"
+							min={1}
+							max={50}
+							placeholder="15"
+							variant="secondary"
+						/>
+					</TextField>
+					<TextField
+						value={data.concurrency}
+						onChange={(val) => onChange("concurrency", val)}
+						className="min-w-0"
+					>
+						<Label>并发线程数 (Concurrency)</Label>
+						<Input
+							type="number"
+							min={1}
+							max={10}
+							placeholder="2"
+							variant="secondary"
+						/>
+					</TextField>
+				</div>
 			</div>
 
 			{/* Section 2: Embedding / RAG Settings */}

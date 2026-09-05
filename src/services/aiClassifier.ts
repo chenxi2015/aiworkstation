@@ -155,7 +155,10 @@ export class AIClassifierService {
 		}
 
 		const batchSize = effectiveSettings.batchSize || 15;
-		const concurrency = Math.max(1, options.concurrency || 3);
+		const concurrency = Math.max(
+			1,
+			effectiveSettings.concurrency || options.concurrency || 2,
+		);
 		const total = bookmarks.length;
 		const totalChunks = Math.ceil(total / batchSize);
 

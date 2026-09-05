@@ -20,6 +20,7 @@ export const DEFAULT_SETTINGS: WorkbenchSettings = {
 	baseUrl: DEFAULT_LLM_BASE_URL,
 	model: DEFAULT_LLM_MODEL,
 	batchSize: 15,
+	concurrency: 2,
 	llmProvider: "deepseek",
 	embeddingApiKey: "",
 	embeddingBaseUrl: DEFAULT_EMBEDDING_BASE_URL,

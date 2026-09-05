@@ -73,6 +73,8 @@ export interface WorkbenchSettings {
 	baseUrl: string;
 	model: string;
 	batchSize: number;
+	// Max concurrent AI batch requests (to avoid rate limiting)
+	concurrency: number;
 	// LLM provider preset id (deepseek / kimi / glm / openai / claude / custom)
 	llmProvider?: string;
 	// Embedding API Settings for RAG & Semantic Search

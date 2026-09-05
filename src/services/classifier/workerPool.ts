@@ -109,9 +109,11 @@ export async function runBatchWorkerPool<TInput, TOutput>(
 					break;
 				} catch (err: unknown) {
 					const errorObj = err instanceof Error ? err : new Error(String(err));
-					lastError = errorObj;
-					if (signal?.aborted) break;
 
+					// AbortError means user cancelled or timeout — skip retries and fallback
+					if (signal?.aborted || errorObj.name === "AbortError") break;
+
+					lastError = errorObj;
 					onLog?.(
 						`[Worker #${workerId}] ⚠️ 第 ${chunkIndex + 1} 批遇到波动: ${errorObj.message}，正在重试 (${attempt}/${maxRetries})...`,
 					);

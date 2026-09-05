@@ -34,6 +34,7 @@ const INITIAL_FORM_DATA: ModelSettingsFormData = {
 	baseUrl: "",
 	model: "",
 	batchSize: "15",
+	concurrency: "2",
 	embeddingProvider: "siliconflow",
 	embeddingApiKey: "",
 	embeddingBaseUrl: "",
@@ -85,6 +86,7 @@ export function SettingsModal({
 			baseUrl: currentBaseUrl,
 			model: currentModel,
 			batchSize: String(settings.batchSize || 15),
+			concurrency: String(settings.concurrency || 2),
 			embeddingProvider: currentEmbProvider,
 			embeddingApiKey: settings.embeddingApiKey || "",
 			embeddingBaseUrl: currentEmbBaseUrl,
@@ -137,6 +139,10 @@ export function SettingsModal({
 			batchSize: Math.max(
 				1,
 				Math.min(50, Number.parseInt(formData.batchSize, 10) || 15),
+			),
+			concurrency: Math.max(
+				1,
+				Math.min(10, Number.parseInt(formData.concurrency, 10) || 2),
 			),
 			llmProvider: formData.llmProvider,
 			embeddingApiKey: formData.embeddingApiKey.trim(),
