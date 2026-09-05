@@ -48,7 +48,7 @@ export interface HlsDownloadOptions {
 const PLAYLIST_FETCH_TIMEOUT_MS = 15000;
 const SEGMENT_FETCH_TIMEOUT_MS = 30000;
 
-async function fetchText(url: string, signal?: AbortSignal): Promise<string> {
+export async function fetchText(url: string, signal?: AbortSignal): Promise<string> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), PLAYLIST_FETCH_TIMEOUT_MS);
   const onAbort = () => controller.abort();
@@ -63,7 +63,7 @@ async function fetchText(url: string, signal?: AbortSignal): Promise<string> {
   }
 }
 
-function resolveUrl(maybeRelative: string, baseUrl: string): string {
+export function resolveUrl(maybeRelative: string, baseUrl: string): string {
   return new URL(maybeRelative.trim(), baseUrl).href;
 }
 
@@ -201,13 +201,43 @@ async function fetchSegment(
   throw lastError instanceof Error ? lastError : new Error('分片下载失败');
 }
 
-function sanitizeFilename(name: string): string {
+export function sanitizeFilename(name: string): string {
   const cleaned = name
     .replace(/[\\/:*?"<>|#\s]+/g, '_')
     .replace(/_+/g, '_')
     .replace(/^_+|_+$/g, '')
     .slice(0, 60);
   return cleaned || 'video';
+}
+
+/**
+ * Resumable segment downloader: downloads only null slots in buffers array,
+ * allowing pause (via AbortSignal) and resuming without refetching done segments.
+ */
+export async function downloadSegmentsResumable(
+  segments: string[],
+  buffers: (ArrayBuffer | null)[],
+  signal: AbortSignal | undefined,
+  concurrency: number,
+  onSegmentDone: () => void,
+): Promise<void> {
+  let cursor = 0;
+
+  const worker = async () => {
+    while (true) {
+      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+      const index = cursor++;
+      if (index >= segments.length) return;
+      if (buffers[index] !== null) continue; // Already downloaded
+      const segmentUrl = segments[index];
+      if (!segmentUrl) continue;
+      buffers[index] = await fetchSegment(segmentUrl, signal);
+      onSegmentDone();
+    }
+  };
+
+  const workerCount = Math.max(1, Math.min(concurrency, segments.length));
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
 }
 
 /**
@@ -221,22 +251,7 @@ async function downloadSegments(
   onSegmentDone: () => void,
 ): Promise<ArrayBuffer[]> {
   const buffers: (ArrayBuffer | null)[] = new Array(segments.length).fill(null);
-  let cursor = 0;
-
-  const worker = async () => {
-    while (true) {
-      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-      const index = cursor++;
-      if (index >= segments.length) return;
-      const segmentUrl = segments[index];
-      if (!segmentUrl) return;
-      buffers[index] = await fetchSegment(segmentUrl, signal);
-      onSegmentDone();
-    }
-  };
-
-  const workerCount = Math.max(1, Math.min(concurrency, segments.length));
-  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  await downloadSegmentsResumable(segments, buffers, signal, concurrency, onSegmentDone);
 
   const parts = buffers.filter((b): b is ArrayBuffer => b !== null);
   if (parts.length !== segments.length) {
@@ -245,11 +260,11 @@ async function downloadSegments(
   return parts;
 }
 
-function mergeParts(parts: ArrayBuffer[], mimeType: string): Blob {
+export function mergeParts(parts: ArrayBuffer[], mimeType: string): Blob {
   return new Blob(parts, { type: mimeType });
 }
 
-function concatParts(parts: ArrayBuffer[]): Uint8Array {
+export function concatParts(parts: ArrayBuffer[]): Uint8Array {
   const total = parts.reduce((sum, p) => sum + p.byteLength, 0);
   const merged = new Uint8Array(total);
   let offset = 0;
@@ -260,7 +275,7 @@ function concatParts(parts: ArrayBuffer[]): Uint8Array {
   return merged;
 }
 
-async function saveBlob(blob: Blob, filename: string): Promise<void> {
+export async function saveBlob(blob: Blob, filename: string): Promise<void> {
   const objectUrl = URL.createObjectURL(blob);
   try {
     await chrome.downloads.download({
@@ -326,7 +341,7 @@ export async function fetchHlsStream(
 
   const { segments, container } = parseMediaPlaylist(mediaText, mediaPlaylistUrl);
 
-  // Fast path: no separate audio track, keep original container
+  // Fast path: no separate audio track
   if (!audioPlaylistUrl) {
     let done = 0;
     const parts = await downloadSegments(segments, signal, concurrency, () => {
@@ -339,8 +354,39 @@ export async function fetchHlsStream(
       });
     });
 
-    const mimeType = container === 'mp4' ? 'video/mp4' : 'video/mp2t';
-    return { blob: mergeParts(parts, mimeType), extension: container };
+    if (container === 'mp4') {
+      return { blob: mergeParts(parts, 'video/mp4'), extension: 'mp4' };
+    }
+
+    // Remux TS to MP4 via ffmpeg
+    onProgress?.({ done: segments.length, total: segments.length, percent: 100, phase: 'muxing' });
+    const totalBytes = parts.reduce((sum, p) => sum + p.byteLength, 0);
+    const MAX_WASM_SAFE_BYTES = 1200 * 1024 * 1024; // 1.2 GB safe limit for browser WASM
+
+    if (totalBytes > MAX_WASM_SAFE_BYTES) {
+      return {
+        blob: mergeParts(parts, 'video/mp2t'),
+        extension: 'ts',
+        warning: '视频体积较大，为防浏览器内存溢出已保存无损 TS 格式',
+      };
+    }
+
+    try {
+      const videoBytes = concatParts(parts);
+      const { muxToMp4 } = await import('./ffmpegMuxer');
+      const mp4 = await muxToMp4(videoBytes);
+      return {
+        blob: new Blob([mp4 as unknown as BlobPart], { type: 'video/mp4' }),
+        extension: 'mp4',
+      };
+    } catch (err) {
+      console.warn('[AI Collector] Single TS remux failed, fallback to TS:', err);
+      return {
+        blob: mergeParts(parts, 'video/mp2t'),
+        extension: 'ts',
+        warning: '转封装 MP4 失败，已保存原始 TS 格式',
+      };
+    }
   }
 
   // Split A/V path: fetch both playlists, then mux into MP4

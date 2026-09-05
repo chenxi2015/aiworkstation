@@ -54,8 +54,8 @@ export async function muxToMp4(
     }
 
     const args = audioData
-      ? ['-i', videoName, '-i', audioName, '-c', 'copy', '-shortest', outName]
-      : ['-i', videoName, '-c', 'copy', outName];
+      ? ['-i', videoName, '-i', audioName, '-c', 'copy', '-shortest', '-movflags', '+faststart', outName]
+      : ['-i', videoName, '-c', 'copy', '-movflags', '+faststart', outName];
 
     await ffmpeg.run(...args);
     return ffmpeg.FS('readFile', outName);

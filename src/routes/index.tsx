@@ -197,6 +197,7 @@ function WorkbenchHome() {
 					onOpenSync={() => setIsSyncModalOpen(true)}
 					onOpenCreateFolder={openCreateFolderModal}
 					onOpenSettings={() => setIsSettingsModalOpen(true)}
+					onOpenAIClassifyTask={() => setIsAIClassifyModalOpen(true)}
 				/>
 
 				{/* Main Workspace Layout (Left: Folder Details | Center: Grid | Right: Resident AI Search Hub) */}

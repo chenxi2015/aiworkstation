@@ -147,4 +147,81 @@ export class WorkbenchService {
       };
     }
   }
+
+  /**
+   * Submit an HLS video download & remux task to local workstation
+   */
+  static async submitVideoTask(stream: {
+    url: string;
+    pageTitle?: string;
+    pageUrl?: string;
+  }): Promise<{ success: boolean; task?: ServerVideoTaskState; error?: string }> {
+    const baseUrl = await this.getWorkbenchUrl();
+    try {
+      const response = await fetch(`${baseUrl}/api/video-tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: stream.url,
+          pageTitle: stream.pageTitle || 'video',
+          pageUrl: stream.pageUrl,
+        }),
+      });
+      const data = await response.json();
+      return data;
+    } catch (err: any) {
+      return { success: false, error: err?.message || '无法连接本地工作台服务' };
+    }
+  }
+
+  /**
+   * Fetch all active video download tasks from local workstation
+   */
+  static async getVideoTasks(): Promise<ServerVideoTaskState[]> {
+    const baseUrl = await this.getWorkbenchUrl();
+    try {
+      const response = await fetch(`${baseUrl}/api/video-tasks`);
+      if (!response.ok) return [];
+      const data = await response.json();
+      return Array.isArray(data.tasks) ? data.tasks : [];
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Cancel an active video task on local workstation
+   */
+  static async cancelVideoTask(id: string): Promise<boolean> {
+    const baseUrl = await this.getWorkbenchUrl();
+    try {
+      const response = await fetch(`${baseUrl}/api/video-tasks/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      const data = await response.json();
+      return !!data.success;
+    } catch {
+      return false;
+    }
+  }
 }
+
+export interface ServerVideoTaskState {
+  id: string;
+  url: string;
+  pageTitle: string;
+  pageUrl?: string;
+  status: 'pending' | 'downloading' | 'muxing' | 'done' | 'error' | 'cancelled';
+  percent: number;
+  doneSegments: number;
+  totalSegments: number;
+  phase?: 'downloading' | 'muxing';
+  outputPath?: string;
+  filename?: string;
+  error?: string;
+  createdAt: number;
+  completedAt?: number;
+}
+

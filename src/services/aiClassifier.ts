@@ -50,11 +50,13 @@ export class AIClassifierService {
 		existingCategories: string[],
 		existingFolders: Array<{ name: string; category: string }>,
 		settings: Partial<WorkbenchSettings>,
-		_signal?: AbortSignal,
+		signal?: AbortSignal,
 	): Promise<AIClassificationResult[]> {
 		// Delegate to Server Function — LLM call runs in Node.js, away from browser extension interference
+		// Pass the AbortSignal through so 「终止分析」cancels in-flight HTTP requests immediately
 		return classifyBatchServer({
 			data: { batch, existingCategories, existingFolders, settings },
+			signal,
 		});
 	}
 

@@ -8,12 +8,16 @@ import {
 } from "@heroui/react";
 import { Check, Folder, Settings, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AIClassifierService } from "../../../../services/aiClassifier";
+import {
+	abortClassifyTask,
+	requestBackgroundHint,
+	resetClassifyTask,
+	startClassifyTask,
+	useAIClassifyTask,
+} from "../../../../services/aiClassifyTaskStore";
 import { WorkbenchStorageService } from "../../../../services/workbenchStorage";
 import { ItemFavicon } from "../../ItemFavicon";
 import type {
-	AIClassificationResult,
-	BookmarkTDKItem,
 	Folder as FolderType,
 	WorkbenchItem,
 	WorkbenchSettings,
@@ -45,31 +49,36 @@ export function AIClassifyModal({
 	onClassificationComplete,
 	onOpenSettings,
 }: AIClassifyModalProps) {
-	const [status, setStatus] = useState<
-		"idle" | "running" | "completed" | "error"
-	>("idle");
+	const {
+		status,
+		progressText,
+		progressPercent,
+		logs,
+		results,
+		errorMsg,
+		startedAt,
+	} = useAIClassifyTask();
 	const [selectedCountLimit, setSelectedCountLimit] = useState<number>(50);
-	const [progressText, setProgressText] = useState("");
-	const [progressPercent, setProgressPercent] = useState(0);
 	const [elapsedSeconds, setElapsedSeconds] = useState(0);
-	const [logs, setLogs] = useState<string[]>([]);
-	const [results, setResults] = useState<AIClassificationResult[]>([]);
-	const [errorMsg, setErrorMsg] = useState("");
-	const abortControllerRef = useRef<AbortController | null>(null);
-	const incrementalResultsRef = useRef<AIClassificationResult[]>([]);
 	const logScrollRef = useRef<HTMLDivElement>(null);
 
-	// Reset timer on running status change
+	// Tick elapsed time from the persisted task start timestamp,
+	// so it keeps counting even if the modal is closed and reopened
 	useEffect(() => {
-		if (status !== "running") {
-			setElapsedSeconds(0);
+		if (status !== "running" || !startedAt) {
+			setElapsedSeconds(
+				startedAt ? Math.floor((Date.now() - startedAt) / 1000) : 0,
+			);
 			return;
 		}
+		const update = () =>
+			setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
+		update();
 		const timer = setInterval(() => {
-			setElapsedSeconds((s) => s + 1);
+			update();
 		}, 1000);
 		return () => clearInterval(timer);
-	}, [status]);
+	}, [status, startedAt]);
 
 	// Auto-scroll thinking log to bottom
 	useEffect(() => {
@@ -78,37 +87,17 @@ export function AIClassifyModal({
 		}
 	}, [logs]);
 
-	// Reset state when modal opens or closes
+	// Closing while running keeps the task alive in the background;
+	// reopen via the task indicator in the top header
 	const handleClose = () => {
 		if (status === "running") {
-			abortControllerRef.current?.abort();
+			requestBackgroundHint();
+			onClose();
+			return;
 		}
-		setStatus("idle");
-		setResults([]);
-		setLogs([]);
-		setErrorMsg("");
-		setProgressPercent(0);
+		resetClassifyTask();
 		onClose();
 	};
-
-	const categories = useMemo(() => {
-		const cats = new Set(folders.map((f) => f.category));
-		cats.add("自媒体");
-		cats.add("技能");
-		cats.add("电商");
-		cats.add("收藏");
-		cats.add("chrome插件");
-		cats.add("skills");
-		return Array.from(cats);
-	}, [folders]);
-
-	const existingFoldersList = useMemo(() => {
-		return folders.map((f) => ({
-			name: f.name,
-			category: f.category,
-			desc: f.desc,
-		}));
-	}, [folders]);
 
 	// Slice items according to user limit
 	const targetItems = useMemo(() => {
@@ -122,101 +111,7 @@ export function AIClassifyModal({
 	}, [itemsToClassify, selectedCountLimit]);
 
 	const startClassification = async () => {
-		if (targetItems.length === 0) {
-			toast.info("当前没有待分类的书签");
-			return;
-		}
-
-		setStatus("running");
-		setErrorMsg("");
-		setProgressPercent(0);
-		setProgressText("正在启动 AI 并发分析池...");
-		incrementalResultsRef.current = [];
-		setLogs([
-			`🚀 已就绪，正在准备 ${targetItems.length} 条书签的语义特征向量与提示词...`,
-		]);
-
-		const abortController = new AbortController();
-		abortControllerRef.current = abortController;
-
-		// Convert workbench items to BookmarkTDKItem format
-		const tdkPayload: BookmarkTDKItem[] = targetItems.map((item) => ({
-			id: item.id || item.url || Math.random().toString(),
-			title: item.name,
-			url: item.url || "",
-			description: item.description || item.summary || "",
-			keywords: item.keywords || "",
-			folderPath: item.folderName || "",
-			parentTitle: item.folderName || "",
-		}));
-
-		try {
-			const classifiedResults = await AIClassifierService.classifyBookmarks(
-				tdkPayload,
-				{
-					settings,
-					existingCategories: categories,
-					existingFolders: existingFoldersList,
-					concurrency: 3,
-					signal: abortController.signal,
-					onBatchComplete: (batch) => {
-						incrementalResultsRef.current.push(...batch);
-					},
-					onLog: (line) => {
-						setLogs((prev) => {
-							const next = [...prev, line];
-							return next.length > 200 ? next.slice(next.length - 200) : next;
-						});
-					},
-					onProgress: (current, total, msg) => {
-						setProgressText(msg);
-						setProgressPercent(Math.round((current / total) * 100));
-					},
-				},
-			);
-
-			if (abortController.signal.aborted) {
-				if (incrementalResultsRef.current.length > 0) {
-					setResults(incrementalResultsRef.current);
-					setStatus("completed");
-					toast.info(
-						`已终止分析，已保留已完成的 ${incrementalResultsRef.current.length} 条书签分类`,
-					);
-				} else {
-					setStatus("idle");
-					toast.info("已取消 AI 分类");
-				}
-				return;
-			}
-
-			setResults(classifiedResults);
-			setStatus("completed");
-			setProgressPercent(100);
-			toast.success(
-				`AI 分析完成，共识别 ${classifiedResults.length} 个书签分类`,
-			);
-		} catch (err: unknown) {
-			if (abortController.signal.aborted) {
-				if (incrementalResultsRef.current.length > 0) {
-					setResults(incrementalResultsRef.current);
-					setStatus("completed");
-					toast.info(
-						`已终止分析，已保留已完成的 ${incrementalResultsRef.current.length} 条书签分类`,
-					);
-				} else {
-					setStatus("idle");
-					toast.info("已取消 AI 分类");
-				}
-			} else {
-				setStatus("error");
-				const message =
-					err instanceof Error
-						? err.message
-						: "AI 分类服务请求失败，请检查网络或 API Key";
-				setErrorMsg(message);
-				toast.danger("AI 分类失败");
-			}
-		}
+		await startClassifyTask({ targetItems, settings, folders });
 	};
 
 	const handleApply = async () => {
@@ -241,10 +136,7 @@ export function AIClassifyModal({
 			variant="blur"
 		>
 			<Modal.Container size="lg">
-				<Modal.Dialog
-					className="max-w-3xl"
-					aria-label="AI 智能分门别类"
-				>
+				<Modal.Dialog className="max-w-3xl" aria-label="AI 智能分门别类">
 					<Modal.CloseTrigger />
 					<Modal.Header className="flex flex-col gap-1">
 						<div className="flex items-center gap-2">
@@ -516,7 +408,7 @@ export function AIClassifyModal({
 									variant="danger-soft"
 									size="sm"
 									className="rounded-full cursor-pointer"
-									onPress={() => abortControllerRef.current?.abort()}
+									onPress={() => abortClassifyTask()}
 								>
 									终止分析
 								</Button>
@@ -531,7 +423,11 @@ export function AIClassifyModal({
 								className="rounded-full cursor-pointer"
 								onPress={handleClose}
 							>
-								{status === "completed" ? "取消" : "关闭"}
+								{status === "completed"
+									? "取消"
+									: status === "running"
+										? "后台运行"
+										: "关闭"}
 							</Button>
 
 							{status === "idle" && (

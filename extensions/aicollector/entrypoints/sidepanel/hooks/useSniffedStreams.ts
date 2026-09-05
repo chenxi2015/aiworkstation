@@ -1,15 +1,66 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { SniffedStream } from '../../../src/types';
+import { hlsDownloadManager } from '../../../src/utils/hlsDownloadManager';
+
+function mergeStreams(
+  tabStreams: SniffedStream[],
+  persistedStreams: SniffedStream[],
+  activeStreams: SniffedStream[],
+): SniffedStream[] {
+  const map = new Map<string, SniffedStream>();
+
+  // 1. Active/in-progress download tasks first (highest priority)
+  for (const s of activeStreams) {
+    map.set(s.url, s);
+  }
+
+  // 2. Current active tab streams
+  for (const s of tabStreams) {
+    if (!map.has(s.url)) {
+      map.set(s.url, s);
+    } else {
+      map.set(s.url, { ...map.get(s.url)!, ...s });
+    }
+  }
+
+  // 3. Persisted streams from recently visited tabs so they don't vanish on tab switch
+  for (const s of persistedStreams) {
+    if (!map.has(s.url)) {
+      map.set(s.url, s);
+    }
+  }
+
+  return Array.from(map.values());
+}
+
+const MAX_PERSISTED_STREAMS = 25;
 
 /**
- * Hook for HLS streams sniffed from the currently active tab.
- * Loads the initial list from the background worker and follows live
- * HLS_STREAMS_UPDATE broadcasts.
+ * Hook for HLS streams sniffed from the currently active tab and active downloads.
+ * Retains sniffed streams and active/paused tasks across tab switches until explicitly cleared.
  */
 export function useSniffedStreams() {
   const [streams, setStreams] = useState<SniffedStream[]>([]);
   const [tabId, setTabId] = useState<number | null>(null);
   const tabIdRef = useRef<number | null>(null);
+  const tabStreamsRef = useRef<SniffedStream[]>([]);
+  const persistedStreamsRef = useRef<SniffedStream[]>([]);
+
+  const syncCombinedStreams = useCallback((current: SniffedStream[]) => {
+    // Accumulate into persisted pool
+    if (current.length > 0) {
+      const mergedPool = [...current, ...persistedStreamsRef.current];
+      const poolMap = new Map<string, SniffedStream>();
+      for (const s of mergedPool) {
+        if (!poolMap.has(s.url)) poolMap.set(s.url, s);
+      }
+      persistedStreamsRef.current = Array.from(poolMap.values()).slice(0, MAX_PERSISTED_STREAMS);
+    }
+
+    const active = hlsDownloadManager.getActiveStreams();
+    const combined = mergeStreams(current, persistedStreamsRef.current, active);
+    setStreams(combined);
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -17,7 +68,8 @@ export function useSniffedStreams() {
       if (!tab || typeof tab.id !== 'number') {
         tabIdRef.current = null;
         setTabId(null);
-        setStreams([]);
+        tabStreamsRef.current = [];
+        syncCombinedStreams([]);
         return;
       }
 
@@ -28,26 +80,31 @@ export function useSniffedStreams() {
         type: 'GET_HLS_STREAMS',
         tabId: tab.id,
       });
-      setStreams(
+      const incoming =
         response?.success && Array.isArray(response.streams)
           ? (response.streams as SniffedStream[])
-          : [],
-      );
+          : [];
+      tabStreamsRef.current = incoming;
+      syncCombinedStreams(incoming);
     } catch {
       // Background worker may be restarting; keep existing state
     }
-  }, []);
+  }, [syncCombinedStreams]);
 
   const clearStreams = useCallback(async () => {
     const activeTabId = tabIdRef.current;
-    if (typeof activeTabId !== 'number') return;
-    setStreams([]);
-    try {
-      await chrome.runtime.sendMessage({ type: 'CLEAR_HLS_STREAMS', tabId: activeTabId });
-    } catch {
-      // Background worker may be restarting
+    tabStreamsRef.current = [];
+    persistedStreamsRef.current = [];
+    syncCombinedStreams([]);
+
+    if (typeof activeTabId === 'number') {
+      try {
+        await chrome.runtime.sendMessage({ type: 'CLEAR_HLS_STREAMS', tabId: activeTabId });
+      } catch {
+        // Background worker may be restarting
+      }
     }
-  }, []);
+  }, [syncCombinedStreams]);
 
   useEffect(() => {
     refresh();
@@ -62,16 +119,24 @@ export function useSniffedStreams() {
       if (message?.type !== 'HLS_STREAMS_UPDATE') return;
       const payload = message.payload;
       if (!payload || payload.tabId !== tabIdRef.current) return;
-      setStreams(Array.isArray(payload.streams) ? payload.streams : []);
+      const incoming = Array.isArray(payload.streams) ? payload.streams : [];
+      tabStreamsRef.current = incoming;
+      syncCombinedStreams(incoming);
     };
     chrome.runtime.onMessage.addListener(messageListener);
+
+    // Subscribe to download manager updates to refresh active stream persistence
+    const unsubscribeDownload = hlsDownloadManager.subscribe(() => {
+      syncCombinedStreams(tabStreamsRef.current);
+    });
 
     return () => {
       chrome.tabs.onActivated.removeListener(tabListener);
       chrome.tabs.onUpdated.removeListener(tabListener);
       chrome.runtime.onMessage.removeListener(messageListener);
+      unsubscribeDownload();
     };
-  }, [refresh]);
+  }, [refresh, syncCombinedStreams]);
 
   return {
     streams,
