@@ -1,5 +1,6 @@
 import { toast } from "@heroui/react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { streamAgentChat } from "../../services/api/agentStreamClient";
 import {
 	type ChatMessage,
 	type ChatSession,
@@ -224,7 +225,20 @@ export function useAiChat(options?: UseAiChatOptions) {
 					model: settings.embeddingModel,
 				};
 
-				const res = await WorkbenchStorageService.chatWithBookmarks(
+				// Append initial assistant streaming message placeholder
+				const initialAssistantMsg: ChatItem = {
+					role: "assistant",
+					content: "",
+					steps: [],
+					isStreaming: true,
+					timestamp: new Date().toLocaleTimeString([], {
+						hour: "2-digit",
+						minute: "2-digit",
+					}),
+				};
+				setMessages((prev) => [...prev, initialAssistantMsg]);
+
+				await streamAgentChat(
 					{
 						question: textToSend,
 						history,
@@ -233,42 +247,143 @@ export function useAiChat(options?: UseAiChatOptions) {
 						folderId: sendOptions?.folderId,
 						folderName: sendOptions?.folderName,
 					},
+					{
+						onStepStart: (step) => {
+							setMessages((prev) => {
+								const last = prev[prev.length - 1];
+								if (!last || last.role !== "assistant") return prev;
+								return [
+									...prev.slice(0, -1),
+									{
+										...last,
+										steps: [...(last.steps || []), step],
+									},
+								];
+							});
+						},
+						onStepEnd: (step) => {
+							setMessages((prev) => {
+								const last = prev[prev.length - 1];
+								if (!last || last.role !== "assistant") return prev;
+								const updatedSteps = (last.steps || []).map((s) =>
+									s.id === step.id ||
+									(s.toolName === step.toolName && s.status === "running")
+										? step
+										: s,
+								);
+								return [
+									...prev.slice(0, -1),
+									{
+										...last,
+										steps: updatedSteps,
+									},
+								];
+							});
+						},
+						onTextChunk: (delta) => {
+							setMessages((prev) => {
+								const last = prev[prev.length - 1];
+								if (!last || last.role !== "assistant") return prev;
+								return [
+									...prev.slice(0, -1),
+									{
+										...last,
+										content: last.content + delta,
+									},
+								];
+							});
+						},
+						onReferences: (refs) => {
+							setMessages((prev) => {
+								const last = prev[prev.length - 1];
+								if (!last || last.role !== "assistant") return prev;
+								return [
+									...prev.slice(0, -1),
+									{
+										...last,
+										references: refs,
+									},
+								];
+							});
+						},
+						onRunEnd: (answer, dbMutated) => {
+							setMessages((prev) => {
+								const last = prev[prev.length - 1];
+								if (!last || last.role !== "assistant") return prev;
+								return [
+									...prev.slice(0, -1),
+									{
+										...last,
+										content: answer || last.content,
+										isStreaming: false,
+									},
+								];
+							});
+							options?.onResponseReceived?.();
+							if (dbMutated) {
+								options?.onDataMutated?.();
+							}
+						},
+						onError: (errMsg) => {
+							toast.danger(errMsg);
+							setMessages((prev) => {
+								const last = prev[prev.length - 1];
+								if (!last || last.role !== "assistant") return prev;
+								return [
+									...prev.slice(0, -1),
+									{
+										...last,
+										content: last.content
+											? `${last.content}\n\n${errMsg}`
+											: errMsg,
+										isStreaming: false,
+									},
+								];
+							});
+						},
+					},
 					{ signal: controller.signal },
 				);
-
-				const assistantMsg: ChatItem = {
-					role: "assistant",
-					content: res.answer,
-					references: res.references,
-					timestamp: new Date().toLocaleTimeString([], {
-						hour: "2-digit",
-						minute: "2-digit",
-					}),
-				};
-
-				setMessages((prev) => [...prev, assistantMsg]);
-				options?.onResponseReceived?.();
-				if (res.dbMutated) {
-					options?.onDataMutated?.();
-				}
-			} catch (error: any) {
-				if (controller.signal.aborted || error?.name === "AbortError") {
+			} catch (error: unknown) {
+				const isAbort =
+					controller.signal.aborted ||
+					(error instanceof Error && error.name === "AbortError");
+				if (isAbort) {
 					console.log("[useAiChat] AI query aborted by user");
 					return;
 				}
 				console.error("[useAiChat] Error:", error);
-				toast.danger(error.message || "问答检索失败，请检查网络或 AI 配置");
-				setMessages((prev) => [
-					...prev,
-					{
-						role: "assistant",
-						content: `请求失败: ${error.message || "未知错误，请检查设置中的 DeepSeek API Key"}`,
-						timestamp: new Date().toLocaleTimeString([], {
-							hour: "2-digit",
-							minute: "2-digit",
-						}),
-					},
-				]);
+				const errMsg =
+					error instanceof Error
+						? error.message
+						: "问答检索失败，请检查网络或 AI 配置";
+				toast.danger(errMsg);
+				setMessages((prev) => {
+					const last = prev[prev.length - 1];
+					if (last && last.role === "assistant") {
+						return [
+							...prev.slice(0, -1),
+							{
+								...last,
+								isStreaming: false,
+								content:
+									last.content ||
+									`请求失败: ${errMsg || "未知错误，请检查设置中的 AI Model API Key"}`,
+							},
+						];
+					}
+					return [
+						...prev,
+						{
+							role: "assistant",
+							content: `请求失败: ${errMsg || "未知错误，请检查设置中的 AI Model API Key"}`,
+							timestamp: new Date().toLocaleTimeString([], {
+								hour: "2-digit",
+								minute: "2-digit",
+							}),
+						},
+					];
+				});
 			} finally {
 				setIsLoading(false);
 				if (abortControllerRef.current === controller) {

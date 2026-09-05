@@ -60,73 +60,107 @@ export * from "./types.ts";
 export * from "./updateFolderTool.ts";
 
 /**
+ * Generic execution wrapper that logs metrics and dispatches lifecycle hooks
+ */
+async function wrapExecution<TArgs>(
+	toolName: string,
+	args: TArgs,
+	executor: () => ToolExecutionResult,
+	hooks?: BookmarkToolHooks,
+): Promise<string> {
+	const start = Date.now();
+	hooks?.onToolStart?.(toolName, (args || {}) as Record<string, unknown>);
+	try {
+		const res = executor();
+		if (res.isMutation) {
+			hooks?.onMutated?.();
+		}
+		if (res.references && res.references.length > 0) {
+			hooks?.onReferencesFound?.(res.references);
+		}
+		const durationMs = Date.now() - start;
+		hooks?.onToolEnd?.(toolName, res.summary, true, durationMs);
+		return res.summary;
+	} catch (err: unknown) {
+		const durationMs = Date.now() - start;
+		const errMsg = err instanceof Error ? err.message : String(err);
+		hooks?.onToolEnd?.(toolName, `执行失败: ${errMsg}`, false, durationMs);
+		throw err;
+	}
+}
+
+/**
  * Server Tools Factory: Create executable server tools with injected execution hooks
  */
 export function createBookmarkServerTools(hooks?: BookmarkToolHooks) {
 	return [
-		queryBookmarksToolDef.server(async (args) => {
-			const res = executeQueryBookmarks(args);
-			if (res.references && res.references.length > 0) {
-				hooks?.onReferencesFound?.(res.references);
-			}
-			return res.summary;
-		}),
-		createFolderToolDef.server(async (args) => {
-			const res = executeCreateFolder(args);
-			if (res.isMutation) {
-				hooks?.onMutated?.();
-			}
-			return res.summary;
-		}),
-		moveBookmarksToFolderToolDef.server(async (args) => {
-			const res = executeMoveBookmarks(args);
-			if (res.isMutation) {
-				hooks?.onMutated?.();
-			}
-			if (res.references && res.references.length > 0) {
-				hooks?.onReferencesFound?.(res.references);
-			}
-			return res.summary;
-		}),
-		updateFolderToolDef.server(async (args) => {
-			const res = executeUpdateFolder(args);
-			if (res.isMutation) {
-				hooks?.onMutated?.();
-			}
-			return res.summary;
-		}),
-		moveFolderToolDef.server(async (args) => {
-			const res = executeMoveFolder(args);
-			if (res.isMutation) {
-				hooks?.onMutated?.();
-			}
-			return res.summary;
-		}),
-		reorderFoldersToolDef.server(async (args) => {
-			const res = executeReorderFolders(args);
-			if (res.isMutation) {
-				hooks?.onMutated?.();
-			}
-			return res.summary;
-		}),
-		removeBookmarksFromFolderToolDef.server(async (args) => {
-			const res = executeRemoveBookmarks(args);
-			if (res.isMutation) {
-				hooks?.onMutated?.();
-			}
-			return res.summary;
-		}),
-		deleteFolderToolDef.server(async (args) => {
-			const res = executeDeleteFolder(args);
-			if (res.isMutation) {
-				hooks?.onMutated?.();
-			}
-			return res.summary;
-		}),
-		getStatsToolDef.server(async (args) => {
-			const res = executeGetStats((args || {}) as GetStatsInput);
-			return res.summary;
-		}),
+		queryBookmarksToolDef.server((args) =>
+			wrapExecution(
+				"query_bookmarks",
+				args,
+				() => executeQueryBookmarks(args),
+				hooks,
+			),
+		),
+		createFolderToolDef.server((args) =>
+			wrapExecution(
+				"create_folder",
+				args,
+				() => executeCreateFolder(args),
+				hooks,
+			),
+		),
+		moveBookmarksToFolderToolDef.server((args) =>
+			wrapExecution(
+				"move_bookmarks_to_folder",
+				args,
+				() => executeMoveBookmarks(args),
+				hooks,
+			),
+		),
+		updateFolderToolDef.server((args) =>
+			wrapExecution(
+				"update_folder",
+				args,
+				() => executeUpdateFolder(args),
+				hooks,
+			),
+		),
+		moveFolderToolDef.server((args) =>
+			wrapExecution("move_folder", args, () => executeMoveFolder(args), hooks),
+		),
+		reorderFoldersToolDef.server((args) =>
+			wrapExecution(
+				"reorder_folders",
+				args,
+				() => executeReorderFolders(args),
+				hooks,
+			),
+		),
+		removeBookmarksFromFolderToolDef.server((args) =>
+			wrapExecution(
+				"remove_bookmarks_from_folder",
+				args,
+				() => executeRemoveBookmarks(args),
+				hooks,
+			),
+		),
+		deleteFolderToolDef.server((args) =>
+			wrapExecution(
+				"delete_folder",
+				args,
+				() => executeDeleteFolder(args),
+				hooks,
+			),
+		),
+		getStatsToolDef.server((args) =>
+			wrapExecution(
+				"get_stats",
+				args,
+				() => executeGetStats((args || {}) as GetStatsInput),
+				hooks,
+			),
+		),
 	];
 }
 

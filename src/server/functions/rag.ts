@@ -44,7 +44,11 @@ export interface LlmConfigOverrides {
  * Resolve effective LLM config on the server.
  * Priority: caller overrides > settings stored in SQLite > defaults.
  */
-function resolveLlmConfig(overrides: LlmConfigOverrides = {}): {
+/**
+ * Resolve effective LLM config on the server.
+ * Priority: caller overrides > settings stored in SQLite > defaults.
+ */
+export function resolveLlmConfig(overrides: LlmConfigOverrides = {}): {
 	apiKey: string;
 	baseUrl: string;
 	model: string;
@@ -73,7 +77,7 @@ function resolveLlmConfig(overrides: LlmConfigOverrides = {}): {
  * Resolve effective embedding config on the server.
  * Priority: caller overrides > settings stored in SQLite (embedding key falls back to LLM key).
  */
-function resolveEmbeddingConfig(
+export function resolveEmbeddingConfig(
 	overrides: EmbeddingConfig = {},
 ): EmbeddingConfig {
 	if (overrides.apiKey?.trim()) return overrides;
@@ -95,117 +99,102 @@ function resolveEmbeddingConfig(
 	};
 }
 
+export interface PreparedRagContext {
+	systemPrompt: string;
+	contextReferences: SearchResultItem[];
+	candidateCount: number;
+	emptyFallbackMessage?: string;
+}
+
 /**
- * Server Function: Chat with bookmarks using TanStack AI Native chat() + toolDefinition Pipeline
+ * Prepare background semantic context and unified system prompt for the Agent
  */
-export const chatWithBookmarks = createServerFn({ method: "POST" })
-	.validator(
-		(data: {
-			question: string;
-			history?: ChatMessage[];
-			embeddingConfig?: EmbeddingConfig;
-			llmConfig?: LlmConfigOverrides;
-			folderId?: number | null;
-			folderName?: string;
-		}) => data,
-	)
-	.handler(async ({ data }): Promise<RAGChatResult> => {
-		const {
-			question,
-			history = [],
-			embeddingConfig = {},
-			llmConfig = {},
-			folderId,
-			folderName,
-		} = data;
+export async function prepareRagAgentContext(params: {
+	question: string;
+	folderId?: number | null;
+	folderName?: string;
+	embeddingConfig?: EmbeddingConfig;
+}): Promise<PreparedRagContext> {
+	const { question, folderId, folderName, embeddingConfig = {} } = params;
+	const q = question?.trim();
 
-		const q = question?.trim();
-		if (!q) {
-			throw new Error("Question cannot be empty");
-		}
-
-		// 1. Retrieve Candidate Bookmarks from SQLite for standard RAG fallback (filter by folderId if specified)
-		let candidateItems = workbenchDb.getAllBookmarksForSearch();
-		if (folderId != null) {
-			candidateItems = candidateItems.filter(
-				(item) => item.folderId === folderId,
-			);
-		}
-		if (candidateItems.length === 0) {
-			return {
-				answer:
-					folderName != null
-						? `当前文件夹「${folderName}」中暂无书签数据。`
-						: "你的收藏库中目前还没有书签数据，请先通过 Chrome 扩展同步或导入一些书签。",
-				references: [],
-				timestamp: new Date().toLocaleTimeString(),
-			};
-		}
-
-		// 2. Compute query vector if API Key is configured (falls back to SQLite settings)
-		const effectiveEmbeddingConfig = resolveEmbeddingConfig(embeddingConfig);
-		let queryVector: number[] | null = null;
-		if (effectiveEmbeddingConfig.apiKey) {
-			queryVector = await EmbeddingService.generateQueryEmbedding(
-				q,
-				effectiveEmbeddingConfig,
-			);
-		}
-
-		// 3. Top-K Hybrid Ranking for semantic background context
-		const ranked = EmbeddingService.rankItems(
-			candidateItems,
-			q,
-			queryVector,
-			"hybrid",
+	// 1. Retrieve Candidate Bookmarks from SQLite
+	let candidateItems = workbenchDb.getAllBookmarksForSearch();
+	if (folderId != null) {
+		candidateItems = candidateItems.filter(
+			(item) => item.folderId === folderId,
 		);
-		// Keep Top-6 as internal context for LLM background knowledge
-		const contextReferences = ranked.slice(0, 6);
+	}
+	if (candidateItems.length === 0) {
+		return {
+			systemPrompt: "",
+			contextReferences: [],
+			candidateCount: 0,
+			emptyFallbackMessage:
+				folderName != null
+					? `当前文件夹「${folderName}」中暂无书签数据。`
+					: "你的收藏库中目前还没有书签数据，请先通过 Chrome 扩展同步或导入一些书签。",
+		};
+	}
 
-		// User-facing references: default empty.
-		// Only populated when Agent tools (such as query_bookmarks) explicitly search and return items.
-		// This guarantees that governance/planning/management conversations never display irrelevant bookmark cards.
-		let references: SearchResultItem[] = [];
+	// 2. Compute query vector if API Key is configured
+	const effectiveEmbeddingConfig = resolveEmbeddingConfig(embeddingConfig);
+	let queryVector: number[] | null = null;
+	if (effectiveEmbeddingConfig.apiKey) {
+		queryVector = await EmbeddingService.generateQueryEmbedding(
+			q,
+			effectiveEmbeddingConfig,
+		);
+	}
 
-		// 4. Time and Environment metadata for LLM
-		const now = new Date();
-		const dateStr = now.toISOString().split("T")[0];
-		const dayNames = [
-			"星期日",
-			"星期一",
-			"星期二",
-			"星期三",
-			"星期四",
-			"星期五",
-			"星期六",
-		];
-		const dayOfWeek = dayNames[now.getDay()];
-		const timeStr = now.toTimeString().split(" ")[0];
+	// 3. Top-K Hybrid Ranking for semantic background context
+	const ranked = EmbeddingService.rankItems(
+		candidateItems,
+		q,
+		queryVector,
+		"hybrid",
+	);
+	const contextReferences = ranked.slice(0, 6);
 
-		// 5. Construct RAG Context Prompt
-		const contextSnippets =
-			contextReferences.length > 0
-				? contextReferences
-						.map((item, i) => {
-							const tags =
-								item.tags && item.tags.length > 0
-									? ` [标签: ${item.tags.join(", ")}]`
-									: "";
-							const folder = item.folderName
-								? ` [所属文件夹: ${item.folderName}]`
+	// 4. Time and Environment metadata for LLM
+	const now = new Date();
+	const dateStr = now.toISOString().split("T")[0];
+	const dayNames = [
+		"星期日",
+		"星期一",
+		"星期二",
+		"星期三",
+		"星期四",
+		"星期五",
+		"星期六",
+	];
+	const dayOfWeek = dayNames[now.getDay()];
+	const timeStr = now.toTimeString().split(" ")[0];
+
+	// 5. Construct RAG Context Prompt
+	const contextSnippets =
+		contextReferences.length > 0
+			? contextReferences
+					.map((item, i) => {
+						const tags =
+							item.tags && item.tags.length > 0
+								? ` [标签: ${item.tags.join(", ")}]`
 								: "";
-							const desc = item.summary || item.description || "无详细描述";
-							return `【参考来源 ${i + 1}】《${item.name}》\n- 网址: ${item.url || "无"}\n- 描述/摘要: ${desc}${tags}${folder}`;
-						})
-						.join("\n\n")
-				: "（未在本地库中检索到高相关性的书签）";
+						const folder = item.folderName
+							? ` [所属文件夹: ${item.folderName}]`
+							: "";
+						const desc = item.summary || item.description || "无详细描述";
+						return `【参考来源 ${i + 1}】《${item.name}》\n- 网址: ${item.url || "无"}\n- 描述/摘要: ${desc}${tags}${folder}`;
+					})
+					.join("\n\n")
+			: "（未在本地库中检索到高相关性的书签）";
 
-		const folderScopePrompt =
-			folderId != null && folderName
-				? `\n- 【当前问答限定范围】: 用户已启用【限定文件夹范围】模式，指定聚焦在文件夹「${folderName}」(ID: ${folderId})。除非用户在提问中明确要求跨文件夹或搜索全局，否则所有回答、盘点与分析请严格限制在该文件夹下的书签和资产；若调用 query_bookmarks 工具，请务必传入 folderName: "${folderName}" 或 folderId: ${folderId}。`
-				: "\n- 【当前问答范围】: 全局知识库（涵盖所有文件夹及未分类书签）。";
+	const folderScopePrompt =
+		folderId != null && folderName
+			? `\n- 【当前问答限定范围】: 用户已启用【限定文件夹范围】模式，指定聚焦在文件夹「${folderName}」(ID: ${folderId})。除非用户在提问中明确要求跨文件夹或搜索全局，否则所有回答、盘点与分析请严格限制在该文件夹下的书签和资产；若调用 query_bookmarks 工具，请务必传入 folderName: "${folderName}" 或 folderId: ${folderId}。`
+			: "\n- 【当前问答范围】: 全局知识库（涵盖所有文件夹及未分类书签）。";
 
-		const systemPrompt = `你内置于用户本地个人 AI 工作台（AI Workstation），是用户的专属【私人知识智囊与外脑合伙人】（Personal Intelligence & Knowledge Partner）。
+	const systemPrompt = `你内置于用户本地个人 AI 工作台（AI Workstation），是用户的专属【私人知识智囊与外脑合伙人】（Personal Intelligence & Knowledge Partner）。
 你不仅拥有直接操作本地 SQLite 知识库的行动手脚，更具备主动洞察、结构化治理与启发式对话的智囊思维。你的目标是帮助用户激活沉睡收藏、理清数字资产、减轻认知负担。
 
 【交互风格与智囊人格（Pi-Style Persona）】:
@@ -241,13 +230,67 @@ export const chatWithBookmarks = createServerFn({ method: "POST" })
 以下是从本地知识库语义检索到的背景记忆片段（仅供你在思考和回答时参考；若用户提问是宏观规划、分类结构调整、管理操作或日常对话，请忽略与主题无关的条目，切勿强行生搬硬套）：
 ${contextSnippets}`;
 
-		// 6. Setup Provider Config (caller overrides > SQLite settings > env vars)
+	return {
+		systemPrompt,
+		contextReferences,
+		candidateCount: candidateItems.length,
+	};
+}
+
+/**
+ * Server Function: Chat with bookmarks using TanStack AI Native chat() + toolDefinition Pipeline
+ */
+export const chatWithBookmarks = createServerFn({ method: "POST" })
+	.validator(
+		(data: {
+			question: string;
+			history?: ChatMessage[];
+			embeddingConfig?: EmbeddingConfig;
+			llmConfig?: LlmConfigOverrides;
+			folderId?: number | null;
+			folderName?: string;
+		}) => data,
+	)
+	.handler(async ({ data }): Promise<RAGChatResult> => {
+		const {
+			question,
+			history = [],
+			embeddingConfig = {},
+			llmConfig = {},
+			folderId,
+			folderName,
+		} = data;
+
+		const q = question?.trim();
+		if (!q) {
+			throw new Error("Question cannot be empty");
+		}
+
+		// 1. Prepare RAG Context & System Prompt
+		const prepared = await prepareRagAgentContext({
+			question: q,
+			folderId,
+			folderName,
+			embeddingConfig,
+		});
+
+		if (prepared.emptyFallbackMessage) {
+			return {
+				answer: prepared.emptyFallbackMessage,
+				references: [],
+				timestamp: new Date().toLocaleTimeString(),
+			};
+		}
+
+		let references: SearchResultItem[] = [];
+
+		// 2. Setup Provider Config (caller overrides > SQLite settings > env vars)
 		const { apiKey, baseUrl, model } = resolveLlmConfig(llmConfig);
 
 		if (!apiKey) {
 			return {
-				answer: `已为你检索到 ${contextReferences.length} 个相关收藏（见下方引用卡片）。\n\n提示：如需启用 AI 智能总结与深度问答，请在右上角「设置」中填入 LLM API Key。`,
-				references: contextReferences,
+				answer: `已为你检索到 ${prepared.contextReferences.length} 个相关收藏（见下方引用卡片）。\n\n提示：如需启用 AI 智能总结与深度问答，请在右上角「设置」中填入 LLM API Key。`,
+				references: prepared.contextReferences,
 				timestamp: new Date().toLocaleTimeString(),
 				dbMutated: false,
 			};
@@ -255,7 +298,7 @@ ${contextSnippets}`;
 
 		let hasDbMutated = false;
 
-		// 7. Instantiate server tools with execution callbacks
+		// 3. Instantiate server tools with execution callbacks
 		const tools = createBookmarkServerTools({
 			onMutated: () => {
 				hasDbMutated = true;
@@ -265,13 +308,13 @@ ${contextSnippets}`;
 			},
 		});
 
-		// 8. Create TanStack AI OpenAI-compatible adapter
+		// 4. Create TanStack AI OpenAI-compatible adapter
 		const adapter = openaiCompatibleText(model, {
 			baseURL: baseUrl,
 			apiKey,
 		});
 
-		// 9. Prepare message history (excluding system prompt from messages array)
+		// 5. Prepare message history (excluding system prompt from messages array)
 		const messages: Array<{
 			role: "user" | "assistant" | "tool";
 			content: string;
@@ -289,12 +332,12 @@ ${contextSnippets}`;
 			{ role: "user", content: q },
 		];
 
-		// 10. Execute TanStack AI agent loop
+		// 6. Execute TanStack AI agent loop
 		let answer = "";
 		try {
 			answer = await chat({
 				adapter,
-				systemPrompts: [systemPrompt],
+				systemPrompts: [prepared.systemPrompt],
 				messages,
 				tools,
 				stream: false,

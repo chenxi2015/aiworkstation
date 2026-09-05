@@ -1,4 +1,4 @@
-import type { ResolvedTimeRange } from "./types";
+import type { ResolvedTimeRange } from "./types.ts";
 
 /**
  * Helper to calculate precise start and end boundaries for time ranges

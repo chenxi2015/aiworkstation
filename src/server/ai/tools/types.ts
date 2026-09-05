@@ -1,7 +1,7 @@
 import type {
 	SearchResultItem,
 	WorkbenchItem,
-} from "../../../components/workbench/types";
+} from "../../../components/workbench/types.ts";
 
 /**
  * Resolved time boundary range
@@ -31,4 +31,11 @@ export interface ToolExecutionResult {
 export interface BookmarkToolHooks {
 	onMutated?: () => void;
 	onReferencesFound?: (references: SearchResultItem[]) => void;
+	onToolStart?: (toolName: string, args: Record<string, unknown>) => void;
+	onToolEnd?: (
+		toolName: string,
+		summary: string,
+		ok: boolean,
+		durationMs: number,
+	) => void;
 }

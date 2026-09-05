@@ -17,6 +17,7 @@ import { memo, useEffect, useRef, useState } from "react";
 import type { ChatItem } from "../../../../hooks/ai/useAiChat";
 import type { Category, SearchResultItem } from "../../types";
 import { AiMarkdownRenderer } from "../shared/AiMarkdownRenderer";
+import { AgentStepTimeline } from "./AgentStepTimeline";
 import { ChatReferenceCard } from "./ChatReferenceCard";
 
 export interface ChatMessageItemProps {
@@ -128,9 +129,10 @@ export const ChatMessageItem = memo(function ChatMessageItem({
 
 	if (isSelectMode) {
 		return (
-			<div
+			<button
+				type="button"
 				onClick={() => onToggleSelect?.(index)}
-				className={`w-full flex items-start gap-3 p-3 rounded-2xl border transition-all cursor-pointer select-none ${
+				className={`w-full flex items-start gap-3 p-3 rounded-2xl border transition-all cursor-pointer select-none text-left ${
 					isSelected
 						? "bg-accent-soft/30 border-accent/60 shadow-xs"
 						: "bg-surface/80 border-border/70 hover:bg-surface-secondary/60 hover:border-border"
@@ -168,7 +170,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
 						</div>
 					)}
 				</div>
-			</div>
+			</button>
 		);
 	}
 
@@ -264,7 +266,22 @@ export const ChatMessageItem = memo(function ChatMessageItem({
 								{msg.content}
 							</div>
 						) : (
-							<AiMarkdownRenderer content={msg.content} compact={true} />
+							<>
+								{msg.steps && msg.steps.length > 0 && (
+									<AgentStepTimeline
+										steps={msg.steps}
+										isStreaming={msg.isStreaming}
+									/>
+								)}
+								{msg.content ? (
+									<AiMarkdownRenderer content={msg.content} compact={true} />
+								) : msg.isStreaming ? (
+									<div className="flex items-center gap-2 text-neutral-400 py-1">
+										<span className="inline-block w-2 h-2 rounded-full bg-primary-500 animate-ping" />
+										<span className="text-xs">Agent 正在分析与组织回答...</span>
+									</div>
+								) : null}
+							</>
 						)}
 					</div>
 

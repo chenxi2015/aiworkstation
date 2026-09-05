@@ -16,9 +16,9 @@ import {
 	computeKeywordScore,
 	type RankCandidateItem,
 	rankItems,
-} from "./embedding/ranker";
-import { createIndexingText } from "./embedding/textIndexer";
-import { cosineSimilarity } from "./embedding/vectorMath";
+} from "./embedding/ranker.ts";
+import { createIndexingText } from "./embedding/textIndexer.ts";
+import { cosineSimilarity } from "./embedding/vectorMath.ts";
 
 export { DEFAULT_EMBEDDING_BASE_URL, DEFAULT_EMBEDDING_MODEL };
 export type { EmbeddingConfig };

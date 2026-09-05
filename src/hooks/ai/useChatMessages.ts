@@ -5,12 +5,17 @@ import type {
 	Folder,
 	SearchResultItem,
 } from "../../components/workbench/types";
+import type { AgentStep } from "../../server/ai/agentTypes.ts";
 import { WorkbenchStorageService } from "../../services/workbenchStorage";
+
+export type { AgentStep };
 
 export interface ChatItem {
 	role: "user" | "assistant";
 	content: string;
 	references?: SearchResultItem[];
+	steps?: AgentStep[];
+	isStreaming?: boolean;
 	timestamp?: string;
 }
 
@@ -45,17 +50,14 @@ export function useChatMessages(props?: UseChatMessagesProps) {
 	}, [messages, onMessagesChange]);
 
 	// Update content of an existing message without re-querying AI
-	const editMessage = useCallback(
-		(index: number, newContent: string) => {
-			const trimmed = newContent.trim();
-			if (!trimmed) return;
-			setMessages((prev) =>
-				prev.map((m, i) => (i === index ? { ...m, content: trimmed } : m)),
-			);
-			toast.success("已更新消息内容");
-		},
-		[],
-	);
+	const editMessage = useCallback((index: number, newContent: string) => {
+		const trimmed = newContent.trim();
+		if (!trimmed) return;
+		setMessages((prev) =>
+			prev.map((m, i) => (i === index ? { ...m, content: trimmed } : m)),
+		);
+		toast.success("已更新消息内容");
+	}, []);
 
 	// Delete multiple messages by indices
 	const deleteMessages = useCallback((indices: number[] | Set<number>) => {

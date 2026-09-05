@@ -1,8 +1,8 @@
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
-import type { SearchResultItem } from "../../../components/workbench/types";
+import type { SearchResultItem } from "../../../components/workbench/types.ts";
 import { type BookmarkQueryParams, workbenchDb } from "../../db/sqlite.ts";
-import { resolveTimeRange } from "./timeResolver";
+import { resolveTimeRange } from "./timeResolver.ts";
 import type { ToolExecutionResult } from "./types";
 
 export const queryBookmarksInputSchema = z

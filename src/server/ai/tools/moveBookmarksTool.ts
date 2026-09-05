@@ -3,9 +3,9 @@ import { z } from "zod";
 import type {
 	SearchResultItem,
 	WorkbenchItem,
-} from "../../../components/workbench/types";
+} from "../../../components/workbench/types.ts";
 import { workbenchDb } from "../../db/sqlite.ts";
-import type { ToolExecutionResult } from "./types";
+import type { ToolExecutionResult } from "./types.ts";
 
 export const moveBookmarksToFolderInputSchema = z
 	.object({

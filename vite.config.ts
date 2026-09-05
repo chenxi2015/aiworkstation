@@ -5,6 +5,8 @@ import viteReact from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import { extensionApiPlugin } from "./src/server/api/extensionApiPlugin.ts";
 
+process.env.VITE_CONFIG_NATIVE_IGNORE_WARNING = "true";
+
 const config = defineConfig({
 	server: {
 		port: 3888,
