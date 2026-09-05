@@ -12,6 +12,7 @@ import {
   Zap,
   FolderOpen,
   RotateCcw,
+  RotateCw,
 } from 'lucide-react';
 import type { SniffedStream } from '../../../../src/types';
 import { hlsDownloadManager, type HlsTaskState } from '../../../../src/utils/hlsDownloadManager';
@@ -22,6 +23,8 @@ import { ConfirmDialog } from '../common/ConfirmDialog';
 interface SniffedStreamsCardProps {
   streams: SniffedStream[];
   onClear: () => void;
+  onRescan?: () => void;
+  isRescanning?: boolean;
 }
 
 function describeStream(
@@ -72,6 +75,8 @@ function describeStream(
 export const SniffedStreamsCard: React.FC<SniffedStreamsCardProps> = ({
   streams,
   onClear,
+  onRescan,
+  isRescanning = false,
 }) => {
   const [downloadStates, setDownloadStates] = useState<Record<string, HlsTaskState>>(() =>
     hlsDownloadManager.getAllStates(),
@@ -98,7 +103,18 @@ export const SniffedStreamsCard: React.FC<SniffedStreamsCardProps> = ({
         const tasks = await WorkbenchService.getVideoTasks();
         const map: Record<string, ServerVideoTaskState> = {};
         for (const t of tasks) {
-          map[t.url] = t;
+          const current = map[t.url];
+          if (!current) {
+            map[t.url] = t;
+            continue;
+          }
+          const isActive = t.status === 'downloading' || t.status === 'muxing' || t.status === 'pending';
+          const isCurrentActive = current.status === 'downloading' || current.status === 'muxing' || current.status === 'pending';
+          if (isActive && !isCurrentActive) {
+            map[t.url] = t;
+          } else if (isActive === isCurrentActive && t.createdAt > current.createdAt) {
+            map[t.url] = t;
+          }
         }
         setServerTasks(map);
       }
@@ -135,10 +151,10 @@ export const SniffedStreamsCard: React.FC<SniffedStreamsCardProps> = ({
     const sTask = serverTasks[streamUrl];
     if (sTask && (sTask.status === 'downloading' || sTask.status === 'pending')) {
       await WorkbenchService.cancelVideoTask(sTask.id);
-      const tasks = await WorkbenchService.getVideoTasks();
-      const map: Record<string, ServerVideoTaskState> = {};
-      for (const t of tasks) map[t.url] = t;
-      setServerTasks(map);
+      setServerTasks((prev) => ({
+        ...prev,
+        [streamUrl]: { ...sTask, status: 'cancelled' },
+      }));
     }
     hlsDownloadManager.cancel(streamUrl);
   };
@@ -174,15 +190,29 @@ export const SniffedStreamsCard: React.FC<SniffedStreamsCardProps> = ({
           <Radar className="w-3.5 h-3.5 text-violet-500 shrink-0" />
           <span className="truncate">嗅探到视频流 ({visibleStreams.length})</span>
         </div>
-        <button
-          type="button"
-          onClick={() => setIsClearConfirmOpen(true)}
-          title="清空嗅探记录"
-          aria-label="清空嗅探记录"
-          className="h-6 w-6 shrink-0 rounded-md flex items-center justify-center text-muted hover:text-danger hover:bg-danger/10 transition-colors cursor-pointer"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
+        <div className="flex items-center gap-1 shrink-0">
+          {onRescan && (
+            <button
+              type="button"
+              onClick={onRescan}
+              disabled={isRescanning}
+              title="重新扫描页面视频流（无需刷新网页）"
+              aria-label="重新扫描页面视频流"
+              className="h-6 w-6 shrink-0 rounded-md flex items-center justify-center text-muted hover:text-violet-600 hover:bg-violet-500/10 transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <RotateCw className={`w-3.5 h-3.5 ${isRescanning ? 'animate-spin text-violet-500' : ''}`} />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setIsClearConfirmOpen(true)}
+            title="清空嗅探记录"
+            aria-label="清空嗅探记录"
+            className="h-6 w-6 shrink-0 rounded-md flex items-center justify-center text-muted hover:text-danger hover:bg-danger/10 transition-colors cursor-pointer"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
 
       {/* Stream list */}
@@ -191,11 +221,17 @@ export const SniffedStreamsCard: React.FC<SniffedStreamsCardProps> = ({
           const clientTask = downloadStates[stream.url];
           const serverTask = serverTasks[stream.url];
 
-          const isServerActive = serverTask && serverTask.status !== 'pending' && serverTask.status !== 'cancelled';
+          const isServerActive =
+            serverTask &&
+            (serverTask.status === 'downloading' ||
+              serverTask.status === 'pending' ||
+              serverTask.status === 'muxing');
           const isClientActive = clientTask && clientTask.status !== 'idle';
           const useServer = isServerActive || (!isClientActive && isWorkbenchOnline);
 
-          const status = useServer ? (serverTask?.status ?? 'idle') : (clientTask?.status ?? 'idle');
+          const rawServerStatus = serverTask?.status;
+          const normalizedServerStatus = rawServerStatus === 'cancelled' ? 'idle' : (rawServerStatus ?? 'idle');
+          const status = useServer ? normalizedServerStatus : (clientTask?.status ?? 'idle');
           const percent = useServer ? (serverTask?.percent ?? 0) : (clientTask?.percent ?? 0);
           const doneSlices = useServer ? (serverTask?.doneSegments ?? 0) : (clientTask?.done ?? 0);
           const totalSlices = useServer ? (serverTask?.totalSegments ?? 0) : (clientTask?.total ?? 0);
@@ -225,7 +261,7 @@ export const SniffedStreamsCard: React.FC<SniffedStreamsCardProps> = ({
                         已暂停
                       </span>
                     )}
-                    {status === 'downloading' && (
+                    {(status === 'downloading' || status === 'pending') && (
                       <span className="shrink-0 text-[9px] px-1 rounded bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20 font-medium">
                         {percent}%
                       </span>
@@ -251,7 +287,7 @@ export const SniffedStreamsCard: React.FC<SniffedStreamsCardProps> = ({
                   <CopyButton text={stream.url} title="复制 m3u8 地址" />
 
                   {/* Actions depending on state */}
-                  {status === 'downloading' ? (
+                  {status === 'downloading' || status === 'pending' ? (
                     <div className="flex items-center gap-1">
                       {/* Cancel button */}
                       <button
@@ -336,7 +372,7 @@ export const SniffedStreamsCard: React.FC<SniffedStreamsCardProps> = ({
               </div>
 
               {/* Progress bar */}
-              {(status === 'downloading' || status === 'paused') && (
+              {(status === 'downloading' || status === 'paused' || status === 'pending') && (
                 <div className="w-full bg-surface-tertiary h-1.5 rounded-full overflow-hidden border border-border/50">
                   <div
                     className={`h-full rounded-full transition-all duration-300 ease-out ${
@@ -368,19 +404,19 @@ export const SniffedStreamsCard: React.FC<SniffedStreamsCardProps> = ({
           className="flex items-center gap-1.5"
           title={
             isWorkbenchOnline
-              ? '无上限超大视频秒转MP4，下载自动存入系统 Downloads 目录'
-              : '工作台未启动，使用浏览器内置单机引擎'
+              ? '本地工作台在线，支持后台极速并发下载与转码，视频将自动存入电脑 Downloads 目录'
+              : '工作台未连接，当前使用浏览器内置引擎下载'
           }
         >
           {isWorkbenchOnline ? (
             <>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-foreground/80 font-medium">原生加速引擎已就绪</span>
+              <span className="text-foreground/80 font-medium">已连接工作台 · 下载直存电脑</span>
             </>
           ) : (
             <>
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-              <span>内置下载引擎</span>
+              <span>未连接工作台 · 使用浏览器下载</span>
             </>
           )}
         </div>

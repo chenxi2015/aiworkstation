@@ -11,6 +11,7 @@ dist-ssr
 .vinxi
 __unconfig*
 todos.json
-
+*.db-wal
+*.db-shm
 # ffmpeg.wasm binaries (regenerate via pnpm --filter wxt-react-starter setup:ffmpeg)
 extensions/aicollector/public/ffmpeg/

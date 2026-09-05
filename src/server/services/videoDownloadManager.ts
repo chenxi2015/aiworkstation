@@ -430,16 +430,22 @@ export class VideoDownloadManager {
   }): ServerVideoTask {
     // Prevent duplicate downloading unless force is explicitly requested
     if (!params.force) {
-      const existing = Array.from(this.tasks.values()).find((t) => t.url === params.url);
-      if (existing) {
-        // Return existing active task directly without spawning duplicates
-        if (existing.status === 'downloading' || existing.status === 'pending' || existing.status === 'muxing') {
-          return existing;
-        }
-        // If already completed and file still exists on disk, return existing done task
-        if (existing.status === 'done' && existing.outputPath && existsSync(existing.outputPath)) {
-          return existing;
-        }
+      const allMatching = Array.from(this.tasks.values())
+        .filter((t) => t.url === params.url)
+        .sort((a, b) => b.createdAt - a.createdAt);
+
+      const active = allMatching.find(
+        (t) => t.status === 'downloading' || t.status === 'pending' || t.status === 'muxing',
+      );
+      if (active) {
+        return active;
+      }
+
+      const done = allMatching.find(
+        (t) => t.status === 'done' && t.outputPath && existsSync(t.outputPath),
+      );
+      if (done) {
+        return done;
       }
     }
 

@@ -5,12 +5,14 @@ import type { ExtensionMessage } from '../src/types';
 
 export default defineContentScript({
   matches: ['<all_urls>'],
+  allFrames: true,
   main(ctx) {
     if (typeof chrome === 'undefined' || !chrome?.runtime?.onMessage) {
       return;
     }
 
-    const grabber = new VisualGrabber();
+    const isTop = window === window.top;
+    const grabber = isTop ? new VisualGrabber() : null;
 
     // Inject the MAIN-world HLS sniffer (external file so page CSP cannot
     // block it the way it would block an inline script), then relay detected
@@ -55,14 +57,19 @@ export default defineContentScript({
       _sender: chrome.runtime.MessageSender,
       sendResponse: (response?: any) => void,
     ) => {
+      // Non-sniffer UI/Capture operations should only run in the top-level window
+      if (!isTop && message.type !== 'RESCAN_PAGE_VIDEO') {
+        return;
+      }
+
       switch (message.type) {
         case 'START_VISUAL_GRAB':
-          grabber.start();
+          grabber?.start();
           sendResponse({ success: true, active: true });
           break;
 
         case 'CANCEL_VISUAL_GRAB':
-          grabber.stop();
+          grabber?.stop();
           sendResponse({ success: true, active: false });
           break;
 
@@ -223,6 +230,37 @@ export default defineContentScript({
           return true; // Keep channel open for async response
         }
 
+        case 'RESCAN_PAGE_VIDEO': {
+          // 1. Notify main-world sniffer to reset seen cache and rescan performance buffer
+          window.postMessage({ source: 'aic-content', type: 'RESCAN_HLS_STREAMS' }, '*');
+
+          // 2. Scan active <video> and <source> elements in the page
+          try {
+            const mediaElements = document.querySelectorAll('video, source');
+            mediaElements.forEach((el) => {
+              const src = (el as HTMLVideoElement | HTMLSourceElement).src || (el as any).currentSrc;
+              if (src && /\.m3u8(\?|#|$)/i.test(src)) {
+                chrome.runtime
+                  .sendMessage({
+                    type: 'HLS_STREAM_DETECTED',
+                    payload: {
+                      url: src,
+                      via: 'dom-element',
+                      pageUrl: window.location.href,
+                      pageTitle: document.title,
+                    },
+                  })
+                  ?.catch?.(() => {});
+              }
+            });
+          } catch {
+            // DOM query warning
+          }
+
+          sendResponse({ success: true });
+          return true;
+        }
+
         default:
           break;
       }
@@ -236,7 +274,7 @@ export default defineContentScript({
         chrome?.runtime?.onMessage?.removeListener?.(messageListener);
       } catch {}
       window.removeEventListener('message', snifferMessageListener);
-      grabber.stop();
+      grabber?.stop();
     });
   },
 });

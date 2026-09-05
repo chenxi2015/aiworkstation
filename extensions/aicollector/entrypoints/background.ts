@@ -200,6 +200,58 @@ async function registerHlsStream(
 }
 
 /**
+ * Actively probe all frames in the tab for HLS streams via scripting API
+ */
+async function scanTabAllFrames(tabId: number): Promise<void> {
+  if (!chrome.scripting?.executeScript) return;
+  try {
+    const injectionResults = await chrome.scripting.executeScript({
+      target: { tabId, allFrames: true },
+      func: () => {
+        const found: string[] = [];
+        // 1. Check video and source DOM elements
+        try {
+          const els = document.querySelectorAll('video, source');
+          els.forEach((el) => {
+            const src = (el as HTMLVideoElement | HTMLSourceElement).src || (el as any).currentSrc;
+            if (src && /\.m3u8(\?|#|$)/i.test(src)) found.push(src);
+          });
+        } catch {}
+        // 2. Check performance timing resource entries
+        try {
+          const entries = performance.getEntriesByType('resource') || [];
+          for (let i = 0; i < entries.length; i++) {
+            const name = entries[i]?.name;
+            if (name && /\.m3u8(\?|#|$)/i.test(name)) found.push(name);
+          }
+        } catch {}
+        return found;
+      },
+    });
+
+    if (Array.isArray(injectionResults)) {
+      const tab = await chrome.tabs.get(tabId).catch(() => null);
+      for (const item of injectionResults) {
+        if (Array.isArray(item.result)) {
+          for (const url of item.result) {
+            if (typeof url === 'string') {
+              await registerHlsStream(tabId, {
+                url,
+                via: 'rescan-scripting',
+                pageUrl: tab?.url || '',
+                pageTitle: tab?.title || '',
+              });
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[AI Collector] scanTabAllFrames failed:', err);
+  }
+}
+
+/**
  * Append sync log item to chrome.storage
  */
 async function appendSyncLog(log: SyncLogItem): Promise<void> {
@@ -440,6 +492,13 @@ export default defineBackground(() => {
       return true; // Keep async response channel open
     }
 
+    if (message.type === 'RESCAN_ALL_FRAMES' && typeof message.tabId === 'number') {
+      scanTabAllFrames(message.tabId)
+        .then(() => sendResponse({ success: true }))
+        .catch(() => sendResponse({ success: false }));
+      return true; // Keep async response channel open
+    }
+
     if (message.type === 'CAPTURE_VISIBLE_TAB') {
       const windowId = sender.tab?.windowId ?? chrome.windows?.WINDOW_ID_CURRENT;
       rateLimitedCaptureVisibleTab(windowId, { format: 'png' })
@@ -523,4 +582,28 @@ export default defineBackground(() => {
       return true; // Keep async response channel open
     }
   });
+
+  // 6. Passive network sniffer for HLS streams across all frames and workers
+  try {
+    if (chrome.webRequest?.onBeforeRequest) {
+      chrome.webRequest.onBeforeRequest.addListener(
+        (details) => {
+          const { tabId, url } = details;
+          if (typeof tabId === 'number' && tabId >= 0 && typeof url === 'string') {
+            if (/\.m3u8(\?|#|$)/i.test(url)) {
+              registerHlsStream(tabId, {
+                url,
+                via: 'network-webrequest',
+                pageUrl: details.initiator || '',
+              });
+            }
+          }
+          return undefined;
+        },
+        { urls: ['<all_urls>'] },
+      );
+    }
+  } catch (err) {
+    console.warn('[AI Collector] Failed to initialize webRequest sniffer:', err);
+  }
 });

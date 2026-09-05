@@ -138,10 +138,32 @@ export function useSniffedStreams() {
     };
   }, [refresh, syncCombinedStreams]);
 
+  const [isRescanning, setIsRescanning] = useState(false);
+
+  const rescanStreams = useCallback(async () => {
+    setIsRescanning(true);
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tab && typeof tab.id === 'number') {
+        await Promise.allSettled([
+          chrome.tabs.sendMessage(tab.id, { type: 'RESCAN_PAGE_VIDEO' }).catch(() => {}),
+          chrome.runtime.sendMessage({ type: 'RESCAN_ALL_FRAMES', tabId: tab.id }).catch(() => {}),
+        ]);
+      }
+    } finally {
+      setTimeout(() => {
+        refresh();
+        setIsRescanning(false);
+      }, 500);
+    }
+  }, [refresh]);
+
   return {
     streams,
     tabId,
     refreshStreams: refresh,
     clearStreams,
+    rescanStreams,
+    isRescanning,
   };
 }

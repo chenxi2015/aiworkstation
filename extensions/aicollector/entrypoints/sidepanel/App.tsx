@@ -30,8 +30,12 @@ export default function App() {
   const { themeMode, toggleTheme, setSpecificTheme } = useTheme();
   const { isOnline, checkWorkbenchStatus, pushToWorkbench } = useWorkbench();
   const { currentTdk, refreshCurrentPageTDK } = useCurrentTdk();
-  const { syncLogs, clearSyncLogs } = useSyncLogs();
-  const { streams: sniffedStreams, clearStreams: clearSniffedStreams } = useSniffedStreams();
+  const {
+    streams: sniffedStreams,
+    clearStreams: clearSniffedStreams,
+    rescanStreams: rescanSniffedStreams,
+    isRescanning: isRescanningStreams,
+  } = useSniffedStreams();
   const {
     searchQuery,
     setSearchQuery,
@@ -39,6 +43,7 @@ export default function App() {
     flattenedBookmarks,
     filteredBookmarks,
   } = useBookmarks();
+  const { syncLogs, clearSyncLogs } = useSyncLogs();
 
   const {
     isGrabbing,
@@ -127,6 +132,8 @@ export default function App() {
               onCaptureFullPage={captureFullPage}
               onClearGrabbed={clearGrabbedContent}
               onClearSniffedStreams={clearSniffedStreams}
+              onRescanSniffedStreams={rescanSniffedStreams}
+              isRescanningStreams={isRescanningStreams}
               onRefreshTdk={refreshCurrentPageTDK}
               onPushToWorkbench={pushToWorkbench}
             />

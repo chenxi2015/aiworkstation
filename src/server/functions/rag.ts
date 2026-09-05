@@ -92,13 +92,17 @@ export const chatWithBookmarks = createServerFn({ method: "POST" })
 		}
 
 		// 3. Top-K Hybrid Ranking for semantic context
+		// 3. Top-K Hybrid Ranking for semantic background context
 		const ranked = EmbeddingService.rankItems(
 			candidateItems,
 			q,
 			queryVector,
 			"hybrid",
 		);
-		let references = ranked.slice(0, 6);
+		// Keep as internal context for LLM background knowledge
+		const contextReferences = ranked.slice(0, 6);
+		// User-facing references: default empty, only populated when tools (e.g. query_bookmarks) explicitly find items
+		let references: SearchResultItem[] = [];
 
 		// 4. Time and Environment metadata for LLM
 		const now = new Date();
@@ -117,8 +121,8 @@ export const chatWithBookmarks = createServerFn({ method: "POST" })
 
 		// 5. Construct RAG Context Prompt
 		const contextSnippets =
-			references.length > 0
-				? references
+			contextReferences.length > 0
+				? contextReferences
 						.map((item, i) => {
 							const tags =
 								item.tags && item.tags.length > 0
@@ -166,7 +170,7 @@ export const chatWithBookmarks = createServerFn({ method: "POST" })
    - 严禁向用户输出内部反思或工具调用意图（如“我需要用 folderName 参数查询”、“正在为您检索”等）。
    - 请静默发起工具调用，获取结果后直接呈现专业、结构清晰的 Markdown 回答。
 
-以下是从本地知识库初步语义检索到的相关背景资料（常规参考）：
+以下是从本地知识库语义检索到的背景记忆片段（仅供你在思考和回答时参考；若用户提问是宏观规划、分类结构调整、管理操作或日常对话，请忽略与主题无关的条目，切勿强行生搬硬套）：
 ${contextSnippets}`;
 
 		// 6. Setup Provider Config
@@ -189,8 +193,8 @@ ${contextSnippets}`;
 
 		if (!apiKey) {
 			return {
-				answer: `已为你检索到 ${references.length} 个相关收藏（见下方引用卡片）。\n\n提示：如需启用 AI 智能总结与深度问答，请在右上角「设置」中填入 LLM API Key。`,
-				references,
+				answer: `已为你检索到 ${contextReferences.length} 个相关收藏（见下方引用卡片）。\n\n提示：如需启用 AI 智能总结与深度问答，请在右上角「设置」中填入 LLM API Key。`,
+				references: contextReferences,
 				timestamp: new Date().toLocaleTimeString(),
 				dbMutated: false,
 			};

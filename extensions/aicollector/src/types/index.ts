@@ -160,4 +160,5 @@ export type ExtensionMessage =
     }
   | { type: 'GET_HLS_STREAMS'; tabId: number }
   | { type: 'CLEAR_HLS_STREAMS'; tabId: number }
-  | { type: 'HLS_STREAMS_UPDATE'; payload: { tabId: number; streams: SniffedStream[] } };
+  | { type: 'HLS_STREAMS_UPDATE'; payload: { tabId: number; streams: SniffedStream[] } }
+  | { type: 'RESCAN_PAGE_VIDEO' };

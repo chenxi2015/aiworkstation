@@ -77,6 +77,15 @@
     }
   }
 
+  // Listen for reset and rescan command from content script
+  window.addEventListener('message', function (event) {
+    if (event.source !== window || !event.data) return;
+    if (event.data.source === 'aic-content' && event.data.type === 'RESCAN_HLS_STREAMS') {
+      seen.clear();
+      scanPerformanceEntries();
+    }
+  });
+
   scanPerformanceEntries();
   setInterval(scanPerformanceEntries, 5000);
 })();
