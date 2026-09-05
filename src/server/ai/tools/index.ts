@@ -9,6 +9,12 @@ import {
 	executeDeleteFolder,
 } from "./deleteFolderTool.ts";
 import {
+	executeGetStats,
+	type GetStatsInput,
+	getStatsInputSchema,
+	getStatsToolDef,
+} from "./getStatsTool.ts";
+import {
 	executeMoveBookmarks,
 	moveBookmarksToFolderInputSchema,
 	moveBookmarksToFolderToolDef,
@@ -42,6 +48,7 @@ import {
 
 export * from "./createFolderTool.ts";
 export * from "./deleteFolderTool.ts";
+export * from "./getStatsTool.ts";
 export * from "./moveBookmarksTool.ts";
 export * from "./moveFolderTool.ts";
 export * from "./queryBookmarksTool.ts";
@@ -116,6 +123,10 @@ export function createBookmarkServerTools(hooks?: BookmarkToolHooks) {
 			}
 			return res.summary;
 		}),
+		getStatsToolDef.server(async (args) => {
+			const res = executeGetStats((args || {}) as GetStatsInput);
+			return res.summary;
+		}),
 	];
 }
 
@@ -140,6 +151,9 @@ export async function executeBookmarkToolCall(
 
 	let result: ToolExecutionResult;
 	switch (toolName) {
+		case "get_stats":
+			result = executeGetStats(getStatsInputSchema.parse(parsedArgs));
+			break;
 		case "query_bookmarks":
 			result = executeQueryBookmarks(
 				queryBookmarksInputSchema.parse(parsedArgs),

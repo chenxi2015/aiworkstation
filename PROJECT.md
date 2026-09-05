@@ -162,7 +162,7 @@ extensions/aicollector/ # Chrome 插件（WXT 框架）：background / content /
 
 ### Tool 扩展规划
 
-现有 8 个 Tool（`src/server/ai/tools/`）是 Agent 行动的基础，需逐步扩展：
+现有 9 个 Tool（`src/server/ai/tools/`）是 Agent 行动的基础，需逐步扩展：
 
 | Tool | 用途 | 优先级 |
 |------|------|--------|
@@ -174,7 +174,7 @@ extensions/aicollector/ # Chrome 插件（WXT 框架）：background / content /
 | `remove_bookmarks_from_folder` | 从文件夹移出书签 | ✅ 已有 |
 | `move_folder` | 移动文件夹（跨分类/层级） | ✅ 已有 |
 | `reorder_folders` | 文件夹排序 | ✅ 已有 |
-| `get_stats` | 统计分析（按分类/时间/标签分布） | P1 |
+| `get_stats` | 统计分析（按分类/时间/标签分布与全景治理） | ✅ 已有 |
 | `find_duplicates` | 基于 URL 和语义的重复检测 | P1 |
 | `batch_classify` | 批量智能分类（复用 AIClassifier） | P1 |
 | `delete_bookmark` | 删除书签 | P1 |
