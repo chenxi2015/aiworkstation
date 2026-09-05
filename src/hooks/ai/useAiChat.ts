@@ -1,22 +1,14 @@
 import { toast } from "@heroui/react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type {
-	Category,
-	Folder,
-	SearchResultItem,
-} from "../../components/workbench/types";
 import {
 	type ChatMessage,
 	type ChatSession,
 	WorkbenchStorageService,
 } from "../../services/workbenchStorage";
+import { type ChatItem, useChatMessages } from "./useChatMessages";
+import { useChatSessions } from "./useChatSessions";
 
-export interface ChatItem {
-	role: "user" | "assistant";
-	content: string;
-	references?: SearchResultItem[];
-	timestamp?: string;
-}
+export type { ChatItem };
 
 export interface UseAiChatOptions {
 	onMessageSent?: () => void;
@@ -25,17 +17,41 @@ export interface UseAiChatOptions {
 }
 
 /**
- * Custom hook managing conversational RAG state, history sessions, and network requests
+ * Facade hook managing conversational RAG state, history sessions, and network requests
  */
 export function useAiChat(options?: UseAiChatOptions) {
-	const [messages, setMessages] = useState<ChatItem[]>([]);
-	const [sessions, setSessions] = useState<ChatSession<ChatItem>[]>([]);
-	const [currentSessionId, setCurrentSessionId] = useState<string>(
-		() => `session_${Date.now()}`,
-	);
 	const [input, setInput] = useState<string>("");
 	const [isLoading, setIsLoading] = useState<boolean>(false);
 	const abortControllerRef = useRef<AbortController | null>(null);
+
+	// 1. Manage chat sessions
+	const {
+		sessions,
+		currentSessionId,
+		setCurrentSessionId,
+		syncSession,
+		createNewChat: baseCreateNewChat,
+		loadSession: baseLoadSession,
+		deleteSession: baseDeleteSession,
+		clearAllSessions: baseClearAllSessions,
+	} = useChatSessions<ChatItem>();
+
+	// 2. Manage active messages
+	const {
+		messages,
+		setMessages,
+		editMessage: baseEditMessage,
+		deleteMessage: baseDeleteMessage,
+		deleteMessages: baseDeleteMessages,
+		updateMessageReferences,
+	} = useChatMessages({
+		onMessagesChange: useCallback(
+			(msgs: ChatItem[]) => {
+				syncSession(msgs, currentSessionId);
+			},
+			[syncSession, currentSessionId],
+		),
+	});
 
 	// Stop / abort current ongoing AI answer generation
 	const stopChat = useCallback(() => {
@@ -47,7 +63,6 @@ export function useAiChat(options?: UseAiChatOptions) {
 		toast.info("已停止回答");
 		setMessages((prev) => {
 			const lastMsg = prev[prev.length - 1];
-			// Only append cancellation notice if the last message was the user query
 			if (!lastMsg || lastMsg.role === "user") {
 				return [
 					...prev,
@@ -63,7 +78,7 @@ export function useAiChat(options?: UseAiChatOptions) {
 			}
 			return prev;
 		});
-	}, []);
+	}, [setMessages]);
 
 	// Clean up pending requests on unmount
 	useEffect(() => {
@@ -72,133 +87,60 @@ export function useAiChat(options?: UseAiChatOptions) {
 		};
 	}, []);
 
-	// Load chat history & sessions on mount
-	useEffect(() => {
-		try {
-			const savedSessions =
-				WorkbenchStorageService.getChatSessions<ChatItem>();
-			if (
-				savedSessions &&
-				Array.isArray(savedSessions) &&
-				savedSessions.length > 0
-			) {
-				setSessions(savedSessions);
-			}
-
-			const saved = WorkbenchStorageService.getChatHistory<ChatItem>();
-			if (saved && Array.isArray(saved) && saved.length > 0) {
-				setMessages(saved);
-			}
-		} catch (e) {
-			console.error("[useAiChat] Failed to load chat history:", e);
-		}
-	}, []);
-
-	// Synchronize current messages with sessions state and localStorage
-	const syncSession = useCallback((msgs: ChatItem[], sessId: string) => {
-		try {
-			WorkbenchStorageService.saveChatHistory(msgs);
-			if (msgs.length === 0) return;
-
-			setSessions((prev) => {
-				const nowStr = new Date().toLocaleString([], {
-					month: "2-digit",
-					day: "2-digit",
-					hour: "2-digit",
-					minute: "2-digit",
-				});
-				const firstUserMsg = msgs.find((m) => m.role === "user");
-				const rawTitle = firstUserMsg
-					? firstUserMsg.content.slice(0, 24)
-					: "新对话";
-				const title = rawTitle.length >= 24 ? `${rawTitle}...` : rawTitle;
-
-				const existingIndex = prev.findIndex((s) => s.id === sessId);
-				let updated: ChatSession<ChatItem>[];
-				if (existingIndex >= 0) {
-					updated = prev.map((s, idx) =>
-						idx === existingIndex
-							? {
-									...s,
-									title: s.title || title,
-									updatedAt: nowStr,
-									messages: msgs,
-								}
-							: s,
-					);
-				} else {
-					const newSession: ChatSession<ChatItem> = {
-						id: sessId,
-						title,
-						createdAt: nowStr,
-						updatedAt: nowStr,
-						messages: msgs,
-					};
-					updated = [newSession, ...prev].slice(0, 30);
-				}
-				WorkbenchStorageService.saveChatSessions(updated);
-				return updated;
-			});
-		} catch (e) {
-			console.error("[useAiChat] Failed to sync session:", e);
-		}
-	}, []);
-
-	// Create a new blank chat session
+	// Wrapped session actions that coordinate messages state
 	const createNewChat = useCallback(() => {
-		if (messages.length > 0) {
-			syncSession(messages, currentSessionId);
-		}
-		const newId = `session_${Date.now()}`;
-		setCurrentSessionId(newId);
+		baseCreateNewChat(messages);
 		setMessages([]);
 		setInput("");
-		WorkbenchStorageService.clearChatHistory();
-		toast.success("已开启新对话");
-	}, [messages, currentSessionId, syncSession]);
+	}, [baseCreateNewChat, messages, setMessages]);
 
-	// Load a selected historical session
 	const loadSession = useCallback(
 		(session: ChatSession<ChatItem>) => {
-			if (messages.length > 0 && currentSessionId !== session.id) {
-				syncSession(messages, currentSessionId);
-			}
-			setCurrentSessionId(session.id);
+			baseLoadSession(session, messages);
 			setMessages(session.messages || []);
-			WorkbenchStorageService.saveChatHistory(session.messages || []);
-			toast.success(`已载入「${session.title || "历史对话"}」`);
 		},
-		[messages, currentSessionId, syncSession],
+		[baseLoadSession, messages, setMessages],
 	);
 
-	// Delete a single historical session
 	const deleteSession = useCallback(
 		(sessionId: string) => {
-			WorkbenchStorageService.deleteChatSession(sessionId);
-			setSessions((prev) => prev.filter((s) => s.id !== sessionId));
 			if (currentSessionId === sessionId) {
 				setMessages([]);
-				setCurrentSessionId(`session_${Date.now()}`);
-				WorkbenchStorageService.clearChatHistory();
 			}
-			toast.success("已删除该会话记录");
+			baseDeleteSession(sessionId);
 		},
-		[currentSessionId],
+		[currentSessionId, baseDeleteSession, setMessages],
 	);
 
-	// Clear all sessions and current messages
 	const clearAllSessions = useCallback(() => {
 		setMessages([]);
-		setSessions([]);
-		setCurrentSessionId(`session_${Date.now()}`);
-		WorkbenchStorageService.clearChatHistory();
-		WorkbenchStorageService.clearChatSessions();
-		toast.success("已清空所有对话记录");
-	}, []);
+		baseClearAllSessions();
+	}, [setMessages, baseClearAllSessions]);
 
 	const clearHistory = useCallback(() => {
 		createNewChat();
 	}, [createNewChat]);
+
+	const editMessage = useCallback(
+		(index: number, newContent: string) => {
+			baseEditMessage(index, newContent);
+		},
+		[baseEditMessage],
+	);
+
+	const deleteMessage = useCallback(
+		(index: number) => {
+			baseDeleteMessage(index);
+		},
+		[baseDeleteMessage],
+	);
+
+	const deleteMessages = useCallback(
+		(indices: number[] | Set<number>) => {
+			baseDeleteMessages(indices);
+		},
+		[baseDeleteMessages],
+	);
 
 	// Send user prompt to LLM and retrieve RAG answer
 	const sendPrompt = useCallback(
@@ -262,8 +204,6 @@ export function useAiChat(options?: UseAiChatOptions) {
 			abortControllerRef.current = controller;
 
 			try {
-				// Convert to ChatMessage history format (take last 8 messages)
-				// For new chat, pass empty history to prevent context pollution
 				const history: ChatMessage[] = isNewChat
 					? []
 					: historyBase.slice(-8).map((m) => ({
@@ -312,7 +252,6 @@ export function useAiChat(options?: UseAiChatOptions) {
 					options?.onDataMutated?.();
 				}
 			} catch (error: any) {
-				// Silently ignore if aborted by the user
 				if (controller.signal.aborted || error?.name === "AbortError") {
 					console.log("[useAiChat] AI query aborted by user");
 					return;
@@ -337,7 +276,16 @@ export function useAiChat(options?: UseAiChatOptions) {
 				}
 			}
 		},
-		[input, isLoading, messages, options, currentSessionId, syncSession],
+		[
+			input,
+			isLoading,
+			messages,
+			options,
+			currentSessionId,
+			syncSession,
+			setMessages,
+			setCurrentSessionId,
+		],
 	);
 
 	// Edit user prompt and regenerate answer from that point
@@ -355,23 +303,6 @@ export function useAiChat(options?: UseAiChatOptions) {
 		[messages, isLoading, sendPrompt],
 	);
 
-	// Update content of a message without re-submitting to AI
-	const editMessage = useCallback(
-		(index: number, newContent: string) => {
-			const trimmed = newContent.trim();
-			if (!trimmed) return;
-			setMessages((prev) => {
-				const updated = prev.map((m, i) =>
-					i === index ? { ...m, content: trimmed } : m,
-				);
-				syncSession(updated, currentSessionId);
-				return updated;
-			});
-			toast.success("已更新消息内容");
-		},
-		[currentSessionId, syncSession],
-	);
-
 	// Resend / regenerate message
 	const resendMessage = useCallback(
 		(index: number) => {
@@ -386,7 +317,6 @@ export function useAiChat(options?: UseAiChatOptions) {
 				const baseMessages = messages.slice(0, index);
 				sendPrompt(targetMsg.content, { baseMessages });
 			} else {
-				// For assistant message, find nearest previous user question
 				let prevUserIndex = -1;
 				for (let i = index - 1; i >= 0; i--) {
 					if (messages[i].role === "user") {
@@ -404,63 +334,6 @@ export function useAiChat(options?: UseAiChatOptions) {
 		},
 		[messages, isLoading, sendPrompt],
 	);
-
-	// Delete multiple messages by indices from the active thread
-	const deleteMessages = useCallback(
-		(indices: number[] | Set<number>) => {
-			const indexSet = indices instanceof Set ? indices : new Set(indices);
-			if (indexSet.size === 0) return;
-			setMessages((prev) => {
-				const updated = prev.filter((_, i) => !indexSet.has(i));
-				syncSession(updated, currentSessionId);
-				return updated;
-			});
-			toast.success(`已删除 ${indexSet.size} 条消息`);
-		},
-		[currentSessionId, syncSession],
-	);
-
-	// Delete a single message from the active thread
-	const deleteMessage = useCallback(
-		(index: number) => {
-			deleteMessages([index]);
-		},
-		[deleteMessages],
-	);
-
-	// Update in-memory reference cards when items are moved to another folder
-	const updateMessageReferences = useCallback(
-		(movedItems: SearchResultItem[], targetFolder: Folder) => {
-			const movedKeys = new Set(movedItems.map((i) => i.id || i.url));
-			setMessages((prev) =>
-				prev.map((msg) => {
-					if (!msg.references) return msg;
-					return {
-						...msg,
-						references: msg.references.map((r) => {
-							if (movedKeys.has(r.id || r.url)) {
-								return {
-									...r,
-									folderId: targetFolder.id,
-									folderName: targetFolder.name,
-									category: targetFolder.category as Category,
-								};
-							}
-							return r;
-						}),
-					};
-				}),
-			);
-		},
-		[],
-	);
-
-	// Save chat history & sync session on messages change
-	useEffect(() => {
-		if (messages.length > 0) {
-			syncSession(messages, currentSessionId);
-		}
-	}, [messages, currentSessionId, syncSession]);
 
 	return {
 		messages,

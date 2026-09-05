@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { lazy, Suspense, useCallback, useRef, useState } from "react";
 import {
+	type Category,
 	CategoryView,
 	ChatWithBookmarksPanel,
 	type ChatWithBookmarksPanelRef,
@@ -51,10 +52,10 @@ const DeadLinksModal = lazy(() =>
 
 export const Route = createFileRoute("/")({
 	loader: async () => {
-		const { folders, unclassified } =
+		const { folders, unclassified, activeCategory } =
 			await WorkbenchStorageService.fetchAllFromDb();
 		const settings = await WorkbenchStorageService.fetchSettingsFromDb();
-		return { folders, unclassified, settings };
+		return { folders, unclassified, settings, activeCategory };
 	},
 	pendingComponent: WorkbenchSkeleton,
 	pendingMs: 0,
@@ -102,7 +103,10 @@ function WorkbenchHome() {
 		handleBookmarksImported,
 		handleNavigateFromSearch,
 		reloadFromDb,
-	} = useWorkbenchData(initialData);
+	} = useWorkbenchData({
+		...initialData,
+		initialCategory: (initialData.activeCategory as Category) || undefined,
+	});
 
 	// 2. Modals state management
 	const {
@@ -199,7 +203,7 @@ function WorkbenchHome() {
 				<div className="flex-1 flex w-full min-h-0 overflow-hidden">
 					{isUnclassified ? (
 						/* Unclassified Inbox Buffer */
-						<main className="flex-1 p-6 lg:p-8 min-w-0 flex flex-col overflow-y-auto border-r border-border h-full">
+						<main className="flex-1 p-6 lg:p-8 min-w-0 flex flex-col overflow-y-auto h-full">
 							{/* Workspace Title */}
 							<div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-4 mb-6">
 								<div>

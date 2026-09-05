@@ -24,6 +24,7 @@ import {
 export async function fetchAllFromDb(): Promise<{
 	folders: Folder[];
 	unclassified: WorkbenchItem[];
+	activeCategory?: string;
 }> {
 	try {
 		return await getWorkbenchData();

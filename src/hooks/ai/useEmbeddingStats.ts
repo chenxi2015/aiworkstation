@@ -10,6 +10,67 @@ export interface UseEmbeddingStatsReturn {
 	buildIndex: (batchSize?: number) => Promise<void>;
 }
 
+interface EmbeddingRuntimeConfig {
+	apiKey: string;
+	baseUrl?: string;
+	model?: string;
+}
+
+/**
+ * Pure helper to extract active embedding API configuration from stored settings
+ */
+function resolveEmbeddingConfig(): EmbeddingRuntimeConfig | null {
+	const settings = WorkbenchStorageService.getSettings();
+	const embeddingKey = settings.embeddingApiKey?.trim();
+	const llmKey = settings.apiKey?.trim();
+	const apiKey = embeddingKey || llmKey;
+
+	if (!apiKey) {
+		return null;
+	}
+
+	const config: EmbeddingRuntimeConfig = { apiKey };
+	if (settings.embeddingBaseUrl?.trim()) {
+		config.baseUrl = settings.embeddingBaseUrl.trim();
+	}
+	if (settings.embeddingModel?.trim()) {
+		config.model = settings.embeddingModel.trim();
+	}
+	return config;
+}
+
+/**
+ * Pure helper to batch process all pending embeddings until finished
+ */
+async function executeBatchIndexing(
+	config: EmbeddingRuntimeConfig,
+	batchSize: number,
+	onStatsUpdate: (stats: EmbeddingStats) => void,
+): Promise<{ totalProcessed: number; error?: string }> {
+	let remaining = 1;
+	let totalProcessed = 0;
+
+	while (remaining > 0) {
+		const res = await WorkbenchStorageService.batchProcessEmbeddings({
+			config,
+			batchSize,
+		});
+
+		if (res.error) {
+			if (res.stats) onStatsUpdate(res.stats);
+			return { totalProcessed, error: res.error };
+		}
+
+		totalProcessed += res.processed;
+		remaining = res.remaining;
+		if (res.stats) onStatsUpdate(res.stats);
+
+		if (res.processed === 0) break;
+	}
+
+	return { totalProcessed };
+}
+
 /**
  * Custom hook to monitor vector embedding coverage and trigger index rebuilding
  */
@@ -39,58 +100,28 @@ export function useEmbeddingStats(autoFetch = true): UseEmbeddingStatsReturn {
 	}, [autoFetch, fetchStats]);
 
 	const buildIndex = useCallback(async (customBatchSize?: number | unknown) => {
-		// Ensure batchSize is strictly a number and not an event object (e.g. PressEvent from HeroUI Button onPress)
 		const batchSize =
 			typeof customBatchSize === "number" && customBatchSize > 0
 				? Math.min(customBatchSize, 100)
 				: 20;
 
-		const settings = WorkbenchStorageService.getSettings();
-		const embeddingKey = settings.embeddingApiKey?.trim();
-		const llmKey = settings.apiKey?.trim();
-		const apiKey = embeddingKey || llmKey;
-
-		if (!apiKey) {
+		const config = resolveEmbeddingConfig();
+		if (!config) {
 			toast.warning("请先在「设置」中配置 Embedding API Key 或 LLM API Key");
 			return;
 		}
 
 		setIsIndexing(true);
-		const config: { apiKey: string; baseUrl?: string; model?: string } = {
-			apiKey,
-		};
-		if (settings.embeddingBaseUrl?.trim()) {
-			config.baseUrl = settings.embeddingBaseUrl.trim();
-		}
-		if (settings.embeddingModel?.trim()) {
-			config.model = settings.embeddingModel.trim();
-		}
-
 		try {
-			let remaining = 1;
-			let totalProcessed = 0;
+			const { totalProcessed, error } = await executeBatchIndexing(
+				config,
+				batchSize,
+				setStats,
+			);
 
-			while (remaining > 0) {
-				const res = await WorkbenchStorageService.batchProcessEmbeddings({
-					config,
-					batchSize,
-				});
-
-				if (res.error) {
-					toast.danger(`构建向量索引失败: ${res.error}`);
-					if (res.stats) {
-						setStats(res.stats);
-					}
-					return;
-				}
-
-				totalProcessed += res.processed;
-				remaining = res.remaining;
-				if (res.stats) {
-					setStats(res.stats);
-				}
-
-				if (res.processed === 0) break;
+			if (error) {
+				toast.danger(`构建向量索引失败: ${error}`);
+				return;
 			}
 
 			if (totalProcessed > 0) {

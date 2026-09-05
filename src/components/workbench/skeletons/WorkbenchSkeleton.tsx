@@ -7,9 +7,21 @@ import { FolderGridSkeleton } from "./FolderGridSkeleton";
  * Adaptively renders 2-column or 3-column layout based on active category in sessionStorage.
  */
 export function WorkbenchSkeleton() {
-	const isUnclassified =
-		typeof window !== "undefined" &&
-		sessionStorage.getItem("aiworkstation_active_category") === "未分类";
+	let isUnclassified = false;
+	if (typeof window !== "undefined") {
+		try {
+			const match = document.cookie.match(
+				/(?:^|;\s*)aiworkstation_active_category=([^;]+)/,
+			);
+			const cookieVal = match ? decodeURIComponent(match[1]) : null;
+			isUnclassified =
+				cookieVal === "未分类" ||
+				sessionStorage.getItem("aiworkstation_active_category") === "未分类" ||
+				localStorage.getItem("aiworkstation_active_category") === "未分类";
+		} catch {
+			// Ignore access restrictions
+		}
+	}
 
 	return (
 		<div className="h-screen bg-background text-foreground flex flex-col overflow-hidden selection:bg-accent-soft selection:text-accent-soft-foreground">
@@ -46,7 +58,7 @@ export function WorkbenchSkeleton() {
 			<div className="flex-1 flex w-full min-h-0 overflow-hidden">
 				{isUnclassified ? (
 					/* Unclassified 2-column skeleton */
-					<main className="flex-1 p-6 lg:p-8 min-w-0 flex flex-col overflow-y-auto border-r border-border h-full">
+					<main className="flex-1 p-6 lg:p-8 min-w-0 flex flex-col overflow-y-auto h-full">
 						<div className="space-y-2 mb-6">
 							<div className="w-40 h-8 rounded-lg bg-surface-secondary/70 animate-pulse" />
 							<div className="w-80 h-3.5 rounded bg-surface-secondary/40 animate-pulse" />

@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getCookie } from "@tanstack/react-start/server";
 import type {
 	AIClassificationResult,
 	BookmarkTDKItem,
@@ -20,10 +21,23 @@ import {
  * Server Function: Fetch all folders and unclassified items from SQLite
  */
 export const getWorkbenchData = createServerFn({ method: "GET" }).handler(
-	async (): Promise<{ folders: Folder[]; unclassified: WorkbenchItem[] }> => {
+	async (): Promise<{
+		folders: Folder[];
+		unclassified: WorkbenchItem[];
+		activeCategory?: string;
+	}> => {
 		const folders = workbenchDb.getAllFolders();
 		const unclassified = workbenchDb.getUnclassifiedItems();
-		return { folders, unclassified };
+		let activeCategory: string | undefined;
+		try {
+			const cookieCat = getCookie("aiworkstation_active_category");
+			if (cookieCat) {
+				activeCategory = decodeURIComponent(cookieCat);
+			}
+		} catch {
+			// Ignore if outside server runtime context
+		}
+		return { folders, unclassified, activeCategory };
 	},
 );
 
@@ -294,4 +308,3 @@ export const saveWorkbenchSettings = createServerFn({ method: "POST" })
 		workbenchDb.setSetting("workbench_settings", JSON.stringify(settings));
 		return { success: true };
 	});
-
