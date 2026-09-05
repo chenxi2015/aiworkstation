@@ -63,14 +63,6 @@ function describeStream(
   return { title, host, rawFileName };
 }
 
-function formatTime(timestamp: number): string {
-  try {
-    return new Date(timestamp).toLocaleTimeString('zh-CN', { hour12: false });
-  } catch {
-    return '';
-  }
-}
-
 /**
  * Card listing HLS streams sniffed on the current page or persisting from
  * ongoing/paused downloads. Supports dual-engine: Native local Node+FFmpeg
@@ -232,23 +224,24 @@ export const SniffedStreamsCard: React.FC<SniffedStreamsCardProps> = ({
                     )}
                     {status === 'downloading' && (
                       <span className="shrink-0 text-[9px] px-1 rounded bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20 font-medium">
-                        {totalSlices ? `${percent}% (${doneSlices}/${totalSlices})` : `${percent}%`}
+                        {percent}%
                       </span>
                     )}
                     {status === 'muxing' && (
                       <span className="shrink-0 text-[9px] px-1 rounded bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20 font-medium">
-                        {useServer ? '本地 FFmpeg 合成中' : '合成 MP4 中'}
+                        {useServer ? '合成中' : '合成 MP4'}
                       </span>
                     )}
                   </div>
-                  <span className="text-[10px] text-muted/70 truncate flex items-center gap-1">
-                    <span className="font-mono text-[9px] opacity-75">{rawFileName}</span>
-                    <span>·</span>
-                    <span>{host}</span>
-                    {stream.bestResolution ? <span>· 最高 {stream.bestResolution}</span> : null}
-                    {stream.hasAudio ? <span>· 音视频</span> : null}
-                    {stream.detectedAt ? <span>· {formatTime(stream.detectedAt)}</span> : null}
-                  </span>
+                  <div className="text-[10px] text-muted/70 truncate flex items-center gap-1.5">
+                    <span className="truncate">{host}</span>
+                    {stream.bestResolution && (
+                      <>
+                        <span className="opacity-40">·</span>
+                        <span className="shrink-0">{stream.bestResolution}</span>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-1.5 shrink-0">
@@ -261,11 +254,11 @@ export const SniffedStreamsCard: React.FC<SniffedStreamsCardProps> = ({
                       <button
                         type="button"
                         onClick={() => handleCancel(stream.url)}
-                        title="取消下载"
-                        className="h-6 px-2 rounded-md flex items-center gap-1 text-[10px] font-medium text-muted hover:text-danger hover:bg-danger/10 border border-border/50 transition-colors cursor-pointer"
+                        title={totalSlices ? `取消下载 (${doneSlices}/${totalSlices})` : '取消下载'}
+                        className="h-6 px-1.5 rounded-md flex items-center gap-1 text-[10px] font-medium text-muted hover:text-danger hover:bg-danger/10 border border-border/50 transition-colors cursor-pointer"
                       >
                         <X className="w-3 h-3" />
-                        <span>{percent}% 取消</span>
+                        <span>取消</span>
                       </button>
                     </div>
                   ) : status === 'paused' ? (
@@ -333,7 +326,7 @@ export const SniffedStreamsCard: React.FC<SniffedStreamsCardProps> = ({
                       className="h-6 px-2 rounded-md flex items-center gap-1 text-[10px] font-medium bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20 hover:bg-violet-500/20 transition-all cursor-pointer"
                     >
                       {isWorkbenchOnline ? <Zap className="w-3 h-3 fill-current" /> : <Download className="w-3 h-3" />}
-                      <span>{isWorkbenchOnline ? '原生极速下载' : '下载'}</span>
+                      <span>{isWorkbenchOnline ? '极速下载' : '下载'}</span>
                     </button>
                   )}
                 </div>
@@ -368,16 +361,23 @@ export const SniffedStreamsCard: React.FC<SniffedStreamsCardProps> = ({
       </div>
 
       <div className="px-3 py-1.5 border-t border-border/50 text-[10px] text-muted/70 flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
+        <div
+          className="flex items-center gap-1.5"
+          title={
+            isWorkbenchOnline
+              ? '无上限超大视频秒转MP4，下载自动存入系统 Downloads 目录'
+              : '工作台未启动，使用浏览器内置单机引擎'
+          }
+        >
           {isWorkbenchOnline ? (
             <>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-foreground/80 font-medium">工作台原生引擎已连接 (无上限超大视频秒转MP4·存入Downloads)</span>
+              <span className="text-foreground/80 font-medium">原生加速引擎已就绪</span>
             </>
           ) : (
             <>
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-              <span>浏览器内置单机引擎 (工作台未启动·大文件自动存TS)</span>
+              <span>内置下载引擎</span>
             </>
           )}
         </div>

@@ -4,13 +4,13 @@ import {
 	type DragMoveEvent,
 	DragOverlay,
 	type DragStartEvent,
+	type Modifier,
 	PointerSensor,
 	useDraggable,
 	useDroppable,
 	useSensor,
 	useSensors,
 } from "@dnd-kit/core";
-import { snapCenterToCursor } from "@dnd-kit/modifiers";
 import { Folder as FolderIconLucide } from "lucide-react";
 import {
 	createContext,
@@ -36,6 +36,31 @@ import {
 	folderDropId,
 	itemDragId,
 } from "./dndUtils";
+
+/** Offsets from the cursor so the drag preview sits beside it instead of covering the drop target */
+const CURSOR_OFFSET_X = 14;
+const CURSOR_OFFSET_Y = 18;
+
+/** Snaps the drag overlay's top-left corner to the cursor, shifted down-right */
+const snapBesideCursor: Modifier = ({
+	activatorEvent,
+	draggingNodeRect,
+	transform,
+}) => {
+	if (!draggingNodeRect || !activatorEvent) return transform;
+	const activator = activatorEvent as Partial<PointerEvent>;
+	if (
+		typeof activator.clientX !== "number" ||
+		typeof activator.clientY !== "number"
+	) {
+		return transform;
+	}
+	return {
+		...transform,
+		x: transform.x + activator.clientX - draggingNodeRect.left + CURSOR_OFFSET_X,
+		y: transform.y + activator.clientY - draggingNodeRect.top + CURSOR_OFFSET_Y,
+	};
+};
 
 export type {
 	ItemDragData,
@@ -237,7 +262,7 @@ export function WorkbenchDndProvider({
 				onDragCancel={resetDrag}
 			>
 				{children}
-				<DragOverlay dropAnimation={null} modifiers={[snapCenterToCursor]}>
+				<DragOverlay dropAnimation={null} modifiers={[snapBesideCursor]}>
 					{activeDrag?.kind === "item" ? (
 						<div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-surface border border-accent/50 shadow-lg max-w-[260px]">
 							<ItemFavicon
