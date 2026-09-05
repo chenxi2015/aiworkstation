@@ -60,9 +60,10 @@ export function computeKeywordScore(
 	highlights?: { name?: string; summary?: string };
 } {
 	const q = query.trim().toLowerCase();
-	if (!q) return { score: 0 };
-
-	const terms = q.split(/\s+/).filter(Boolean);
+	// Filter out single-character numeric or Latin tokens (e.g. "5", "7", "a") that cause false positives across unrelated titles/URLs
+	const terms = q
+		.split(/\s+/)
+		.filter((t) => t.length >= 2 || (/^[\u4e00-\u9fa5]$/.test(t) && q.length <= 4));
 	let score = 0;
 	const reasons: string[] = [];
 

@@ -162,15 +162,10 @@ export const chatWithBookmarks = createServerFn({ method: "POST" })
 		// Keep Top-6 as internal context for LLM background knowledge
 		const contextReferences = ranked.slice(0, 6);
 
-		// High-confidence threshold (>= 0.35) to preserve RAG bookmark activation
-		// Only display interactive cards when bookmarks are truly relevant to user query, eliminating noise during planning/governance
-		const HIGH_RELEVANCE_THRESHOLD = 0.35;
-		const highConfidenceRefs = ranked
-			.filter((item) => (item.score || 0) >= HIGH_RELEVANCE_THRESHOLD)
-			.slice(0, 6);
-
-		// User-facing references: populated if high-confidence matches exist or when tools explicitly return items
-		let references: SearchResultItem[] = highConfidenceRefs;
+		// User-facing references: default empty.
+		// Only populated when Agent tools (such as query_bookmarks) explicitly search and return items.
+		// This guarantees that governance/planning/management conversations never display irrelevant bookmark cards.
+		let references: SearchResultItem[] = [];
 
 		// 4. Time and Environment metadata for LLM
 		const now = new Date();
