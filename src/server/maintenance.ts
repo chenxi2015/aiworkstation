@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import dayjs from "dayjs";
 import { DB_DIR, DB_PATH } from "./db/connection.ts";
 import { workbenchDb } from "./db/sqlite.ts";
 
@@ -17,11 +18,8 @@ export function backupDatabase(): string | null {
 	if (!fs.existsSync(BACKUP_DIR)) {
 		fs.mkdirSync(BACKUP_DIR, { recursive: true });
 	}
-	const stamp = new Date()
-		.toISOString()
-		.replace(/[:.]/g, "-")
-		.replace("T", "_")
-		.slice(0, 19);
+	// Use local system timestamp for backup filename
+	const stamp = dayjs().format("YYYY-MM-DD_HH-mm-ss");
 	const backupPath = path.join(BACKUP_DIR, `workbench-${stamp}.db`);
 	fs.copyFileSync(DB_PATH, backupPath);
 
