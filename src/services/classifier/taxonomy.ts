@@ -17,19 +17,18 @@ export const UNIVERSAL_CATEGORY_DOMAINS = [
 	"工具",
 	"资源",
 	"生活",
-	"工作台",
 ] as const;
 
 /**
  * Fallback category when AI returns empty or pseudo-category
  */
-export const DEFAULT_FOLDER_CATEGORY = "工作台";
+export const DEFAULT_FOLDER_CATEGORY = "未归类";
 
 /**
  * Normalizes category name, falling back to DEFAULT_FOLDER_CATEGORY for empty or placeholder values
  */
 export function sanitizeFolderCategory(category?: string): string {
 	const trimmed = category?.trim();
-	if (!trimmed || trimmed === "未分类") return DEFAULT_FOLDER_CATEGORY;
+	if (!trimmed || trimmed === "未分类" || trimmed === "工作台") return DEFAULT_FOLDER_CATEGORY;
 	return trimmed;
 }

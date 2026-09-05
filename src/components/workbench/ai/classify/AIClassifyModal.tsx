@@ -93,7 +93,6 @@ export function AIClassifyModal({
 
 	const categories = useMemo(() => {
 		const cats = new Set(folders.map((f) => f.category));
-		cats.add("工作台");
 		cats.add("自媒体");
 		cats.add("技能");
 		cats.add("电商");

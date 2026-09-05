@@ -39,21 +39,21 @@
 
 ## 关键设计决策（有理由的，改动前先讨论）
 
-1. **SQLite 落本地真实文件**（better-sqlite3 + drizzle），不用浏览器 IndexedDB/OPFS —— 要可备份、可被其他工具读取
+1. **SQLite 落本地真实文件**（better-sqlite3 + 原生 SQL 建表/迁移，见 `src/server/db/schema.ts`），不用浏览器 IndexedDB/OPFS —— 要可备份、可被其他工具读取
 2. **定时任务只放服务端 Node 进程** —— MV3 service worker 会休眠，网页标签页会关闭，都不可靠
 3. **发布动作保留人工确认** —— 采集和 AI 生成可全自动，但"点发送"由人确认，避免推特等平台风控封号
 4. **指令总线与数据通道分离** —— 大内容（正文/图片）走 HTTP API 入库；实时控制信令走 port 长连接，互不阻塞
 5. **插件采集失败要进 chrome.storage 队列**，检测到工作台恢复后批量补发 —— 不丢数据
-6. **服务端绑定 127.0.0.1 + 本地 token 认证** —— 防本机其他网页恶意调用
+6. **服务端绑定 127.0.0.1 + 本地 token 认证**（⚠️ 目标态，当前 `/api/collect` middleware 尚未做 token 校验，仅有 CORS 放行）—— 防本机其他网页恶意调用
 7. **不 hook 目标站点的 fetch/XHR** —— DOM 级监听（MutationObserver）够用且稳定，hook 网络层易碎且有合规风险
 
 ## 插件能力清单（规划）
 
 | 能力 | 机制 | 阶段 |
 |---|---|---|
-| 收藏当前页到工作台 | action / 快捷键 / 右键菜单 → content script 提取 → POST /api/collect | P0 |
-| AI 自动归类到文件夹 | 服务端 chat() + outputSchema 结构化分类，低置信度留"未分类" | P0 |
-| side panel 内嵌工作台 | iframe localhost:3888 | P0 |
+| 收藏当前页到工作台 | action / 快捷键 / 右键菜单 → content script 提取 → POST /api/collect | P0 ✅ 已实现 |
+| AI 自动归类到文件夹 | 服务端 chat() + outputSchema 结构化分类，低置信度留"未分类" | P0 ✅ 已实现（DeepSeek 批量分类 + AIClassifyModal） |
+| side panel 内嵌工作台 | iframe localhost:3888 | P0 ✅ 已实现（WXT sidepanel） |
 | 浏览器原生收藏（Ctrl+D）拦截 | chrome.bookmarks.onCreated 转发 | P1 |
 | 推特推文内嵌"AI 回复/二创"按钮 | content script 注入，内容回传工作台处理 | P1 |
 | 推特热帖自动收集 | 时间线 DOM 监听，互动数超阈值自动入库 | P1 |
@@ -61,36 +61,43 @@
 | 插件管理页（chrome 插件文件夹） | externally_connectable + chrome.management | P2 |
 | 各平台点赞/收藏旁路同步 | 监听原生收藏按钮状态变化 | P2 |
 
-## 典型工作流（推特场景，架构的"标准走查用例"）
+## 典型工作流（推特场景，📋 规划中的架构"标准走查用例"，尚未实现）
+
+> 注：`tweets` / `drafts` 数据表与 `/api/tweets` 接口目前均不存在，以下为 M3 的目标设计。
 
 1. 采集：推特推文下的嵌入按钮 → 抓取作者/正文/互动数据 → POST /api/tweets 入库（status: pending）
 2. 处理：服务端定时任务批量调 AI 生成回复草稿 / 二创文案（status: draft_ready）
 3. 审稿：工作台 UI 人工过一遍草稿
 4. 发布：点"发送" → 控制通道下发指令 → content script 填充回复框 → **人点发布**
 
-## 数据模型（初版草案）
+## 数据模型（当前实现，见 `src/server/db/schema.ts`）
 
-- `folders`：id, name, icon, category(tab), sortOrder, createdAt
-- `items`：id, folderId(null=未分类), type(tweet/link/article/image/file...), url, title, content, siteMeta(json), createdAt
-- `tweets`：id, itemId, author, handle, text, metrics(json), status(pending/draft_ready/replied), createdAt
-- `drafts`：id, tweetId, kind(reply/remake), content, status, createdAt
+- `folders`：id, name, category(tab), parent_id, description, color, icon, sort_order, created_at, updated_at
+- `bookmarks`：id, url(unique), title, description, keywords, summary, item_type, tags(json), favicon, parent_title, folder_path, reason, source, date_added, embedding, embedding_text, created_at, updated_at
+  - 未归属任何文件夹的 bookmark 即"未分类"（buffer pool）
+- `folder_items`：folder_id ↔ item_id 多对多绑定表（含 sort_order）
 - `settings`：key/value（token、AI 配置、分类偏好）
+
+> 规划中未落地：`tweets`、`drafts` 表（推特工作流用，见上节）。
 
 ## 目录约定
 
 ```
 src/routes/            # 工作台 UI（文件夹网格、详情侧栏、未分类、设置）
-src/server/            # server functions：folders / collect / tweets / drafts / files / skills
-src/server/db/         # better-sqlite3 + drizzle schema 与迁移
-src/server/api/        # 供插件调用的 HTTP API（server routes，token 校验）
-extension/             # Chrome 插件（MV3）：manifest、background、content scripts、side panel
+src/server/functions/  # server functions：workbench / search(embedding) / rag / models
+src/server/db/         # better-sqlite3 + 原生 SQL schema 与迁移
+src/server/ai/tools/   # ReAct Agent 的 8 个书签/文件夹 Tool
+src/server/maintenance.ts # 死链巡检等后台维护任务
+vite.config.ts         # 插件 HTTP API（/api/collect）以 Vite dev middleware 形式挂在这里
+extensions/aicollector/ # Chrome 插件（WXT 框架）：background / content / sidepanel 等 entrypoints
 ~/.aiworkstation/      # 运行时数据目录：workbench.db、assets/
 ```
 
 ## 开发命令
 
 - `pnpm dev`：启动工作台（localhost:3888）
-- 插件：`extension/` 目录用 Chrome「加载已解压的扩展程序」安装，改 content script 后需刷新目标页
+- 插件：`pnpm --filter ./extensions/aicollector dev` 启动 WXT 热更（端口 3889），
+  或在 Chrome「加载已解压的扩展程序」中选择 `extensions/aicollector/.output/chrome-mv3`
 
 ## RAG 知识检索与书签活化架构（已接入）
 
@@ -100,6 +107,8 @@ extension/             # Chrome 插件（MV3）：manifest、background、conten
    - 自动提取书签标题、TDK、分类、标签与 AI 摘要，构建语义特征文本；
    - 接入 OpenAI 兼容 Embedding API（SiliconFlow `bge-m3` / OpenAI `text-embedding-3-small` / Ollama 本地模型）；
    - 向量浮点数组持久化至本地 SQLite `bookmarks` 表的 `embedding` 字段。
+   - 由 `batchGenerateEmbeddings`（`src/server/functions/search.ts`）触发，服务于搜索/RAG。
+     ⚠️ 与「AI 一键智能分类」是两条独立流水线：分类直接调 LLM（提示词携带已有 tags），不依赖向量索引，无需先建索引再分类。
 2. **多模态检索策略（Hybrid Engine）**：
    - **语义检索（Semantic）**：基于余弦相似度（Cosine Similarity），理解自然语言意图；
    - **精准匹配（Keyword）**：加权匹配标题、标签、域名与关键词；
@@ -117,7 +126,7 @@ extension/             # Chrome 插件（MV3）：manifest、background、conten
 |------|---------|----------|
 | **L0 — 纯检索** | 用户搜索 → 返回列表 | ✅ 已实现 (`searchWorkbenchItems`) |
 | **L1 — RAG 问答** | 检索 + LLM 总结回答 | ✅ 已实现 (`chatWithBookmarks`) |
-| **L2 — ReAct Tool Calling** | LLM 自主决定调用哪个 Tool | ✅ 已实现（4 个 Tool：query/create/move/update） |
+| **L2 — ReAct Tool Calling** | LLM 自主决定调用哪个 Tool | ✅ 已实现（8 个 Tool：query_bookmarks / create_folder / update_folder / delete_folder / move_bookmarks_to_folder / remove_bookmarks_from_folder / move_folder / reorder_folders） |
 | **L3 — 多步规划执行** | Agent 拆解复杂任务 → 多步 Tool 链式执行 | 🎯 下一阶段目标 |
 | **L4 — 自主后台 Agent** | 无需用户触发，后台持续运行巡检 | 📋 远期规划 |
 | **L5 — 多 Agent 协作** | 多个专业 Agent 协同完成复杂任务 | 📋 远期规划 |
@@ -153,7 +162,7 @@ extension/             # Chrome 插件（MV3）：manifest、background、conten
 
 ### Tool 扩展规划
 
-现有 4 个 Tool 是 Agent 行动的基础，需逐步扩展：
+现有 8 个 Tool（`src/server/ai/tools/`）是 Agent 行动的基础，需逐步扩展：
 
 | Tool | 用途 | 优先级 |
 |------|------|--------|
@@ -161,6 +170,10 @@ extension/             # Chrome 插件（MV3）：manifest、background、conten
 | `create_folder` | 创建文件夹 | ✅ 已有 |
 | `move_bookmarks_to_folder` | 批量归档 | ✅ 已有 |
 | `update_folder` | 更新文件夹 | ✅ 已有 |
+| `delete_folder` | 删除文件夹 | ✅ 已有 |
+| `remove_bookmarks_from_folder` | 从文件夹移出书签 | ✅ 已有 |
+| `move_folder` | 移动文件夹（跨分类/层级） | ✅ 已有 |
+| `reorder_folders` | 文件夹排序 | ✅ 已有 |
 | `get_stats` | 统计分析（按分类/时间/标签分布） | P1 |
 | `find_duplicates` | 基于 URL 和语义的重复检测 | P1 |
 | `batch_classify` | 批量智能分类（复用 AIClassifier） | P1 |
@@ -177,6 +190,7 @@ extension/             # Chrome 插件（MV3）：manifest、background、conten
 2. **M2 搜索与 RAG 知识活化**：
    - **阶段一（✅ 已完成）**：全局快捷搜索（Cmd+K）+ SQLite 向量持久化 + TS 高效余弦相似度引擎 + 混合检索 + 索引构建流水线
    - **阶段二（✅ 已完成）**：RAG 智能问答侧栏（Chat with Bookmarks）+ 文件夹一键专题综述提炼 + ReAct Tool Calling（4 Tools）
+   - **阶段三（✅ 已完成）**：浏览器原生书签导入同步（BookmarkSyncModal）+ 死链巡检（DeadLinksModal + maintenance 后台扫描）+ ReAct Tool 扩展至 8 个
 3. **M3 创作与二创矩阵**：
    - 写作时自动关联并引用收藏库中的工具/素材
    - 推文/小红书/视频脚本二创与草稿生成
