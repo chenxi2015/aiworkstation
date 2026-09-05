@@ -57,6 +57,7 @@ export async function handleVideoTasksRequest(
         url: parsed.data.url,
         pageTitle: parsed.data.pageTitle,
         pageUrl: parsed.data.pageUrl,
+        force: parsed.data.force,
       });
 
       sendJson(res, { success: true, task });

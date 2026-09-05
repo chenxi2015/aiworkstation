@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { MousePointerClick, Trash2, Camera, Loader2 } from 'lucide-react';
 import type { PageTDK, GrabbedContent, SniffedStream } from '../../../../src/types';
 import type { CollectPayload } from '../../../../src/services/workbench';
 import { GrabbedContentCard } from '../cards/GrabbedContentCard';
 import { SniffedStreamsCard } from '../cards/SniffedStreamsCard';
 import { PageTdkCard } from '../cards/PageTdkCard';
+import { ConfirmDialog } from '../common/ConfirmDialog';
 
 interface GrabTabProps {
   isGrabbing: boolean;
@@ -40,6 +41,7 @@ export const GrabTab: React.FC<GrabTabProps> = ({
   onRefreshTdk,
   onPushToWorkbench,
 }) => {
+  const [isClearGrabbedConfirmOpen, setIsClearGrabbedConfirmOpen] = useState(false);
   return (
     <div className="p-0 outline-none flex flex-col gap-3">
       {/* Visual Grab & Full Page Action Bar (Sticky Header with background and shadow on scroll) */}
@@ -155,7 +157,7 @@ export const GrabTab: React.FC<GrabTabProps> = ({
             {grabbedContent && onClearGrabbed && (
               <button
                 type="button"
-                onClick={onClearGrabbed}
+                onClick={() => setIsClearGrabbedConfirmOpen(true)}
                 title="清除已捕获区域内容"
                 aria-label="清除已捕获区域内容"
                 className="h-10 w-10 shrink-0 rounded-full flex items-center justify-center text-muted hover:text-danger hover:bg-danger/10 border border-border/80 hover:border-danger/30 bg-surface dark:bg-surface-secondary shadow-xs hover:shadow-sm transition-all cursor-pointer active:scale-95 animate-in fade-in zoom-in-95 duration-150"
@@ -199,6 +201,19 @@ export const GrabTab: React.FC<GrabTabProps> = ({
         onRefresh={onRefreshTdk}
         onPush={onPushToWorkbench}
       />
+
+      {onClearGrabbed && (
+        <ConfirmDialog
+          isOpen={isClearGrabbedConfirmOpen}
+          onOpenChange={setIsClearGrabbedConfirmOpen}
+          title="清除已抓取内容"
+          description="确定要清除当前已捕获的区域内容或整页截图吗？清除后未保存的内容将丢失。"
+          confirmLabel="清除"
+          cancelLabel="取消"
+          danger={true}
+          onConfirm={onClearGrabbed}
+        />
+      )}
     </div>
   );
 };

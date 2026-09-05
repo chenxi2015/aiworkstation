@@ -17,6 +17,7 @@ import type { SniffedStream } from '../../../../src/types';
 import { hlsDownloadManager, type HlsTaskState } from '../../../../src/utils/hlsDownloadManager';
 import { WorkbenchService, type ServerVideoTaskState } from '../../../../src/services/workbench';
 import { CopyButton } from '../common/CopyButton';
+import { ConfirmDialog } from '../common/ConfirmDialog';
 
 interface SniffedStreamsCardProps {
   streams: SniffedStream[];
@@ -77,6 +78,7 @@ export const SniffedStreamsCard: React.FC<SniffedStreamsCardProps> = ({
   );
   const [isWorkbenchOnline, setIsWorkbenchOnline] = useState(false);
   const [serverTasks, setServerTasks] = useState<Record<string, ServerVideoTaskState>>({});
+  const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
 
   useEffect(() => {
     const unsubscribe = hlsDownloadManager.subscribe(() => {
@@ -112,13 +114,14 @@ export const SniffedStreamsCard: React.FC<SniffedStreamsCardProps> = ({
 
   if (visibleStreams.length === 0) return null;
 
-  const handleStart = async (stream: SniffedStream) => {
+  const handleStart = async (stream: SniffedStream, force = false) => {
     if (isWorkbenchOnline) {
       const { title, rawFileName } = describeStream(stream, serverTasks[stream.url], downloadStates[stream.url]);
       const res = await WorkbenchService.submitVideoTask({
         url: stream.url,
         pageTitle: title || stream.pageTitle || rawFileName,
         pageUrl: stream.pageUrl,
+        force,
       });
       if (res.success && res.task) {
         setServerTasks((prev) => ({ ...prev, [stream.url]: res.task! }));
@@ -173,7 +176,7 @@ export const SniffedStreamsCard: React.FC<SniffedStreamsCardProps> = ({
         </div>
         <button
           type="button"
-          onClick={onClear}
+          onClick={() => setIsClearConfirmOpen(true)}
           title="清空嗅探记录"
           aria-label="清空嗅探记录"
           className="h-6 w-6 shrink-0 rounded-md flex items-center justify-center text-muted hover:text-danger hover:bg-danger/10 transition-colors cursor-pointer"
@@ -300,7 +303,7 @@ export const SniffedStreamsCard: React.FC<SniffedStreamsCardProps> = ({
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleStart(stream)}
+                        onClick={() => handleStart(stream, true)}
                         title="重新下载"
                         aria-label="重新下载"
                         className="h-6 w-6 rounded-md flex items-center justify-center text-muted hover:text-foreground hover:bg-surface-tertiary border border-border/50 transition-colors cursor-pointer"
@@ -382,6 +385,17 @@ export const SniffedStreamsCard: React.FC<SniffedStreamsCardProps> = ({
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={isClearConfirmOpen}
+        onOpenChange={setIsClearConfirmOpen}
+        title="清空嗅探到的视频流"
+        description="确定要清空当前网页嗅探到的所有视频流记录吗？清空后若需重新获取，请刷新网页。"
+        confirmLabel="清空"
+        cancelLabel="取消"
+        danger={true}
+        onConfirm={onClear}
+      />
     </div>
   );
 };

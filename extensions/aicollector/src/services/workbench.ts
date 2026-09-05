@@ -155,6 +155,7 @@ export class WorkbenchService {
     url: string;
     pageTitle?: string;
     pageUrl?: string;
+    force?: boolean;
   }): Promise<{ success: boolean; task?: ServerVideoTaskState; error?: string }> {
     const baseUrl = await this.getWorkbenchUrl();
     try {
@@ -165,6 +166,7 @@ export class WorkbenchService {
           url: stream.url,
           pageTitle: stream.pageTitle || 'video',
           pageUrl: stream.pageUrl,
+          force: Boolean(stream.force),
         }),
       });
       const data = await response.json();
