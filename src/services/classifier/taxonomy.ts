@@ -4,7 +4,7 @@
 
 export const DEFAULT_LLM_KEY = "";
 export const DEFAULT_LLM_BASE_URL = "https://api.deepseek.com";
-export const DEFAULT_LLM_MODEL = "deepseek-chat";
+export const DEFAULT_LLM_MODEL = "deepseek-v4-flash";
 
 /**
  * Universal primary category taxonomy for AI classification.
