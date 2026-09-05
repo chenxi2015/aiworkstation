@@ -1,7 +1,7 @@
 import { useDroppable } from "@dnd-kit/core";
 import { ChevronRight, LayoutGrid } from "lucide-react";
 import { memo } from "react";
-import { crumbDropId, ROOT_CRUMB_DROP_ID } from "../dnd/WorkbenchDnd";
+import { crumbDropId, ROOT_CRUMB_DROP_ID } from "../dnd/dndUtils";
 import type { Folder } from "../types";
 
 export interface FolderBreadcrumbProps {

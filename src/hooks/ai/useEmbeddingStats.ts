@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
 import { toast } from "@heroui/react";
-import { WorkbenchStorageService } from "../../services/workbenchStorage";
+import { useCallback, useEffect, useState } from "react";
 import type { EmbeddingStats } from "../../components/workbench/types";
+import { WorkbenchStorageService } from "../../services/workbenchStorage";
 
 export interface UseEmbeddingStatsReturn {
 	stats: EmbeddingStats;
@@ -47,8 +47,8 @@ export function useEmbeddingStats(autoFetch = true): UseEmbeddingStatsReturn {
 
 		const settings = WorkbenchStorageService.getSettings();
 		const embeddingKey = settings.embeddingApiKey?.trim();
-		const deepseekKey = settings.deepseekApiKey?.trim();
-		const apiKey = embeddingKey || deepseekKey;
+		const llmKey = settings.apiKey?.trim();
+		const apiKey = embeddingKey || llmKey;
 
 		if (!apiKey) {
 			toast.warning("请先在「设置」中配置 Embedding API Key 或 LLM API Key");

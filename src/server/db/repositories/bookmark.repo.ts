@@ -282,6 +282,18 @@ export class BookmarkRepository {
 	}
 
 	/**
+	 * Link item to folder without removing from existing folders (many-to-many reference)
+	 */
+	linkItemToFolder(itemId: string, targetFolderId: number): void {
+		const today = new Date().toISOString().split("T")[0];
+		this.db
+			.prepare(
+				"INSERT OR IGNORE INTO folder_items (folder_id, item_id, created_at) VALUES (?, ?, ?)",
+			)
+			.run(targetFolderId, itemId, today);
+	}
+
+	/**
 	 * Get all bookmark URLs for maintenance tasks (e.g. dead link scanning)
 	 */
 	getAllUrls(): Array<{ id: string; url: string; title: string }> {

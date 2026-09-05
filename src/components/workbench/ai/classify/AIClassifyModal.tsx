@@ -6,8 +6,8 @@ import {
 	ScrollShadow,
 	toast,
 } from "@heroui/react";
-import { Check, Folder, Sparkles } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { Check, Folder, Settings, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AIClassifierService } from "../../../../services/aiClassifier";
 import { WorkbenchStorageService } from "../../../../services/workbenchStorage";
 import { ItemFavicon } from "../../ItemFavicon";
@@ -30,6 +30,7 @@ export interface AIClassifyModalProps {
 		updatedFolders: FolderType[],
 		updatedUnclassified: WorkbenchItem[],
 	) => void;
+	onOpenSettings?: () => void;
 }
 
 /**
@@ -42,6 +43,7 @@ export function AIClassifyModal({
 	settings,
 	onClose,
 	onClassificationComplete,
+	onOpenSettings,
 }: AIClassifyModalProps) {
 	const [status, setStatus] = useState<
 		"idle" | "running" | "completed" | "error"
@@ -49,9 +51,32 @@ export function AIClassifyModal({
 	const [selectedCountLimit, setSelectedCountLimit] = useState<number>(50);
 	const [progressText, setProgressText] = useState("");
 	const [progressPercent, setProgressPercent] = useState(0);
+	const [elapsedSeconds, setElapsedSeconds] = useState(0);
+	const [logs, setLogs] = useState<string[]>([]);
 	const [results, setResults] = useState<AIClassificationResult[]>([]);
 	const [errorMsg, setErrorMsg] = useState("");
 	const abortControllerRef = useRef<AbortController | null>(null);
+	const incrementalResultsRef = useRef<AIClassificationResult[]>([]);
+	const logScrollRef = useRef<HTMLDivElement>(null);
+
+	// Reset timer on running status change
+	useEffect(() => {
+		if (status !== "running") {
+			setElapsedSeconds(0);
+			return;
+		}
+		const timer = setInterval(() => {
+			setElapsedSeconds((s) => s + 1);
+		}, 1000);
+		return () => clearInterval(timer);
+	}, [status]);
+
+	// Auto-scroll thinking log to bottom
+	useEffect(() => {
+		if (logScrollRef.current) {
+			logScrollRef.current.scrollTop = logScrollRef.current.scrollHeight;
+		}
+	}, [logs]);
 
 	// Reset state when modal opens or closes
 	const handleClose = () => {
@@ -60,6 +85,7 @@ export function AIClassifyModal({
 		}
 		setStatus("idle");
 		setResults([]);
+		setLogs([]);
 		setErrorMsg("");
 		setProgressPercent(0);
 		onClose();
@@ -105,7 +131,11 @@ export function AIClassifyModal({
 		setStatus("running");
 		setErrorMsg("");
 		setProgressPercent(0);
-		setProgressText("正在准备 TDK 数组与 DeepSeek 提示词...");
+		setProgressText("正在启动 AI 并发分析池...");
+		incrementalResultsRef.current = [];
+		setLogs([
+			`🚀 已就绪，正在准备 ${targetItems.length} 条书签的语义特征向量与提示词...`,
+		]);
 
 		const abortController = new AbortController();
 		abortControllerRef.current = abortController;
@@ -128,7 +158,17 @@ export function AIClassifyModal({
 					settings,
 					existingCategories: categories,
 					existingFolders: existingFoldersList,
+					concurrency: 3,
 					signal: abortController.signal,
+					onBatchComplete: (batch) => {
+						incrementalResultsRef.current.push(...batch);
+					},
+					onLog: (line) => {
+						setLogs((prev) => {
+							const next = [...prev, line];
+							return next.length > 200 ? next.slice(next.length - 200) : next;
+						});
+					},
 					onProgress: (current, total, msg) => {
 						setProgressText(msg);
 						setProgressPercent(Math.round((current / total) * 100));
@@ -136,21 +176,45 @@ export function AIClassifyModal({
 				},
 			);
 
+			if (abortController.signal.aborted) {
+				if (incrementalResultsRef.current.length > 0) {
+					setResults(incrementalResultsRef.current);
+					setStatus("completed");
+					toast.info(
+						`已终止分析，已保留已完成的 ${incrementalResultsRef.current.length} 条书签分类`,
+					);
+				} else {
+					setStatus("idle");
+					toast.info("已取消 AI 分类");
+				}
+				return;
+			}
+
 			setResults(classifiedResults);
 			setStatus("completed");
 			setProgressPercent(100);
 			toast.success(
-				`DeepSeek 分析完成，共识别 ${classifiedResults.length} 个书签分类`,
+				`AI 分析完成，共识别 ${classifiedResults.length} 个书签分类`,
 			);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			if (abortController.signal.aborted) {
-				setStatus("idle");
-				toast.info("已取消 AI 分类");
+				if (incrementalResultsRef.current.length > 0) {
+					setResults(incrementalResultsRef.current);
+					setStatus("completed");
+					toast.info(
+						`已终止分析，已保留已完成的 ${incrementalResultsRef.current.length} 条书签分类`,
+					);
+				} else {
+					setStatus("idle");
+					toast.info("已取消 AI 分类");
+				}
 			} else {
 				setStatus("error");
-				setErrorMsg(
-					err?.message || "AI 分类服务请求失败，请检查网络或 API Key",
-				);
+				const message =
+					err instanceof Error
+						? err.message
+						: "AI 分类服务请求失败，请检查网络或 API Key";
+				setErrorMsg(message);
 				toast.danger("AI 分类失败");
 			}
 		}
@@ -178,13 +242,16 @@ export function AIClassifyModal({
 			variant="blur"
 		>
 			<Modal.Container size="lg">
-				<Modal.Dialog className="max-w-3xl" aria-label="DeepSeek AI 智能分门别类">
+				<Modal.Dialog
+					className="max-w-3xl"
+					aria-label="AI 智能分门别类"
+				>
 					<Modal.CloseTrigger />
 					<Modal.Header className="flex flex-col gap-1">
 						<div className="flex items-center gap-2">
 							<Sparkles className="w-5 h-5 text-accent" />
 							<Modal.Heading className="text-base font-bold text-foreground">
-								DeepSeek AI 智能分门别类
+								AI 智能分门别类
 							</Modal.Heading>
 							<Chip
 								size="sm"
@@ -233,23 +300,87 @@ export function AIClassifyModal({
 						{status === "running" && (
 							<div className="p-4 rounded-2xl bg-surface-secondary border border-border flex flex-col gap-2.5">
 								<div className="flex justify-between items-center text-xs">
-									<span className="font-medium text-accent animate-pulse">
-										{progressText}
-									</span>
-									<span className="font-mono font-semibold text-foreground">
+									<div className="flex items-center gap-2 truncate pr-2">
+										<span className="font-medium text-accent animate-pulse truncate">
+											{progressText}
+										</span>
+										<span className="text-[11px] text-muted font-mono shrink-0">
+											(已耗时 {elapsedSeconds}s)
+										</span>
+									</div>
+									<span className="font-mono font-semibold text-foreground shrink-0">
 										{progressPercent}%
 									</span>
 								</div>
 								<ProgressBar
+									aria-label="分类处理进度"
 									value={progressPercent}
 									className="h-2 rounded-full"
 								/>
+
+								{/* DeepSeek Thinking / Live Terminal Log */}
+								<div className="rounded-xl bg-surface/90 border border-border/80 overflow-hidden flex flex-col mt-1 shadow-2xs">
+									<div className="px-3 py-1.5 bg-surface-secondary/70 border-b border-border/60 flex items-center justify-between text-[11px]">
+										<div className="flex items-center gap-1.5 text-muted font-medium">
+											<span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping inline-block" />
+											<Sparkles className="w-3 h-3 text-accent" />
+											<span>AI 思考与语义分拣流</span>
+										</div>
+										<span className="text-[10px] text-muted font-mono">
+											{logs.length} 条动态
+										</span>
+									</div>
+									<ScrollShadow
+										ref={logScrollRef}
+										className="h-[120px] max-h-[120px] overflow-y-auto p-2.5 font-mono text-[11px] leading-relaxed text-muted select-text flex flex-col gap-1 bg-surface/40"
+									>
+										{logs.map((log, index) => (
+											<div
+												key={index}
+												className="flex items-start gap-1.5 transition-opacity"
+											>
+												<span className="text-accent/60 select-none shrink-0 font-bold">
+													&gt;
+												</span>
+												<span
+													className={
+														log.includes("✦")
+															? "text-foreground font-medium"
+															: log.includes("⚠️")
+																? "text-amber-500"
+																: "text-muted"
+													}
+												>
+													{log}
+												</span>
+											</div>
+										))}
+										<div className="flex items-center gap-1 text-accent mt-0.5">
+											<span className="inline-block w-1.5 h-3 bg-accent animate-pulse" />
+										</div>
+									</ScrollShadow>
+								</div>
 							</div>
 						)}
 
 						{status === "error" && (
-							<div className="p-4 rounded-2xl bg-danger/10 border border-danger/20 text-xs text-danger flex flex-col gap-1">
-								<span className="font-semibold">分类过程出错</span>
+							<div className="p-4 rounded-2xl bg-danger/10 border border-danger/20 text-xs text-danger flex flex-col gap-2">
+								<div className="flex items-center justify-between">
+									<span className="font-semibold">分类过程提示</span>
+									{onOpenSettings &&
+										(errorMsg.includes("设置") || errorMsg.includes("Key")) && (
+											<Button
+												type="button"
+												size="sm"
+												variant="primary"
+												className="h-7 px-2.5 rounded-lg text-xs font-medium cursor-pointer flex items-center gap-1.5"
+												onPress={onOpenSettings}
+											>
+												<Settings className="w-3.5 h-3.5" />
+												<span>前往配置 Key</span>
+											</Button>
+										)}
+								</div>
 								<p className="opacity-90">{errorMsg}</p>
 							</div>
 						)}
@@ -413,7 +544,7 @@ export function AIClassifyModal({
 									onPress={startClassification}
 								>
 									<Sparkles className="w-3.5 h-3.5" />
-									<span>启动 DeepSeek 分析 ({targetItems.length}项)</span>
+									<span>启动 AI 智能分析 ({targetItems.length}项)</span>
 								</Button>
 							)}
 

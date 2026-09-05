@@ -3,9 +3,14 @@ import { FolderDetailSkeleton } from "./FolderDetailSkeleton";
 import { FolderGridSkeleton } from "./FolderGridSkeleton";
 
 /**
- * Full page skeleton placeholder for AI Workbench route pending state
+ * Full page skeleton placeholder for AI Workbench route pending state.
+ * Adaptively renders 2-column or 3-column layout based on active category in sessionStorage.
  */
 export function WorkbenchSkeleton() {
+	const isUnclassified =
+		typeof window !== "undefined" &&
+		sessionStorage.getItem("aiworkstation_active_category") === "未分类";
+
 	return (
 		<div className="h-screen bg-background text-foreground flex flex-col overflow-hidden selection:bg-accent-soft selection:text-accent-soft-foreground">
 			{/* Top Header Skeleton */}
@@ -37,21 +42,43 @@ export function WorkbenchSkeleton() {
 				</div>
 			</header>
 
-			{/* Main Workspace Layout (Left: Folder Details | Center: Grid | Right: Resident AI Search Hub) */}
+			{/* Main Workspace Layout */}
 			<div className="flex-1 flex w-full min-h-0 overflow-hidden">
-				{/* 1. Left Column Skeleton */}
-				<FolderDetailSkeleton />
+				{isUnclassified ? (
+					/* Unclassified 2-column skeleton */
+					<main className="flex-1 p-6 lg:p-8 min-w-0 flex flex-col overflow-y-auto border-r border-border h-full">
+						<div className="space-y-2 mb-6">
+							<div className="w-40 h-8 rounded-lg bg-surface-secondary/70 animate-pulse" />
+							<div className="w-80 h-3.5 rounded bg-surface-secondary/40 animate-pulse" />
+						</div>
+						{/* Banner Skeleton */}
+						<div className="w-full h-16 rounded-2xl bg-surface-secondary/50 animate-pulse mb-6" />
+						{/* Grid Skeleton */}
+						<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2.5">
+							{Array.from({ length: 15 }).map((_, idx) => (
+								<div
+									// biome-ignore lint/suspicious/noArrayIndexKey: skeleton placeholders are static
+									key={idx}
+									className="h-28 rounded-xl bg-surface-secondary/40 animate-pulse border border-border/40"
+								/>
+							))}
+						</div>
+					</main>
+				) : (
+					/* Workbench 3-column skeleton */
+					<>
+						<FolderDetailSkeleton />
+						<main className="flex-1 p-6 lg:p-7 min-w-0 flex flex-col overflow-y-auto h-full">
+							<div className="space-y-2 mb-6">
+								<div className="w-32 h-7 rounded-lg bg-surface-secondary/70 animate-pulse" />
+								<div className="w-64 h-3.5 rounded bg-surface-secondary/40 animate-pulse" />
+							</div>
+							<FolderGridSkeleton count={8} />
+						</main>
+					</>
+				)}
 
-				{/* 2. Center Column Skeleton */}
-				<main className="flex-1 p-6 lg:p-7 min-w-0 flex flex-col overflow-y-auto h-full">
-					<div className="space-y-2 mb-6">
-						<div className="w-32 h-7 rounded-lg bg-surface-secondary/70 animate-pulse" />
-						<div className="w-64 h-3.5 rounded bg-surface-secondary/40 animate-pulse" />
-					</div>
-					<FolderGridSkeleton count={8} />
-				</main>
-
-				{/* 3. Right Column Skeleton */}
+				{/* Right Column Skeleton (Permanent) */}
 				<ChatWithBookmarksSkeleton />
 			</div>
 		</div>

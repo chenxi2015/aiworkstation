@@ -7,7 +7,7 @@ import {
 	FolderPlus,
 } from "lucide-react";
 import { memo, useState } from "react";
-import { folderRowDropId } from "./dnd/WorkbenchDnd";
+import { folderRowDropId } from "./dnd/dndUtils";
 import { FolderHeader } from "./folder/FolderHeader";
 import { FolderItemList } from "./folder/FolderItemList";
 import type { Folder, WorkbenchItem } from "./types";

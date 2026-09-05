@@ -1,12 +1,10 @@
 import {
-	type CollisionDetection,
 	DndContext,
 	type DragEndEvent,
 	type DragMoveEvent,
 	DragOverlay,
 	type DragStartEvent,
 	PointerSensor,
-	pointerWithin,
 	useDraggable,
 	useDroppable,
 	useSensor,
@@ -24,78 +22,30 @@ import {
 } from "react";
 import { ItemFavicon } from "../ItemFavicon";
 import type { Folder, WorkbenchItem } from "../types";
+import {
+	type DropIndicator,
+	type DropMode,
+	type FolderDragData,
+	GRID_DROP_ID,
+	INTO_ZONE_MAX,
+	INTO_ZONE_MIN,
+	type ItemDragData,
+	parseDropId,
+	preferSpecificTargets,
+	type WorkbenchDragData,
+	folderDropId,
+	itemDragId,
+} from "./dndUtils";
 
-// ================= Drag payload & drop target ids =================
-
-export type ItemDragData = {
-	kind: "item";
-	item: WorkbenchItem;
-	sourceFolderId: number | null;
+export type {
+	ItemDragData,
+	FolderDragData,
+	WorkbenchDragData,
+	DropMode,
+	DropIndicator,
 };
-
-export type FolderDragData = {
-	kind: "folder";
-	folder: Folder;
-};
-
-export type WorkbenchDragData = ItemDragData | FolderDragData;
-
-export const GRID_DROP_ID = "folder-grid";
-export const ROOT_CRUMB_DROP_ID = "crumb:root";
-
-export const folderDropId = (folderId: number) => `folder:${folderId}`;
-export const folderRowDropId = (folderId: number) => `folder-row:${folderId}`;
-export const crumbDropId = (folderId: number) => `crumb:${folderId}`;
-export const itemDragId = (
-	itemId: string | number,
-	sourceFolderId: number | null,
-) => `item:${sourceFolderId ?? "pool"}:${String(itemId)}`;
-
-/**
- * pointerWithin returns every droppable under the cursor, including the grid
- * background behind cards. Prefer specific targets (cards / breadcrumbs).
- */
-const preferSpecificTargets: CollisionDetection = (args) => {
-	const collisions = pointerWithin(args);
-	const specific = collisions.filter((c) => String(c.id) !== GRID_DROP_ID);
-	return specific.length > 0 ? specific : collisions;
-};
-
-/** Parse a droppable id back into a structured target */
-function parseDropId(
-	id: string | number,
-):
-	| { type: "folder"; folderId: number }
-	| { type: "crumb"; folderId: number }
-	| { type: "crumb-root" }
-	| { type: "grid" }
-	| null {
-	const raw = String(id);
-	if (raw === GRID_DROP_ID) return { type: "grid" };
-	if (raw === ROOT_CRUMB_DROP_ID) return { type: "crumb-root" };
-	if (raw.startsWith("folder:")) {
-		const folderId = Number(raw.slice(7));
-		return Number.isFinite(folderId) ? { type: "folder", folderId } : null;
-	}
-	if (raw.startsWith("folder-row:")) {
-		const folderId = Number(raw.slice(11));
-		return Number.isFinite(folderId) ? { type: "folder", folderId } : null;
-	}
-	if (raw.startsWith("crumb:")) {
-		const folderId = Number(raw.slice(6));
-		return Number.isFinite(folderId) ? { type: "crumb", folderId } : null;
-	}
-	return null;
-}
 
 // ================= Drop indicator context =================
-
-export type DropMode = "into" | "before" | "after";
-
-interface DropIndicator {
-	overId: string | null;
-	mode: DropMode | null;
-}
 
 const DropIndicatorContext = createContext<DropIndicator>({
 	overId: null,
@@ -119,18 +69,16 @@ export interface WorkbenchDndProviderProps {
 		targetFolderId: number,
 	) => void;
 	onMoveFolder: (folderId: number, targetParentId: number | null) => void;
+	onMoveFolderToCategory?: (folderId: number, targetCategory: string) => void;
 	onReorderFolders: (orderedIds: number[]) => void;
 	children: ReactNode;
 }
-
-/** Central zone ratio of a folder card that means "drop INTO" instead of reorder */
-const INTO_ZONE_MIN = 0.3;
-const INTO_ZONE_MAX = 0.7;
 
 export function WorkbenchDndProvider({
 	gridFolderIds,
 	onMoveItemToFolder,
 	onMoveFolder,
+	onMoveFolderToCategory,
 	onReorderFolders,
 	children,
 }: WorkbenchDndProviderProps) {
@@ -156,6 +104,7 @@ export function WorkbenchDndProvider({
 				if (data.kind === "item" && target.type === "crumb-root") return null;
 				return "into";
 			}
+			if (target.type === "category") return "into";
 			if (target.type === "grid") return null;
 
 			// Hovering a folder card
@@ -221,6 +170,12 @@ export function WorkbenchDndProvider({
 
 			// Folder drags
 			const folderId = data.folder.id;
+			if (target.type === "category") {
+				if (target.category !== "未分类") {
+					onMoveFolderToCategory?.(folderId, target.category);
+				}
+				return;
+			}
 			if (target.type === "crumb") {
 				if (target.folderId !== folderId)
 					onMoveFolder(folderId, target.folderId);
@@ -260,6 +215,7 @@ export function WorkbenchDndProvider({
 		[
 			gridFolderIds,
 			onMoveFolder,
+			onMoveFolderToCategory,
 			onMoveItemToFolder,
 			onReorderFolders,
 			resetDrag,
@@ -272,6 +228,7 @@ export function WorkbenchDndProvider({
 	return (
 		<DropIndicatorContext.Provider value={indicatorValue}>
 			<DndContext
+				id="workbench-dnd"
 				sensors={sensors}
 				collisionDetection={preferSpecificTargets}
 				onDragStart={handleDragStart}

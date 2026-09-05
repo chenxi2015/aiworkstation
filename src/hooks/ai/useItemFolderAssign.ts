@@ -1,7 +1,10 @@
-import { useCallback, useState } from "react";
 import { toast } from "@heroui/react";
+import { useCallback, useState } from "react";
+import type {
+	Folder,
+	SearchResultItem,
+} from "../../components/workbench/types";
 import { WorkbenchStorageService } from "../../services/workbenchStorage";
-import type { Folder, SearchResultItem } from "../../components/workbench/types";
 
 export interface UseItemFolderAssignOptions {
 	onDataChanged?: () => void;
@@ -11,8 +14,12 @@ export interface UseItemFolderAssignOptions {
  * Custom hook to handle bookmark-to-folder assignment, quick folder creation, and batch selection
  */
 export function useItemFolderAssign(options?: UseItemFolderAssignOptions) {
-	const [assigningItems, setAssigningItems] = useState<SearchResultItem[] | null>(null);
-	const [selectedItemKeys, setSelectedItemKeys] = useState<Set<string | number>>(new Set());
+	const [assigningItems, setAssigningItems] = useState<
+		SearchResultItem[] | null
+	>(null);
+	const [selectedItemKeys, setSelectedItemKeys] = useState<
+		Set<string | number>
+	>(new Set());
 	const [isCreateMode, setIsCreateMode] = useState<boolean>(false);
 	const [newFolderName, setNewFolderName] = useState<string>("");
 	const [newFolderCategory, setNewFolderCategory] = useState<string>("工作台");
@@ -73,24 +80,30 @@ export function useItemFolderAssign(options?: UseItemFolderAssignOptions) {
 	}, []);
 
 	// Open assignment popover for a single item
-	const openAssignSingle = useCallback((item: SearchResultItem, e?: React.MouseEvent) => {
-		if (e) {
-			e.stopPropagation();
-		}
-		setAssigningItems([item]);
-		setIsCreateMode(false);
-		setNewFolderName("");
-		setFolderFilterQuery("");
-	}, []);
+	const openAssignSingle = useCallback(
+		(item: SearchResultItem, e?: React.MouseEvent) => {
+			if (e) {
+				e.stopPropagation();
+			}
+			setAssigningItems([item]);
+			setIsCreateMode(false);
+			setNewFolderName("");
+			setFolderFilterQuery("");
+		},
+		[],
+	);
 
 	// Open assignment popover for multiple items
-	const openAssignMultiple = useCallback((items: SearchResultItem[], createMode = false) => {
-		if (items.length === 0) return;
-		setAssigningItems(items);
-		setIsCreateMode(createMode);
-		setNewFolderName("");
-		setFolderFilterQuery("");
-	}, []);
+	const openAssignMultiple = useCallback(
+		(items: SearchResultItem[], createMode = false) => {
+			if (items.length === 0) return;
+			setAssigningItems(items);
+			setIsCreateMode(createMode);
+			setNewFolderName("");
+			setFolderFilterQuery("");
+		},
+		[],
+	);
 
 	// Close assignment popover
 	const closeAssign = useCallback(() => {
@@ -118,7 +131,9 @@ export function useItemFolderAssign(options?: UseItemFolderAssignOptions) {
 					);
 				}
 
-				toast.success(`已将 ${assigningItems.length} 项移入「${targetFolder.name}」`);
+				toast.success(
+					`已将 ${assigningItems.length} 项移入「${targetFolder.name}」`,
+				);
 				onSuccess?.(assigningItems, targetFolder);
 				closeAssign();
 				clearSelection();
@@ -135,7 +150,9 @@ export function useItemFolderAssign(options?: UseItemFolderAssignOptions) {
 
 	// Create a new folder and move assigningItems into it
 	const createFolderAndMove = useCallback(
-		async (onSuccess?: (newFolder: Folder, movedItems: SearchResultItem[]) => void) => {
+		async (
+			onSuccess?: (newFolder: Folder, movedItems: SearchResultItem[]) => void,
+		) => {
 			const trimmedName = newFolderName.trim();
 			if (!trimmedName) {
 				toast.warning("请输入新文件夹名称");
@@ -152,7 +169,9 @@ export function useItemFolderAssign(options?: UseItemFolderAssignOptions) {
 					desc: `由 AI 问答/搜索结果快捷归类创建，包含 ${assigningItems.length} 个书签`,
 				});
 
-				const createdFolder = updatedFolders.find((f) => f.name === trimmedName) || {
+				const createdFolder = updatedFolders.find(
+					(f) => f.name === trimmedName,
+				) || {
 					id: Date.now(),
 					name: trimmedName,
 					category: newFolderCategory,
@@ -169,13 +188,18 @@ export function useItemFolderAssign(options?: UseItemFolderAssignOptions) {
 					);
 				}
 
-				toast.success(`已创建「${trimmedName}」并移入 ${assigningItems.length} 项`);
+				toast.success(
+					`已创建「${trimmedName}」并移入 ${assigningItems.length} 项`,
+				);
 				onSuccess?.(createdFolder, assigningItems);
 				closeAssign();
 				clearSelection();
 				options?.onDataChanged?.();
 			} catch (err: any) {
-				console.error("[useItemFolderAssign] Create folder and move error:", err);
+				console.error(
+					"[useItemFolderAssign] Create folder and move error:",
+					err,
+				);
 				toast.danger(`创建并移动失败: ${err.message || err}`);
 			} finally {
 				setIsProcessingMove(false);

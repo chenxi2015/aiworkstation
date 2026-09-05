@@ -74,7 +74,7 @@ export default function ThemeToggle() {
 			onClick={toggleMode}
 			aria-label={label}
 			title={label}
-			className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-secondary px-2.5 py-1 text-xs font-semibold text-foreground shadow-sm transition hover:bg-surface-hover hover:border-border-secondary cursor-pointer"
+			className="inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary px-2.5 py-1 text-xs font-semibold text-foreground transition hover:bg-surface-hover hover:border-border-secondary cursor-pointer"
 		>
 			{mode === "auto" ? (
 				<>

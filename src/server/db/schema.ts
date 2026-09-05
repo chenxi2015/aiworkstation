@@ -51,6 +51,13 @@ export function initSchema(db: SqliteDatabase): void {
       UNIQUE(folder_id, item_id)
     );
 
+    -- 4. Settings table (Key-Value configuration persistence)
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
     -- Indexes for fast queries
     CREATE INDEX IF NOT EXISTS idx_folders_category ON folders(category);
     CREATE INDEX IF NOT EXISTS idx_folder_items_folder_id ON folder_items(folder_id);

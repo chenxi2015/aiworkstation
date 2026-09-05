@@ -44,9 +44,9 @@ export function FolderDossierModal({
 		try {
 			const settings = WorkbenchStorageService.getSettings();
 			const llmConfig = {
-				apiKey: settings.deepseekApiKey,
-				baseUrl: settings.deepseekBaseUrl,
-				model: settings.deepseekModel,
+				apiKey: settings.apiKey,
+				baseUrl: settings.baseUrl,
+				model: settings.model,
 			};
 
 			const res = await WorkbenchStorageService.generateFolderDossier({

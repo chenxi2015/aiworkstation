@@ -4,12 +4,15 @@ import type {
 	BookmarkTDKItem,
 	Folder,
 	WorkbenchItem,
+	WorkbenchSettings,
 } from "../../components/workbench/types";
 import { workbenchDb } from "../db/sqlite.ts";
 import {
 	backupDatabase,
 	type DeadLinkScanJob,
 	getDeadLinkScanStatus,
+	getLastDeadLinkScan,
+	removeIdsFromLastScan,
 	startDeadLinkScan,
 } from "../maintenance.ts";
 
@@ -160,6 +163,16 @@ export const reorderFolders = createServerFn({ method: "POST" })
 	});
 
 /**
+ * Server Function: Move a folder to the top level of a navigation category
+ */
+export const moveFolderToCategory = createServerFn({ method: "POST" })
+	.validator((data: { folderId: number; targetCategory: string }) => data)
+	.handler(async ({ data }): Promise<{ folders: Folder[] }> => {
+		workbenchDb.moveFolderToCategory(data.folderId, data.targetCategory);
+		return { folders: workbenchDb.getAllFolders() };
+	});
+
+/**
  * Server Function: Batch add bookmarks to SQLite
  */
 export const addBookmarks = createServerFn({ method: "POST" })
@@ -228,6 +241,15 @@ export const getDeadLinkScanStatusFn = createServerFn({ method: "GET" })
 	});
 
 /**
+ * Server Function: Read the last completed dead-link scan snapshot (persisted on disk)
+ */
+export const getLastDeadLinkScanFn = createServerFn({ method: "GET" }).handler(
+	async (): Promise<DeadLinkScanJob | null> => {
+		return getLastDeadLinkScan();
+	},
+);
+
+/**
  * Server Function: Batch delete bookmarks globally (used by dead link cleanup)
  */
 export const deleteItemsBatch = createServerFn({ method: "POST" })
@@ -241,8 +263,35 @@ export const deleteItemsBatch = createServerFn({ method: "POST" })
 			unclassified: WorkbenchItem[];
 		}> => {
 			const deleted = workbenchDb.deleteItems(ids);
+			removeIdsFromLastScan(ids);
 			const folders = workbenchDb.getAllFolders();
 			const unclassified = workbenchDb.getUnclassifiedItems();
 			return { deleted, folders, unclassified };
 		},
 	);
+
+/**
+ * Server Function: Get saved settings from SQLite
+ */
+export const getWorkbenchSettings = createServerFn({ method: "GET" }).handler(
+	async (): Promise<WorkbenchSettings | null> => {
+		const raw = workbenchDb.getSetting("workbench_settings");
+		if (!raw) return null;
+		try {
+			return JSON.parse(raw);
+		} catch {
+			return null;
+		}
+	},
+);
+
+/**
+ * Server Function: Persist settings into SQLite
+ */
+export const saveWorkbenchSettings = createServerFn({ method: "POST" })
+	.validator((settings: WorkbenchSettings) => settings)
+	.handler(async ({ data: settings }): Promise<{ success: boolean }> => {
+		workbenchDb.setSetting("workbench_settings", JSON.stringify(settings));
+		return { success: true };
+	});
+

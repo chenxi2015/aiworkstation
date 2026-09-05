@@ -62,6 +62,7 @@ export interface DeadLinkScanJob {
 	checked: number;
 	done: boolean;
 	startedAt: string;
+	finishedAt?: string;
 	items: DeadLinkItem[];
 }
 
@@ -109,6 +110,12 @@ function classifyError(err: unknown): {
 	};
 }
 
+// HEAD is unreliable on many sites: anti-bot gateways and misconfigured servers
+// answer 403/404/410/405/501 to HEAD while the same URL loads fine with GET
+// (e.g. xiaohongshu.com returns 404 for HEAD, 200 for GET). Treat those statuses
+// from HEAD as untrustworthy and always confirm with GET before judging.
+const HEAD_UNTRUSTED_STATUSES = new Set([403, 404, 405, 410, 501]);
+
 async function probeUrl(
 	url: string,
 ): Promise<Pick<DeadLinkItem, "status" | "httpStatus" | "reason">> {
@@ -116,23 +123,29 @@ async function probeUrl(
 		const controller = new AbortController();
 		const timer = setTimeout(() => controller.abort(), SCAN_TIMEOUT_MS);
 		try {
-			return await fetch(url, {
+			const res = await fetch(url, {
 				method,
 				redirect: "follow",
 				signal: controller.signal,
 				headers: { "User-Agent": BROWSER_UA, Accept: "*/*" },
 			});
+			// Only the status code matters; cancel the body to free the socket
+			res.body?.cancel().catch(() => {});
+			return res;
 		} finally {
 			clearTimeout(timer);
 		}
 	};
 
 	try {
-		let res = await attempt("HEAD");
-		// Some servers do not support HEAD at all; retry with GET before judging
-		if (res.status === 405 || res.status === 501) {
-			res = await attempt("GET");
+		const head = await attempt("HEAD").catch(() => null);
+		if (head && !HEAD_UNTRUSTED_STATUSES.has(head.status)) {
+			return {
+				status: classifyHttpStatus(head.status),
+				httpStatus: head.status,
+			};
 		}
+		const res = await attempt("GET");
 		return { status: classifyHttpStatus(res.status), httpStatus: res.status };
 	} catch (err) {
 		const { status, reason } = classifyError(err);
@@ -155,6 +168,8 @@ async function runScan(
 	};
 	await Promise.all(Array.from({ length: SCAN_CONCURRENCY }, worker));
 	job.done = true;
+	job.finishedAt = new Date().toISOString();
+	persistLastScan(job);
 }
 
 function pruneExpiredJobs(): void {
@@ -164,6 +179,45 @@ function pruneExpiredJobs(): void {
 			scanJobs.delete(id);
 		}
 	}
+}
+
+// ================= Last Scan Snapshot (persisted on disk) =================
+
+const LAST_SCAN_PATH = path.join(DB_DIR, "dead-link-scan.json");
+
+function persistLastScan(job: DeadLinkScanJob): void {
+	try {
+		fs.writeFileSync(LAST_SCAN_PATH, JSON.stringify(job));
+	} catch {
+		// best-effort snapshot; scan results stay available in memory
+	}
+}
+
+/**
+ * Read the most recent completed scan snapshot from disk.
+ * Survives server restarts and the in-memory job TTL.
+ */
+export function getLastDeadLinkScan(): DeadLinkScanJob | null {
+	try {
+		if (!fs.existsSync(LAST_SCAN_PATH)) return null;
+		const parsed = JSON.parse(fs.readFileSync(LAST_SCAN_PATH, "utf-8"));
+		if (!parsed || !Array.isArray(parsed.items)) return null;
+		return parsed as DeadLinkScanJob;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Remove deleted bookmark ids from the persisted snapshot so reopening the
+ * cleanup modal does not resurface already-deleted links.
+ */
+export function removeIdsFromLastScan(ids: string[]): void {
+	const last = getLastDeadLinkScan();
+	if (!last) return;
+	const removed = new Set(ids);
+	last.items = last.items.filter((item) => !removed.has(item.id));
+	persistLastScan(last);
 }
 
 /**

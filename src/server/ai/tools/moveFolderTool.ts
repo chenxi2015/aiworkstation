@@ -6,6 +6,13 @@ import type { ToolExecutionResult } from "./types";
 export const moveFolderInputSchema = z
 	.object({
 		folderName: z.string().describe("待移动的文件夹名称"),
+		targetCategory: z
+			.string()
+			.nullable()
+			.optional()
+			.describe(
+				"目标分类名称（例如「工作台」、「自媒体」、「电商」、「学习」等）。当用户希望把文件夹移动到导航分类（特别是移动到「工作台」开始工作，或者归类到其他领域）时传入",
+			),
 		targetParentFolderName: z
 			.string()
 			.nullable()
@@ -26,10 +33,11 @@ function findFolderByName(name: string) {
 }
 
 /**
- * Pure execution function to nest / un-nest a folder in SQLite
+ * Pure execution function to nest / un-nest a folder or move into a category/workbench in SQLite
  */
 export function executeMoveFolder(args: MoveFolderInput): ToolExecutionResult {
 	const folderName = (args.folderName || "").trim();
+	const targetCategory = (args.targetCategory || "").trim();
 	const rawTarget = (args.targetParentFolderName || "").trim();
 
 	if (!folderName) {
@@ -50,6 +58,36 @@ export function executeMoveFolder(args: MoveFolderInput): ToolExecutionResult {
 			items: [],
 			references: [],
 			isMutation: false,
+		};
+	}
+
+	// 1. Move to a target category (e.g. "工作台" to start focused work)
+	if (targetCategory) {
+		if (
+			folder.category === targetCategory &&
+			(folder.parentId ?? null) === null
+		) {
+			return {
+				toolName: "move_folder",
+				summary:
+					targetCategory === "工作台"
+						? `文件夹「${folder.name}」当前已位于「工作台」中，随时可以开展工作。`
+						: `文件夹「${folder.name}」已经位于「${targetCategory}」分类顶层。`,
+				items: [],
+				references: [],
+				isMutation: false,
+			};
+		}
+		workbenchDb.moveFolderToCategory(folder.id, targetCategory);
+		return {
+			toolName: "move_folder",
+			summary:
+				targetCategory === "工作台"
+					? `已成功将文件夹「${folder.name}」移入「工作台」桌面，您可以直接在工作台开始该项工作！`
+					: `已成功将文件夹「${folder.name}」移动到「${targetCategory}」分类。`,
+			items: [],
+			references: [],
+			isMutation: true,
 		};
 	}
 
@@ -133,6 +171,6 @@ export function executeMoveFolder(args: MoveFolderInput): ToolExecutionResult {
 export const moveFolderToolDef = toolDefinition({
 	name: "move_folder",
 	description:
-		"把一个文件夹移入另一个文件夹（建立嵌套分组），或把嵌套文件夹移回分类顶层。当用户要求调整文件夹层级、合并分组、建立父子分组时调用此工具。不能移入自身或其子文件夹。",
+		"移动文件夹。支持：1. 把文件夹移动到指定导航分类（尤其是移动到「工作台」开启当前专注工作，或归类到其他分类）；2. 把一个文件夹移入另一个文件夹（建立嵌套父子分组）；3. 把嵌套文件夹移回分类顶层。",
 	inputSchema: moveFolderInputSchema,
 });

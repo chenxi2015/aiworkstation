@@ -237,4 +237,43 @@ export class FolderRepository {
 		});
 		transaction(orderedIds);
 	}
+
+	/**
+	 * Move a folder to the top level of a navigation category.
+	 * Cascades the category update to all its descendant folders in a single transaction.
+	 */
+	moveFolderToCategory(folderId: number, targetCategory: string): void {
+		const today = new Date().toISOString().split("T")[0];
+		const transaction = this.db.transaction(() => {
+			const maxSort = this.db
+				.prepare(
+					"SELECT COALESCE(MAX(sort_order), -1) as max_sort FROM folders WHERE parent_id IS NULL AND category = ?",
+				)
+				.get(targetCategory) as { max_sort: number };
+
+			// Move folder to top level of target category
+			this.db
+				.prepare(
+					"UPDATE folders SET parent_id = NULL, category = ?, sort_order = ?, updated_at = ? WHERE id = ?",
+				)
+				.run(targetCategory, maxSort.max_sort + 1, today, folderId);
+
+			// Recursively update all descendants' category to maintain hierarchy integrity
+			const updateDescendants = (parentId: number) => {
+				const children = this.db
+					.prepare("SELECT id FROM folders WHERE parent_id = ?")
+					.all(parentId) as { id: number }[];
+				for (const child of children) {
+					this.db
+						.prepare(
+							"UPDATE folders SET category = ?, updated_at = ? WHERE id = ?",
+						)
+						.run(targetCategory, today, child.id);
+					updateDescendants(child.id);
+				}
+			};
+			updateDescendants(folderId);
+		});
+		transaction();
+	}
 }

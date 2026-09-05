@@ -1,11 +1,10 @@
 import { toast } from "@heroui/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-	type Category,
-	CATEGORIES as DEFAULT_CATEGORIES,
-	type Folder,
-	type WorkbenchItem,
-	type WorkbenchSettings,
+import type {
+	Category,
+	Folder,
+	WorkbenchItem,
+	WorkbenchSettings,
 } from "../components/workbench/types";
 import {
 	DEFAULT_SETTINGS,
@@ -62,6 +61,10 @@ export interface UseWorkbenchDataReturn {
 		folderId: number,
 		targetParentId: number | null,
 	) => Promise<void>;
+	handleMoveFolderToCategory: (
+		folderId: number,
+		targetCategory: string,
+	) => Promise<void>;
 	handleReorderFolders: (orderedIds: number[]) => Promise<void>;
 	handleEnterFolder: (folderId: number) => void;
 	handleNavigateToContainer: (folderId: number | null) => void;
@@ -103,6 +106,14 @@ export function useWorkbenchData(
 		() => initialData?.settings ?? DEFAULT_SETTINGS,
 	);
 	const [activeCategory, setActiveCategory] = useState<Category>(() => {
+		if (typeof window !== "undefined") {
+			try {
+				const saved = sessionStorage.getItem("aiworkstation_active_category");
+				if (saved) return saved as Category;
+			} catch {
+				// Ignore storage access restrictions
+			}
+		}
 		if (
 			initialData?.folders &&
 			initialData.folders.length === 0 &&
@@ -120,17 +131,37 @@ export function useWorkbenchData(
 		activeCategoryRef.current = activeCategory;
 	}, [activeCategory]);
 
+	// Sync settings from SQLite DB if initial settings lack API key
+	useEffect(() => {
+		if (!settings.apiKey) {
+			WorkbenchStorageService.fetchSettingsFromDb().then((dbSettings) => {
+				if (dbSettings?.apiKey) {
+					setSettings(dbSettings);
+				}
+			});
+		}
+	}, [settings.apiKey]);
+
 	// Initialize selectedFolderId to the first folder belonging to activeCategory
 	const [selectedFolderId, setSelectedFolderId] = useState<number | null>(
 		() => {
 			if (!initialData?.folders || initialData.folders.length === 0)
 				return null;
-			const initCat =
+			let initCat = "工作台";
+			if (typeof window !== "undefined") {
+				try {
+					const saved = sessionStorage.getItem("aiworkstation_active_category");
+					if (saved) initCat = saved;
+				} catch {
+					// Ignore storage access restrictions
+				}
+			} else if (
 				initialData.folders.length === 0 &&
 				initialData.unclassified &&
 				initialData.unclassified.length > 0
-					? "未分类"
-					: "工作台";
+			) {
+				initCat = "未分类";
+			}
 			if (initCat === "未分类") return null;
 			const firstInCat = initialData.folders.find(
 				(f) => f.category === initCat,
@@ -149,7 +180,8 @@ export function useWorkbenchData(
 		try {
 			const { folders: loadedFolders, unclassified: loadedUnclassified } =
 				await WorkbenchStorageService.fetchAllFromDb();
-			const loadedSettings = WorkbenchStorageService.getSettings();
+			const loadedSettings =
+				await WorkbenchStorageService.fetchSettingsFromDb();
 
 			setFolders(loadedFolders);
 			setUnclassified(loadedUnclassified);
@@ -233,15 +265,17 @@ export function useWorkbenchData(
 		};
 	}, [reloadFromDb]);
 
-	// Dynamic Category Tabs: Merge predefined categories with custom ones from folders
+	// Dynamic Category Tabs: '工作台' is the system root category, all others are dynamically extracted from database folders
 	const dynamicCategories = useMemo(() => {
 		const cats = new Set<string>();
-		for (const c of DEFAULT_CATEGORIES) {
-			cats.add(c);
-		}
+		cats.add("工作台");
 		for (const f of folders) {
-			if (f.category) cats.add(f.category);
+			const cat = f.category?.trim();
+			if (cat && cat !== "未分类") {
+				cats.add(cat);
+			}
 		}
+		cats.add("未分类");
 		return Array.from(cats);
 	}, [folders]);
 
@@ -349,6 +383,13 @@ export function useWorkbenchData(
 	const handleCategoryChange = useCallback(
 		(cat: Category) => {
 			setActiveCategory(cat);
+			if (typeof window !== "undefined") {
+				try {
+					sessionStorage.setItem("aiworkstation_active_category", cat);
+				} catch {
+					// Ignore storage error
+				}
+			}
 			setCurrentFolderId(null);
 			if (cat === "未分类") {
 				setSelectedFolderId(null);
@@ -523,6 +564,66 @@ export function useWorkbenchData(
 		[folders],
 	);
 
+	// Move folder to top level of a navigation category
+	const handleMoveFolderToCategory = useCallback(
+		async (folderId: number, targetCategory: string) => {
+			const targetFolder = folders.find((f) => f.id === folderId);
+			if (!targetFolder) return;
+			if (
+				targetFolder.category === targetCategory &&
+				(targetFolder.parentId ?? null) === null
+			) {
+				// Already at top level of the target category
+				return;
+			}
+
+			const previous = folders;
+
+			// Helper to collect all descendant IDs of the folder
+			const descendantIds = new Set<number>();
+			const stack = [folderId];
+			while (stack.length > 0) {
+				const curr = stack.pop()!;
+				for (const f of folders) {
+					if (f.parentId === curr) {
+						descendantIds.add(f.id);
+						stack.push(f.id);
+					}
+				}
+			}
+
+			// Optimistic update: move to target category and root parent
+			setFolders((prev) =>
+				prev.map((f) => {
+					if (f.id === folderId) {
+						return { ...f, category: targetCategory, parentId: null };
+					}
+					if (descendantIds.has(f.id)) {
+						return { ...f, category: targetCategory };
+					}
+					return f;
+				}),
+			);
+
+			try {
+				const updated = await WorkbenchStorageService.moveFolderToCategoryInDb(
+					folderId,
+					targetCategory,
+				);
+				setFolders(updated);
+				toast.success(
+					`已将「${targetFolder.name}」移动到「${targetCategory}」分类`,
+				);
+			} catch (err) {
+				setFolders(previous);
+				toast.danger(
+					err instanceof Error ? err.message : "移动文件夹分类失败，请重试",
+				);
+			}
+		},
+		[folders],
+	);
+
 	// Persist sibling folder order (optimistic, rolls back on failure)
 	const handleReorderFolders = useCallback(
 		async (orderedIds: number[]) => {
@@ -614,6 +715,7 @@ export function useWorkbenchData(
 		handleDeleteItemFromFolder,
 		handleMoveItem,
 		handleMoveFolder,
+		handleMoveFolderToCategory,
 		handleReorderFolders,
 		handleEnterFolder,
 		handleNavigateToContainer,

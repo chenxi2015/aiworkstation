@@ -1,5 +1,6 @@
 import { Button, EmptyState } from "@heroui/react";
-import { Folder, Inbox, Sparkles, Zap } from "lucide-react";
+import { Folder, Inbox, Loader2, Sparkles, Zap } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { extractDomain } from "../../../lib/url";
 import { WorkbenchItemCard } from "../item/WorkbenchItemCard";
 import type { Folder as WorkbenchFolder, WorkbenchItem } from "../types";
@@ -12,8 +13,11 @@ export interface UnclassifiedViewProps {
 	onMoveItem?: (item: WorkbenchItem, targetFolderId: number) => void;
 }
 
+const INITIAL_BATCH_SIZE = 60;
+const SCROLL_BATCH_SIZE = 40;
+
 /**
- * Unclassified Pool View with DeepSeek AI classification trigger and bookmark grid
+ * Unclassified Pool View with DeepSeek AI classification trigger and progressive batch-rendered bookmark grid
  */
 export function UnclassifiedView({
 	unclassified,
@@ -22,6 +26,43 @@ export function UnclassifiedView({
 	onDeleteItem,
 	onMoveItem,
 }: UnclassifiedViewProps) {
+	// Progressive rendering states for 2000+ items
+	const [visibleCount, setVisibleCount] = useState(INITIAL_BATCH_SIZE);
+	const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+	// Reset visible count when unclassified list length changes meaningfully
+	// biome-ignore lint/correctness/useExhaustiveDependencies: reset pagination when dataset size changes
+	useEffect(() => {
+		setVisibleCount(INITIAL_BATCH_SIZE);
+	}, [unclassified.length]);
+
+	// Auto load next batch when scrolling near the bottom using IntersectionObserver
+	useEffect(() => {
+		const sentinel = sentinelRef.current;
+		if (!sentinel) return;
+
+		const observer = new IntersectionObserver(
+			(entries) => {
+				const [entry] = entries;
+				if (entry.isIntersecting) {
+					setVisibleCount((prev) => {
+						if (prev >= unclassified.length) return prev;
+						return Math.min(prev + SCROLL_BATCH_SIZE, unclassified.length);
+					});
+				}
+			},
+			{ rootMargin: "400px" },
+		);
+
+		observer.observe(sentinel);
+		return () => observer.disconnect();
+	}, [unclassified.length]);
+
+	const visibleItems = useMemo(
+		() => unclassified.slice(0, visibleCount),
+		[unclassified, visibleCount],
+	);
+
 	if (unclassified.length === 0) {
 		return (
 			<div className="flex-1 flex flex-col">
@@ -55,7 +96,7 @@ export function UnclassifiedView({
 								SQLite 已就绪 {unclassified.length} 条从插件同步的书签 TDK
 							</div>
 							<div className="text-[11px] text-muted">
-								点击按钮，由 DeepSeek
+								点击按钮，由 AI大模型
 								深度分析网页标题、描述及原路径，自动创建主题文件夹并入库。
 							</div>
 						</div>
@@ -68,13 +109,13 @@ export function UnclassifiedView({
 						onPress={onOpenAIClassify}
 					>
 						<Sparkles className="w-3.5 h-3.5" />
-						<span>启动 DeepSeek 一键智能分类</span>
+						<span>启动 AI 一键智能分类</span>
 					</Button>
 				</div>
 
 				{/* Unclassified Items Grid: 5 to 6 cards per row on larger screens */}
 				<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2.5">
-					{unclassified.map((item, idx) => (
+					{visibleItems.map((item, idx) => (
 						<WorkbenchItemCard
 							key={item.id || idx}
 							item={item}
@@ -118,6 +159,22 @@ export function UnclassifiedView({
 						/>
 					))}
 				</div>
+
+				{/* Sentinel for infinite progressive rendering */}
+				{visibleCount < unclassified.length && (
+					<div
+						ref={sentinelRef}
+						className="py-6 flex flex-col items-center justify-center gap-1.5 text-xs text-muted"
+					>
+						<div className="flex items-center gap-2">
+							<Loader2 className="w-3.5 h-3.5 animate-spin text-accent" />
+							<span>加载更多书签中...</span>
+						</div>
+						<span className="text-[11px] text-muted/70">
+							已展示 {visibleCount} / {unclassified.length} 条（滚动自动加载）
+						</span>
+					</div>
+				)}
 			</div>
 		</div>
 	);

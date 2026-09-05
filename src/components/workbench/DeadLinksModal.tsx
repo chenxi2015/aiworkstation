@@ -38,6 +38,7 @@ export function DeadLinksModal({
 	const [checked, setChecked] = useState(0);
 	const [items, setItems] = useState<DeadLinkItem[]>([]);
 	const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+	const [lastScanAt, setLastScanAt] = useState<string | null>(null);
 	const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
 	const stopPolling = useCallback(() => {
@@ -54,11 +55,40 @@ export function DeadLinksModal({
 		setChecked(0);
 		setItems([]);
 		setSelectedIds(new Set());
+		setLastScanAt(null);
 	}, [stopPolling]);
 
 	useEffect(() => {
-		if (!isOpen) reset();
-		return stopPolling;
+		if (!isOpen) {
+			reset();
+			return stopPolling;
+		}
+		// Restore the last completed scan snapshot so reopening the modal
+		// keeps the previous results instead of forcing a fresh scan.
+		let cancelled = false;
+		WorkbenchStorageService.getLastDeadLinkScan()
+			.then((job) => {
+				if (cancelled || !job || job.items.length === 0) return;
+				setTotal(job.total);
+				setChecked(job.checked);
+				setItems(job.items);
+				setLastScanAt(job.finishedAt ?? job.startedAt);
+				setSelectedIds(
+					new Set(
+						job.items
+							.filter((item) => item.status === "dead")
+							.map((item) => item.id),
+					),
+				);
+				setPhase("done");
+			})
+			.catch(() => {
+				// snapshot unavailable; stay on the idle view
+			});
+		return () => {
+			cancelled = true;
+			stopPolling();
+		};
 	}, [isOpen, reset, stopPolling]);
 
 	const handleStartScan = useCallback(async () => {
@@ -88,6 +118,7 @@ export function DeadLinksModal({
 					if (job.done) {
 						stopPolling();
 						setItems(job.items);
+						setLastScanAt(job.finishedAt ?? job.startedAt);
 						setSelectedIds(
 							new Set(
 								job.items
@@ -212,6 +243,24 @@ export function DeadLinksModal({
 
 							{(phase === "done" || phase === "deleting") && (
 								<>
+									{/* Snapshot meta + rescan entry */}
+									<div className="flex items-center justify-between text-[11px] text-muted">
+										<span>
+											{lastScanAt
+												? `上次检测：${new Date(lastScanAt).toLocaleString()}`
+												: "检测结果"}
+										</span>
+										<button
+											type="button"
+											className="flex items-center gap-1 text-accent hover:opacity-80 cursor-pointer"
+											onClick={handleStartScan}
+											disabled={phase === "deleting"}
+										>
+											<Radar className="w-3 h-3" />
+											重新检测
+										</button>
+									</div>
+
 									{/* Result summary */}
 									<div className="grid grid-cols-3 gap-2">
 										<div className="rounded-xl bg-danger/10 border border-danger/20 p-3 flex flex-col items-center gap-0.5">

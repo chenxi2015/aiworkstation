@@ -1,4 +1,10 @@
-import { Bot, Folder as FolderIcon, Globe, Search, Sparkles } from "lucide-react";
+import {
+	Bot,
+	Folder as FolderIcon,
+	Globe,
+	Search,
+	Sparkles,
+} from "lucide-react";
 import {
 	forwardRef,
 	useEffect,
@@ -97,6 +103,12 @@ export const ChatWithBookmarksPanel = forwardRef<
 		isLoading,
 		setInput,
 		sendPrompt,
+		stopChat,
+		editAndResendMessage,
+		editMessage,
+		resendMessage,
+		deleteMessage,
+		deleteMessages,
 		createNewChat,
 		loadSession,
 		deleteSession,
@@ -305,6 +317,11 @@ export const ChatWithBookmarksPanel = forwardRef<
 					selectedFolder={selectedFolder}
 					selectedRefKeys={folderAssign.selectedItemKeys}
 					messagesEndRef={messagesEndRef}
+					onEditAndResend={editAndResendMessage}
+					onEditOnly={editMessage}
+					onResend={resendMessage}
+					onDelete={deleteMessage}
+					onDeleteMessages={deleteMessages}
 					onToggleRefCheck={folderAssign.toggleSelectItem}
 					onToggleSelectGroup={folderAssign.toggleSelectGroup}
 					onOpenAssignSingle={folderAssign.openAssignSingle}
@@ -368,10 +385,11 @@ export const ChatWithBookmarksPanel = forwardRef<
 					inputRef={inputRef}
 					onChangeInput={setInput}
 					onSend={() => handleSendPrompt()}
+					onStop={stopChat}
 					onOpenHistory={() => setIsHistoryOpen(true)}
 					onNewChat={createNewChat}
 					onClearHistory={clearHistory}
-					model={settings?.deepseekModel}
+					model={settings?.model}
 					scopeMode={scopeMode}
 					selectedFolder={selectedFolder}
 					onToggleScope={() =>

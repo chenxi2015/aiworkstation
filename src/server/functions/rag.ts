@@ -67,7 +67,9 @@ export const chatWithBookmarks = createServerFn({ method: "POST" })
 		// 1. Retrieve Candidate Bookmarks from SQLite for standard RAG fallback (filter by folderId if specified)
 		let candidateItems = workbenchDb.getAllBookmarksForSearch();
 		if (folderId != null) {
-			candidateItems = candidateItems.filter((item) => item.folderId === folderId);
+			candidateItems = candidateItems.filter(
+				(item) => item.folderId === folderId,
+			);
 		}
 		if (candidateItems.length === 0) {
 			return {
@@ -147,9 +149,11 @@ export const chatWithBookmarks = createServerFn({ method: "POST" })
 1. 【精准查询】：当用户询问涉及【时间范围】（例如：“我今天/本周/上周/本月/最近7天收藏了哪些网站”、“昨天添加了什么”）、【特定分类/文件夹汇总】（例如：“自媒体分类下有哪些”、“看下设计工具文件夹”）或【全量统计盘点】时，主动调用 \`query_bookmarks\` 工具从 SQLite 获取最新数据。
 2. 【具体工具定位与解答】：当用户询问某个具体工具/网站“在哪里”、“属于哪个分类/文件夹”或“网址是什么”时，若下方【参考来源】中已经命中了该工具，**直接根据参考来源作答**（明确说明其所在的文件夹名称、网址与用途），无需重复发起数据库查询。
 3. 【创建文件夹】：当用户明确要求新建文件夹时，调用 \`create_folder\` 工具。
-4. 【归类与移动书签】：当用户要求将内容整理或放入指定文件夹时，调用 \`move_bookmarks_to_folder\` 工具。
+4. 【归类整理 vs 任务复用书签】：调用 \`move_bookmarks_to_folder\` 工具。注意区分 mode 参数：
+   - 当用户意图是【规整/归类/整理/清理】（例如“把未分类整理到自媒体”、“把这批书签移过去”）时，mode 设为 "move"（默认值，从原位置剪切移入）；
+   - 当用户意图是【组装任务/挑选工具/复用到项目/复制到文件夹】（例如“推荐一些自媒体工具放到陈王百口文件夹”、“把常用剪辑工具也放到这个新文件夹里”）时，mode 设为 "link"（保留原归属，仅向新文件夹建立多对多关联引用）；支持配合 tags 参数（例如 tags: ["自媒体"]）批量按标签挑选工具。
 5. 【更新文件夹】：当用户要求修改文件夹名称、分类或描述时，调用 \`update_folder\` 工具。
-6. 【文件夹嵌套/层级调整】：当用户要求把某个文件夹放进另一个文件夹（建立子分组）、或把嵌套文件夹移回顶层时，调用 \`move_folder\` 工具。
+6. 【移动文件夹与开启工作】：当用户要求把文件夹移入另一个文件夹（建立子分组）、移回顶层，或者要求将文件夹拿到/移入「工作台」开启专注工作（例如：“把chrome插件移到工作台开始工作”、“把项目放到工作台”、“开启自媒体工作”）时，调用 \`move_folder\` 工具（传入 folderName 以及 targetCategory: "工作台" 或目标分类名）。
 7. 【文件夹排序】：当用户要求调整文件夹排列顺序（如"把最常用的放前面"、"按内容数量排"、"按名称排序"）时，调用 \`reorder_folders\` 工具。
 8. 【移出书签】：当用户要求把某些书签从文件夹中移出（回到未分类）、或清空某个文件夹时，调用 \`remove_bookmarks_from_folder\` 工具。
 9. 【删除文件夹】：当用户明确要求删除文件夹时，调用 \`delete_folder\` 工具。默认书签会移回未分类、子文件夹提升到顶层；仅当用户明确说"连同内容一起删除"时才设置 deleteBookmarks=true。

@@ -145,7 +145,7 @@ export function SearchTabContent({
 			try {
 				const settings = WorkbenchStorageService.getSettings();
 				const embeddingConfig = {
-					apiKey: settings.embeddingApiKey || settings.deepseekApiKey || "",
+					apiKey: settings.embeddingApiKey || settings.apiKey || "",
 					baseUrl: settings.embeddingBaseUrl,
 					model: settings.embeddingModel,
 				};

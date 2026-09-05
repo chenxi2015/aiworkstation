@@ -71,6 +71,10 @@ export class WorkbenchDatabase {
 		this.folderRepo.reorderFolders(orderedIds);
 	}
 
+	moveFolderToCategory(folderId: number, targetCategory: string): void {
+		this.folderRepo.moveFolderToCategory(folderId, targetCategory);
+	}
+
 	// ================= Bookmark Operations =================
 	getUnclassifiedItems(): WorkbenchItem[] {
 		return this.bookmarkRepo.getUnclassifiedItems();
@@ -97,6 +101,10 @@ export class WorkbenchDatabase {
 		targetFolderId: number | null,
 	): void {
 		this.bookmarkRepo.moveItem(itemId, sourceFolderId, targetFolderId);
+	}
+
+	linkItemToFolder(itemId: string, targetFolderId: number): void {
+		this.bookmarkRepo.linkItemToFolder(itemId, targetFolderId);
 	}
 
 	deleteItem(itemId: string, folderId: number | null): void {
@@ -141,6 +149,23 @@ export class WorkbenchDatabase {
 
 	queryBookmarks(params: BookmarkQueryParams = {}): WorkbenchItem[] {
 		return this.searchRepo.queryBookmarks(params);
+	}
+
+	// ================= Settings Operations =================
+	getSetting(key: string): string | null {
+		const row = getDb()
+			.prepare("SELECT value FROM settings WHERE key = ?")
+			.get(key) as { value: string } | undefined;
+		return row ? row.value : null;
+	}
+
+	setSetting(key: string, value: string): void {
+		const now = new Date().toISOString();
+		getDb()
+			.prepare(
+				"INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+			)
+			.run(key, value, now);
 	}
 }
 

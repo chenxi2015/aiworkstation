@@ -4,7 +4,6 @@ import {
 	Folder as FolderIcon,
 	Globe,
 	History,
-	Loader2,
 	MessageSquarePlus,
 	Sparkles,
 } from "lucide-react";
@@ -20,6 +19,7 @@ export interface ChatInputAreaProps {
 	inputRef: RefObject<HTMLTextAreaElement | null>;
 	onChangeInput: (val: string) => void;
 	onSend: () => void;
+	onStop?: () => void;
 	onOpenHistory?: () => void;
 	onNewChat?: () => void;
 	onClearHistory?: () => void;
@@ -38,6 +38,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 	inputRef,
 	onChangeInput,
 	onSend,
+	onStop,
 	onOpenHistory,
 	onNewChat,
 	model,
@@ -45,12 +46,11 @@ export const ChatInputArea = memo(function ChatInputArea({
 	selectedFolder,
 	onToggleScope,
 }: ChatInputAreaProps) {
+	const currentSettings = typeof window !== "undefined" ? WorkbenchStorageService.getSettings() : null;
 	const displayModel =
 		model ||
-		(typeof window !== "undefined"
-			? WorkbenchStorageService.getSettings().deepseekModel
-			: "") ||
-		"DeepSeek";
+		currentSettings?.model ||
+		"AI";
 
 	return (
 		<div className="p-3 border-t border-border bg-surface-secondary/40 shrink-0 flex flex-col gap-1.5">
@@ -71,7 +71,9 @@ export const ChatInputArea = memo(function ChatInputArea({
 							{scopeMode === "folder" ? (
 								<>
 									<FolderIcon className="w-2.5 h-2.5 shrink-0" />
-									<span className="max-w-[110px] truncate">限定: {selectedFolder.name}</span>
+									<span className="max-w-[110px] truncate">
+										限定: {selectedFolder.name}
+									</span>
 								</>
 							) : (
 								<>
@@ -140,7 +142,12 @@ export const ChatInputArea = memo(function ChatInputArea({
 					onKeyDown={(e) => {
 						if (e.key === "Enter" && !e.shiftKey) {
 							e.preventDefault();
-							onSend();
+							if (!isLoading) {
+								onSend();
+							}
+						} else if (e.key === "Escape" && isLoading && onStop) {
+							e.preventDefault();
+							onStop();
 						}
 					}}
 					placeholder="统一搜索 & 智能问答：例如「找推特 AI 创作工具」或「总结本周收藏」..."
@@ -148,22 +155,34 @@ export const ChatInputArea = memo(function ChatInputArea({
 				/>
 
 				<div className="flex items-center gap-1 shrink-0 pb-0.5">
-					<Button
-						variant="primary"
-						size="sm"
-						className="h-7 px-2.5 text-xs font-medium rounded-lg flex items-center gap-1 shadow-xs cursor-pointer"
-						onPress={onSend}
-						isDisabled={!input.trim() || isLoading}
-					>
-						{isLoading ? (
-							<Loader2 className="w-3.5 h-3.5 animate-spin" />
-						) : (
-							<>
-								<Sparkles className="w-3 h-3" />
-								<CornerDownLeft className="w-3 h-3 opacity-70" />
-							</>
-						)}
-					</Button>
+					{isLoading ? (
+						<Tooltip>
+							<Tooltip.Trigger>
+								<button
+									type="button"
+									onClick={onStop}
+									className="h-7 w-7 rounded-full border border-foreground/50 hover:border-foreground text-foreground hover:bg-surface-secondary/80 flex items-center justify-center transition-all cursor-pointer shadow-2xs group"
+									aria-label="停止回答"
+								>
+									<span className="w-2.5 h-2.5 bg-foreground rounded-[1.5px] group-hover:scale-90 transition-transform" />
+								</button>
+							</Tooltip.Trigger>
+							<Tooltip.Content className="text-xs py-1 px-2">
+								停止回答
+							</Tooltip.Content>
+						</Tooltip>
+					) : (
+						<Button
+							variant="primary"
+							size="sm"
+							className="h-7 px-2.5 text-xs font-medium rounded-lg flex items-center gap-1 shadow-xs cursor-pointer"
+							onPress={onSend}
+							isDisabled={!input.trim()}
+						>
+							<Sparkles className="w-3 h-3" />
+							<CornerDownLeft className="w-3 h-3 opacity-70" />
+						</Button>
+					)}
 				</div>
 			</div>
 

@@ -53,7 +53,7 @@ export const Route = createFileRoute("/")({
 	loader: async () => {
 		const { folders, unclassified } =
 			await WorkbenchStorageService.fetchAllFromDb();
-		const settings = WorkbenchStorageService.getSettings();
+		const settings = await WorkbenchStorageService.fetchSettingsFromDb();
 		return { folders, unclassified, settings };
 	},
 	pendingComponent: WorkbenchSkeleton,
@@ -93,6 +93,7 @@ function WorkbenchHome() {
 		handleDeleteItemFromFolder,
 		handleMoveItem,
 		handleMoveFolder,
+		handleMoveFolderToCategory,
 		handleReorderFolders,
 		handleEnterFolder,
 		handleNavigateToContainer,
@@ -173,25 +174,31 @@ function WorkbenchHome() {
 	const isUnclassified = activeCategory === "未分类";
 
 	return (
-		<div className="h-screen bg-surface dark:bg-background text-foreground flex flex-col overflow-hidden selection:bg-accent-soft selection:text-accent-soft-foreground">
-			{/* Topbar Navigation Header — Unified Search Triggers Right Panel */}
-			<WorkbenchHeader
-				categories={dynamicCategories}
-				activeCategory={activeCategory}
-				unclassifiedCount={unclassified.length}
-				folders={folders}
-				onSelectCategory={handleCategoryChange}
-				onOpenSearch={() => chatPanelRef.current?.openSearchTab()}
-				onOpenSync={() => setIsSyncModalOpen(true)}
-				onOpenCreateFolder={openCreateFolderModal}
-				onOpenSettings={() => setIsSettingsModalOpen(true)}
-			/>
+		<WorkbenchDndProvider
+			gridFolderIds={gridFolders.map((f) => f.id)}
+			onMoveItemToFolder={handleMoveItem}
+			onMoveFolder={handleMoveFolder}
+			onMoveFolderToCategory={handleMoveFolderToCategory}
+			onReorderFolders={handleReorderFolders}
+		>
+			<div className="h-screen bg-surface dark:bg-background text-foreground flex flex-col overflow-hidden selection:bg-accent-soft selection:text-accent-soft-foreground">
+				{/* Topbar Navigation Header — Unified Search Triggers Right Panel */}
+				<WorkbenchHeader
+					categories={dynamicCategories}
+					activeCategory={activeCategory}
+					unclassifiedCount={unclassified.length}
+					folders={folders}
+					onSelectCategory={handleCategoryChange}
+					onOpenSearch={() => chatPanelRef.current?.openSearchTab()}
+					onOpenSync={() => setIsSyncModalOpen(true)}
+					onOpenCreateFolder={openCreateFolderModal}
+					onOpenSettings={() => setIsSettingsModalOpen(true)}
+				/>
 
-			{/* Main Workspace Layout (Left: Folder Details | Center: Grid | Right: Resident AI Search Hub) */}
-			<div className="flex-1 flex w-full min-h-0 overflow-hidden">
-				{isUnclassified ? (
-					<div className="flex-1 flex w-full min-h-0 overflow-hidden">
-						{/* Unclassified Inbox Buffer */}
+				{/* Main Workspace Layout (Left: Folder Details | Center: Grid | Right: Resident AI Search Hub) */}
+				<div className="flex-1 flex w-full min-h-0 overflow-hidden">
+					{isUnclassified ? (
+						/* Unclassified Inbox Buffer */
 						<main className="flex-1 p-6 lg:p-8 min-w-0 flex flex-col overflow-y-auto border-r border-border h-full">
 							{/* Workspace Title */}
 							<div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-4 mb-6">
@@ -224,26 +231,8 @@ function WorkbenchHome() {
 								}
 							/>
 						</main>
-
-						{/* Right: Resident AI Search & Q&A Central Hub */}
-						<ChatWithBookmarksPanel
-							ref={chatPanelRef}
-							selectedFolder={null}
-							activeCategory={activeCategory}
-							folders={folders}
-							categories={dynamicCategories}
-							onNavigateToFolder={handleNavigateFromSearch}
-							onDataChanged={reloadFromDb}
-						/>
-					</div>
-				) : (
-					<WorkbenchDndProvider
-						gridFolderIds={gridFolders.map((f) => f.id)}
-						onMoveItemToFolder={handleMoveItem}
-						onMoveFolder={handleMoveFolder}
-						onReorderFolders={handleReorderFolders}
-					>
-						<div className="flex-1 flex w-full min-h-0 overflow-hidden">
+					) : (
+						<>
 							{/* 1. Left Column: 文件夹详情与快捷看板 (Folder Details & Bookmarks) */}
 							<FolderDetailPanel
 								folder={selectedFolder}
@@ -298,139 +287,143 @@ function WorkbenchHome() {
 									onAskAIAboutFolder={handleAskAISummarizeFolder}
 								/>
 							</main>
+						</>
+					)}
 
-							{/* 3. Right Column: Resident AI Search & Knowledge Q&A Central Hub */}
-							<ChatWithBookmarksPanel
-								ref={chatPanelRef}
-								selectedFolder={selectedFolder}
-								activeCategory={activeCategory}
-								folders={folders}
-								categories={dynamicCategories}
-								settings={settings}
-								onNavigateToFolder={handleNavigateFromSearch}
-								onDataChanged={reloadFromDb}
-							/>
-						</div>
-					</WorkbenchDndProvider>
-				)}
-			</div>
-
-			{/* Lazy-Loaded Feature Modals */}
-			<Suspense fallback={null}>
-				{folderModalState.isOpen && (
-					<FolderModal
-						isOpen={folderModalState.isOpen}
-						folder={folderModalState.folder}
+					{/* 3. Right Column: Resident AI Search & Knowledge Q&A Central Hub (Permanent Singleton) */}
+					<ChatWithBookmarksPanel
+						ref={chatPanelRef}
+						selectedFolder={isUnclassified ? null : selectedFolder}
+						activeCategory={activeCategory}
 						folders={folders}
-						defaultCategory={isUnclassified ? "工作台" : activeCategory}
-						defaultParentId={folderModalState.defaultParentId}
-						onClose={closeFolderModal}
-						onSave={async (data) => {
-							await handleSaveFolder(data);
-							closeFolderModal();
-						}}
-						onDelete={async (id) => {
-							await handleDeleteFolder(id);
-							closeFolderModal();
-						}}
-					/>
-				)}
-
-				{addLinkFolder && (
-					<AddLinkModal
-						isOpen={!!addLinkFolder}
-						folder={addLinkFolder}
-						onClose={closeAddLinkModal}
-						onSave={async (data) => {
-							await handleAddLink(addLinkFolder.id, data);
-							closeAddLinkModal();
-						}}
-					/>
-				)}
-
-				{isAIClassifyModalOpen && (
-					<AIClassifyModal
-						isOpen={isAIClassifyModalOpen}
-						itemsToClassify={unclassified}
-						folders={folders}
+						categories={dynamicCategories}
 						settings={settings}
-						onClose={() => setIsAIClassifyModalOpen(false)}
-						onClassificationComplete={handleClassificationComplete}
-					/>
-				)}
-
-				{isSyncModalOpen && (
-					<BookmarkSyncModal
-						isOpen={isSyncModalOpen}
-						onClose={() => setIsSyncModalOpen(false)}
-						onBookmarksImported={(newItems) =>
-							handleBookmarksImported(newItems, () =>
-								setIsAIClassifyModalOpen(true),
-							)
-						}
-					/>
-				)}
-
-				{isSettingsModalOpen && (
-					<SettingsModal
-						isOpen={isSettingsModalOpen}
-						onClose={() => setIsSettingsModalOpen(false)}
-						onSettingsUpdated={setSettings}
-						onOpenDeadLinks={() => setIsDeadLinksModalOpen(true)}
-						onDataCleared={reloadFromDb}
-					/>
-				)}
-
-				{isDeadLinksModalOpen && (
-					<DeadLinksModal
-						isOpen={isDeadLinksModalOpen}
-						onClose={() => setIsDeadLinksModalOpen(false)}
+						onNavigateToFolder={handleNavigateFromSearch}
 						onDataChanged={reloadFromDb}
 					/>
-				)}
-			</Suspense>
+				</div>
 
-			{/* Folder deletion confirmation */}
-			<ConfirmDialog
-				isOpen={!!folderPendingDelete}
-				onOpenChange={(open) => !open && setFolderPendingDelete(null)}
-				title="删除文件夹"
-				description={
-					folderPendingDelete
-						? `确定删除文件夹「${folderPendingDelete.name}」吗？此操作不可撤销。`
-						: undefined
-				}
-				confirmLabel="删除文件夹"
-				onConfirm={async () => {
-					if (folderPendingDelete) {
-						await handleDeleteFolder(folderPendingDelete.id);
-					}
-				}}
-			/>
+				{/* Lazy-Loaded Feature Modals */}
+				<Suspense fallback={null}>
+					{folderModalState.isOpen && (
+						<FolderModal
+							isOpen={folderModalState.isOpen}
+							folder={folderModalState.folder}
+							folders={folders}
+							defaultCategory={isUnclassified ? "工作台" : activeCategory}
+							defaultParentId={folderModalState.defaultParentId}
+							onClose={closeFolderModal}
+							onSave={async (data) => {
+								await handleSaveFolder(data);
+								closeFolderModal();
+							}}
+							onDelete={async (id) => {
+								await handleDeleteFolder(id);
+								closeFolderModal();
+							}}
+						/>
+					)}
 
-			{/* Bookmark item deletion confirmation */}
-			<ConfirmDialog
-				isOpen={!!itemPendingDelete}
-				onOpenChange={(open) => !open && setItemPendingDelete(null)}
-				title="删除书签"
-				description={
-					itemPendingDelete
-						? `确定删除「${itemPendingDelete.item.name}」吗？此操作不可撤销。`
-						: undefined
-				}
-				confirmLabel="删除"
-				onConfirm={async () => {
-					if (!itemPendingDelete) return;
-					if (itemPendingDelete.folderId === null) {
-						await handleDeleteUnclassifiedItem(itemPendingDelete.item);
-					} else {
-						await handleDeleteItemFromFolder(
-							itemPendingDelete.item,
-							itemPendingDelete.folderId,
-						);
+					{addLinkFolder && (
+						<AddLinkModal
+							isOpen={!!addLinkFolder}
+							folder={addLinkFolder}
+							onClose={closeAddLinkModal}
+							onSave={async (data) => {
+								await handleAddLink(addLinkFolder.id, data);
+								closeAddLinkModal();
+							}}
+						/>
+					)}
+
+					{isAIClassifyModalOpen && (
+						<AIClassifyModal
+							isOpen={isAIClassifyModalOpen}
+							itemsToClassify={unclassified}
+							folders={folders}
+							settings={settings}
+							onClose={() => setIsAIClassifyModalOpen(false)}
+							onClassificationComplete={handleClassificationComplete}
+							onOpenSettings={() => {
+								setIsAIClassifyModalOpen(false);
+								setIsSettingsModalOpen(true);
+							}}
+						/>
+					)}
+
+					{isSyncModalOpen && (
+						<BookmarkSyncModal
+							isOpen={isSyncModalOpen}
+							onClose={() => setIsSyncModalOpen(false)}
+							onBookmarksImported={(newItems) =>
+								handleBookmarksImported(newItems, () =>
+									setIsAIClassifyModalOpen(true),
+								)
+							}
+						/>
+					)}
+
+					{isSettingsModalOpen && (
+						<SettingsModal
+							isOpen={isSettingsModalOpen}
+							onClose={() => setIsSettingsModalOpen(false)}
+							onSettingsUpdated={setSettings}
+							onOpenDeadLinks={() => setIsDeadLinksModalOpen(true)}
+							onDataCleared={reloadFromDb}
+						/>
+					)}
+
+					{isDeadLinksModalOpen && (
+						<DeadLinksModal
+							isOpen={isDeadLinksModalOpen}
+							onClose={() => setIsDeadLinksModalOpen(false)}
+							onDataChanged={reloadFromDb}
+						/>
+					)}
+				</Suspense>
+
+				{/* Folder deletion confirmation */}
+				<ConfirmDialog
+					isOpen={!!folderPendingDelete}
+					onOpenChange={(open) => !open && setFolderPendingDelete(null)}
+					title="删除文件夹"
+					description={
+						folderPendingDelete
+							? `确定删除文件夹「${folderPendingDelete.name}」吗？此操作不可撤销。`
+							: undefined
 					}
-				}}
-			/>
-		</div>
+					confirmLabel="删除文件夹"
+					onConfirm={async () => {
+						if (folderPendingDelete) {
+							await handleDeleteFolder(folderPendingDelete.id);
+						}
+					}}
+				/>
+
+				{/* Bookmark item deletion confirmation */}
+				<ConfirmDialog
+					isOpen={!!itemPendingDelete}
+					onOpenChange={(open) => !open && setItemPendingDelete(null)}
+					title="删除书签"
+					description={
+						itemPendingDelete
+							? `确定删除「${itemPendingDelete.item.name}」吗？此操作不可撤销。`
+							: undefined
+					}
+					confirmLabel="删除"
+					onConfirm={async () => {
+						if (!itemPendingDelete) return;
+						if (itemPendingDelete.folderId === null) {
+							await handleDeleteUnclassifiedItem(itemPendingDelete.item);
+						} else {
+							await handleDeleteItemFromFolder(
+								itemPendingDelete.item,
+								itemPendingDelete.folderId,
+							);
+						}
+					}}
+				/>
+			</div>
+		</WorkbenchDndProvider>
 	);
 }

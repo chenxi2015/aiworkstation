@@ -68,14 +68,19 @@ export interface Folder {
 }
 
 export interface WorkbenchSettings {
-	deepseekApiKey: string;
-	deepseekBaseUrl: string;
-	deepseekModel: string;
+	// Universal LLM Configuration (supports DeepSeek, Kimi, GLM, OpenAI, Claude, Ollama, Custom)
+	apiKey: string;
+	baseUrl: string;
+	model: string;
 	batchSize: number;
+	// LLM provider preset id (deepseek / kimi / glm / openai / claude / custom)
+	llmProvider?: string;
 	// Embedding API Settings for RAG & Semantic Search
 	embeddingApiKey?: string;
 	embeddingBaseUrl?: string;
 	embeddingModel?: string;
+	// Embedding provider preset id (siliconflow / openai / custom)
+	embeddingProvider?: string;
 }
 
 export type SearchMode = "hybrid" | "semantic" | "keyword";
@@ -120,19 +125,10 @@ export interface EmbeddingStats {
 	percentage: number;
 }
 
-export const CATEGORIES = [
-	"工作台",
-	"首页",
-	"自媒体",
-	"技能",
-	"电商",
-	"收藏",
-	"chrome插件",
-	"skills",
-	"未分类",
-] as const;
+// Default system categories. All other navigation categories are dynamically driven by the database folders table.
+export const CATEGORIES = ["工作台", "未分类"] as const;
 
-// "未分类" 是未整理书签缓冲池的伪分类，文件夹不可归入
+// "未分类" is a pseudo-category for unclassified bookmark inbox; folders cannot belong to it
 export const FOLDER_CATEGORIES = CATEGORIES.filter((c) => c !== "未分类");
 
 export type Category = (typeof CATEGORIES)[number] | string;

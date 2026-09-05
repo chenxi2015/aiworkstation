@@ -1,62 +1,37 @@
 import { chat } from "@tanstack/ai";
 import { openaiCompatibleText } from "@tanstack/ai-openai/compatible";
-import { z } from "zod";
 import type {
 	AIClassificationResult,
 	BookmarkTDKItem,
-	ItemType,
 	WorkbenchSettings,
 } from "../components/workbench/types";
+import {
+	buildClassifySystemPrompt,
+	buildUserPayload,
+} from "./classifier/promptBuilder";
+import {
+	buildFallbackResults,
+	extractAndParseJSON,
+	mapAIResponseToResults,
+} from "./classifier/responseParser";
+import {
+	DEFAULT_LLM_BASE_URL,
+	DEFAULT_LLM_KEY,
+	DEFAULT_LLM_MODEL,
+	UNIVERSAL_CATEGORY_DOMAINS,
+} from "./classifier/taxonomy";
+import { runBatchWorkerPool } from "./classifier/workerPool";
+import {
+	fetchSettingsFromDb,
+	getEffectiveLLMConfig,
+} from "./storage/settingsStorage";
 
-export const DEFAULT_DEEPSEEK_KEY =
-	(typeof import.meta !== "undefined" &&
-		import.meta.env?.VITE_DEEPSEEK_API_KEY) ||
-	(typeof process !== "undefined" ? process.env?.DEEPSEEK_API_KEY : "") ||
-	"";
-export const DEFAULT_DEEPSEEK_BASE_URL =
-	(typeof import.meta !== "undefined" &&
-		import.meta.env?.VITE_DEEPSEEK_BASE_URL) ||
-	(typeof process !== "undefined" ? process.env?.DEEPSEEK_BASE_URL : "") ||
-	"https://api.deepseek.com";
-export const DEFAULT_DEEPSEEK_MODEL =
-	(typeof import.meta !== "undefined" &&
-		import.meta.env?.VITE_DEEPSEEK_MODEL) ||
-	(typeof process !== "undefined" ? process.env?.DEEPSEEK_MODEL : "") ||
-	"deepseek-chat";
-
-/**
- * Zod Schema for TanStack AI structured classification output
- */
-const classificationItemSchema = z.object({
-	id: z.union([z.string(), z.number()]).describe("书签唯一ID"),
-	title: z.string().describe("书签名称/标题"),
-	url: z.string().describe("书签URL"),
-	category: z.string().describe("所属工作台大分类"),
-	folderName: z.string().describe("所属主题文件夹名称"),
-	folderDesc: z.string().describe("主题文件夹简短说明"),
-	itemType: z
-		.enum(["tool", "link", "doc", "skill", "note"])
-		.describe("条目类型"),
-	summary: z.string().describe("中文一句话摘要说明"),
-	tags: z.array(z.string()).describe("2-3个中文主题标签"),
-	reason: z.string().describe("归类理由"),
-});
-
-const classificationBatchSchema = z.object({
-	items: z.array(classificationItemSchema).describe("分类结果列表"),
-});
-
-/**
- * "未分类" 是未整理书签缓冲池的伪分类，不能作为文件夹的真实分类；
- * 模型返回空或"未分类"时统一回退到"工作台"
- */
-const DEFAULT_FOLDER_CATEGORY = "工作台";
-
-function sanitizeFolderCategory(category?: string): string {
-	const trimmed = category?.trim();
-	if (!trimmed || trimmed === "未分类") return DEFAULT_FOLDER_CATEGORY;
-	return trimmed;
-}
+export {
+	DEFAULT_LLM_BASE_URL,
+	DEFAULT_LLM_KEY,
+	DEFAULT_LLM_MODEL,
+	UNIVERSAL_CATEGORY_DOMAINS,
+};
 
 /**
  * Options for AI bookmark classification
@@ -65,68 +40,45 @@ export interface ClassifyOptions {
 	settings?: Partial<WorkbenchSettings>;
 	existingCategories: string[];
 	existingFolders: Array<{ name: string; category: string; desc?: string }>;
+	concurrency?: number;
 	onProgress?: (current: number, total: number, message: string) => void;
+	onBatchComplete?: (batchResults: AIClassificationResult[]) => void;
+	onLog?: (log: string) => void;
 	signal?: AbortSignal;
 }
 
 /**
- * AI Classifier service powered by TanStack AI Native chat() + Structured Outputs
+ * AI Classifier service powered by TanStack AI Native chat()
  */
 export class AIClassifierService {
 	/**
 	 * Classify a single batch of bookmark TDK items using TanStack AI
 	 */
-	private static async classifyBatch(
+	static async classifyBatch(
 		batch: BookmarkTDKItem[],
 		existingCategories: string[],
 		existingFolders: Array<{ name: string; category: string }>,
 		settings: Partial<WorkbenchSettings>,
 		signal?: AbortSignal,
 	): Promise<AIClassificationResult[]> {
-		const apiKey = settings.deepseekApiKey || DEFAULT_DEEPSEEK_KEY;
-		const baseUrl = (
-			settings.deepseekBaseUrl || DEFAULT_DEEPSEEK_BASE_URL
-		).replace(/\/+$/, "");
-		const model = settings.deepseekModel || DEFAULT_DEEPSEEK_MODEL;
+		const { apiKey, baseUrl, model, provider } = getEffectiveLLMConfig(settings);
+
+		if (!apiKey) {
+			throw new Error("请先在「设置」中配置大模型 API Key 后再进行智能分拣");
+		}
+
 		const validCategories = existingCategories.filter(
 			(c) => c && c !== "未分类",
 		);
+		const targetCategories = Array.from(
+			new Set([...validCategories, ...UNIVERSAL_CATEGORY_DOMAINS]),
+		);
 
-		if (!apiKey) {
-			throw new Error("DeepSeek API Key is required for classification");
-		}
-
-		const systemPrompt = `You are an expert AI content organizer and taxonomy architect for an AI Workstation.
-Your task is to analyze an array of web bookmarks with their TDK metadata (Title, Description, Keywords, URL, and folder hierarchy) and categorize them into appropriate workspace categories and theme folders.
-
-Available workspace categories:
-${JSON.stringify(validCategories)}
-
-Existing reference folders:
-${JSON.stringify(existingFolders.slice(0, 30))}
-
-Guidelines for categorization:
-1. "category": Pick the most fitting workspace category from the available list, or suggest a new logical category if none fits.
-2. "folderName": Pick an existing folder name if the topic matches well, or create a concise 2-6 word topic folder name (e.g. "Prompt工程", "短视频剪辑", "电商选品", "前端开发", "AI绘图", "推特运营").
-3. "folderDesc": A brief 1-sentence description of the folder's theme.
-4. "itemType": Must be strictly one of ["tool", "link", "doc", "skill", "note"]:
-   - "tool": Interactive SaaS, online tools, calculators, generators, extensions, dev platforms.
-   - "link": Informational links, blogs, social profiles, repositories, articles, news.
-   - "doc": Official documentation, cheat-sheets, guides, tutorials, specifications.
-   - "skill": Automation workflows, prompts, agents, scripts, CLI tools.
-   - "note": Notes, inspirations, references, materials.
-5. "summary": A concise 1-sentence summary (in Chinese) explaining what this website is.
-6. "tags": An array of 2-3 relevant topic tags in Chinese.
-7. "reason": Brief justification for the classification.`;
-
-		const userPayload = batch.map((item) => ({
-			id: item.id,
-			title: item.title,
-			url: item.url,
-			description: item.description || "",
-			keywords: item.keywords || "",
-			folderPath: item.folderPath || item.parentTitle || "",
-		}));
+		const systemPrompt = buildClassifySystemPrompt(
+			targetCategories,
+			existingFolders,
+		);
+		const userPayload = buildUserPayload(batch);
 
 		// 1. Create TanStack AI OpenAI-compatible adapter
 		const adapter = openaiCompatibleText(model, {
@@ -135,8 +87,14 @@ Guidelines for categorization:
 			dangerouslyAllowBrowser: true,
 		});
 
-		// 2. Setup cancellation controller
+		// 2. Setup cancellation controller with a 35-second batch timeout
 		const abortController = new AbortController();
+		const timeoutTimer = setTimeout(() => {
+			abortController.abort(
+				new Error(`AI 智能分拣批次请求超时 (35s) [${provider}]`),
+			);
+		}, 35000);
+
 		if (signal) {
 			if (signal.aborted) {
 				abortController.abort();
@@ -147,48 +105,33 @@ Guidelines for categorization:
 			}
 		}
 
-		// 3. Execute TanStack AI chat() with structured outputSchema
-		const response = await chat({
-			adapter,
-			systemPrompts: [systemPrompt],
-			messages: [
-				{
-					role: "user",
-					content: `Please classify the following ${batch.length} bookmarks:\n${JSON.stringify(userPayload, null, 2)}`,
+		try {
+			// 3. Execute TanStack AI chat() with native json_object response format
+			const response = await chat({
+				adapter,
+				systemPrompts: [systemPrompt],
+				messages: [
+					{
+						role: "user",
+						content: `Classify these ${batch.length} bookmarks into JSON { "items": [...] }:\n${JSON.stringify(userPayload)}`,
+					},
+				],
+				modelOptions: {
+					response_format: { type: "json_object" },
 				},
-			],
-			outputSchema: classificationBatchSchema,
-			stream: false,
-			abortController,
-		});
+				stream: false,
+				abortController,
+			});
 
-		const parsedItems = response?.items || [];
-
-		// 3. Map and validate results
-		return batch.map((item) => {
-			const matched = parsedItems.find(
-				(p) => String(p.id) === String(item.id) || p.url === item.url,
-			);
-
-			const itemType = (matched?.itemType || "link") as ItemType;
-
-			return {
-				id: item.id,
-				title: item.title || matched?.title || item.url,
-				url: item.url,
-				category: sanitizeFolderCategory(matched?.category),
-				folderName: matched?.folderName || item.parentTitle || "常用收藏",
-				folderDesc: matched?.folderDesc || "",
-				itemType,
-				summary: matched?.summary || item.title,
-				tags: Array.isArray(matched?.tags) ? matched.tags : [],
-				reason: matched?.reason || "Based on TDK analysis",
-			};
-		});
+			const parsedJson = extractAndParseJSON(response);
+			return mapAIResponseToResults(parsedJson, batch);
+		} finally {
+			clearTimeout(timeoutTimer);
+		}
 	}
 
 	/**
-	 * Classify all bookmarks in chunks with progress reporting
+	 * Classify all bookmarks in chunks using a managed concurrency pool
 	 */
 	static async classifyBookmarks(
 		bookmarks: BookmarkTDKItem[],
@@ -198,59 +141,91 @@ Guidelines for categorization:
 			return [];
 		}
 
-		const batchSize = options.settings?.batchSize || 15;
-		const results: AIClassificationResult[] = [];
+		// 1. Lifecycle Step 1: Fetch authoritative settings from SQLite database once at start of operation
+		const dbSettings = await fetchSettingsFromDb();
+		const effectiveSettings = {
+			...dbSettings,
+			...options.settings,
+		};
+		const { apiKey, provider } = getEffectiveLLMConfig(effectiveSettings);
+
+		// 2. Lifecycle Step 2: Fail-fast validation with actionable guidance
+		if (!apiKey) {
+			throw new Error("请先在「设置」中配置大模型 API Key 后再进行智能分拣");
+		}
+
+		const batchSize = effectiveSettings.batchSize || 15;
+		const concurrency = Math.max(1, options.concurrency || 3);
 		const total = bookmarks.length;
+		const totalChunks = Math.ceil(total / batchSize);
 
-		for (let i = 0; i < total; i += batchSize) {
-			if (options.signal?.aborted) {
-				throw new Error("AI classification cancelled");
-			}
+		options.onProgress?.(
+			0,
+			total,
+			`准备启动 AI 智能分拣 (${provider} · 共 ${total} 条, ${totalChunks} 批, ${concurrency} 线程并发)...`,
+		);
 
-			const chunk = bookmarks.slice(i, i + batchSize);
-			const chunkIndex = Math.floor(i / batchSize) + 1;
-			const totalChunks = Math.ceil(total / batchSize);
-
-			options.onProgress?.(
-				i,
-				total,
-				`正在由 DeepSeek 分析第 ${chunkIndex}/${totalChunks} 批书签 TDK (${chunk.length} 个)...`,
-			);
-
-			try {
-				const batchResults = await AIClassifierService.classifyBatch(
+		const results = await runBatchWorkerPool<
+			BookmarkTDKItem,
+			AIClassificationResult
+		>({
+			items: bookmarks,
+			batchSize,
+			concurrency,
+			maxRetries: 2,
+			signal: options.signal,
+			processBatch: async (chunk, workerId, chunkIndex) => {
+				options.onLog?.(
+					`[Worker #${workerId}] 加载第 ${chunkIndex + 1}/${totalChunks} 批书签语义 (${chunk.length} 个)...`,
+				);
+				return await AIClassifierService.classifyBatch(
 					chunk,
 					options.existingCategories,
 					options.existingFolders,
-					options.settings || {},
+					effectiveSettings || {},
 					options.signal,
 				);
-				results.push(...batchResults);
-			} catch (err: any) {
+			},
+			fallbackBatch: (chunk, error, workerId, chunkIndex) => {
 				console.warn(
-					`Batch ${chunkIndex} AI classification failed, using fallback:`,
-					err,
+					`Batch ${chunkIndex + 1}/${totalChunks} failed after retries:`,
+					error,
 				);
-				// Fallback to heuristic classification on batch failure
-				const fallbackBatch = chunk.map((item) => ({
-					id: item.id,
-					title: item.title,
-					url: item.url,
-					category: DEFAULT_FOLDER_CATEGORY,
-					folderName: item.parentTitle || "常用收藏",
-					folderDesc: "未分类书签归集",
-					itemType: (item.url.includes("github.com")
-						? "tool"
-						: "link") as ItemType,
-					summary: item.title,
-					tags: item.keywords ? item.keywords.split(",").slice(0, 3) : [],
-					reason: `AI classification error: ${err?.message || "Unknown error"}`,
-				}));
-				results.push(...fallbackBatch);
-			}
+				options.onLog?.(
+					`[Worker #${workerId}] ⚠️ 批次 ${chunkIndex + 1} 使用启发式保底归类 (${chunk.length} 个)`,
+				);
+				return buildFallbackResults(chunk, error);
+			},
+			onBatchComplete: (batchResults) => {
+				options.onBatchComplete?.(batchResults);
+				for (const item of batchResults) {
+					const tagStr =
+						item.tags && item.tags.length > 0
+							? ` #${item.tags.join(" #")}`
+							: "";
+					options.onLog?.(
+						`✦ 归入 [${item.category} / ${item.folderName}] (${item.itemType})${tagStr} · 《${item.title.slice(0, 28)}》`,
+					);
+				}
+			},
+			onProgress: (completed, totalCount, completedBatch, totalBatch) => {
+				options.onProgress?.(
+					completed,
+					totalCount,
+					`已分析 ${completed}/${totalCount} 条书签 (批次 ${completedBatch}/${totalBatch}，${concurrency} 线程并发)...`,
+				);
+			},
+			onLog: options.onLog,
+		});
+
+		if (!options.signal?.aborted) {
+			options.onProgress?.(
+				total,
+				total,
+				`分类完成，共处理 ${results.length} 个书签`,
+			);
 		}
 
-		options.onProgress?.(total, total, `分类完成，共处理 ${total} 个书签`);
 		return results;
 	}
 }
