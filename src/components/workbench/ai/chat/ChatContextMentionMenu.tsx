@@ -22,6 +22,7 @@ interface MentionCandidate {
 	icon?: string;
 	url?: string;
 	folderId?: number;
+	category?: string;
 }
 
 /**
@@ -54,6 +55,7 @@ export const ChatContextMentionMenu = memo(function ChatContextMentionMenu({
 					title: f.name,
 					subtitle: `${f.items?.length ?? 0} 个书签 · ${f.category}`,
 					folderId: f.id,
+					category: f.category,
 				});
 			}
 		}
@@ -138,6 +140,7 @@ export const ChatContextMentionMenu = memo(function ChatContextMentionMenu({
 									subtitle: cand.subtitle,
 									url: cand.url,
 									folderId: cand.folderId,
+									category: cand.category,
 									icon: cand.icon,
 								});
 							}}

@@ -22,7 +22,7 @@ import {
 import { WorkbenchStorageService } from "../../../../services/workbenchStorage";
 import type { ChatContextItem } from "../../../../types/chatContext";
 import { CHAT_INPUT_DROP_ID } from "../../dnd/dndUtils";
-import type { Folder } from "../../types";
+import type { Category, Folder } from "../../types";
 import { ChatContextBar } from "./ChatContextBar";
 import { ChatContextMentionMenu } from "./ChatContextMentionMenu";
 
@@ -47,6 +47,11 @@ export interface ChatInputAreaProps {
 	onRemoveContextItem?: (id: string) => void;
 	onClearContextItems?: () => void;
 	onAttachContextItem?: (item: ChatContextItem) => void;
+	onNavigateToFolder?: (
+		folderId: number | null,
+		category?: Category,
+		targetItemId?: string | number,
+	) => void;
 }
 
 /**
@@ -71,6 +76,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 	onRemoveContextItem,
 	onClearContextItems,
 	onAttachContextItem,
+	onNavigateToFolder,
 }: ChatInputAreaProps) {
 	const currentSettings =
 		typeof window !== "undefined"
@@ -175,6 +181,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 			icon?: string;
 			url?: string;
 			folderId?: number;
+			category?: string;
 		}> = [];
 		const q = mentionQuery.toLowerCase().trim();
 
@@ -186,6 +193,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 					title: f.name,
 					subtitle: `${f.items?.length ?? 0} 个书签`,
 					folderId: f.id,
+					category: f.category,
 				});
 			}
 		}
@@ -338,6 +346,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 							items={contextItems}
 							onRemove={(id) => onRemoveContextItem?.(id)}
 							onClearAll={onClearContextItems}
+							onNavigateToFolder={onNavigateToFolder}
 						/>
 					</div>
 				)}

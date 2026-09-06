@@ -6,6 +6,8 @@ import {
 	CheckSquare,
 	ChevronDown,
 	Copy,
+	ExternalLink,
+	Folder as FolderIcon,
 	FolderInput,
 	FolderPlus,
 	Pencil,
@@ -255,28 +257,94 @@ export const ChatMessageItem = memo(function ChatMessageItem({
 						{/* Render context attachments chips above text if any */}
 						{msg.contextItems && msg.contextItems.length > 0 && (
 							<div className="flex flex-wrap gap-1 mb-0.5 justify-end">
-								{msg.contextItems.map((ci) => (
-									<div
-										key={ci.id}
-										className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-surface-secondary border border-border/60 text-[10px] text-foreground/80"
-										title={ci.title}
-									>
-										{ci.type === "image" && ci.thumbnail ? (
-											<img
-												src={ci.thumbnail}
-												alt=""
-												className="w-3 h-3 rounded object-cover"
-											/>
-										) : ci.type === "folder" ? (
-											<span className="text-amber-500 font-medium">📁</span>
-										) : (
-											<span className="text-accent font-medium">🔗</span>
-										)}
-										<span className="truncate max-w-[130px] font-medium">
-											{ci.title}
-										</span>
-									</div>
-								))}
+								{msg.contextItems.map((ci) => {
+									const isFolder =
+										ci.type === "folder" || typeof ci.folderId === "number";
+									const isLink = ci.type === "bookmark" || Boolean(ci.url);
+
+									// Folder Context Chip: clickable to navigate & locate in workbench
+									if (isFolder && typeof ci.folderId === "number") {
+										return (
+											<button
+												key={ci.id}
+												type="button"
+												onClick={(e) => {
+													e.stopPropagation();
+													if (onNavigateToFolder) {
+														onNavigateToFolder(
+															ci.folderId ?? null,
+															ci.category as Category,
+														);
+														toast.success(`已定位到「${ci.title}」文件夹`);
+													}
+												}}
+												className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 hover:border-amber-500/50 text-[10px] text-amber-700 dark:text-amber-300 transition-all cursor-pointer group/chip select-none hover:scale-[1.02] active:scale-[0.98]"
+												title={`点击在工作台中定位并打开「${ci.title}」文件夹`}
+											>
+												<span className="font-medium">📁</span>
+												<span className="truncate max-w-[140px] font-medium group-hover/chip:underline">
+													{ci.title}
+												</span>
+												<FolderIcon className="w-2.5 h-2.5 opacity-60 group-hover/chip:opacity-100 shrink-0" />
+											</button>
+										);
+									}
+
+									// Bookmark / URL Context Chip: clickable to open in new tab
+									if (isLink && ci.url) {
+										return (
+											<a
+												key={ci.id}
+												href={ci.url}
+												target="_blank"
+												rel="noopener noreferrer"
+												onClick={(e) => e.stopPropagation()}
+												className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-surface-secondary/90 hover:bg-accent/10 border border-border/60 hover:border-accent/40 text-[10px] text-foreground/80 hover:text-accent transition-all cursor-pointer group/chip select-none hover:scale-[1.02] active:scale-[0.98]"
+												title={`点击在新标签页打开：${ci.url}`}
+											>
+												{ci.icon ? (
+													<img
+														src={ci.icon}
+														alt=""
+														className="w-3 h-3 rounded-sm object-contain"
+														onError={(e) => {
+															(e.currentTarget as HTMLElement).style.display =
+																"none";
+														}}
+													/>
+												) : (
+													<span className="text-accent font-medium">🔗</span>
+												)}
+												<span className="truncate max-w-[140px] font-medium group-hover/chip:underline">
+													{ci.title}
+												</span>
+												<ExternalLink className="w-2.5 h-2.5 opacity-60 group-hover/chip:opacity-100 shrink-0" />
+											</a>
+										);
+									}
+
+									// Other context items (image, file, tag)
+									return (
+										<div
+											key={ci.id}
+											className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-surface-secondary border border-border/60 text-[10px] text-foreground/80 select-none"
+											title={ci.title}
+										>
+											{ci.type === "image" && ci.thumbnail ? (
+												<img
+													src={ci.thumbnail}
+													alt=""
+													className="w-3 h-3 rounded object-cover"
+												/>
+											) : (
+												<span className="text-accent font-medium">📎</span>
+											)}
+											<span className="truncate max-w-[130px] font-medium">
+												{ci.title}
+											</span>
+										</div>
+									);
+								})}
 							</div>
 						)}
 

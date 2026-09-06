@@ -16,6 +16,8 @@ export interface ChatContextItem {
 	url?: string;
 	/** Optional folder id if type === 'folder' */
 	folderId?: number;
+	/** Optional category code for folder navigation */
+	category?: string;
 	/** Optional tag name if type === 'tag' */
 	tag?: string;
 	/** Optional favicon or custom icon identifier */

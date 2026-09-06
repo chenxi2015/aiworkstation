@@ -237,6 +237,7 @@ function WorkbenchHome() {
 					title: folder.name,
 					subtitle: `${count} 个书签`,
 					folderId: folder.id,
+					category: folder.category,
 				});
 			}
 		},

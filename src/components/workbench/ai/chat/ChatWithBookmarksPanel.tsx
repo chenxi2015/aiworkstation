@@ -421,6 +421,7 @@ export const ChatWithBookmarksPanel = forwardRef<
 					onRemoveContextItem={removeContextItem}
 					onClearContextItems={clearContextItems}
 					onAttachContextItem={addContextItem}
+					onNavigateToFolder={onNavigateToFolder}
 				/>
 			</div>
 		</aside>

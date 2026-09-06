@@ -1,3 +1,6 @@
+import { code } from "@streamdown/code";
+import { mermaid } from "@streamdown/mermaid";
+import "streamdown/styles.css";
 import { Link } from "@heroui/react";
 import { Folder as FolderIcon } from "lucide-react";
 import type { ComponentPropsWithoutRef, ElementType, ReactNode } from "react";
@@ -28,7 +31,8 @@ function renderTextWithUrls(text: string): ReactNode {
 			const cleanUrl = part.replace(/[.,;!?，。！？"“”'‘’）]+$/, "");
 			const trailing = part.slice(cleanUrl.length);
 			return (
-				<span key={i}>
+				// biome-ignore lint/suspicious/noArrayIndexKey: parts derived from text splitting
+				<span key={`${cleanUrl}_${i}`}>
 					<Link
 						href={cleanUrl}
 						target="_blank"
@@ -56,7 +60,8 @@ function processChildrenWithUrls(children: ReactNode): ReactNode {
 	if (Array.isArray(children)) {
 		return children.map((child, index) => {
 			if (typeof child === "string") {
-				return <span key={index}>{renderTextWithUrls(child)}</span>;
+				// biome-ignore lint/suspicious/noArrayIndexKey: static string parts array
+				return <span key={`child_${index}`}>{renderTextWithUrls(child)}</span>;
 			}
 			return child;
 		});
@@ -188,7 +193,9 @@ export const AiMarkdownRenderer = memo(function AiMarkdownRenderer({
 			className={`ai-markdown-root ${compact ? "ai-markdown-compact" : ""} ${className}`}
 		>
 			<Streamdown
+				plugins={{ code, mermaid }}
 				linkSafety={{ enabled: false }}
+				lineNumbers={true}
 				controls={{
 					table: {
 						copy: true,
@@ -197,7 +204,13 @@ export const AiMarkdownRenderer = memo(function AiMarkdownRenderer({
 					},
 					code: {
 						copy: true,
+						download: false,
+					},
+					mermaid: {
 						download: true,
+						copy: true,
+						fullscreen: true,
+						panZoom: true,
 					},
 				}}
 				translations={STREAMDOWN_ZH_TRANSLATIONS}
@@ -298,69 +311,58 @@ export const AiMarkdownRenderer = memo(function AiMarkdownRenderer({
 							{children}
 						</blockquote>
 					),
-					code: ({
+					inlineCode: ({
 						children,
 						className,
 						node,
 						...props
 					}: ExtraProps<"code">) => {
-						const isInline = !className;
-						if (isInline && typeof children === "string") {
-							const text = children.trim();
+						const text = typeof children === "string" ? children.trim() : "";
 
-							// 1. Detect if the inline code is actually an HTTP/HTTPS URL
-							if (isValidHttpUrl(text)) {
-								return (
-									<Link
-										href={text}
-										target="_blank"
-										rel="noreferrer"
-										style={{ color: "#2563eb" }}
-									>
-										<span>{text}</span>
-										<Link.Icon />
-									</Link>
-								);
-							}
-
-							// 2. Detect if the inline code references an existing folder
-							const matchedFolder = findMatchingFolder(text, folders);
-							if (matchedFolder && onNavigateToFolder) {
-								return (
-									<button
-										type="button"
-										onClick={(e) => {
-											e.stopPropagation();
-											onNavigateToFolder(
-												matchedFolder.id,
-												matchedFolder.category as Category,
-											);
-										}}
-										className="inline-flex items-center gap-1 px-2 text-[11.5px] font-medium rounded-md bg-accent/10 hover:bg-accent/20 text-accent border border-accent/30 hover:border-accent/50 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98] align-middle"
-										title={`在工作台中定位并进入「${matchedFolder.name}」文件夹`}
-									>
-										<FolderIcon className="w-3 h-3 shrink-0 text-accent" />
-										<span>{matchedFolder.name}</span>
-									</button>
-								);
-							}
-
+						// 1. Detect if the inline code is actually an HTTP/HTTPS URL
+						if (isValidHttpUrl(text)) {
 							return (
-								<code
-									className={
-										compact
-											? "px-1 py-0.5 text-[11px] font-mono bg-surface-secondary text-accent rounded border border-border/60"
-											: "px-1.5 py-0.5 text-[12.5px] font-mono bg-surface-secondary text-accent rounded border border-border/60"
-									}
-									{...props}
+								<Link
+									href={text}
+									target="_blank"
+									rel="noreferrer"
+									style={{ color: "#2563eb" }}
 								>
-									{children}
-								</code>
+									<span>{text}</span>
+									<Link.Icon />
+								</Link>
 							);
 						}
+
+						// 2. Detect if the inline code references an existing folder
+						const matchedFolder = findMatchingFolder(text, folders);
+						if (matchedFolder && onNavigateToFolder) {
+							return (
+								<button
+									type="button"
+									onClick={(e) => {
+										e.stopPropagation();
+										onNavigateToFolder(
+											matchedFolder.id,
+											matchedFolder.category as Category,
+										);
+									}}
+									className="inline-flex items-center gap-1 px-2 text-[11.5px] font-medium rounded-md bg-accent/10 hover:bg-accent/20 text-accent border border-accent/30 hover:border-accent/50 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98] align-middle"
+									title={`在工作台中定位并进入「${matchedFolder.name}」文件夹`}
+								>
+									<FolderIcon className="w-3 h-3 shrink-0 text-accent" />
+									<span>{matchedFolder.name}</span>
+								</button>
+							);
+						}
+
 						return (
 							<code
-								className={`font-mono ${compact ? "text-[11px]" : "text-[12.5px]"} ${className || ""}`}
+								className={
+									compact
+										? "px-1.5 py-0.5 text-[11px] font-mono bg-surface-secondary text-foreground/90 rounded border border-border/60"
+										: "px-1.5 py-0.5 text-[12.5px] font-mono bg-surface-secondary text-foreground/90 rounded border border-border/60"
+								}
 								{...props}
 							>
 								{children}
