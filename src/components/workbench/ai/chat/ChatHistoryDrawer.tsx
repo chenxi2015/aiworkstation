@@ -162,8 +162,9 @@ export function ChatHistoryDrawer({
 							const msgCount = session.messages?.length || 0;
 
 							return (
-								<button
-									type="button"
+								<div
+									role="button"
+									tabIndex={0}
 									key={session.id}
 									className={`group relative w-full p-2.5 rounded-xl border text-left transition-all duration-150 cursor-pointer select-none block ${
 										isCurrent
@@ -173,6 +174,13 @@ export function ChatHistoryDrawer({
 									onClick={() => {
 										onSelectSession(session);
 										onClose();
+									}}
+									onKeyDown={(e) => {
+										if (e.key === "Enter" || e.key === " ") {
+											e.preventDefault();
+											onSelectSession(session);
+											onClose();
+										}
 									}}
 								>
 									<div className="flex items-center justify-between gap-2">
@@ -227,7 +235,7 @@ export function ChatHistoryDrawer({
 											{msgCount} 条消息
 										</span>
 									</div>
-								</button>
+								</div>
 							);
 						})
 					)}

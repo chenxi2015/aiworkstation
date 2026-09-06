@@ -32,6 +32,7 @@ export function useAiChat(options?: UseAiChatOptions) {
 	const {
 		sessions,
 		currentSessionId,
+		currentSessionIdRef,
 		setCurrentSessionId,
 		syncSession,
 		createNewChat: baseCreateNewChat,
@@ -49,6 +50,7 @@ export function useAiChat(options?: UseAiChatOptions) {
 	const {
 		messages,
 		setMessages,
+		loadMessages,
 		editMessage: baseEditMessage,
 		deleteMessage: baseDeleteMessage,
 		deleteMessages: baseDeleteMessages,
@@ -56,17 +58,17 @@ export function useAiChat(options?: UseAiChatOptions) {
 	} = useChatMessages({
 		onMessagesChange: useCallback(
 			(msgs: ChatItem[]) => {
-				syncSession(msgs, currentSessionId);
+				syncSession(msgs, currentSessionIdRef.current);
 			},
-			[syncSession, currentSessionId],
+			[syncSession, currentSessionIdRef],
 		),
 	});
 
 	// Wire session lifecycle events to messages state
 	useEffect(() => {
-		onSessionLoadedRef.current = (msgs) => setMessages(msgs);
+		onSessionLoadedRef.current = (msgs) => loadMessages(msgs);
 		onSessionClearedRef.current = () => setMessages([]);
-	}, [setMessages]);
+	}, [loadMessages, setMessages]);
 
 	// Stop / abort current ongoing AI answer generation
 	const stopChat = useCallback(() => {
@@ -104,17 +106,17 @@ export function useAiChat(options?: UseAiChatOptions) {
 
 	// Wrapped session actions that coordinate messages state
 	const createNewChat = useCallback(() => {
-		baseCreateNewChat(messages);
+		baseCreateNewChat();
 		setMessages([]);
 		setInput("");
-	}, [baseCreateNewChat, messages, setMessages]);
+	}, [baseCreateNewChat, setMessages]);
 
 	const loadSession = useCallback(
 		(session: ChatSession<ChatItem>) => {
-			baseLoadSession(session, messages);
-			setMessages(session.messages || []);
+			baseLoadSession(session);
+			loadMessages(session.messages || []);
 		},
-		[baseLoadSession, messages, setMessages],
+		[baseLoadSession, loadMessages],
 	);
 
 	const deleteSession = useCallback(

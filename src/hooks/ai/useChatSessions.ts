@@ -1,5 +1,5 @@
 import { toast } from "@heroui/react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	type ChatSession,
 	WorkbenchStorageService,
@@ -27,6 +27,36 @@ function downloadJsonFile(filename: string, data: unknown) {
 	URL.revokeObjectURL(url);
 }
 
+const LAST_ACTIVE_SESSION_KEY = "aiworkstation_last_active_chat_session_id";
+
+/**
+ * Read the last active session ID from localStorage
+ */
+function getSavedActiveSessionId(): string | null {
+	if (typeof window === "undefined") return null;
+	try {
+		return localStorage.getItem(LAST_ACTIVE_SESSION_KEY);
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Persist the active session ID to localStorage
+ */
+function saveActiveSessionId(id: string | null): void {
+	if (typeof window === "undefined") return;
+	try {
+		if (id) {
+			localStorage.setItem(LAST_ACTIVE_SESSION_KEY, id);
+		} else {
+			localStorage.removeItem(LAST_ACTIVE_SESSION_KEY);
+		}
+	} catch {
+		// Ignore localStorage write failures
+	}
+}
+
 /**
  * Sub-hook for managing conversational session history and SQLite multi-session persistence
  */
@@ -34,9 +64,15 @@ export function useChatSessions<
 	TMessage extends { role: string; content: string },
 >(props?: UseChatSessionsProps<TMessage>) {
 	const [sessions, setSessions] = useState<ChatSession<TMessage>[]>([]);
-	const [currentSessionId, setCurrentSessionId] = useState<string>(
-		() => `session_${Date.now()}`,
-	);
+	const initialSessionId = getSavedActiveSessionId() || `session_${Date.now()}`;
+	const [currentSessionId, setCurrentSessionIdState] = useState<string>(initialSessionId);
+	const currentSessionIdRef = useRef<string>(initialSessionId);
+
+	const setCurrentSessionId = useCallback((id: string) => {
+		currentSessionIdRef.current = id;
+		setCurrentSessionIdState(id);
+		saveActiveSessionId(id);
+	}, []);
 
 	// Load chat sessions on mount solely from SQLite
 	useEffect(() => {
@@ -50,12 +86,21 @@ export function useChatSessions<
 				if (dbSessions && isMounted) {
 					setSessions(dbSessions);
 
-					// Auto-restore the latest active conversation from SQLite on refresh
+					// Restore the user's last active session (either switched to or most recent)
 					if (dbSessions.length > 0) {
-						const latest = dbSessions[0];
-						if (latest && latest.messages && latest.messages.length > 0) {
-							setCurrentSessionId(latest.id);
-							props?.onSessionLoaded?.(latest.messages);
+						const lastActiveId = getSavedActiveSessionId();
+						const matched = lastActiveId
+							? dbSessions.find((s) => s.id === lastActiveId)
+							: null;
+						const targetSession = matched || dbSessions[0];
+
+						if (
+							targetSession &&
+							targetSession.messages &&
+							targetSession.messages.length > 0
+						) {
+							setCurrentSessionId(targetSession.id);
+							props?.onSessionLoaded?.(targetSession.messages);
 						}
 					}
 				}
@@ -72,7 +117,7 @@ export function useChatSessions<
 		return () => {
 			isMounted = false;
 		};
-	}, []);
+	}, [setCurrentSessionId]);
 
 	// Synchronize current messages with sessions list and SQLite database
 	const syncSession = useCallback((msgs: TMessage[], sessId: string) => {
@@ -96,19 +141,18 @@ export function useChatSessions<
 			setSessions((prev) => {
 				const existingIndex = prev.findIndex((s) => s.id === sessId);
 				if (existingIndex >= 0) {
-					const updated = prev.map((s, idx) => {
-						if (idx === existingIndex) {
-							sessionToPersist = {
-								...s,
-								title: s.title || title,
-								updatedAt: nowStr,
-								messages: msgs,
-							};
-							return sessionToPersist;
-						}
-						return s;
-					});
-					return updated;
+					const existing = prev[existingIndex];
+					sessionToPersist = {
+						...existing,
+						title: existing.title || title,
+						updatedAt: nowStr,
+						messages: msgs,
+					};
+					// Float the updated session to the top
+					return [
+						sessionToPersist,
+						...prev.filter((_, idx) => idx !== existingIndex),
+					];
 				}
 
 				sessionToPersist = {
@@ -124,6 +168,7 @@ export function useChatSessions<
 			// Persist single session to SQLite in background
 			if (sessionToPersist!) {
 				WorkbenchStorageService.saveChatSession(sessionToPersist);
+				saveActiveSessionId(sessId);
 			}
 		} catch (e) {
 			console.error("[useChatSessions] Failed to sync session:", e);
@@ -131,58 +176,56 @@ export function useChatSessions<
 	}, []);
 
 	// Create a new blank session
-	const createNewChat = useCallback(
-		(currentMessages?: TMessage[]) => {
-			if (currentMessages && currentMessages.length > 0) {
-				syncSession(currentMessages, currentSessionId);
-			}
-			const newId = `session_${Date.now()}`;
-			setCurrentSessionId(newId);
-			props?.onSessionCleared?.();
-			toast.success("已开启新对话");
-		},
-		[currentSessionId, syncSession, props],
-	);
+	const createNewChat = useCallback(() => {
+		const newId = `session_${Date.now()}`;
+		setCurrentSessionId(newId);
+		props?.onSessionCleared?.();
+		toast.success("已开启新对话");
+	}, [setCurrentSessionId, props]);
 
-	// Load a selected historical session
+	// Load a selected historical session (pure read operation, does not overwrite history)
 	const loadSession = useCallback(
-		(session: ChatSession<TMessage>, currentMessages?: TMessage[]) => {
-			if (
-				currentMessages &&
-				currentMessages.length > 0 &&
-				currentSessionId !== session.id
-			) {
-				syncSession(currentMessages, currentSessionId);
-			}
+		(session: ChatSession<TMessage>) => {
 			setCurrentSessionId(session.id);
 			props?.onSessionLoaded?.(session.messages || []);
 			toast.success(`已载入「${session.title || "历史对话"}」`);
 		},
-		[currentSessionId, syncSession, props],
+		[props, setCurrentSessionId],
 	);
 
 	// Delete a single historical session from SQLite
 	const deleteSession = useCallback(
 		(sessionId: string) => {
 			WorkbenchStorageService.deleteChatSession(sessionId);
-			setSessions((prev) => prev.filter((s) => s.id !== sessionId));
-			if (currentSessionId === sessionId) {
-				setCurrentSessionId(`session_${Date.now()}`);
-				props?.onSessionCleared?.();
-			}
+			setSessions((prev) => {
+				const remaining = prev.filter((s) => s.id !== sessionId);
+				if (currentSessionId === sessionId) {
+					const next = remaining[0];
+					if (next && next.messages && next.messages.length > 0) {
+						setCurrentSessionId(next.id);
+						props?.onSessionLoaded?.(next.messages);
+					} else {
+						const newId = `session_${Date.now()}`;
+						setCurrentSessionId(newId);
+						props?.onSessionCleared?.();
+					}
+				}
+				return remaining;
+			});
 			toast.success("已删除该会话记录");
 		},
-		[currentSessionId, props],
+		[currentSessionId, setCurrentSessionId, props],
 	);
 
 	// Clear all sessions in SQLite
 	const clearAllSessions = useCallback(() => {
 		setSessions([]);
-		setCurrentSessionId(`session_${Date.now()}`);
+		const newId = `session_${Date.now()}`;
+		setCurrentSessionId(newId);
 		WorkbenchStorageService.clearChatSessions();
 		props?.onSessionCleared?.();
 		toast.success("已清空所有对话记录");
-	}, [props]);
+	}, [props, setCurrentSessionId]);
 
 	// Export all sessions as formatted JSON file
 	const exportAllSessionsToJson = useCallback(async () => {
@@ -231,6 +274,7 @@ export function useChatSessions<
 		sessions,
 		setSessions,
 		currentSessionId,
+		currentSessionIdRef,
 		setCurrentSessionId,
 		syncSession,
 		createNewChat,

@@ -1,5 +1,5 @@
 import { toast } from "@heroui/react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
 	Category,
 	Folder,
@@ -27,10 +27,22 @@ export interface UseChatMessagesProps {
  */
 export function useChatMessages(props?: UseChatMessagesProps) {
 	const [messages, setMessages] = useState<ChatItem[]>([]);
+	const isExternalLoadRef = useRef(false);
 
-	// Sync with parent session manager whenever messages change
+	// Load messages externally (e.g. from history or on page mount) without syncing back to storage
+	const loadMessages = useCallback((msgs: ChatItem[]) => {
+		isExternalLoadRef.current = true;
+		setMessages(msgs);
+	}, []);
+
+	// Sync with parent session manager whenever user messages change (excluding external loads)
 	const onMessagesChange = props?.onMessagesChange;
 	useEffect(() => {
+		if (isExternalLoadRef.current) {
+			isExternalLoadRef.current = false;
+			return;
+		}
+
 		if (messages.length === 0) return;
 
 		const isStreaming = messages.some((m) => m.isStreaming);
@@ -104,6 +116,7 @@ export function useChatMessages(props?: UseChatMessagesProps) {
 	return {
 		messages,
 		setMessages,
+		loadMessages,
 		editMessage,
 		deleteMessage,
 		deleteMessages,
