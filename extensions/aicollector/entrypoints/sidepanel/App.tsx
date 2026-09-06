@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Tabs, Toast } from '@heroui/react';
 import { MousePointerClick, Bookmark, Activity, Settings } from 'lucide-react';
 
@@ -25,6 +25,21 @@ export type TabKey = 'grab' | 'bookmarks' | 'logs' | 'settings';
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('grab');
   const [isScrolled, setIsScrolled] = useState(false);
+
+  // Listen for tab switch requests (e.g. from web page or background)
+  useEffect(() => {
+    if (typeof chrome === 'undefined' || !chrome.runtime?.onMessage) return;
+
+    const messageListener = (msg: any) => {
+      if (msg?.type === 'SWITCH_TAB' && msg.payload) {
+        setActiveTab(msg.payload as TabKey);
+      }
+    };
+    chrome.runtime.onMessage.addListener(messageListener);
+    return () => {
+      chrome.runtime.onMessage.removeListener(messageListener);
+    };
+  }, []);
 
   // Business hooks
   const { themeMode, toggleTheme, setSpecificTheme } = useTheme();

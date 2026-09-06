@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { toast } from "@heroui/react";
 import { lazy, Suspense, useCallback, useRef, useState } from "react";
 import {
 	type Category,
@@ -16,6 +17,7 @@ import { WorkbenchDndProvider } from "../components/workbench/dnd/WorkbenchDnd";
 import { useGlobalShortcuts } from "../hooks/useGlobalShortcuts";
 import { useWorkbenchData } from "../hooks/useWorkbenchData";
 import { useWorkbenchModals } from "../hooks/useWorkbenchModals";
+import { ExtensionBridgeService } from "../services/extensionBridge";
 import { WorkbenchStorageService } from "../services/workbenchStorage";
 
 // Lazy-load feature modals for smaller initial bundle and faster hydration
@@ -179,6 +181,25 @@ function WorkbenchHome() {
 
 	const isUnclassified = activeCategory === "未分类";
 
+	// Open BookmarkSyncModal (directly reads Chrome bookmarks via extension or guides installation)
+	const handleOpenSync = useCallback(() => {
+		setIsSyncModalOpen(true);
+	}, [setIsSyncModalOpen]);
+
+	// Open AI Collector extension side panel directly from top header
+	const handleOpenExtension = useCallback(async () => {
+		const installed = await ExtensionBridgeService.checkInstalled();
+		if (installed) {
+			const res = await ExtensionBridgeService.openBookmarksPanel();
+			if (res.success) {
+				toast.success("已呼起 AI Collector 插件侧边栏");
+				return;
+			}
+		}
+		// If extension is not installed or open failed, prompt via guide modal
+		setIsSyncModalOpen(true);
+	}, [setIsSyncModalOpen]);
+
 	return (
 		<WorkbenchDndProvider
 			gridFolderIds={gridFolders.map((f) => f.id)}
@@ -195,8 +216,9 @@ function WorkbenchHome() {
 					unclassifiedCount={unclassified.length}
 					folders={folders}
 					onSelectCategory={handleCategoryChange}
+					onOpenExtension={handleOpenExtension}
 					onOpenSearch={() => chatPanelRef.current?.openSearchTab()}
-					onOpenSync={() => setIsSyncModalOpen(true)}
+					onOpenSync={handleOpenSync}
 					onOpenCreateFolder={openCreateFolderModal}
 					onOpenSettings={() => setIsSettingsModalOpen(true)}
 					onOpenAIClassifyTask={() => setIsAIClassifyModalOpen(true)}

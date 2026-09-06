@@ -6,6 +6,7 @@ import type { ExtensionMessage } from '../src/types';
 export default defineContentScript({
   matches: ['<all_urls>'],
   allFrames: true,
+  runAt: 'document_start',
   main(ctx) {
     if (typeof chrome === 'undefined' || !chrome?.runtime?.onMessage) {
       return;
@@ -13,6 +14,53 @@ export default defineContentScript({
 
     const isTop = window === window.top;
     const grabber = isTop ? new VisualGrabber() : null;
+
+    // Mark extension presence on the document root for same-origin or local web apps
+    if (isTop) {
+      try {
+        document.documentElement.dataset.aicollectorInstalled = 'true';
+        window.dispatchEvent(new CustomEvent('aic:ready'));
+      } catch {
+        // Ignore attribute write errors on restricted pages
+      }
+    }
+
+    // Relay messages from web page (AI Workstation) to extension background
+    const pageMessageListener = (event: MessageEvent) => {
+      if (event.source !== window) return;
+      const data = event.data;
+      if (!data || data.source !== 'aic-web-page') return;
+
+      if (data.type === 'PING') {
+        window.postMessage({ source: 'aic-extension', type: 'PONG' }, '*');
+      } else if (data.type === 'FETCH_BOOKMARKS') {
+        chrome.runtime.sendMessage({ type: 'FETCH_CHROME_BOOKMARKS' }, (response) => {
+          window.postMessage(
+            {
+              source: 'aic-extension',
+              type: 'FETCH_BOOKMARKS_RESULT',
+              success: Boolean(response?.success),
+              bookmarks: response?.bookmarks || [],
+              error: response?.error,
+            },
+            '*',
+          );
+        });
+      } else if (data.type === 'OPEN_BOOKMARKS_PANEL') {
+        chrome.runtime.sendMessage({ type: 'OPEN_SIDEPANEL_BOOKMARKS' }, (response) => {
+          window.postMessage(
+            {
+              source: 'aic-extension',
+              type: 'OPEN_BOOKMARKS_PANEL_RESULT',
+              success: Boolean(response?.success),
+              error: response?.error,
+            },
+            '*',
+          );
+        });
+      }
+    };
+    window.addEventListener('message', pageMessageListener);
 
     // Inject the MAIN-world HLS sniffer (external file so page CSP cannot
     // block it the way it would block an inline script), then relay detected
@@ -274,6 +322,7 @@ export default defineContentScript({
         chrome?.runtime?.onMessage?.removeListener?.(messageListener);
       } catch {}
       window.removeEventListener('message', snifferMessageListener);
+      window.removeEventListener('message', pageMessageListener);
       grabber?.stop();
     });
   },

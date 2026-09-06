@@ -1,11 +1,11 @@
 import { Button } from "@heroui/react";
 import {
+	Chrome,
 	CircleAlert,
 	FolderCheck,
 	FolderDown,
 	FolderPlus,
 	Loader2,
-	Search,
 	Settings,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -31,7 +31,8 @@ export interface WorkbenchHeaderProps {
 	unclassifiedCount: number;
 	folders: Folder[];
 	onSelectCategory: (category: Category) => void;
-	onOpenSearch: () => void;
+	onOpenSearch?: () => void;
+	onOpenExtension?: () => void;
 	onOpenSync: () => void;
 	onOpenCreateFolder: () => void;
 	onOpenSettings: () => void;
@@ -48,6 +49,7 @@ export function WorkbenchHeader({
 	folders,
 	onSelectCategory,
 	onOpenSearch,
+	onOpenExtension,
 	onOpenSync,
 	onOpenCreateFolder,
 	onOpenSettings,
@@ -178,18 +180,15 @@ export function WorkbenchHeader({
 					</div>
 				)}
 
-				{/* Global Search Button */}
+				{/* Open AI Collector Extension Button */}
 				<Button
 					variant="secondary"
 					size="sm"
 					className="rounded-full flex items-center gap-1.5 px-3 shadow-2xs cursor-pointer"
-					onPress={onOpenSearch}
+					onPress={onOpenExtension || onOpenSearch}
 				>
-					<Search className="w-3.5 h-3.5" />
-					<span>搜索</span>
-					<kbd className="text-[10px] font-mono px-1.5 py-0.2 bg-background/50 border border-border/80 rounded text-muted">
-						⌘K
-					</kbd>
+					<Chrome className="w-3.5 h-3.5 text-accent" />
+					<span>打开插件</span>
 				</Button>
 
 				{/* Import/Sync Bookmarks Button */}
