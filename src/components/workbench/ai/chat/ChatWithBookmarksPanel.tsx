@@ -113,6 +113,8 @@ export const ChatWithBookmarksPanel = forwardRef<
 		loadSession,
 		deleteSession,
 		clearAllSessions,
+		exportAllSessionsToJson,
+		exportSessionToJson,
 		clearHistory,
 		updateMessageReferences,
 	} = useAiChat({
@@ -376,6 +378,8 @@ export const ChatWithBookmarksPanel = forwardRef<
 					onNewChat={createNewChat}
 					onDeleteSession={deleteSession}
 					onClearAllSessions={clearAllSessions}
+					onExportAll={exportAllSessionsToJson}
+					onExportSession={exportSessionToJson}
 				/>
 
 				{/* Bottom Input Area with Top Action Bar */}

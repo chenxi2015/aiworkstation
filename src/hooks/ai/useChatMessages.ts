@@ -5,7 +5,6 @@ import type {
 	Folder,
 	SearchResultItem,
 } from "../../components/workbench/types";
-import { WorkbenchStorageService } from "../../services/workbenchStorage";
 import type { AgentStep } from "../../types/agent.ts";
 
 export type { AgentStep };
@@ -29,24 +28,24 @@ export interface UseChatMessagesProps {
 export function useChatMessages(props?: UseChatMessagesProps) {
 	const [messages, setMessages] = useState<ChatItem[]>([]);
 
-	// Load initial messages from localStorage on mount
-	useEffect(() => {
-		try {
-			const saved = WorkbenchStorageService.getChatHistory<ChatItem>();
-			if (saved && Array.isArray(saved) && saved.length > 0) {
-				setMessages(saved);
-			}
-		} catch (e) {
-			console.error("[useChatMessages] Failed to load chat history:", e);
-		}
-	}, []);
-
 	// Sync with parent session manager whenever messages change
 	const onMessagesChange = props?.onMessagesChange;
 	useEffect(() => {
-		if (messages.length > 0) {
+		if (messages.length === 0) return;
+
+		const isStreaming = messages.some((m) => m.isStreaming);
+		if (!isStreaming) {
+			// Finished streaming or standard edit, sync immediately
 			onMessagesChange?.(messages);
+			return;
 		}
+
+		// During streaming, debounce sync to avoid writing to storage on every token chunk
+		const timer = setTimeout(() => {
+			onMessagesChange?.(messages);
+		}, 1000);
+
+		return () => clearTimeout(timer);
 	}, [messages, onMessagesChange]);
 
 	// Update content of an existing message without re-querying AI

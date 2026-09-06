@@ -5,6 +5,7 @@ import {
 	ChevronDown,
 	ChevronRight,
 	Code2,
+	FolderArchive,
 	FolderInput,
 	FolderMinus,
 	FolderPlus,
@@ -62,12 +63,32 @@ function formatStepAction(step: AgentStep): StepActionMeta {
 			};
 		}
 		case "create_folder": {
-			const name = args.name ? `「${String(args.name)}」` : "新文件夹";
+			if (Array.isArray(args.folders) && args.folders.length > 0) {
+				return {
+					Icon: FolderPlus,
+					iconColor: "text-amber-500 dark:text-amber-400",
+					title: `批量创建 ${args.folders.length} 个文件夹`,
+				};
+			}
+			const name = args.name || args.folderName ? `「${String(args.name || args.folderName)}」` : "新文件夹";
 			const cat = args.category ? `在「${String(args.category)}」下` : "";
 			return {
 				Icon: FolderPlus,
 				iconColor: "text-amber-500 dark:text-amber-400",
 				title: `${cat}创建文件夹 ${name}`.trim(),
+			};
+		}
+		case "merge_folders": {
+			const count = Array.isArray(args.sourceFolderNames)
+				? `${args.sourceFolderNames.length} 个`
+				: "";
+			const target = args.targetFolderName
+				? `至「${String(args.targetFolderName)}」`
+				: "";
+			return {
+				Icon: FolderArchive,
+				iconColor: "text-purple-500 dark:text-purple-400",
+				title: `合并归集 ${count}文件夹 ${target}`.trim(),
 			};
 		}
 		case "update_folder": {
@@ -81,11 +102,18 @@ function formatStepAction(step: AgentStep): StepActionMeta {
 			};
 		}
 		case "move_bookmarks_to_folder": {
+			if (Array.isArray(args.batchPlans) && args.batchPlans.length > 0) {
+				return {
+					Icon: FolderInput,
+					iconColor: "text-emerald-500 dark:text-emerald-400",
+					title: `多目标批量归类整理 ${args.batchPlans.length} 组书签`,
+				};
+			}
 			const target = args.targetFolderName
 				? `至「${String(args.targetFolderName)}」`
 				: "";
-			const count = Array.isArray(args.bookmarkIds)
-				? `${args.bookmarkIds.length} 个`
+			const count = Array.isArray(args.bookmarkIds) || Array.isArray(args.itemIds) || Array.isArray(args.itemNamesOrUrls)
+				? `${((args.bookmarkIds || args.itemIds || args.itemNamesOrUrls) as unknown[]).length} 个`
 				: "";
 			return {
 				Icon: FolderInput,
@@ -94,6 +122,18 @@ function formatStepAction(step: AgentStep): StepActionMeta {
 			};
 		}
 		case "move_folder": {
+			if (Array.isArray(args.folderNames) && args.folderNames.length > 0) {
+				const target = args.targetParentFolderName
+					? `至「${String(args.targetParentFolderName)}」`
+					: args.targetCategory
+						? `至分类「${String(args.targetCategory)}」`
+						: "层级";
+				return {
+					Icon: FolderTree,
+					iconColor: "text-violet-500 dark:text-violet-400",
+					title: `批量调整 ${args.folderNames.length} 个文件夹 ${target}`.trim(),
+				};
+			}
 			const name = args.folderName
 				? `「${String(args.folderName)}」`
 				: "文件夹";
@@ -116,6 +156,13 @@ function formatStepAction(step: AgentStep): StepActionMeta {
 				title: "从文件夹中移出书签",
 			};
 		case "delete_folder": {
+			if (Array.isArray(args.folderNames) && args.folderNames.length > 0) {
+				return {
+					Icon: Trash2,
+					iconColor: "text-rose-500 dark:text-rose-400",
+					title: `批量删除 ${args.folderNames.length} 个文件夹`,
+				};
+			}
 			const name = args.folderName
 				? `「${String(args.folderName)}」`
 				: "文件夹";

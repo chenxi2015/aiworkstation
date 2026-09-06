@@ -1,6 +1,6 @@
 import { Button, Tooltip } from "@heroui/react";
-import { Clock, MessageSquare, Plus, Trash2, X } from "lucide-react";
-import { useState } from "react";
+import { Clock, Download, MessageSquare, Plus, Search, Trash2, X } from "lucide-react";
+import { useMemo, useState } from "react";
 import type { ChatSession } from "../../../../services/workbenchStorage";
 import { ConfirmDialog } from "../../ConfirmDialog";
 
@@ -13,10 +13,12 @@ export interface ChatHistoryDrawerProps {
 	onNewChat: () => void;
 	onDeleteSession: (sessionId: string) => void;
 	onClearAllSessions: () => void;
+	onExportAll?: () => void;
+	onExportSession?: (session: ChatSession) => void;
 }
 
 /**
- * Slide-over drawer for browsing and managing past AI conversation sessions
+ * Slide-over drawer for browsing and managing past AI conversation sessions with JSON export
  */
 export function ChatHistoryDrawer({
 	isOpen,
@@ -27,8 +29,29 @@ export function ChatHistoryDrawer({
 	onNewChat,
 	onDeleteSession,
 	onClearAllSessions,
+	onExportAll,
+	onExportSession,
 }: ChatHistoryDrawerProps) {
 	const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
+	const [searchQuery, setSearchQuery] = useState("");
+
+	const filteredSessions = useMemo(() => {
+		if (!searchQuery.trim()) return sessions;
+		const q = searchQuery.toLowerCase().trim();
+		return sessions.filter((s) => {
+			if (s.title && s.title.toLowerCase().includes(q)) return true;
+			if (
+				Array.isArray(s.messages) &&
+				s.messages.some(
+					(m: any) =>
+						typeof m.content === "string" && m.content.toLowerCase().includes(q),
+				)
+			) {
+				return true;
+			}
+			return false;
+		});
+	}, [sessions, searchQuery]);
 
 	if (!isOpen) return null;
 
@@ -44,7 +67,7 @@ export function ChatHistoryDrawer({
 						<div>
 							<h4 className="font-bold text-xs text-foreground">对话历史</h4>
 							<p className="text-[10px] text-muted">
-								共 {sessions.length} 个历史会话
+								共 {sessions.length} 个历史会话 (已持久化至本地 SQLite)
 							</p>
 						</div>
 					</div>
@@ -83,6 +106,32 @@ export function ChatHistoryDrawer({
 					</div>
 				</div>
 
+				{/* Search Bar when multiple sessions exist */}
+				{sessions.length > 2 && (
+					<div className="px-2.5 py-2 border-b border-border/60 bg-surface/50 shrink-0">
+						<div className="relative flex items-center">
+							<Search className="w-3.5 h-3.5 absolute left-2.5 text-muted pointer-events-none" />
+							<input
+								type="text"
+								value={searchQuery}
+								onChange={(e) => setSearchQuery(e.target.value)}
+								placeholder="搜索历史对话内容..."
+								className="w-full pl-8 pr-7 py-1 text-xs bg-surface-secondary/70 rounded-lg border border-border/60 focus:outline-none focus:border-accent/60 placeholder:text-muted/70 text-foreground"
+							/>
+							{searchQuery && (
+								<button
+									type="button"
+									onClick={() => setSearchQuery("")}
+									className="absolute right-2 text-muted hover:text-foreground text-xs p-0.5 cursor-pointer"
+									aria-label="清空搜索"
+								>
+									✕
+								</button>
+							)}
+						</div>
+					</div>
+				)}
+
 				{/* Session List */}
 				<div className="flex-1 overflow-y-auto p-2 space-y-1.5">
 					{sessions.length === 0 ? (
@@ -93,20 +142,27 @@ export function ChatHistoryDrawer({
 								向 AI 发送问题后将自动保存历史会话
 							</p>
 						</div>
+					) : filteredSessions.length === 0 ? (
+						<div className="flex flex-col items-center justify-center py-10 text-center text-muted px-4">
+							<Search className="w-6 h-6 opacity-20 mb-1.5" />
+							<p className="text-xs">未找到匹配「{searchQuery}」的历史会话</p>
+						</div>
 					) : (
-						sessions.map((session) => {
+						filteredSessions.map((session) => {
 							const isCurrent = session.id === currentSessionId;
 							const msgCount = session.messages?.length || 0;
 							const previewText =
-								session.messages?.find((m) => m.role === "assistant")
-									?.content || "";
+								session.messages && session.messages.length > 0
+									? (session.messages[session.messages.length - 1] as any)
+											?.content || ""
+									: "";
 
 							return (
 								<div
 									key={session.id}
-									className={`group relative p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+									className={`group relative p-2.5 rounded-xl border text-left transition-all duration-150 cursor-pointer select-none ${
 										isCurrent
-											? "bg-accent-soft/30 border-accent/60 shadow-2xs"
+											? "bg-accent-soft/40 border-accent/60 shadow-xs ring-1 ring-accent/20"
 											: "bg-surface border-border/60 hover:border-accent/40 hover:bg-surface-secondary/40"
 									}`}
 									onClick={() => {
@@ -126,18 +182,35 @@ export function ChatHistoryDrawer({
 											</span>
 										</div>
 
-										{/* Delete button */}
-										<button
-											type="button"
-											className="opacity-0 group-hover:opacity-100 p-1 text-muted hover:text-danger rounded transition-opacity cursor-pointer shrink-0"
-											onClick={(e) => {
-												e.stopPropagation();
-												onDeleteSession(session.id);
-											}}
-											aria-label="删除此会话"
-										>
-											<Trash2 className="w-3 h-3" />
-										</button>
+										{/* Action buttons (Export & Delete) */}
+										<div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+											{onExportSession && (
+												<button
+													type="button"
+													className="p-1 text-muted hover:text-accent rounded transition-colors cursor-pointer"
+													onClick={(e) => {
+														e.stopPropagation();
+														onExportSession(session);
+													}}
+													aria-label="导出此会话 JSON"
+													title="导出此会话 JSON"
+												>
+													<Download className="w-3 h-3" />
+												</button>
+											)}
+											<button
+												type="button"
+												className="p-1 text-muted hover:text-danger rounded transition-colors cursor-pointer"
+												onClick={(e) => {
+													e.stopPropagation();
+													onDeleteSession(session.id);
+												}}
+												aria-label="删除此会话"
+												title="删除此会话"
+											>
+												<Trash2 className="w-3 h-3" />
+											</button>
+										</div>
 									</div>
 
 									{/* Message Preview */}
@@ -165,17 +238,31 @@ export function ChatHistoryDrawer({
 				{/* Footer Actions */}
 				{sessions.length > 0 && (
 					<div className="p-2.5 border-t border-border/80 bg-surface-secondary/30 shrink-0 flex items-center justify-between">
-						<Button
-							variant="ghost"
-							size="sm"
-							className="h-6 px-2 text-[10px] text-muted hover:text-danger rounded-md cursor-pointer flex items-center gap-1"
-							onPress={() => setIsClearConfirmOpen(true)}
-						>
-							<Trash2 className="w-3 h-3" />
-							<span>清空全部历史</span>
-						</Button>
+						<div className="flex items-center gap-2">
+							<Button
+								variant="ghost"
+								size="sm"
+								className="h-6 px-2 text-[10px] text-muted hover:text-danger rounded-md cursor-pointer flex items-center gap-1"
+								onPress={() => setIsClearConfirmOpen(true)}
+							>
+								<Trash2 className="w-3 h-3" />
+								<span>清空全部</span>
+							</Button>
 
-						<span className="text-[10px] text-muted">支持无缝回溯</span>
+							{onExportAll && (
+								<Button
+									variant="ghost"
+									size="sm"
+									className="h-6 px-2 text-[10px] text-muted hover:text-accent rounded-md cursor-pointer flex items-center gap-1"
+									onPress={onExportAll}
+								>
+									<Download className="w-3 h-3" />
+									<span>导出全部 JSON</span>
+								</Button>
+							)}
+						</div>
+
+						<span className="text-[10px] text-muted">本地 SQLite 持久化</span>
 					</div>
 				)}
 			</div>
@@ -185,7 +272,7 @@ export function ChatHistoryDrawer({
 				isOpen={isClearConfirmOpen}
 				onOpenChange={setIsClearConfirmOpen}
 				title="清空全部历史"
-				description="确定要清空所有历史对话吗？此操作无法撤回。"
+				description="确定要清空所有保存在 SQLite 中的历史对话吗？此操作无法撤回。"
 				confirmLabel="清空全部"
 				onConfirm={() => {
 					onClearAllSessions();

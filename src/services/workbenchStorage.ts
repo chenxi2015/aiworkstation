@@ -43,15 +43,15 @@ import {
 } from "./api/workbenchClient";
 import type { EmbeddingConfig } from "./embedding/client";
 import {
+	clearChatSessionsFromDb,
+	deleteChatSessionFromDb,
+	exportChatSessionsJsonFromDb,
+	fetchChatSessionsFromDb,
+	saveChatSessionToDb,
+} from "./api/chatSessionClient";
+import {
 	type ChatSession,
-	clearAllChatData,
-	clearChatHistory,
-	clearChatSessions,
-	deleteChatSession,
-	getChatHistory,
-	getChatSessions,
-	saveChatHistory,
-	saveChatSessions,
+	purgeLegacyChatLocalStorage,
 } from "./storage/chatStorage";
 import {
 	DEFAULT_SETTINGS,
@@ -142,18 +142,17 @@ export class WorkbenchStorageService {
 	static saveSettings = (settings: WorkbenchSettings): void =>
 		saveSettings(settings);
 
-	// ================= Chat History & Sessions Storage =================
-	static getChatHistory = <T = any>(): T[] => getChatHistory<T>();
-	static saveChatHistory = <T = any>(history: T[]): void =>
-		saveChatHistory<T>(history);
-	static clearChatHistory = (): void => clearChatHistory();
-	static clearAllChatData = (): void => clearAllChatData();
-	static getChatSessions = <T = any>(): ChatSession<T>[] => getChatSessions<T>();
-	static saveChatSessions = <T = any>(sessions: ChatSession<T>[]): void =>
-		saveChatSessions<T>(sessions);
-	static deleteChatSession = (sessionId: string): void =>
-		deleteChatSession(sessionId);
-	static clearChatSessions = (): void => clearChatSessions();
+	// ================= Chat Sessions SQLite Storage =================
+	static fetchChatSessions = <T = any>(): Promise<ChatSession<T>[]> =>
+		fetchChatSessionsFromDb<T>();
+	static saveChatSession = <T = any>(session: ChatSession<T>): Promise<boolean> =>
+		saveChatSessionToDb<T>(session);
+	static deleteChatSession = (sessionId: string): Promise<boolean> =>
+		deleteChatSessionFromDb(sessionId);
+	static clearChatSessions = (): Promise<boolean> =>
+		clearChatSessionsFromDb();
+	static exportChatSessionsJson = exportChatSessionsJsonFromDb;
+	static purgeLegacyChatLocalStorage = purgeLegacyChatLocalStorage;
 
 	// ================= Maintenance & Models RPC =================
 	static clearAllDataInDb = (): Promise<{ backupPath: string | null }> =>

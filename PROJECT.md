@@ -86,7 +86,7 @@
 src/routes/            # 工作台 UI（文件夹网格、详情侧栏、未分类、设置）
 src/server/functions/  # server functions：workbench / search(embedding) / rag / models
 src/server/db/         # better-sqlite3 + 原生 SQL schema 与迁移
-src/server/ai/tools/   # ReAct Agent 的 8 个书签/文件夹 Tool
+src/server/ai/tools/   # ReAct Agent 的 10 个书签/文件夹/统计与批量归集 Tool
 src/server/maintenance.ts # 死链巡检等后台维护任务
 vite.config.ts         # 插件 HTTP API（/api/collect）以 Vite dev middleware 形式挂在这里
 extensions/aicollector/ # Chrome 插件（WXT 框架）：background / content / sidepanel 等 entrypoints
@@ -126,8 +126,8 @@ extensions/aicollector/ # Chrome 插件（WXT 框架）：background / content /
 |------|---------|----------|
 | **L0 — 纯检索** | 用户搜索 → 返回列表 | ✅ 已实现 (`searchWorkbenchItems`) |
 | **L1 — RAG 问答** | 检索 + LLM 总结回答 | ✅ 已实现 (`chatWithBookmarks`) |
-| **L2 — ReAct Tool Calling** | LLM 自主决定调用哪个 Tool | ✅ 已实现（8 个 Tool：query_bookmarks / create_folder / update_folder / delete_folder / move_bookmarks_to_folder / remove_bookmarks_from_folder / move_folder / reorder_folders） |
-| **L3 — 多步规划执行** | Agent 拆解复杂任务 → 多步 Tool 链式执行 | 🎯 下一阶段目标 |
+| **L2 — ReAct Tool Calling** | LLM 自主决定调用哪个 Tool | ✅ 已实现（10 个 Tool：query_bookmarks / create_folder / update_folder / delete_folder / move_bookmarks_to_folder / remove_bookmarks_from_folder / move_folder / reorder_folders / get_stats / merge_folders；全面支持多态批量入参） |
+| **L3 — 多步规划执行** | Agent 拆解复杂任务 → 多步 Tool 链式执行（支持 Batch-First 原则防刷屏） | 🎯 核心已落地（多态批处理 + 归集复合事务） |
 | **L4 — 自主后台 Agent** | 无需用户触发，后台持续运行巡检 | 📋 远期规划 |
 | **L5 — 多 Agent 协作** | 多个专业 Agent 协同完成复杂任务 | 📋 远期规划 |
 
@@ -160,29 +160,44 @@ extensions/aicollector/ # Chrome 插件（WXT 框架）：background / content /
    - 基于收藏资源构建知识图谱，分析难度和依赖关系
    - 自动规划学习路径，发现知识盲区
 
-### Tool 扩展规划
+### Tool 架构与扩展清单
 
-现有 9 个 Tool（`src/server/ai/tools/`）是 Agent 行动的基础，需逐步扩展：
+现有 **10 个 Tool**（`src/server/ai/tools/`）是 Agent 行动的手脚，采用**多态批量（Polymorphic Batching）**与**意图级复合事务**设计：
 
-| Tool | 用途 | 优先级 |
-|------|------|--------|
-| `query_bookmarks` | 结构化条件查询 | ✅ 已有 |
-| `create_folder` | 创建文件夹 | ✅ 已有 |
-| `move_bookmarks_to_folder` | 批量归档 | ✅ 已有 |
-| `update_folder` | 更新文件夹 | ✅ 已有 |
-| `delete_folder` | 删除文件夹 | ✅ 已有 |
-| `remove_bookmarks_from_folder` | 从文件夹移出书签 | ✅ 已有 |
-| `move_folder` | 移动文件夹（跨分类/层级） | ✅ 已有 |
-| `reorder_folders` | 文件夹排序 | ✅ 已有 |
-| `get_stats` | 统计分析（按分类/时间/标签分布与全景治理） | ✅ 已有 |
-| `find_duplicates` | 基于 URL 和语义的重复检测 | P1 |
-| `batch_classify` | 批量智能分类（复用 AIClassifier） | P1 |
-| `delete_bookmark` | 删除书签 | P1 |
-| `check_url_health` | 链接有效性检测 | P2 |
-| `web_search` | 联网搜索补充本地库外的资源 | P2 |
-| `extract_page_info` | 抓取 URL 页面 TDK 信息 | P2 |
-| `compare_items` | 多工具结构化对比矩阵 | P2 |
-| `get_collection_trends` | 收藏趋势统计与漂移分析 | P3 |
+| Tool | 用途 | 批量特性 / 机制 | 状态 |
+|---|---|---|---|
+| `query_bookmarks` | 结构化多维条件查询 | 支持关键词/标签/文件夹/时间范围批量返回 | ✅ 已实现 |
+| `create_folder` | 创建文件夹 | 支持单体（name）与批量（folders: [{name, category?}]） | ✅ 已扩展 |
+| `delete_folder` | 删除文件夹 | 支持单体（folderName）与批量（folderNames: string[]），单步汇总释放书签数 | ✅ 已扩展 |
+| `move_folder` | 移动文件夹（层级/分类） | 支持单体与批量（folderNames: string[]），一次性将多目录移入父级或新分类 | ✅ 已扩展 |
+| `move_bookmarks_to_folder` | 书签归档整理与复用 | 支持单目标分发及多目标批量规划（batchPlans 数组，一次性向多个目录分发） | ✅ 已扩展 |
+| `merge_folders` | **文件夹归集与合并（复合工具）** | 一键将多个源文件夹所有书签汇聚至目标文件夹，并在底层原子清理原空目录 | ✅ 已实现 |
+| `get_stats` | 全局宏观资产统计分析 | 统计主分类/文件夹/书签与时间分布，作为架构重塑方案的数据基石 | ✅ 已实现 |
+| `reorder_folders` | 文件夹视觉排序 | 传入有序 ID 数组，直接保存排列 | ✅ 已实现 |
+| `update_folder` | 更新文件夹属性与描述 | 修改单个或特定文件夹元信息 | ✅ 已实现 |
+| `remove_bookmarks_from_folder` | 从文件夹移出书签 | 移回未分类或清空目录 | ✅ 已实现 |
+| `find_duplicates` | 基于 URL 和语义的重复检测 | 扫描知识库中潜在冗余条目 | P1 |
+| `batch_classify` | 批量智能分类（复用 AIClassifier） | 自动化大批量未分类数据清洗 | P1 |
+| `delete_bookmark` | 删除书签 | 单条或按条件批量清理失效/无用书签 | P1 |
+| `check_url_health` | 链接有效性检测 | 404/失效站点主动标记 | P2 |
+| `web_search` | 联网搜索补充本地库外的资源 | 外脑增量探索能力 | P2 |
+| `extract_page_info` | 抓取 URL 页面 TDK 信息 | 沉淀高质量摘要 | P2 |
+| `compare_items` | 多工具结构化对比矩阵 | 横向评测知识生成 | P2 |
+| `get_collection_trends` | 收藏趋势统计与漂移分析 | 兴趣流转分析 | P3 |
+
+### Agent 执行与 Markdown 交付物契约（宪法级规范）
+
+1. **批量优先准则（Batch-First Principle）**：
+   - 严禁流水账式的单步连续调用！当涉及处理 2 个及以上的文件夹或书签时，必须使用数组批量参数（如 `folderNames`、`folders`）或调用 `merge_folders` 复合工具一次性完成，防止时间轴瀑布流刷屏、降低网络往返延迟并规避 step 截断。
+2. **Markdown 成果看板交付契约（Executive Dashboard Contract）**：
+   - 页面上方专属时间轴已负责展示执行动作，最终的 Markdown 问答正文必须是一份干净利落的【资产重塑成果报告】；
+   - 严禁开场白碎碎念与工具流水账复述（如“清点完成✅”、“已新建文件夹✅”等内部报备）；
+   - **标准交付结构**：
+     - **开门见山（## 主题交付）**：正文首行必须是独立 H2 标题；
+     - **治理成效看板**：1~2 行高亮指标（精简目录数、归集书签数、清理空壳数）；
+     - **新架构全景矩阵（### 各新目录）**：说明各个重塑后文件夹的主题定位与边界；
+     - **代表性资产亮点**：精选列出各目录下 2~4 个最具代表性的核心书签与简短说明；
+     - **启发式维护指引（💡 演进建议）**：给出 1~2 条后续维护或深化使用的轻量化建议。
 
 ## Roadmap
 

@@ -9,7 +9,11 @@ import type { ToolExecutionResult } from "./types.ts";
 
 export const moveBookmarksToFolderInputSchema = z
 	.object({
-		targetFolderName: z.string().describe("目标文件夹名称"),
+		targetFolderName: z
+			.string()
+			.nullable()
+			.optional()
+			.describe("目标文件夹名称（单目标文件夹模式）"),
 		itemIds: z
 			.array(z.string())
 			.nullable()
@@ -48,6 +52,35 @@ export const moveBookmarksToFolderInputSchema = z
 			.nullable()
 			.optional()
 			.describe("若目标文件夹尚不存在，是否自动创建？默认 true"),
+		batchPlans: z
+			.array(
+				z.object({
+					targetFolderName: z.string().describe("目标文件夹名称"),
+					itemIds: z.array(z.string()).nullable().optional().describe("书签ID列表"),
+					itemNamesOrUrls: z
+						.array(z.string())
+						.nullable()
+						.optional()
+						.describe("书签标题或URL关键词列表"),
+					tags: z.array(z.string()).nullable().optional().describe("标签筛选列表"),
+					mode: z
+						.enum(["move", "link"])
+						.nullable()
+						.optional()
+						.describe("操作模式，默认 'move'"),
+					targetCategory: z
+						.string()
+						.nullable()
+						.optional()
+						.describe("所属分类，默认'工作台'"),
+					createIfNotExist: z.boolean().nullable().optional(),
+				}),
+			)
+			.nullable()
+			.optional()
+			.describe(
+				"多目标批量归类分发计划。当需要同时将不同书签整理分发到多个不同文件夹时，必须使用此字段一次性提交，严禁对每个文件夹单独发起一次调用！",
+			),
 	})
 	.passthrough();
 
@@ -56,54 +89,60 @@ export type MoveBookmarksToFolderInput = z.infer<
 >;
 
 /**
- * Pure execution function to move or link bookmarks into folder in SQLite
+ * Helper to execute a single folder bookmark move
  */
-export function executeMoveBookmarks(
-	args: MoveBookmarksToFolderInput,
-): ToolExecutionResult {
-	const {
-		targetFolderName,
-		itemIds,
-		itemNamesOrUrls,
-		tags,
-		mode = "move",
-		targetCategory,
-		createIfNotExist = true,
-	} = args;
-
-	const isLinkMode = (mode || "move").toLowerCase() === "link";
-	const effectiveItemIds = Array.isArray(itemIds)
-		? itemIds.filter(Boolean)
+function executeSingleMove(
+	plan: {
+		targetFolderName: string;
+		itemIds?: string[] | null;
+		itemNamesOrUrls?: string[] | null;
+		tags?: string[] | null;
+		mode?: "move" | "link" | null;
+		targetCategory?: string | null;
+		createIfNotExist?: boolean | null;
+	},
+): {
+	targetFolderName: string;
+	movedCount: number;
+	createdFolder: boolean;
+	movedItems: WorkbenchItem[];
+	references: SearchResultItem[];
+} {
+	const isLinkMode = (plan.mode || "move").toLowerCase() === "link";
+	const effectiveItemIds = Array.isArray(plan.itemIds)
+		? plan.itemIds.filter(Boolean)
 		: [];
-	const effectiveItemNames = Array.isArray(itemNamesOrUrls)
-		? itemNamesOrUrls.filter(Boolean)
+	const effectiveItemNames = Array.isArray(plan.itemNamesOrUrls)
+		? plan.itemNamesOrUrls.filter(Boolean)
 		: [];
-	const effectiveTags = Array.isArray(tags) ? tags.filter(Boolean) : [];
+	const effectiveTags = Array.isArray(plan.tags)
+		? plan.tags.filter(Boolean)
+		: [];
 	const effectiveCategory =
-		targetCategory &&
-		targetCategory !== "null" &&
-		targetCategory !== "undefined"
-			? targetCategory.trim()
+		plan.targetCategory &&
+		plan.targetCategory !== "null" &&
+		plan.targetCategory !== "undefined"
+			? plan.targetCategory.trim()
 			: "工作台";
+	const targetNameTrimmed = (plan.targetFolderName || "").trim();
+	const createIfNotExist = plan.createIfNotExist !== false;
 
-	const targetNameTrimmed = (targetFolderName || "").trim();
 	if (!targetNameTrimmed) {
 		return {
-			toolName: "move_bookmarks_to_folder",
-			summary: "移动书签失败：目标文件夹名称不能为空。",
-			items: [],
+			targetFolderName: "",
+			movedCount: 0,
+			createdFolder: false,
+			movedItems: [],
 			references: [],
-			isMutation: false,
 		};
 	}
 
-	// 1. Locate or create target folder
 	let allFolders = workbenchDb.getAllFolders();
 	let targetFolder = allFolders.find(
 		(f) => f.name.toLowerCase() === targetNameTrimmed.toLowerCase(),
 	);
-
 	let newlyCreatedFolder = false;
+
 	if (!targetFolder && createIfNotExist) {
 		targetFolder = workbenchDb.createFolder(
 			targetNameTrimmed,
@@ -116,17 +155,15 @@ export function executeMoveBookmarks(
 
 	if (!targetFolder) {
 		return {
-			toolName: "move_bookmarks_to_folder",
-			summary: `移动书签失败：目标文件夹「${targetNameTrimmed}」不存在，且未允许自动创建。`,
-			items: [],
+			targetFolderName: targetNameTrimmed,
+			movedCount: 0,
+			createdFolder: false,
+			movedItems: [],
 			references: [],
-			isMutation: false,
 		};
 	}
 
-	// 2. Resolve target bookmarks to move or link
 	const targetItemIds = new Set<string>();
-
 	for (const id of effectiveItemIds) {
 		if (id) targetItemIds.add(String(id));
 	}
@@ -138,7 +175,6 @@ export function executeMoveBookmarks(
 			...allFolders.flatMap((f) => f.items),
 		];
 
-		// Match by keyword in name or url
 		for (const keyword of effectiveItemNames) {
 			const kw = keyword.toLowerCase().trim();
 			if (!kw) continue;
@@ -151,7 +187,6 @@ export function executeMoveBookmarks(
 			}
 		}
 
-		// Match by tags
 		for (const tag of effectiveTags) {
 			const tagLower = tag.toLowerCase().trim();
 			if (!tagLower) continue;
@@ -167,17 +202,15 @@ export function executeMoveBookmarks(
 	}
 
 	if (targetItemIds.size === 0) {
-		const actionWord = isLinkMode ? "关联复用" : "移动";
 		return {
-			toolName: "move_bookmarks_to_folder",
-			summary: `在数据库中未找到需要${actionWord}的书签条目（目标文件夹：「${targetFolder.name}」）。请确认书签 ID、名称或标签。`,
-			items: [],
+			targetFolderName: targetFolder.name,
+			movedCount: 0,
+			createdFolder: newlyCreatedFolder,
+			movedItems: [],
 			references: [],
-			isMutation: newlyCreatedFolder,
 		};
 	}
 
-	// 3. Move or link items into target folder
 	const movedItems: WorkbenchItem[] = [];
 	const unclassified = workbenchDb.getUnclassifiedItems();
 	const allItems: WorkbenchItem[] = [
@@ -205,12 +238,6 @@ export function executeMoveBookmarks(
 		}
 	}
 
-	const movedNamesList = movedItems.map((m) => `《${m.name}》`).join("、");
-	const actionWord = isLinkMode ? "关联复用" : "移入";
-	const summaryText = newlyCreatedFolder
-		? `成功新建文件夹「${targetFolder.name}」，并已将 ${movedItems.length} 个书签（${movedNamesList}）${actionWord}其中${isLinkMode ? "（原分类位置保持不变）" : ""}。`
-		: `已成功将 ${movedItems.length} 个书签（${movedNamesList}）${actionWord}文件夹「${targetFolder.name}」${isLinkMode ? "（原分类位置保持不变）" : ""}。`;
-
 	const references: SearchResultItem[] = movedItems.map((item, idx) => ({
 		...item,
 		score: 1.0 - idx * 0.01,
@@ -221,10 +248,100 @@ export function executeMoveBookmarks(
 	}));
 
 	return {
+		targetFolderName: targetFolder.name,
+		movedCount: movedItems.length,
+		createdFolder: newlyCreatedFolder,
+		movedItems,
+		references,
+	};
+}
+
+/**
+ * Pure execution function to move or link bookmarks into folder in SQLite
+ */
+export function executeMoveBookmarks(
+	args: MoveBookmarksToFolderInput,
+): ToolExecutionResult {
+	// Case 1: Multiple plans specified
+	if (Array.isArray(args.batchPlans) && args.batchPlans.length > 0) {
+		const summaries: string[] = [];
+		const allMovedItems: WorkbenchItem[] = [];
+		const allReferences: SearchResultItem[] = [];
+		let totalMoved = 0;
+
+		for (const plan of args.batchPlans) {
+			const res = executeSingleMove(plan);
+			if (res.movedCount > 0) {
+				totalMoved += res.movedCount;
+				allMovedItems.push(...res.movedItems);
+				allReferences.push(...res.references);
+				summaries.push(`「${res.targetFolderName}」(${res.movedCount}条)`);
+			}
+		}
+
+		if (totalMoved === 0) {
+			return {
+				toolName: "move_bookmarks_to_folder",
+				summary: "批量归类整理完成，但未匹配到需要移动的书签条目。请确认书签名称或关键词。",
+				items: [],
+				references: [],
+				isMutation: false,
+			};
+		}
+
+		return {
+			toolName: "move_bookmarks_to_folder",
+			summary: `已成功批量将 ${totalMoved} 个书签分发归入 ${summaries.length} 个文件夹：${summaries.join("、")}。`,
+			items: allMovedItems,
+			references: allReferences,
+			isMutation: true,
+		};
+	}
+
+	// Case 2: Single target folder execution (backward compatible)
+	const singleRes = executeSingleMove({
+		targetFolderName: args.targetFolderName || "",
+		itemIds: args.itemIds,
+		itemNamesOrUrls: args.itemNamesOrUrls,
+		tags: args.tags,
+		mode: args.mode,
+		targetCategory: args.targetCategory,
+		createIfNotExist: args.createIfNotExist,
+	});
+
+	if (!args.targetFolderName?.trim()) {
+		return {
+			toolName: "move_bookmarks_to_folder",
+			summary: "移动书签失败：目标文件夹名称不能为空。",
+			items: [],
+			references: [],
+			isMutation: false,
+		};
+	}
+
+	if (singleRes.movedCount === 0) {
+		const actionWord = args.mode === "link" ? "关联复用" : "移动";
+		return {
+			toolName: "move_bookmarks_to_folder",
+			summary: `在数据库中未找到需要${actionWord}的书签条目（目标文件夹：「${singleRes.targetFolderName || args.targetFolderName}」）。请确认书签 ID、名称或标签。`,
+			items: [],
+			references: [],
+			isMutation: singleRes.createdFolder,
+		};
+	}
+
+	const movedNamesList = singleRes.movedItems.map((m) => `《${m.name}》`).join("、");
+	const actionWord = args.mode === "link" ? "关联复用" : "移入";
+	const isLinkMode = args.mode === "link";
+	const summaryText = singleRes.createdFolder
+		? `成功新建文件夹「${singleRes.targetFolderName}」，并已将 ${singleRes.movedCount} 个书签（${movedNamesList}）${actionWord}其中${isLinkMode ? "（原分类位置保持不变）" : ""}。`
+		: `已成功将 ${singleRes.movedCount} 个书签（${movedNamesList}）${actionWord}文件夹「${singleRes.targetFolderName}」${isLinkMode ? "（原分类位置保持不变）" : ""}。`;
+
+	return {
 		toolName: "move_bookmarks_to_folder",
 		summary: summaryText,
-		items: movedItems,
-		references,
+		items: singleRes.movedItems,
+		references: singleRes.references,
 		isMutation: true,
 	};
 }
@@ -235,6 +352,7 @@ export function executeMoveBookmarks(
 export const moveBookmarksToFolderToolDef = toolDefinition({
 	name: "move_bookmarks_to_folder",
 	description:
-		"将指定的一个或多个书签整理移入或关联复用到目标文件夹。支持通过书签 ID、标题关键词、URL 或标签 tags 进行批量匹配。支持 mode='move'（整理剪切）与 mode='link'（任务装配引用，保留原位置）。如果目标文件夹不存在且开启了 createIfNotExist，会自动先创建该文件夹。",
+		"将书签整理移入或关联复用到目标文件夹。支持单目标模式（targetFolderName + itemNamesOrUrls/itemIds/tags）以及多目标批量分发模式（batchPlans: [{ targetFolderName, itemNamesOrUrls }]）。支持 mode='move'（整理剪切）与 mode='link'（任务装配引用，保留原位置）。当需要同时将书签分别归类到多个不同文件夹时，必须使用 batchPlans 一次性完成，严禁拆为多次单步调用！",
 	inputSchema: moveBookmarksToFolderInputSchema,
 });
+

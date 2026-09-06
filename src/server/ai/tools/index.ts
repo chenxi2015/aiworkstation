@@ -15,6 +15,11 @@ import {
 	getStatsToolDef,
 } from "./getStatsTool.ts";
 import {
+	executeMergeFolders,
+	mergeFoldersInputSchema,
+	mergeFoldersToolDef,
+} from "./mergeFoldersTool.ts";
+import {
 	executeMoveBookmarks,
 	moveBookmarksToFolderInputSchema,
 	moveBookmarksToFolderToolDef,
@@ -49,6 +54,7 @@ import {
 export * from "./createFolderTool.ts";
 export * from "./deleteFolderTool.ts";
 export * from "./getStatsTool.ts";
+export * from "./mergeFoldersTool.ts";
 export * from "./moveBookmarksTool.ts";
 export * from "./moveFolderTool.ts";
 export * from "./queryBookmarksTool.ts";
@@ -153,6 +159,14 @@ export function createBookmarkServerTools(hooks?: BookmarkToolHooks) {
 				hooks,
 			),
 		),
+		mergeFoldersToolDef.server((args) =>
+			wrapExecution(
+				"merge_folders",
+				args,
+				() => executeMergeFolders(args),
+				hooks,
+			),
+		),
 		getStatsToolDef.server((args) =>
 			wrapExecution(
 				"get_stats",
@@ -200,6 +214,9 @@ export async function executeBookmarkToolCall(
 			result = executeMoveBookmarks(
 				moveBookmarksToFolderInputSchema.parse(parsedArgs),
 			);
+			break;
+		case "merge_folders":
+			result = executeMergeFolders(mergeFoldersInputSchema.parse(parsedArgs));
 			break;
 		case "update_folder":
 			result = executeUpdateFolder(updateFolderInputSchema.parse(parsedArgs));

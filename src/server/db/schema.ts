@@ -58,11 +58,21 @@ export function initSchema(db: SqliteDatabase): void {
       updated_at TEXT NOT NULL
     );
 
+    -- 5. Chat Sessions table (AI conversational history persistence)
+    CREATE TABLE IF NOT EXISTS chat_sessions (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      messages TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
     -- Indexes for fast queries
     CREATE INDEX IF NOT EXISTS idx_folders_category ON folders(category);
     CREATE INDEX IF NOT EXISTS idx_folder_items_folder_id ON folder_items(folder_id);
     CREATE INDEX IF NOT EXISTS idx_folder_items_item_id ON folder_items(item_id);
     CREATE INDEX IF NOT EXISTS idx_bookmarks_url ON bookmarks(url);
+    CREATE INDEX IF NOT EXISTS idx_chat_sessions_updated_at ON chat_sessions(updated_at DESC);
   `);
 
 	// Graceful migration for existing SQLite DBs without embedding columns or color column

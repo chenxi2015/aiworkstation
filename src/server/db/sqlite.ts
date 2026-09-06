@@ -6,6 +6,10 @@ import type {
 } from "../../components/workbench/types.ts";
 import { getDb } from "./connection.ts";
 import { BookmarkRepository } from "./repositories/bookmark.repo.ts";
+import {
+	type ChatSessionRecord,
+	ChatSessionRepository,
+} from "./repositories/chatSession.repo.ts";
 import { FolderRepository } from "./repositories/folder.repo.ts";
 import { SearchRepository } from "./repositories/search.repo.ts";
 import type {
@@ -17,18 +21,20 @@ import type {
 
 /**
  * SQLite Database Facade for AI Workstation
- * Composes domain repositories (Folder, Bookmark, Search/Embedding)
+ * Composes domain repositories (Folder, Bookmark, Search/Embedding, ChatSession)
  */
 export class WorkbenchDatabase {
 	private folderRepo: FolderRepository;
 	private bookmarkRepo: BookmarkRepository;
 	private searchRepo: SearchRepository;
+	private chatSessionRepo: ChatSessionRepository;
 
 	constructor() {
 		const db = getDb();
 		this.folderRepo = new FolderRepository(db);
 		this.bookmarkRepo = new BookmarkRepository(db);
 		this.searchRepo = new SearchRepository(db);
+		this.chatSessionRepo = new ChatSessionRepository(db);
 	}
 
 	// ================= Folder Operations =================
@@ -167,7 +173,39 @@ export class WorkbenchDatabase {
 			)
 			.run(key, value, now);
 	}
+
+	// ================= Chat Session Operations =================
+	getAllChatSessions<T = any>(): ChatSessionRecord<T>[] {
+		return this.chatSessionRepo.getAllSessions<T>();
+	}
+
+	getChatSessionById<T = any>(id: string): ChatSessionRecord<T> | null {
+		return this.chatSessionRepo.getSessionById<T>(id);
+	}
+
+	saveChatSession<T = any>(session: ChatSessionRecord<T>): void {
+		this.chatSessionRepo.saveSession<T>(session);
+	}
+
+	deleteChatSession(id: string): void {
+		this.chatSessionRepo.deleteSession(id);
+	}
+
+	clearAllChatSessions(): void {
+		this.chatSessionRepo.clearAllSessions();
+	}
+
+	exportChatSessionsToJson(): {
+		exportedAt: string;
+		version: string;
+		totalSessions: number;
+		sessions: ChatSessionRecord[];
+	} {
+		return this.chatSessionRepo.exportAllToJson();
+	}
 }
+
+export type { ChatSessionRecord };
 
 // Re-export query types for backward compatibility
 export type {

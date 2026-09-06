@@ -25,6 +25,9 @@ export function useAiChat(options?: UseAiChatOptions) {
 	const [isLoading, setIsLoading] = useState<boolean>(false);
 	const abortControllerRef = useRef<AbortController | null>(null);
 
+	const onSessionLoadedRef = useRef<(msgs: ChatItem[]) => void>(() => {});
+	const onSessionClearedRef = useRef<() => void>(() => {});
+
 	// 1. Manage chat sessions
 	const {
 		sessions,
@@ -35,7 +38,12 @@ export function useAiChat(options?: UseAiChatOptions) {
 		loadSession: baseLoadSession,
 		deleteSession: baseDeleteSession,
 		clearAllSessions: baseClearAllSessions,
-	} = useChatSessions<ChatItem>();
+		exportAllSessionsToJson,
+		exportSessionToJson,
+	} = useChatSessions<ChatItem>({
+		onSessionLoaded: (msgs) => onSessionLoadedRef.current(msgs),
+		onSessionCleared: () => onSessionClearedRef.current(),
+	});
 
 	// 2. Manage active messages
 	const {
@@ -53,6 +61,12 @@ export function useAiChat(options?: UseAiChatOptions) {
 			[syncSession, currentSessionId],
 		),
 	});
+
+	// Wire session lifecycle events to messages state
+	useEffect(() => {
+		onSessionLoadedRef.current = (msgs) => setMessages(msgs);
+		onSessionClearedRef.current = () => setMessages([]);
+	}, [setMessages]);
 
 	// Stop / abort current ongoing AI answer generation
 	const stopChat = useCallback(() => {
@@ -171,7 +185,6 @@ export function useAiChat(options?: UseAiChatOptions) {
 				}
 				activeSessionId = `session_${Date.now()}`;
 				setCurrentSessionId(activeSessionId);
-				WorkbenchStorageService.clearChatHistory();
 			}
 
 			const timeStr = new Date().toLocaleTimeString([], {
@@ -193,9 +206,6 @@ export function useAiChat(options?: UseAiChatOptions) {
 			const nextMessages = isNewChat ? [userMsg] : [...historyBase, userMsg];
 
 			setMessages(nextMessages);
-			if (isNewChat) {
-				WorkbenchStorageService.saveChatHistory([userMsg]);
-			}
 
 			if (!userPrompt) setInput("");
 			setIsLoading(true);
@@ -468,6 +478,8 @@ export function useAiChat(options?: UseAiChatOptions) {
 		loadSession,
 		deleteSession,
 		clearAllSessions,
+		exportAllSessionsToJson,
+		exportSessionToJson,
 		clearHistory,
 		setMessages,
 		updateMessageReferences,

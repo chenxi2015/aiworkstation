@@ -357,14 +357,11 @@ export const ChatMessageItem = memo(function ChatMessageItem({
 				<div className="text-foreground leading-relaxed">
 					<AiMarkdownRenderer content={msg.content} compact={false} />
 				</div>
-			) : msg.isStreaming ? (
+			) : msg.isStreaming && (!msg.steps || msg.steps.length === 0) ? (
+				/* Only show initial planning status if no steps timeline is present yet */
 				<div className="flex items-center gap-2 text-muted py-2">
 					<span className="inline-block w-2 h-2 rounded-full bg-accent animate-ping" />
-					<span className="text-xs">
-						{msg.steps && msg.steps.length > 0
-							? "Agent 正在根据检索与工具结果整理回答..."
-							: "Agent 正在规划思考步骤..."}
-					</span>
+					<span className="text-xs">Agent 正在思考规划...</span>
 				</div>
 			) : null}
 

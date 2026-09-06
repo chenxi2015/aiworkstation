@@ -161,7 +161,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 								<button
 									type="button"
 									onClick={onStop}
-									className="h-7 w-7 rounded-full border border-foreground/50 hover:border-foreground text-foreground hover:bg-surface-secondary/80 flex items-center justify-center transition-all cursor-pointer shadow-2xs group"
+									className="h-7 w-7 rounded-full border border-foreground/30 hover:border-foreground text-foreground hover:bg-surface-secondary/80 flex items-center justify-center transition-all cursor-pointer shadow-2xs group"
 									aria-label="停止回答"
 								>
 									<span className="w-2.5 h-2.5 bg-foreground rounded-[1.5px] group-hover:scale-90 transition-transform" />
