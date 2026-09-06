@@ -25,6 +25,7 @@ import { CHAT_INPUT_DROP_ID } from "../../dnd/dndUtils";
 import type { Category, Folder } from "../../types";
 import { ChatContextBar } from "./ChatContextBar";
 import { ChatContextMentionMenu } from "./ChatContextMentionMenu";
+import { searchMentionCandidates } from "./utils/mentionSearch";
 
 export interface ChatInputAreaProps {
 	input: string;
@@ -173,54 +174,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 	// Compute active mention candidates to allow keyboard Enter selection
 	const activeCandidates = useMemo(() => {
 		if (mentionQuery === null) return [];
-		const list: Array<{
-			id: string;
-			type: "folder" | "bookmark";
-			title: string;
-			subtitle?: string;
-			icon?: string;
-			url?: string;
-			folderId?: number;
-			category?: string;
-		}> = [];
-		const q = mentionQuery.toLowerCase().trim();
-
-		for (const f of folders) {
-			if (!q || f.name.toLowerCase().includes(q)) {
-				list.push({
-					id: `folder_${f.id}`,
-					type: "folder",
-					title: f.name,
-					subtitle: `${f.items?.length ?? 0} 个书签`,
-					folderId: f.id,
-					category: f.category,
-				});
-			}
-		}
-
-		for (const f of folders) {
-			for (const item of f.items || []) {
-				const matchTitle = item.name.toLowerCase().includes(q);
-				const matchUrl = item.url?.toLowerCase().includes(q);
-				if (!q || matchTitle || matchUrl) {
-					let host = "";
-					if (item.url) {
-						try {
-							host = new URL(item.url).hostname;
-						} catch {}
-					}
-					list.push({
-						id: `bookmark_${item.id ?? item.url}`,
-						type: "bookmark",
-						title: item.name,
-						subtitle: host || f.name,
-						url: item.url,
-						icon: item.favicon,
-					});
-				}
-			}
-		}
-		return list.slice(0, 8);
+		return searchMentionCandidates(folders, mentionQuery);
 	}, [mentionQuery, folders]);
 
 	const handleSelectMention = useCallback(
@@ -248,6 +202,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 				isOpen={mentionQuery !== null}
 				query={mentionQuery || ""}
 				folders={folders}
+				candidates={activeCandidates}
 				selectedIndex={mentionSelectedIndex}
 				onSelectIndexChange={setMentionSelectedIndex}
 				onSelect={handleSelectMention}
@@ -363,7 +318,12 @@ export const ChatInputArea = memo(function ChatInputArea({
 						const lastAtIndex = textBeforeCursor.lastIndexOf("@");
 						if (lastAtIndex !== -1) {
 							const query = textBeforeCursor.slice(lastAtIndex + 1);
-							if (!/\s/.test(query)) {
+							// Allow spaces in query (e.g. "@AI 开源武器库"), only close on newlines or double-spaces
+							if (
+								!query.includes("\n") &&
+								!/\s{2,}/.test(query) &&
+								query.length <= 40
+							) {
 								setMentionQuery(query);
 								setMentionSelectedIndex(0);
 								return;

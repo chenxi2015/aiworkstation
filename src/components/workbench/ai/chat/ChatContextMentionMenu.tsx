@@ -2,11 +2,16 @@ import { Folder as FolderIcon, Globe, X } from "lucide-react";
 import { memo, useEffect, useMemo, useRef } from "react";
 import type { ChatContextItem } from "../../../../types/chatContext";
 import type { Folder } from "../../types";
+import {
+	type MentionCandidate,
+	searchMentionCandidates,
+} from "./utils/mentionSearch";
 
 export interface ChatContextMentionMenuProps {
 	isOpen: boolean;
 	query: string;
 	folders: Folder[];
+	candidates?: MentionCandidate[];
 	onSelect: (item: ChatContextItem) => void;
 	onClose: () => void;
 	selectedIndex: number;
@@ -14,15 +19,39 @@ export interface ChatContextMentionMenuProps {
 	className?: string;
 }
 
-interface MentionCandidate {
-	id: string;
-	type: "folder" | "bookmark";
-	title: string;
-	subtitle?: string;
-	icon?: string;
-	url?: string;
-	folderId?: number;
-	category?: string;
+/**
+ * Safely highlight matched keywords in text
+ */
+function HighlightText({ text, query }: { text: string; query: string }) {
+	const q = query.trim();
+	if (!q || !text) return <>{text}</>;
+
+	const terms = q
+		.split(/\s+/)
+		.filter(Boolean)
+		.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+	if (terms.length === 0) return <>{text}</>;
+
+	const regex = new RegExp(`(${terms.join("|")})`, "gi");
+	const parts = text.split(regex);
+
+	let offset = 0;
+	const elements = parts.map((part) => {
+		const key = `part_${offset}_${part.slice(0, 8)}`;
+		offset += part.length;
+		return regex.test(part) ? (
+			<mark
+				key={key}
+				className="bg-accent/20 text-accent font-semibold px-0.5 rounded not-italic"
+			>
+				{part}
+			</mark>
+		) : (
+			<span key={key}>{part}</span>
+		);
+	});
+
+	return <>{elements}</>;
 }
 
 /**
@@ -32,6 +61,7 @@ export const ChatContextMentionMenu = memo(function ChatContextMentionMenu({
 	isOpen,
 	query,
 	folders,
+	candidates: providedCandidates,
 	onSelect,
 	onClose,
 	selectedIndex,
@@ -40,52 +70,12 @@ export const ChatContextMentionMenu = memo(function ChatContextMentionMenu({
 }: ChatContextMentionMenuProps) {
 	const listRef = useRef<HTMLDivElement | null>(null);
 
-	// Flatten folders and bookmarks into searchable candidates
+	// Flatten folders and bookmarks into weighted searchable candidates if not provided
 	const candidates = useMemo(() => {
 		if (!isOpen) return [];
-		const list: MentionCandidate[] = [];
-		const q = query.toLowerCase().trim();
-
-		// 1. Folders
-		for (const f of folders) {
-			if (!q || f.name.toLowerCase().includes(q)) {
-				list.push({
-					id: `mention_folder_${f.id}`,
-					type: "folder",
-					title: f.name,
-					subtitle: `${f.items?.length ?? 0} 个书签 · ${f.category}`,
-					folderId: f.id,
-					category: f.category,
-				});
-			}
-		}
-
-		// 2. Bookmarks within folders
-		for (const f of folders) {
-			for (const item of f.items || []) {
-				const matchTitle = item.name.toLowerCase().includes(q);
-				const matchUrl = item.url?.toLowerCase().includes(q);
-				if (!q || matchTitle || matchUrl) {
-					let host = "";
-					if (item.url) {
-						try {
-							host = new URL(item.url).hostname;
-						} catch {}
-					}
-					list.push({
-						id: `mention_bm_${item.id ?? item.url}`,
-						type: "bookmark",
-						title: item.name,
-						subtitle: host || f.name,
-						url: item.url,
-						icon: item.favicon,
-					});
-				}
-			}
-		}
-
-		return list.slice(0, 8);
-	}, [isOpen, query, folders]);
+		if (providedCandidates) return providedCandidates;
+		return searchMentionCandidates(folders, query);
+	}, [isOpen, query, folders, providedCandidates]);
 
 	// Auto scroll active item into view
 	useEffect(() => {
@@ -170,18 +160,25 @@ export const ChatContextMentionMenu = memo(function ChatContextMentionMenu({
 
 							<div className="flex-1 min-w-0 flex flex-col">
 								<span className="text-xs font-medium truncate leading-tight">
-									{cand.title}
+									<HighlightText text={cand.title} query={query} />
 								</span>
 								{cand.subtitle && (
 									<span className="text-[10px] text-muted truncate mt-0.5">
-										{cand.subtitle}
+										<HighlightText text={cand.subtitle} query={query} />
 									</span>
 								)}
 							</div>
 
-							<span className="text-[10px] text-muted/60 shrink-0 font-normal">
-								{cand.type === "folder" ? "文件夹" : "书签"}
-							</span>
+							<div className="flex items-center gap-1 shrink-0">
+								{cand.matchReason && query.trim() && (
+									<span className="text-[9px] px-1.5 py-0.2 rounded bg-accent-soft/40 text-accent font-medium select-none">
+										{cand.matchReason}
+									</span>
+								)}
+								<span className="text-[10px] text-muted/60 font-normal">
+									{cand.type === "folder" ? "文件夹" : "书签"}
+								</span>
+							</div>
 						</button>
 					);
 				})}

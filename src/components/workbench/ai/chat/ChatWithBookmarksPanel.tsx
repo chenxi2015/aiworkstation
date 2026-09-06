@@ -12,7 +12,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { useAiChat } from "../../../../hooks/ai/useAiChat";
+import { type ChatItem, useAiChat } from "../../../../hooks/ai/useAiChat";
 import { useEmbeddingStats } from "../../../../hooks/ai/useEmbeddingStats";
 import { useItemFolderAssign } from "../../../../hooks/ai/useItemFolderAssign";
 import type { ChatContextItem } from "../../../../types/chatContext";
@@ -143,6 +143,8 @@ export const ChatWithBookmarksPanel = forwardRef<
 			newChat?: boolean;
 			folderId?: number | null;
 			folderName?: string;
+			baseMessages?: ChatItem[];
+			contextItems?: ChatContextItem[];
 		},
 	) => {
 		const folderScope =
@@ -170,6 +172,7 @@ export const ChatWithBookmarksPanel = forwardRef<
 				newChat?: boolean;
 				folderId?: number | null;
 				folderName?: string;
+				contextItems?: ChatContextItem[];
 			},
 		) => {
 			setActiveTab("chat");

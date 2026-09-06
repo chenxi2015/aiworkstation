@@ -2,6 +2,8 @@
 @import 'tailwindcss';
 @import '@heroui/styles';
 @plugin '@tailwindcss/typography';
+@source "../node_modules/@streamdown/code/dist/*.js";
+@source "../node_modules/streamdown/dist/*.js";
 
 @import 'tw-animate-css';
 
@@ -280,8 +282,7 @@ pre code {
   padding-bottom: 2px !important;
 }
 
-[data-streamdown="table-wrapper"] button[type="button"],
-[data-streamdown="code-block-actions"] button[type="button"] {
+[data-streamdown="table-wrapper"] button[type="button"] {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -297,11 +298,157 @@ pre code {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
 }
 
-[data-streamdown="table-wrapper"] button[type="button"]:hover,
-[data-streamdown="code-block-actions"] button[type="button"]:hover {
+[data-streamdown="table-wrapper"] button[type="button"]:hover {
   color: var(--foreground) !important;
   background-color: var(--surface-tertiary) !important;
   border-color: var(--accent) !important;
+}
+
+/* Streamdown Code Block Styling */
+[data-streamdown="code-block"] {
+  position: relative !important;
+  margin-block: 8px !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  border-radius: var(--radius, 8px) !important;
+  border: 1px solid var(--border) !important;
+  background-color: var(--surface-secondary) !important;
+  overflow: hidden !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03) !important;
+}
+
+/* Code block header bar */
+[data-streamdown="code-block-header"] {
+  display: flex !important;
+  align-items: center !important;
+  height: 30px !important;
+  min-height: 30px !important;
+  padding: 0 10px !important;
+  background-color: color-mix(in oklch, var(--surface-secondary) 80%, var(--surface)) !important;
+  border-bottom: 1px solid color-mix(in oklch, var(--border) 70%, transparent) !important;
+}
+
+[data-streamdown="code-block-header"] span {
+  font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.02em !important;
+  color: var(--muted) !important;
+  text-transform: lowercase !important;
+  user-select: none !important;
+}
+
+/* Code block actions / Copy button alignment */
+[data-streamdown="code-block"] > div:has(> [data-streamdown="code-block-actions"]),
+[data-streamdown="code-block"] > .sticky {
+  position: absolute !important;
+  top: 0 !important;
+  right: 4px !important;
+  height: 30px !important;
+  margin-top: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  z-index: 10 !important;
+}
+
+[data-streamdown="code-block-actions"] {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  padding: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  backdrop-filter: none !important;
+}
+
+[data-streamdown="code-block-actions"] button[type="button"] {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 22px !important;
+  height: 22px !important;
+  padding: 2 !important;
+  border-radius: 4px !important;
+  color: var(--muted) !important;
+  background-color: transparent !important;
+  border: 1px solid transparent !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  box-shadow: none !important;
+}
+
+[data-streamdown="code-block-actions"] button[type="button"]:hover {
+  color: var(--foreground) !important;
+  background-color: var(--surface) !important;
+  border-color: var(--border) !important;
+}
+
+/* Code block body & syntax highlighting */
+[data-streamdown="code-block-body"] {
+  margin: 0 !important;
+  padding: 8px 10px !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background-color: transparent !important;
+  overflow-x: auto !important;
+  font-size: 11.5px !important;
+  line-height: 1.55 !important;
+}
+
+[data-streamdown="code-block-body"] pre {
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+}
+
+[data-streamdown="code-block-body"] code {
+  font-family: inherit !important;
+  font-size: inherit !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  color: inherit;
+}
+
+/* Shiki / Streamdown Syntax Highlighting Tokens */
+[data-streamdown="code-block-body"] span[style*="--sdm-c"] {
+  color: var(--sdm-c) !important;
+}
+
+:is(.dark, .dark *, [data-theme="dark"], [data-theme="dark"] *) [data-streamdown="code-block-body"] span[style*="--shiki-dark"] {
+  color: var(--shiki-dark) !important;
+}
+
+/* Line numbers styling */
+[data-streamdown="code-block-body"] code > span {
+  display: block !important;
+}
+
+[data-streamdown="code-block-body"] code > span::before {
+  display: inline-block !important;
+  width: 20px !important;
+  margin-right: 10px !important;
+  text-align: right !important;
+  color: var(--muted) !important;
+  opacity: 0.45 !important;
+  font-size: 10.5px !important;
+  font-family: var(--font-mono), monospace !important;
+  user-select: none !important;
+}
+
+/* Dark mode theme overrides for code blocks */
+.dark [data-streamdown="code-block"],
+[data-theme="dark"] [data-streamdown="code-block"] {
+  background-color: oklch(18% 0.003 262.87) !important;
+  border-color: var(--border) !important;
+}
+
+.dark [data-streamdown="code-block-header"],
+[data-theme="dark"] [data-streamdown="code-block-header"] {
+  background-color: oklch(21% 0.003 262.87) !important;
+  border-bottom-color: var(--border) !important;
 }
 
 /* Fix Streamdown Dropdown Menu (Copy / Download popup) */

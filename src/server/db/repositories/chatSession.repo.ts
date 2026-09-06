@@ -26,10 +26,6 @@ function sanitizeSessionMessages<T = any>(messages: T[]): T[] {
 				return step;
 			});
 		}
-		// If assistant message was abruptly cut off without content, provide a friendly placeholder
-		if (copy.role === "assistant" && (!copy.content || !copy.content.trim())) {
-			copy.content = "（本次回答已被中断）";
-		}
 		return copy;
 	});
 }

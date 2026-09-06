@@ -37,7 +37,7 @@ export function useChatMessages(props?: UseChatMessagesProps) {
 		setMessages(msgs);
 	}, []);
 
-	// Sync with parent session manager whenever user messages change (excluding external loads)
+	// Sync with parent session manager whenever messages change and are stable (not during active streaming)
 	const onMessagesChange = props?.onMessagesChange;
 	useEffect(() => {
 		if (isExternalLoadRef.current) {
@@ -47,19 +47,12 @@ export function useChatMessages(props?: UseChatMessagesProps) {
 
 		if (messages.length === 0) return;
 
+		// Do not write intermediate transient states to SQLite while AI is streaming or running tools.
+		// Only sync when streaming has finished or on manual edits/deletes.
 		const isStreaming = messages.some((m) => m.isStreaming);
 		if (!isStreaming) {
-			// Finished streaming or standard edit, sync immediately
 			onMessagesChange?.(messages);
-			return;
 		}
-
-		// During streaming, debounce sync to avoid writing to storage on every token chunk
-		const timer = setTimeout(() => {
-			onMessagesChange?.(messages);
-		}, 1000);
-
-		return () => clearTimeout(timer);
 	}, [messages, onMessagesChange]);
 
 	// Update content of an existing message without re-querying AI

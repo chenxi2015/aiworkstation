@@ -64,9 +64,15 @@ export function useChatSessions<
 	TMessage extends { role: string; content: string },
 >(props?: UseChatSessionsProps<TMessage>) {
 	const [sessions, setSessions] = useState<ChatSession<TMessage>[]>([]);
+	const sessionsRef = useRef<ChatSession<TMessage>[]>([]);
 	const initialSessionId = getSavedActiveSessionId() || `session_${Date.now()}`;
 	const [currentSessionId, setCurrentSessionIdState] = useState<string>(initialSessionId);
 	const currentSessionIdRef = useRef<string>(initialSessionId);
+
+	// Keep sessionsRef in sync with state
+	useEffect(() => {
+		sessionsRef.current = sessions;
+	}, [sessions]);
 
 	const setCurrentSessionId = useCallback((id: string) => {
 		currentSessionIdRef.current = id;
@@ -84,6 +90,7 @@ export function useChatSessions<
 					await WorkbenchStorageService.fetchChatSessions<TMessage>();
 
 				if (dbSessions && isMounted) {
+					sessionsRef.current = dbSessions;
 					setSessions(dbSessions);
 
 					// Restore the user's last active session (either switched to or most recent)
@@ -122,7 +129,7 @@ export function useChatSessions<
 	// Synchronize current messages with sessions list and SQLite database
 	const syncSession = useCallback((msgs: TMessage[], sessId: string) => {
 		try {
-			if (msgs.length === 0) return;
+			if (!msgs || msgs.length === 0) return;
 
 			const nowStr = new Date().toLocaleString([], {
 				month: "2-digit",
@@ -136,25 +143,25 @@ export function useChatSessions<
 				: "新对话";
 			const title = rawTitle.length >= 24 ? `${rawTitle}...` : rawTitle;
 
+			const prev = sessionsRef.current;
+			const existingIndex = prev.findIndex((s) => s.id === sessId);
 			let sessionToPersist: ChatSession<TMessage>;
 
-			setSessions((prev) => {
-				const existingIndex = prev.findIndex((s) => s.id === sessId);
-				if (existingIndex >= 0) {
-					const existing = prev[existingIndex];
-					sessionToPersist = {
-						...existing,
-						title: existing.title || title,
-						updatedAt: nowStr,
-						messages: msgs,
-					};
-					// Float the updated session to the top
-					return [
-						sessionToPersist,
-						...prev.filter((_, idx) => idx !== existingIndex),
-					];
-				}
-
+			if (existingIndex >= 0) {
+				const existing = prev[existingIndex];
+				sessionToPersist = {
+					...existing,
+					title: existing.title || title,
+					updatedAt: nowStr,
+					messages: msgs,
+				};
+				const nextSessions = [
+					sessionToPersist,
+					...prev.filter((_, idx) => idx !== existingIndex),
+				];
+				sessionsRef.current = nextSessions;
+				setSessions(nextSessions);
+			} else {
 				sessionToPersist = {
 					id: sessId,
 					title,
@@ -162,14 +169,14 @@ export function useChatSessions<
 					updatedAt: nowStr,
 					messages: msgs,
 				};
-				return [sessionToPersist, ...prev];
-			});
-
-			// Persist single session to SQLite in background
-			if (sessionToPersist!) {
-				WorkbenchStorageService.saveChatSession(sessionToPersist);
-				saveActiveSessionId(sessId);
+				const nextSessions = [sessionToPersist, ...prev];
+				sessionsRef.current = nextSessions;
+				setSessions(nextSessions);
 			}
+
+			// Persist single session to SQLite in background deterministically
+			WorkbenchStorageService.saveChatSession(sessionToPersist);
+			saveActiveSessionId(sessId);
 		} catch (e) {
 			console.error("[useChatSessions] Failed to sync session:", e);
 		}
@@ -199,6 +206,7 @@ export function useChatSessions<
 			WorkbenchStorageService.deleteChatSession(sessionId);
 			setSessions((prev) => {
 				const remaining = prev.filter((s) => s.id !== sessionId);
+				sessionsRef.current = remaining;
 				if (currentSessionId === sessionId) {
 					const next = remaining[0];
 					if (next && next.messages && next.messages.length > 0) {
@@ -219,6 +227,7 @@ export function useChatSessions<
 
 	// Clear all sessions in SQLite
 	const clearAllSessions = useCallback(() => {
+		sessionsRef.current = [];
 		setSessions([]);
 		const newId = `session_${Date.now()}`;
 		setCurrentSessionId(newId);

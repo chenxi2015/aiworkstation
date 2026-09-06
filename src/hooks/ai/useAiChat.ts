@@ -105,12 +105,23 @@ export function useAiChat(options?: UseAiChatOptions) {
 		toast.info("已停止回答");
 		setMessages((prev) => {
 			const lastMsg = prev[prev.length - 1];
+			if (lastMsg && lastMsg.role === "assistant") {
+				return [
+					...prev.slice(0, -1),
+					{
+						...lastMsg,
+						isStreaming: false,
+						content: lastMsg.content || "（已停止本次回答）",
+					},
+				];
+			}
 			if (!lastMsg || lastMsg.role === "user") {
 				return [
 					...prev,
 					{
 						role: "assistant",
 						content: "（已停止本次回答）",
+						isStreaming: false,
 						timestamp: new Date().toLocaleTimeString([], {
 							hour: "2-digit",
 							minute: "2-digit",
@@ -193,10 +204,14 @@ export function useAiChat(options?: UseAiChatOptions) {
 				folderId?: number | null;
 				folderName?: string;
 				baseMessages?: ChatItem[];
+				contextItems?: ChatContextItem[];
 			},
 		) => {
 			const rawText = (userPrompt || input).trim();
-			const activeAttachments = [...contextItems];
+			const activeAttachments =
+				sendOptions?.contextItems !== undefined
+					? sendOptions.contextItems
+					: [...contextItems];
 			const textToSend =
 				rawText ||
 				(activeAttachments.length > 0
@@ -243,8 +258,10 @@ export function useAiChat(options?: UseAiChatOptions) {
 			setMessages(nextMessages);
 
 			if (!userPrompt) setInput("");
-			// Clear attached contexts after successfully queuing send
-			setContextItems([]);
+			// Clear attached contexts after successfully queuing send only if using input contextItems
+			if (sendOptions?.contextItems === undefined) {
+				setContextItems([]);
+			}
 			setIsLoading(true);
 			options?.onMessageSent?.();
 
@@ -462,8 +479,12 @@ export function useAiChat(options?: UseAiChatOptions) {
 				toast.warning("AI 正在回答中，请稍候...");
 				return;
 			}
+			const targetMsg = messages[index];
 			const baseMessages = messages.slice(0, index);
-			sendPrompt(trimmed, { baseMessages });
+			sendPrompt(trimmed, {
+				baseMessages,
+				contextItems: targetMsg?.contextItems,
+			});
 		},
 		[messages, isLoading, sendPrompt],
 	);
@@ -480,7 +501,10 @@ export function useAiChat(options?: UseAiChatOptions) {
 
 			if (targetMsg.role === "user") {
 				const baseMessages = messages.slice(0, index);
-				sendPrompt(targetMsg.content, { baseMessages });
+				sendPrompt(targetMsg.content, {
+					baseMessages,
+					contextItems: targetMsg.contextItems,
+				});
 			} else {
 				let prevUserIndex = -1;
 				for (let i = index - 1; i >= 0; i--) {
@@ -490,8 +514,12 @@ export function useAiChat(options?: UseAiChatOptions) {
 					}
 				}
 				if (prevUserIndex >= 0) {
+					const userMsg = messages[prevUserIndex];
 					const baseMessages = messages.slice(0, prevUserIndex);
-					sendPrompt(messages[prevUserIndex].content, { baseMessages });
+					sendPrompt(userMsg.content, {
+						baseMessages,
+						contextItems: userMsg.contextItems,
+					});
 				} else {
 					sendPrompt(targetMsg.content);
 				}

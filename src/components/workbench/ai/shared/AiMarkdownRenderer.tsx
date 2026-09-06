@@ -5,7 +5,7 @@ import { Link } from "@heroui/react";
 import { Folder as FolderIcon } from "lucide-react";
 import type { ComponentPropsWithoutRef, ElementType, ReactNode } from "react";
 import { memo, useMemo } from "react";
-import { Streamdown } from "streamdown";
+import { type BundledTheme, Streamdown } from "streamdown";
 import type { Category, Folder } from "../../types";
 
 const URL_REGEX = /(https?:\/\/[^\s<>)\]}]+)/g;
@@ -155,6 +155,12 @@ const STREAMDOWN_ZH_TRANSLATIONS = {
 	viewFullscreen: "全屏查看",
 };
 
+const STREAMDOWN_PLUGINS = { code, mermaid };
+const SHIKI_THEMES: [BundledTheme, BundledTheme] = [
+	"github-light",
+	"github-dark",
+];
+
 export interface AiMarkdownRendererProps {
 	content: string;
 	className?: string;
@@ -193,9 +199,10 @@ export const AiMarkdownRenderer = memo(function AiMarkdownRenderer({
 			className={`ai-markdown-root ${compact ? "ai-markdown-compact" : ""} ${className}`}
 		>
 			<Streamdown
-				plugins={{ code, mermaid }}
+				plugins={STREAMDOWN_PLUGINS}
 				linkSafety={{ enabled: false }}
 				lineNumbers={true}
+				shikiTheme={SHIKI_THEMES}
 				controls={{
 					table: {
 						copy: true,
@@ -304,7 +311,7 @@ export const AiMarkdownRenderer = memo(function AiMarkdownRenderer({
 							className={
 								compact
 									? "border-l-2 border-accent/60 pl-2.5 my-2 text-[11.5px] text-muted italic bg-accent-soft/30 py-1 rounded-r"
-									: "border-l-2 border-accent/70 pl-3.5 my-3 text-[13.5px] text-muted leading-relaxed bg-accent-soft/20 py-1.5 rounded-r"
+									: "border-l-2 border-accent/70 pl-3.5 my-3 text-[13.5px] text-muted leading-relaxed bg-accent-soft/20 py-1.5 rounded-md"
 							}
 							{...props}
 						>

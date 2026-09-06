@@ -393,22 +393,6 @@ export const ChatMessageItem = memo(function ChatMessageItem({
 								</Tooltip.Content>
 							</Tooltip>
 
-							<Tooltip>
-								<Tooltip.Trigger>
-									<button
-										type="button"
-										onClick={() => onResend(index)}
-										disabled={isLoading}
-										className="p-1 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/80 disabled:opacity-40 transition-colors cursor-pointer"
-										aria-label="重新发送"
-									>
-										<RotateCw className="w-3.5 h-3.5" />
-									</button>
-								</Tooltip.Trigger>
-								<Tooltip.Content className="text-[10px] py-0.5 px-1.5">
-									重新发送
-								</Tooltip.Content>
-							</Tooltip>
 
 							<Tooltip>
 								<Tooltip.Trigger>
