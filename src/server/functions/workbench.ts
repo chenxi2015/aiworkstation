@@ -10,11 +10,15 @@ import type {
 import { workbenchDb } from "../db/sqlite.ts";
 import {
 	backupDatabase,
-	type DeadLinkScanJob,
+	deleteBackup,
+	getBackupsList,
 	getDeadLinkScanStatus,
 	getLastDeadLinkScan,
 	removeIdsFromLastScan,
+	restoreDatabase,
 	startDeadLinkScan,
+	type BackupFileInfo,
+	type DeadLinkScanJob,
 } from "../maintenance.ts";
 
 /**
@@ -319,3 +323,59 @@ export const saveWorkbenchSettings = createServerFn({ method: "POST" })
 		workbenchDb.setSetting("workbench_settings", JSON.stringify(settings));
 		return { success: true };
 	});
+
+/**
+ * Server Function: Get list of all database backups
+ */
+export const getBackupsListFn = createServerFn({ method: "GET" }).handler(
+	async (): Promise<BackupFileInfo[]> => {
+		return getBackupsList();
+	},
+);
+
+/**
+ * Server Function: Manually create a new database backup
+ */
+export const createBackupFn = createServerFn({ method: "POST" }).handler(
+	async (): Promise<{ backupPath: string | null; backups: BackupFileInfo[] }> => {
+		const backupPath = backupDatabase();
+		const backups = getBackupsList();
+		return { backupPath, backups };
+	},
+);
+
+/**
+ * Server Function: Restore database from a backup
+ */
+export const restoreBackupFn = createServerFn({ method: "POST" })
+	.validator((filename: string) => filename)
+	.handler(
+		async ({
+			data: filename,
+		}): Promise<{
+			success: boolean;
+			currentBackupPath: string | null;
+			folders: Folder[];
+			unclassified: WorkbenchItem[];
+		}> => {
+			const res = restoreDatabase(filename);
+			const folders = workbenchDb.getAllFolders();
+			const unclassified = workbenchDb.getUnclassifiedItems();
+			return {
+				success: res.success,
+				currentBackupPath: res.currentBackupPath,
+				folders,
+				unclassified,
+			};
+		},
+	);
+
+/**
+ * Server Function: Delete a backup file
+ */
+export const deleteBackupFn = createServerFn({ method: "POST" })
+	.validator((filename: string) => filename)
+	.handler(async ({ data: filename }): Promise<{ success: boolean }> => {
+		return deleteBackup(filename);
+	});
+

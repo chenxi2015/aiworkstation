@@ -1,13 +1,19 @@
 import fs from "node:fs";
 import path from "node:path";
 import dayjs from "dayjs";
-import { DB_DIR, DB_PATH } from "./db/connection.ts";
+import { DB_DIR, DB_PATH, closeDb } from "./db/connection.ts";
 import { workbenchDb } from "./db/sqlite.ts";
 
-// ================= Database Backup =================
+// ================= Database Backup & Restore =================
 
 const BACKUP_DIR = path.join(DB_DIR, "backups");
-const MAX_BACKUPS = 3;
+const MAX_BACKUPS = 20;
+
+export interface BackupFileInfo {
+	filename: string;
+	size: number;
+	createdAt: string;
+}
 
 /**
  * Copy workbench.db into .aiworkstation/backups and rotate old backups (keep latest MAX_BACKUPS).
@@ -24,6 +30,15 @@ export function backupDatabase(): string | null {
 	fs.copyFileSync(DB_PATH, backupPath);
 
 	// Rotate: keep only the newest MAX_BACKUPS files
+	rotateBackups();
+	return backupPath;
+}
+
+/**
+ * Keep only the newest MAX_BACKUPS backup files
+ */
+function rotateBackups(): void {
+	if (!fs.existsSync(BACKUP_DIR)) return;
 	const backups = fs
 		.readdirSync(BACKUP_DIR)
 		.filter((f) => f.startsWith("workbench-") && f.endsWith(".db"))
@@ -38,8 +53,108 @@ export function backupDatabase(): string | null {
 			}
 		}
 	}
-	return backupPath;
 }
+
+/**
+ * List all backup files ordered by creation date descending (newest first)
+ */
+export function getBackupsList(): BackupFileInfo[] {
+	if (!fs.existsSync(BACKUP_DIR)) return [];
+	const files = fs
+		.readdirSync(BACKUP_DIR)
+		.filter((f) => f.startsWith("workbench-") && f.endsWith(".db"));
+
+	const result: BackupFileInfo[] = [];
+	for (const filename of files) {
+		try {
+			const stat = fs.statSync(path.join(BACKUP_DIR, filename));
+			result.push({
+				filename,
+				size: stat.size,
+				createdAt: stat.mtime.toISOString(),
+			});
+		} catch {
+			// ignore file read error
+		}
+	}
+
+	// Sort newest first
+	return result.sort(
+		(a, b) =>
+			new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+	);
+}
+
+/**
+ * Restore database from a backup file.
+ * Automatically creates a snapshot backup of the current database before replacing it.
+ */
+export function restoreDatabase(backupFileName: string): {
+	success: boolean;
+	currentBackupPath: string | null;
+} {
+	const safeName = path.basename(backupFileName);
+	if (!safeName.startsWith("workbench-") || !safeName.endsWith(".db")) {
+		throw new Error("非法备份文件名");
+	}
+
+	const targetBackupPath = path.join(BACKUP_DIR, safeName);
+	if (!fs.existsSync(targetBackupPath)) {
+		throw new Error("备份文件不存在");
+	}
+
+	// 1. Snapshot the current database first so user can always switch back
+	const currentBackupPath = backupDatabase();
+
+	// 2. Close active SQLite connection and flush WAL
+	closeDb();
+
+	// 3. Remove temporary WAL and SHM files if present
+	const walPath = `${DB_PATH}-wal`;
+	const shmPath = `${DB_PATH}-shm`;
+	if (fs.existsSync(walPath)) {
+		try {
+			fs.unlinkSync(walPath);
+		} catch {
+			// best effort
+		}
+	}
+	if (fs.existsSync(shmPath)) {
+		try {
+			fs.unlinkSync(shmPath);
+		} catch {
+			// best effort
+		}
+	}
+
+	// 4. Overwrite workbench.db with chosen backup
+	fs.copyFileSync(targetBackupPath, DB_PATH);
+
+	// 5. Re-open connection, run migrations, and rebind all repositories
+	workbenchDb.reloadConnection();
+
+	return {
+		success: true,
+		currentBackupPath,
+	};
+}
+
+/**
+ * Delete a specific backup file
+ */
+export function deleteBackup(backupFileName: string): { success: boolean } {
+	const safeName = path.basename(backupFileName);
+	if (!safeName.startsWith("workbench-") || !safeName.endsWith(".db")) {
+		throw new Error("非法备份文件名");
+	}
+
+	const targetBackupPath = path.join(BACKUP_DIR, safeName);
+	if (fs.existsSync(targetBackupPath)) {
+		fs.unlinkSync(targetBackupPath);
+	}
+	return { success: true };
+}
+
 
 // ================= Dead Link Scanning (async background job) =================
 

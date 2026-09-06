@@ -7,14 +7,19 @@ import type {
 	WorkbenchItem,
 	WorkbenchSettings,
 } from "../components/workbench/types";
-import type { DeadLinkScanJob } from "../server/maintenance";
 import {
 	clearAllDataInDb,
+	createBackup,
+	deleteBackup,
 	deleteItemsBatchInDb,
 	fetchAvailableModels,
+	fetchBackupsList,
 	getDeadLinkScanStatus,
 	getLastDeadLinkScan,
+	restoreBackup,
 	startDeadLinkScan,
+	type BackupFileInfo,
+	type DeadLinkScanJob,
 } from "./api/maintenanceClient";
 import {
 	type ChatMessage,
@@ -174,4 +179,23 @@ export class WorkbenchStorageService {
 		baseUrl: string;
 		apiKey?: string;
 	}): Promise<string[]> => fetchAvailableModels(params);
+
+	// ================= Backup & Restore RPC =================
+	static fetchBackupsList = (): Promise<BackupFileInfo[]> =>
+		fetchBackupsList();
+	static createBackup = (): Promise<{
+		backupPath: string | null;
+		backups: BackupFileInfo[];
+	}> => createBackup();
+	static restoreBackup = (
+		filename: string,
+	): Promise<{
+		success: boolean;
+		currentBackupPath: string | null;
+		folders: Folder[];
+		unclassified: WorkbenchItem[];
+	}> => restoreBackup(filename);
+	static deleteBackup = (filename: string): Promise<{ success: boolean }> =>
+		deleteBackup(filename);
 }
+

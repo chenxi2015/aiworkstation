@@ -240,6 +240,7 @@ export function SettingsModal({
 										<DataMaintenanceTab
 											onClose={onClose}
 											onOpenDeadLinks={onOpenDeadLinks}
+											onDataRestored={onDataCleared}
 										/>
 									)}
 								</Tabs.Panel>

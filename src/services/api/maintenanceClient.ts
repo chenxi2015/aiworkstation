@@ -2,14 +2,18 @@ import type { Folder, WorkbenchItem } from "../../components/workbench/types";
 import { getAvailableModels } from "../../server/functions/models";
 import {
 	clearAllData,
+	createBackupFn,
+	deleteBackupFn,
 	deleteItemsBatch,
+	getBackupsListFn,
 	getDeadLinkScanStatusFn,
 	getLastDeadLinkScanFn,
+	restoreBackupFn,
 	startDeadLinkScanFn,
 } from "../../server/functions/workbench";
-import type { DeadLinkScanJob } from "../../server/maintenance";
+import type { BackupFileInfo, DeadLinkScanJob } from "../../server/maintenance";
 
-export type { DeadLinkScanJob };
+export type { BackupFileInfo, DeadLinkScanJob };
 
 /**
  * Clear ALL workbench data in SQLite (creates a timestamped backup first).
@@ -71,3 +75,42 @@ export async function fetchAvailableModels(params: {
 	}
 	return res.models;
 }
+
+/**
+ * Fetch list of all existing database backups
+ */
+export async function fetchBackupsList(): Promise<BackupFileInfo[]> {
+	return await getBackupsListFn();
+}
+
+/**
+ * Manually trigger a database backup
+ */
+export async function createBackup(): Promise<{
+	backupPath: string | null;
+	backups: BackupFileInfo[];
+}> {
+	return await createBackupFn();
+}
+
+/**
+ * Restore database from a specific backup file
+ */
+export async function restoreBackup(filename: string): Promise<{
+	success: boolean;
+	currentBackupPath: string | null;
+	folders: Folder[];
+	unclassified: WorkbenchItem[];
+}> {
+	return await restoreBackupFn({ data: filename });
+}
+
+/**
+ * Delete a specific backup file
+ */
+export async function deleteBackup(
+	filename: string,
+): Promise<{ success: boolean }> {
+	return await deleteBackupFn({ data: filename });
+}
+

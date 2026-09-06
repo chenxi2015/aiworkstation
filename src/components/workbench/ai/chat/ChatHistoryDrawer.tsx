@@ -41,6 +41,7 @@ export function ChatHistoryDrawer({
 	onExportSession,
 }: ChatHistoryDrawerProps) {
 	const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
+	const [sessionToDelete, setSessionToDelete] = useState<ChatSession | null>(null);
 	const [searchQuery, setSearchQuery] = useState("");
 
 	const filteredSessions = useMemo(() => {
@@ -216,7 +217,7 @@ export function ChatHistoryDrawer({
 												className="p-1 text-muted hover:text-danger rounded transition-colors cursor-pointer"
 												onClick={(e) => {
 													e.stopPropagation();
-													onDeleteSession(session.id);
+													setSessionToDelete(session);
 												}}
 												aria-label="删除此会话"
 												title="删除此会话"
@@ -283,6 +284,27 @@ export function ChatHistoryDrawer({
 				onConfirm={() => {
 					onClearAllSessions();
 					onClose();
+				}}
+			/>
+
+			{/* Single session deletion confirmation */}
+			<ConfirmDialog
+				isOpen={Boolean(sessionToDelete)}
+				onOpenChange={(open) => {
+					if (!open) setSessionToDelete(null);
+				}}
+				title="删除对话"
+				description={
+					sessionToDelete
+						? `确定要删除对话「${sessionToDelete.title || "未命名对话"}」吗？此操作无法撤回。`
+						: undefined
+				}
+				confirmLabel="删除"
+				onConfirm={() => {
+					if (sessionToDelete) {
+						onDeleteSession(sessionToDelete.id);
+						setSessionToDelete(null);
+					}
 				}}
 			/>
 		</>

@@ -28,3 +28,21 @@ export function getDb(): SqliteDatabase {
 	}
 	return dbInstance;
 }
+
+/**
+ * Close SQLite Database connection singleton and checkpoint WAL to disk
+ */
+export function closeDb(): void {
+	if (dbInstance) {
+		try {
+			// Checkpoint WAL first to flush all pending transactions to disk
+			dbInstance.pragma("wal_checkpoint(TRUNCATE)");
+			dbInstance.close();
+		} catch (error) {
+			console.error("[SQLite] Failed to close database connection:", error);
+		} finally {
+			dbInstance = null;
+		}
+	}
+}
+

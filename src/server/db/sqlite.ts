@@ -24,18 +24,30 @@ import type {
  * Composes domain repositories (Folder, Bookmark, Search/Embedding, ChatSession)
  */
 export class WorkbenchDatabase {
-	private folderRepo: FolderRepository;
-	private bookmarkRepo: BookmarkRepository;
-	private searchRepo: SearchRepository;
-	private chatSessionRepo: ChatSessionRepository;
+	private folderRepo!: FolderRepository;
+	private bookmarkRepo!: BookmarkRepository;
+	private searchRepo!: SearchRepository;
+	private chatSessionRepo!: ChatSessionRepository;
 
-	constructor() {
+	private initRepositories(): void {
 		const db = getDb();
 		this.folderRepo = new FolderRepository(db);
 		this.bookmarkRepo = new BookmarkRepository(db);
 		this.searchRepo = new SearchRepository(db);
 		this.chatSessionRepo = new ChatSessionRepository(db);
 	}
+
+	constructor() {
+		this.initRepositories();
+	}
+
+	/**
+	 * Rebind domain repositories with the active SQLite database connection
+	 */
+	reloadConnection(): void {
+		this.initRepositories();
+	}
+
 
 	// ================= Folder Operations =================
 	getAllFolders(): Folder[] {

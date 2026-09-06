@@ -76,8 +76,8 @@ export function DeadLinksModal({
 				setSelectedIds(
 					new Set(
 						job.items
-							.filter((item) => item.status === "dead")
-							.map((item) => item.id),
+							.filter((item: DeadLinkItem) => item.status === "dead")
+							.map((item: DeadLinkItem) => item.id),
 					),
 				);
 				setPhase("done");
@@ -122,8 +122,8 @@ export function DeadLinksModal({
 						setSelectedIds(
 							new Set(
 								job.items
-									.filter((item) => item.status === "dead")
-									.map((item) => item.id),
+									.filter((item: DeadLinkItem) => item.status === "dead")
+									.map((item: DeadLinkItem) => item.id),
 							),
 						);
 						setPhase("done");
