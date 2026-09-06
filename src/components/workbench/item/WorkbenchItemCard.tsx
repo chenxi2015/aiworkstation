@@ -5,6 +5,7 @@ import {
 	Ellipsis,
 	ExternalLink,
 	Globe,
+	MessageSquarePlus,
 	Tag,
 	Trash2,
 } from "lucide-react";
@@ -26,6 +27,7 @@ export interface WorkbenchItemCardProps {
 	compact?: boolean;
 	onDeleteItem?: (item: WorkbenchItem) => void;
 	onMoveItem?: (item: WorkbenchItem, targetFolderId: number) => void;
+	onAttachToChat?: (item: WorkbenchItem) => void;
 }
 
 /**
@@ -42,6 +44,7 @@ export const WorkbenchItemCard = memo(function WorkbenchItemCard({
 	compact = false,
 	onDeleteItem,
 	onMoveItem,
+	onAttachToChat,
 }: WorkbenchItemCardProps) {
 	const [isAssignMenuOpen, setIsAssignMenuOpen] = useState(false);
 	const [isCardMenuOpen, setIsCardMenuOpen] = useState(false);
@@ -148,6 +151,24 @@ export const WorkbenchItemCard = memo(function WorkbenchItemCard({
 							</Tooltip.Trigger>
 							<Tooltip.Content className="text-xs py-1 px-2">
 								复制链接
+							</Tooltip.Content>
+						</Tooltip>
+					)}
+
+					{onAttachToChat && (
+						<Tooltip>
+							<Tooltip.Trigger>
+								<button
+									type="button"
+									onClick={() => onAttachToChat(item)}
+									className="w-6 h-6 rounded-md flex items-center justify-center text-muted hover:text-accent hover:bg-accent/10 cursor-pointer transition-colors"
+									aria-label="引用到 AI 对话"
+								>
+									<MessageSquarePlus className="w-3 h-3" />
+								</button>
+							</Tooltip.Trigger>
+							<Tooltip.Content className="text-xs py-1 px-2">
+								引用到对话
 							</Tooltip.Content>
 						</Tooltip>
 					)}
@@ -317,6 +338,21 @@ export const WorkbenchItemCard = memo(function WorkbenchItemCard({
 											<Copy className="w-3.5 h-3.5 text-muted shrink-0" />
 											<span className="text-xs font-medium flex-1">
 												复制链接
+											</span>
+										</div>
+									</Dropdown.Item>
+								)}
+
+								{onAttachToChat && (
+									<Dropdown.Item
+										id="attach_chat"
+										textValue="引用到 AI 对话"
+										onAction={() => onAttachToChat(item)}
+									>
+										<div className="flex items-center gap-2 w-full py-0.5 text-accent">
+											<MessageSquarePlus className="w-3.5 h-3.5 text-accent shrink-0" />
+											<span className="text-xs font-medium flex-1">
+												引用到 AI 对话
 											</span>
 										</div>
 									</Dropdown.Item>

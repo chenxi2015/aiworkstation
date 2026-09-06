@@ -35,6 +35,11 @@ import {
 	queryBookmarksToolDef,
 } from "./queryBookmarksTool.ts";
 import {
+	executeReadWebpage,
+	readWebpageInputSchema,
+	readWebpageToolDef,
+} from "./readWebpageTool.ts";
+import {
 	executeRemoveBookmarks,
 	removeBookmarksFromFolderToolDef,
 	removeBookmarksInputSchema,
@@ -58,6 +63,7 @@ export * from "./mergeFoldersTool.ts";
 export * from "./moveBookmarksTool.ts";
 export * from "./moveFolderTool.ts";
 export * from "./queryBookmarksTool.ts";
+export * from "./readWebpageTool.ts";
 export * from "./removeBookmarksTool.ts";
 export * from "./reorderFoldersTool.ts";
 export * from "./timeResolver.ts";
@@ -71,13 +77,13 @@ export * from "./updateFolderTool.ts";
 async function wrapExecution<TArgs>(
 	toolName: string,
 	args: TArgs,
-	executor: () => ToolExecutionResult,
+	executor: () => ToolExecutionResult | Promise<ToolExecutionResult>,
 	hooks?: BookmarkToolHooks,
 ): Promise<string> {
 	const start = Date.now();
 	hooks?.onToolStart?.(toolName, (args || {}) as Record<string, unknown>);
 	try {
-		const res = executor();
+		const res = await executor();
 		if (res.isMutation) {
 			hooks?.onMutated?.();
 		}
@@ -175,6 +181,14 @@ export function createBookmarkServerTools(hooks?: BookmarkToolHooks) {
 				hooks,
 			),
 		),
+		readWebpageToolDef.server((args) =>
+			wrapExecution(
+				"read_webpage_content",
+				args,
+				() => executeReadWebpage(args),
+				hooks,
+			),
+		),
 	];
 }
 
@@ -236,6 +250,11 @@ export async function executeBookmarkToolCall(
 			break;
 		case "delete_folder":
 			result = executeDeleteFolder(deleteFolderInputSchema.parse(parsedArgs));
+			break;
+		case "read_webpage_content":
+			result = await executeReadWebpage(
+				readWebpageInputSchema.parse(parsedArgs),
+			);
 			break;
 		default:
 			result = {

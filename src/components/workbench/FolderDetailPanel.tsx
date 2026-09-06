@@ -28,6 +28,7 @@ export interface FolderDetailPanelProps {
 		targetFolderId: number,
 	) => void;
 	onAskAIAboutFolder?: (prompt: string) => void;
+	onAttachToChat?: (item: WorkbenchItem) => void;
 }
 
 interface SubfolderRowProps {
@@ -82,6 +83,7 @@ export const FolderDetailPanel = memo(function FolderDetailPanel({
 	onDeleteItem,
 	onMoveItem,
 	onAskAIAboutFolder,
+	onAttachToChat,
 }: FolderDetailPanelProps) {
 	const [typeFilter, setTypeFilter] = useState("all");
 
@@ -183,6 +185,7 @@ export const FolderDetailPanel = memo(function FolderDetailPanel({
 					onHighlightClear={onHighlightClear}
 					onDeleteItem={onDeleteItem}
 					onMoveItem={onMoveItem}
+					onAttachToChat={onAttachToChat}
 					selectedTypeFilter={typeFilter}
 					onSelectTypeFilter={setTypeFilter}
 				/>

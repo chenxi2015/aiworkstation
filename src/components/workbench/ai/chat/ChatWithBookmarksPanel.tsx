@@ -417,6 +417,7 @@ export const ChatWithBookmarksPanel = forwardRef<
 						setScopeMode((prev) => (prev === "global" ? "folder" : "global"))
 					}
 					contextItems={contextItems}
+					folders={folders}
 					onRemoveContextItem={removeContextItem}
 					onClearContextItems={clearContextItems}
 					onAttachContextItem={addContextItem}

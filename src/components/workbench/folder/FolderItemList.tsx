@@ -25,6 +25,7 @@ export interface FolderItemListProps {
 		sourceFolderId: number,
 		targetFolderId: number,
 	) => void;
+	onAttachToChat?: (item: WorkbenchItem) => void;
 	selectedTypeFilter?: string;
 	onSelectTypeFilter?: (type: string) => void;
 }
@@ -40,6 +41,7 @@ export const FolderItemList = memo(function FolderItemList({
 	onHighlightClear,
 	onDeleteItem,
 	onMoveItem,
+	onAttachToChat,
 	selectedTypeFilter: controlledTypeFilter,
 	onSelectTypeFilter: controlledOnSelectTypeFilter,
 }: FolderItemListProps) {
@@ -340,6 +342,7 @@ export const FolderItemList = memo(function FolderItemList({
 												? (it, targetId) => onMoveItem(it, folder.id, targetId)
 												: undefined
 										}
+										onAttachToChat={onAttachToChat}
 									/>
 								</DraggableItem>
 							</div>

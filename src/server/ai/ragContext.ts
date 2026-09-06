@@ -98,20 +98,42 @@ export async function prepareRagAgentContext(params: {
 
 	// 1. Retrieve Candidate Bookmarks from SQLite
 	let candidateItems = workbenchDb.getAllBookmarksForSearch();
-	if (folderId != null) {
+
+	const contextFolderIds = contextItems
+		.filter((item) => item.type === "folder" && item.folderId != null)
+		.map((item) => item.folderId as number);
+
+	const contextFolderNames = contextItems
+		.filter((item) => item.type === "folder")
+		.map((item) => item.title);
+
+	// Scope filtering: if specific folders are attached as context, scope to them;
+	// otherwise fall back to explicit single folderId if provided.
+	if (contextFolderIds.length > 0) {
+		const idSet = new Set(contextFolderIds);
+		candidateItems = candidateItems.filter(
+			(item) => item.folderId != null && idSet.has(item.folderId),
+		);
+	} else if (folderId != null) {
 		candidateItems = candidateItems.filter(
 			(item) => item.folderId === folderId,
 		);
 	}
+
 	if (candidateItems.length === 0) {
+		const scopeLabel =
+			contextFolderNames.length > 0
+				? `所选上下文文件夹「${contextFolderNames.join("、")}」`
+				: folderName != null
+					? `当前文件夹「${folderName}」`
+					: null;
 		return {
 			systemPrompt: "",
 			contextReferences: [],
 			candidateCount: 0,
-			emptyFallbackMessage:
-				folderName != null
-					? `当前文件夹「${folderName}」中暂无书签数据。`
-					: "你的收藏库中目前还没有书签数据，请先通过 Chrome 扩展同步或导入一些书签。",
+			emptyFallbackMessage: scopeLabel
+				? `${scopeLabel}中暂无书签数据。`
+				: "你的收藏库中目前还没有书签数据，请先通过 Chrome 扩展同步或导入一些书签。",
 		};
 	}
 
@@ -172,6 +194,11 @@ export async function prepareRagAgentContext(params: {
 			? `\n- 【当前问答限定范围】: 用户已启用【限定文件夹范围】模式，指定聚焦在文件夹「${folderName}」(ID: ${folderId})。除非用户在提问中明确要求跨文件夹或搜索全局，否则所有回答、盘点与分析请严格限制在该文件夹下的书签和资产；若调用 query_bookmarks 工具，请务必传入 folderName: "${folderName}" 或 folderId: ${folderId}。`
 			: "\n- 【当前问答范围】: 全局知识库（涵盖所有文件夹及未分类书签）。";
 
+	const hasUrlInContext = contextItems.some((item) => Boolean(item.url));
+	const webpageToolGuidance = hasUrlInContext
+		? "\n\n★ 重要指引：用户在当前上下文中提供了具体的网址链接。如果用户的提问涉及深度分析该网页、总结文章、提取要点或了解项目详情，请主动调用 `read_webpage_content` 工具抓取该网址的真实正文，然后向用户输出有深度、有条理的分析报告！"
+		: "";
+
 	const explicitContextPrompt =
 		contextItems.length > 0
 			? `\n- 【用户显式注入的上下文实体（重点优先参考）】:\n${contextItems
@@ -193,7 +220,7 @@ export async function prepareRagAgentContext(params: {
 					})
 					.join(
 						"\n",
-					)}\n提示：用户在本次提问中显式拖入或引用了以上实体作为上下文，请在回答或调用工具时优先围绕这些目标进行深度剖析、总结或比对。`
+					)}\n提示：用户在本次提问中显式拖入或引用了以上实体作为上下文，请在回答或调用工具时优先围绕这些目标进行深度剖析、总结或比对。${webpageToolGuidance}`
 			: "";
 
 	const systemPrompt = `你内置于用户本地个人 AI 工作台（AI Workstation），是用户的专属【私人知识智囊与外脑合伙人】（Personal Intelligence & Knowledge Partner）。

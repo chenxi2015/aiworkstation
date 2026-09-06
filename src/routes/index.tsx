@@ -204,39 +204,44 @@ function WorkbenchHome() {
 		setIsSyncModalOpen(true);
 	}, [setIsSyncModalOpen]);
 
-	// Attach dropped bookmark or folder to AI chat context
-	const handleAttachToChat = useCallback((data: WorkbenchDragData) => {
-		if (data.kind === "item") {
-			const item = data.item;
-			let host = "";
-			if (item.url) {
-				try {
-					host = new URL(item.url).hostname;
-				} catch {}
-			}
-
-			chatPanelRef.current?.addContextItem({
-				id: `bookmark_${item.id ?? Date.now()}`,
-				type: "bookmark",
-				title: item.name,
-				subtitle: host || undefined,
-				url: item.url,
-				icon: item.favicon,
-			});
-			// toast.success(`已引用书签「${item.name}」至对话上下文`);
-		} else if (data.kind === "folder") {
-			const folder = data.folder;
-			const count = folder.items?.length ?? 0;
-			chatPanelRef.current?.addContextItem({
-				id: `folder_${folder.id}`,
-				type: "folder",
-				title: folder.name,
-				subtitle: `${count} 个书签`,
-				folderId: folder.id,
-			});
-			// toast.success(`已引用文件夹「${folder.name}」至对话上下文`);
+	// Attach single bookmark item to AI chat context
+	const handleAttachBookmarkToChat = useCallback((item: WorkbenchItem) => {
+		let host = "";
+		if (item.url) {
+			try {
+				host = new URL(item.url).hostname;
+			} catch {}
 		}
+
+		chatPanelRef.current?.addContextItem({
+			id: `bookmark_${item.id ?? Date.now()}`,
+			type: "bookmark",
+			title: item.name,
+			subtitle: host || undefined,
+			url: item.url,
+			icon: item.favicon,
+		});
 	}, []);
+
+	// Attach dropped bookmark or folder to AI chat context
+	const handleAttachToChat = useCallback(
+		(data: WorkbenchDragData) => {
+			if (data.kind === "item") {
+				handleAttachBookmarkToChat(data.item);
+			} else if (data.kind === "folder") {
+				const folder = data.folder;
+				const count = folder.items?.length ?? 0;
+				chatPanelRef.current?.addContextItem({
+					id: `folder_${folder.id}`,
+					type: "folder",
+					title: folder.name,
+					subtitle: `${count} 个书签`,
+					folderId: folder.id,
+				});
+			}
+		},
+		[handleAttachBookmarkToChat],
+	);
 
 	return (
 		<WorkbenchDndProvider
@@ -317,6 +322,7 @@ function WorkbenchHome() {
 								}
 								onMoveItem={handleMoveItem}
 								onAskAIAboutFolder={handleAskAIAboutFolder}
+								onAttachToChat={handleAttachBookmarkToChat}
 							/>
 
 							{/* 2. Main Column: 文件夹列表与卡片区 (Category Folders Grid) */}

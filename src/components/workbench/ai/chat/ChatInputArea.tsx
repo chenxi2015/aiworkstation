@@ -16,6 +16,7 @@ import {
 	memo,
 	type RefObject,
 	useCallback,
+	useMemo,
 	useState,
 } from "react";
 import { WorkbenchStorageService } from "../../../../services/workbenchStorage";
@@ -23,6 +24,7 @@ import type { ChatContextItem } from "../../../../types/chatContext";
 import { CHAT_INPUT_DROP_ID } from "../../dnd/dndUtils";
 import type { Folder } from "../../types";
 import { ChatContextBar } from "./ChatContextBar";
+import { ChatContextMentionMenu } from "./ChatContextMentionMenu";
 
 export interface ChatInputAreaProps {
 	input: string;
@@ -39,6 +41,7 @@ export interface ChatInputAreaProps {
 	scopeMode?: "global" | "folder";
 	selectedFolder?: Folder | null;
 	onToggleScope?: () => void;
+	folders?: Folder[];
 	/** Contextual attachment chips displayed above textarea */
 	contextItems?: ChatContextItem[];
 	onRemoveContextItem?: (id: string) => void;
@@ -63,6 +66,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 	scopeMode = "global",
 	selectedFolder,
 	onToggleScope,
+	folders = [],
 	contextItems = [],
 	onRemoveContextItem,
 	onClearContextItems,
@@ -81,6 +85,10 @@ export const ChatInputArea = memo(function ChatInputArea({
 
 	// Native drag state for desktop images and external files
 	const [isNativeDragOver, setIsNativeDragOver] = useState(false);
+
+	// Context Mention Menu (@ mention) state
+	const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+	const [mentionSelectedIndex, setMentionSelectedIndex] = useState<number>(0);
 
 	const canSend =
 		(input.trim().length > 0 || contextItems.length > 0) && !isLoading;
@@ -156,8 +164,88 @@ export const ChatInputArea = memo(function ChatInputArea({
 
 	const isDropTargetActive = isOver || isNativeDragOver;
 
+	// Compute active mention candidates to allow keyboard Enter selection
+	const activeCandidates = useMemo(() => {
+		if (mentionQuery === null) return [];
+		const list: Array<{
+			id: string;
+			type: "folder" | "bookmark";
+			title: string;
+			subtitle?: string;
+			icon?: string;
+			url?: string;
+			folderId?: number;
+		}> = [];
+		const q = mentionQuery.toLowerCase().trim();
+
+		for (const f of folders) {
+			if (!q || f.name.toLowerCase().includes(q)) {
+				list.push({
+					id: `folder_${f.id}`,
+					type: "folder",
+					title: f.name,
+					subtitle: `${f.items?.length ?? 0} 个书签`,
+					folderId: f.id,
+				});
+			}
+		}
+
+		for (const f of folders) {
+			for (const item of f.items || []) {
+				const matchTitle = item.name.toLowerCase().includes(q);
+				const matchUrl = item.url?.toLowerCase().includes(q);
+				if (!q || matchTitle || matchUrl) {
+					let host = "";
+					if (item.url) {
+						try {
+							host = new URL(item.url).hostname;
+						} catch {}
+					}
+					list.push({
+						id: `bookmark_${item.id ?? item.url}`,
+						type: "bookmark",
+						title: item.name,
+						subtitle: host || f.name,
+						url: item.url,
+						icon: item.favicon,
+					});
+				}
+			}
+		}
+		return list.slice(0, 8);
+	}, [mentionQuery, folders]);
+
+	const handleSelectMention = useCallback(
+		(cand: ChatContextItem) => {
+			onAttachContextItem?.(cand);
+			// Strip the `@query` from the textarea input
+			const el = inputRef.current;
+			const cursor = el?.selectionStart ?? input.length;
+			const textBeforeCursor = input.slice(0, cursor);
+			const atIndex = textBeforeCursor.lastIndexOf("@");
+			if (atIndex !== -1) {
+				const nextVal = input.slice(0, atIndex) + input.slice(cursor);
+				onChangeInput(nextVal);
+			}
+			setMentionQuery(null);
+			setTimeout(() => inputRef.current?.focus(), 50);
+		},
+		[input, inputRef, onAttachContextItem, onChangeInput],
+	);
+
 	return (
-		<div className="p-3 border-t border-border/70 bg-surface/50 shrink-0 flex flex-col gap-2">
+		<div className="p-3 border-t border-border/70 bg-surface/50 shrink-0 flex flex-col gap-2 relative">
+			{/* Dropdown Mention Menu for @ mentions */}
+			<ChatContextMentionMenu
+				isOpen={mentionQuery !== null}
+				query={mentionQuery || ""}
+				folders={folders}
+				selectedIndex={mentionSelectedIndex}
+				onSelectIndexChange={setMentionSelectedIndex}
+				onSelect={handleSelectMention}
+				onClose={() => setMentionQuery(null)}
+			/>
+
 			{/* Top action toolbar */}
 			<div className="flex items-center justify-between px-0.5">
 				{/* Left: Model Pill Badge with Gradient Icon */}
@@ -258,9 +346,62 @@ export const ChatInputArea = memo(function ChatInputArea({
 					ref={inputRef}
 					rows={2}
 					value={input}
-					onChange={(e) => onChangeInput(e.target.value)}
+					onChange={(e) => {
+						const val = e.target.value;
+						onChangeInput(val);
+						const cursor = e.target.selectionStart ?? val.length;
+						const textBeforeCursor = val.slice(0, cursor);
+						const lastAtIndex = textBeforeCursor.lastIndexOf("@");
+						if (lastAtIndex !== -1) {
+							const query = textBeforeCursor.slice(lastAtIndex + 1);
+							if (!/\s/.test(query)) {
+								setMentionQuery(query);
+								setMentionSelectedIndex(0);
+								return;
+							}
+						}
+						setMentionQuery(null);
+					}}
 					onPaste={handlePaste}
 					onKeyDown={(e) => {
+						if (mentionQuery !== null && activeCandidates.length > 0) {
+							if (e.key === "ArrowDown") {
+								e.preventDefault();
+								setMentionSelectedIndex((prev) =>
+									prev + 1 < activeCandidates.length ? prev + 1 : 0,
+								);
+								return;
+							}
+							if (e.key === "ArrowUp") {
+								e.preventDefault();
+								setMentionSelectedIndex((prev) =>
+									prev - 1 >= 0 ? prev - 1 : activeCandidates.length - 1,
+								);
+								return;
+							}
+							if (e.key === "Enter" && !e.shiftKey) {
+								e.preventDefault();
+								const target = activeCandidates[mentionSelectedIndex];
+								if (target) {
+									handleSelectMention({
+										id: target.id,
+										type: target.type,
+										title: target.title,
+										subtitle: target.subtitle,
+										url: target.url,
+										folderId: target.folderId,
+										icon: target.icon,
+									});
+								}
+								return;
+							}
+							if (e.key === "Escape") {
+								e.preventDefault();
+								setMentionQuery(null);
+								return;
+							}
+						}
+
 						if (e.key === "Enter" && !e.shiftKey) {
 							e.preventDefault();
 							if (canSend) {
@@ -274,7 +415,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 					placeholder={
 						contextItems.length > 0
 							? "对上述引用的上下文提问，或按 Enter 直接分析..."
-							: "问任何问题，或将左侧书签/文件夹拖拽至此注入上下文..."
+							: "问任何问题，输入 @ 引用书签/文件夹，或拖拽注入上下文..."
 					}
 					className="w-full bg-transparent border-none text-xs text-foreground placeholder:text-muted/60 focus:outline-none resize-none leading-relaxed min-h-[44px] max-h-[140px] px-1 py-0.5"
 				/>
