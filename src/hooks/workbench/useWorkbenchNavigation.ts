@@ -56,6 +56,10 @@ export function useWorkbenchNavigation({
 	const [searchQuery, setSearchQuery] = useState("");
 	// Current container being browsed in the folder grid (null = category root)
 	const [currentFolderId, setCurrentFolderId] = useState<number | null>(null);
+	// Specific item to highlight and scroll into view
+	const [highlightItemId, setHighlightItemId] = useState<
+		string | number | null
+	>(null);
 
 	// Dynamic Category Tabs: '工作台' is root category, others dynamically extracted from database folders
 	const dynamicCategories = useMemo(() => {
@@ -202,9 +206,13 @@ export function useWorkbenchNavigation({
 		}
 	}, []);
 
-	// Navigate from search results
+	// Navigate from search results (optionally targeting a specific item inside the folder)
 	const handleNavigateFromSearch = useCallback(
-		(folderId: number | null, category?: Category) => {
+		(
+			folderId: number | null,
+			category?: Category,
+			targetItemId?: string | number,
+		) => {
 			if (folderId !== null && folderId !== undefined) {
 				const target = folders.find((f) => f.id === folderId);
 				if (target) {
@@ -219,9 +227,17 @@ export function useWorkbenchNavigation({
 				setActiveCategory("未分类");
 				setSelectedFolderId(null);
 			}
+
+			if (targetItemId !== undefined && targetItemId !== null) {
+				setHighlightItemId(targetItemId);
+			}
 		},
 		[folders, setActiveCategory],
 	);
+
+	const clearHighlightItem = useCallback(() => {
+		setHighlightItemId(null);
+	}, []);
 
 	return {
 		selectedFolderId,
@@ -230,6 +246,9 @@ export function useWorkbenchNavigation({
 		setCurrentFolderId,
 		searchQuery,
 		setSearchQuery,
+		highlightItemId,
+		setHighlightItemId,
+		clearHighlightItem,
 		dynamicCategories,
 		categoryFolders,
 		filteredFolders,

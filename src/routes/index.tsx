@@ -102,6 +102,8 @@ function WorkbenchHome() {
 		handleClassificationComplete,
 		handleBookmarksImported,
 		handleNavigateFromSearch,
+		highlightItemId,
+		clearHighlightItem,
 		reloadFromDb,
 	} = useWorkbenchData({
 		...initialData,
@@ -243,6 +245,8 @@ function WorkbenchHome() {
 								folder={selectedFolder}
 								categoryFolders={filteredFolders}
 								allFolders={folders}
+								highlightItemId={highlightItemId}
+								onHighlightClear={clearHighlightItem}
 								onSelectFolder={handleSelectFolder}
 								onCreateFolder={openCreateFolderModal}
 								onEdit={openEditFolderModal}

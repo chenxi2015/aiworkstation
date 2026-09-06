@@ -33,7 +33,11 @@ export interface SearchTabContentProps {
 	selectedFolder?: Folder | null;
 	activeCategory?: Category;
 	scopeMode?: "global" | "folder";
-	onNavigateToFolder?: (folderId: number | null, category?: Category) => void;
+	onNavigateToFolder?: (
+		folderId: number | null,
+		category?: Category,
+		targetItemId?: string | number,
+	) => void;
 	onTransferToAiChat: (query: string) => void;
 	onDataChanged?: () => void;
 }

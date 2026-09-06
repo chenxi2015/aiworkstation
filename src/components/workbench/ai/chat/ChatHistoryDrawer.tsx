@@ -1,5 +1,13 @@
 import { Button, Tooltip } from "@heroui/react";
-import { Clock, Download, MessageSquare, Plus, Search, Trash2, X } from "lucide-react";
+import {
+	Clock,
+	Download,
+	MessageSquare,
+	Plus,
+	Search,
+	Trash2,
+	X,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import type { ChatSession } from "../../../../services/workbenchStorage";
 import { ConfirmDialog } from "../../ConfirmDialog";
@@ -44,7 +52,8 @@ export function ChatHistoryDrawer({
 				Array.isArray(s.messages) &&
 				s.messages.some(
 					(m: any) =>
-						typeof m.content === "string" && m.content.toLowerCase().includes(q),
+						typeof m.content === "string" &&
+						m.content.toLowerCase().includes(q),
 				)
 			) {
 				return true;
@@ -151,16 +160,12 @@ export function ChatHistoryDrawer({
 						filteredSessions.map((session) => {
 							const isCurrent = session.id === currentSessionId;
 							const msgCount = session.messages?.length || 0;
-							const previewText =
-								session.messages && session.messages.length > 0
-									? (session.messages[session.messages.length - 1] as any)
-											?.content || ""
-									: "";
 
 							return (
-								<div
+								<button
+									type="button"
 									key={session.id}
-									className={`group relative p-2.5 rounded-xl border text-left transition-all duration-150 cursor-pointer select-none ${
+									className={`group relative w-full p-2.5 rounded-xl border text-left transition-all duration-150 cursor-pointer select-none block ${
 										isCurrent
 											? "bg-accent-soft/40 border-accent/60 shadow-xs ring-1 ring-accent/20"
 											: "bg-surface border-border/60 hover:border-accent/40 hover:bg-surface-secondary/40"
@@ -170,8 +175,8 @@ export function ChatHistoryDrawer({
 										onClose();
 									}}
 								>
-									<div className="flex items-start justify-between gap-2">
-										<div className="flex items-center gap-1.5 min-w-0">
+									<div className="flex items-center justify-between gap-2">
+										<div className="flex items-center gap-1.5 min-w-0 flex-1">
 											<MessageSquare
 												className={`w-3.5 h-3.5 shrink-0 ${
 													isCurrent ? "text-accent" : "text-muted"
@@ -213,23 +218,16 @@ export function ChatHistoryDrawer({
 										</div>
 									</div>
 
-									{/* Message Preview */}
-									{previewText && (
-										<p className="text-[10px] text-muted line-clamp-1 mt-1 leading-normal pl-5">
-											{previewText.replace(/[#*`_]/g, "")}
-										</p>
-									)}
-
-									{/* Meta */}
-									<div className="flex items-center justify-between mt-1.5 pl-5 text-[9px] text-muted">
+									{/* Meta info: timestamp & count */}
+									<div className="flex items-center justify-between mt-1 pl-5 text-[10px] text-muted">
 										<span>
 											{session.updatedAt || session.createdAt || "刚刚"}
 										</span>
-										<span className="px-1.5 py-0.2 rounded-full bg-surface-secondary border border-border/40">
+										<span className="px-1.5 py-0.2 rounded-full bg-surface-secondary border border-border/40 text-[9px]">
 											{msgCount} 条消息
 										</span>
 									</div>
-								</div>
+								</button>
 							);
 						})
 					)}

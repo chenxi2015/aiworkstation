@@ -70,7 +70,7 @@ export function FolderGridPreview({
 						};
 
 						return (
-							<Tooltip key={item.id || `${item.name}-${index}`}>
+							<Tooltip key={`${item.id ?? item.name}_${index}`}>
 								<Tooltip.Trigger className="w-full min-w-0 block">
 									<button
 										type="button"

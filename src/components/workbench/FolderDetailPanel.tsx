@@ -16,6 +16,8 @@ export interface FolderDetailPanelProps {
 	folder: Folder | null;
 	categoryFolders?: Folder[];
 	allFolders?: Folder[];
+	highlightItemId?: string | number | null;
+	onHighlightClear?: () => void;
 	onSelectFolder?: (id: number) => void;
 	onCreateFolder?: () => void;
 	onEdit: (folder: Folder) => void;
@@ -72,6 +74,8 @@ export const FolderDetailPanel = memo(function FolderDetailPanel({
 	folder,
 	categoryFolders = [],
 	allFolders = [],
+	highlightItemId,
+	onHighlightClear,
 	onSelectFolder,
 	onCreateFolder,
 	onEdit,
@@ -170,6 +174,8 @@ export const FolderDetailPanel = memo(function FolderDetailPanel({
 				<FolderItemList
 					folder={folder}
 					allFolders={allFolders}
+					highlightItemId={highlightItemId}
+					onHighlightClear={onHighlightClear}
 					onDeleteItem={onDeleteItem}
 					onMoveItem={onMoveItem}
 					selectedTypeFilter={typeFilter}

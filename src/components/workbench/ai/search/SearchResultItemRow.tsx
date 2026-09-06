@@ -19,7 +19,11 @@ export interface SearchResultItemRowProps {
 	onToggleCheck: (e: React.MouseEvent) => void;
 	onSelectRow: () => void;
 	onOpenAssign: (e?: React.MouseEvent) => void;
-	onNavigateToFolder?: (folderId: number | null, category?: Category) => void;
+	onNavigateToFolder?: (
+		folderId: number | null,
+		category?: Category,
+		targetItemId?: string | number,
+	) => void;
 	onCloseModal: () => void;
 }
 
@@ -147,6 +151,7 @@ export const SearchResultItemRow = memo(function SearchResultItemRow({
 									onNavigateToFolder(
 										item.folderId ?? null,
 										item.category as Category,
+										item.id ?? item.url,
 									);
 									onCloseModal();
 								}}
@@ -214,6 +219,7 @@ export const SearchResultItemRow = memo(function SearchResultItemRow({
 										onNavigateToFolder?.(
 											item.folderId ?? null,
 											item.category as Category,
+											item.id ?? item.url,
 										);
 										onCloseModal();
 									} else if (key === "open" && item.url) {

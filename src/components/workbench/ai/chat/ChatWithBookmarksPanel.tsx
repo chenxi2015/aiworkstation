@@ -56,7 +56,11 @@ export interface ChatWithBookmarksPanelProps {
 	folders?: Folder[];
 	categories?: string[];
 	settings?: WorkbenchSettings;
-	onNavigateToFolder?: (folderId: number | null, category?: Category) => void;
+	onNavigateToFolder?: (
+		folderId: number | null,
+		category?: Category,
+		targetItemId?: string | number,
+	) => void;
 	onDataChanged?: () => void;
 	className?: string;
 }

@@ -25,7 +25,11 @@ export interface ChatMessageListProps {
 		createMode?: boolean,
 	) => void;
 	onSelectPrompt: (prompt: string) => void;
-	onNavigateToFolder?: (folderId: number | null, category?: Category) => void;
+	onNavigateToFolder?: (
+		folderId: number | null,
+		category?: Category,
+		targetItemId?: string | number,
+	) => void;
 }
 
 /**

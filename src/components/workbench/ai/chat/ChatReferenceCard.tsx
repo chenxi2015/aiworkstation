@@ -17,7 +17,11 @@ export interface ChatReferenceCardProps {
 	isChecked: boolean;
 	onToggleCheck: () => void;
 	onOpenAssign: (e?: React.MouseEvent) => void;
-	onNavigateToFolder?: (folderId: number | null, category?: Category) => void;
+	onNavigateToFolder?: (
+		folderId: number | null,
+		category?: Category,
+		targetItemId?: string | number,
+	) => void;
 }
 
 /**
@@ -120,6 +124,7 @@ export const ChatReferenceCard = memo(function ChatReferenceCard({
 									onNavigateToFolder(
 										reference.folderId ?? null,
 										reference.category,
+										reference.id ?? reference.url,
 									)
 								}
 								className="text-accent font-medium px-1.5 py-0.2 rounded bg-accent-soft/60 border border-accent/30 inline-flex items-center gap-1 max-w-[120px] cursor-pointer transition-colors hover:bg-accent-soft hover:border-accent/60"
@@ -180,6 +185,7 @@ export const ChatReferenceCard = memo(function ChatReferenceCard({
 										onNavigateToFolder?.(
 											reference.folderId ?? null,
 											reference.category,
+											reference.id ?? reference.url,
 										);
 									} else if (key === "open" && reference.url) {
 										window.open(reference.url, "_blank", "noreferrer");

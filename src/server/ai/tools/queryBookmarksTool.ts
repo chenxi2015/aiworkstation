@@ -61,6 +61,13 @@ export const queryBookmarksInputSchema = z
 			.nullable()
 			.optional()
 			.describe("返回数量上限，默认 20，最多 50"),
+		purpose: z
+			.enum(["display_to_user", "internal_inspection"])
+			.nullable()
+			.optional()
+			.describe(
+				"查询意图：默认为 'display_to_user'（用户明确需要查阅/推荐书签列表，会在前端展示书签参考卡片）；若当前是在进行架构规划、分类重组、方案诊断或内部盘点，请传入 'internal_inspection'（仅供 Agent 内部思考分析，不在前端展示嘈杂的网址卡片）",
+			),
 	})
 	.passthrough();
 
@@ -122,12 +129,16 @@ export function executeQueryBookmarks(
 
 	const items = workbenchDb.queryBookmarks(queryParams);
 
-	const references: SearchResultItem[] = items.map((item, idx) => ({
-		...item,
-		score: 1.0 - idx * 0.01,
-		matchType: "keyword",
-		matchReason: `精确查询命中 (${timeResolution.description})`,
-	}));
+	// When purpose is internal_inspection, omit references so UI won't show noisy card list
+	const isInternalInspection = args.purpose === "internal_inspection";
+	const references: SearchResultItem[] = isInternalInspection
+		? []
+		: items.map((item, idx) => ({
+				...item,
+				score: 1.0 - idx * 0.01,
+				matchType: "keyword",
+				matchReason: `精确查询命中 (${timeResolution.description})`,
+			}));
 
 	const filterDescs: string[] = [];
 	if (timeResolution.description)
@@ -185,6 +196,6 @@ export function executeQueryBookmarks(
 export const queryBookmarksToolDef = toolDefinition({
 	name: "query_bookmarks",
 	description:
-		"按时间范围（今天/昨天/本周/上周/本月/最近7天等）、指定日期、所属分类/文件夹、标签或关键词，精准查询用户本地 SQLite 知识库中收藏的书签与工具列表。当用户询问最近收藏了什么、本周/今天存了什么网站、或特定分类下的全部收藏时必须调用此工具。",
+		"按时间范围（今天/昨天/本周/上周/本月/最近7天等）、指定日期、所属分类/文件夹、标签或关键词，精准查询用户本地 SQLite 知识库中收藏的书签与工具列表。支持通过 purpose 参数指定是向用户呈现还是供 Agent 内部规划盘点。",
 	inputSchema: queryBookmarksInputSchema,
 });

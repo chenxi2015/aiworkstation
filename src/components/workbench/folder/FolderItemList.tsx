@@ -17,6 +17,8 @@ const INCREMENTAL_CHUNK_SIZE = 30;
 export interface FolderItemListProps {
 	folder: Folder;
 	allFolders?: Folder[];
+	highlightItemId?: string | number | null;
+	onHighlightClear?: () => void;
 	onDeleteItem?: (item: WorkbenchItem, folderId: number) => void;
 	onMoveItem?: (
 		item: WorkbenchItem,
@@ -34,6 +36,8 @@ export interface FolderItemListProps {
 export const FolderItemList = memo(function FolderItemList({
 	folder,
 	allFolders = [],
+	highlightItemId,
+	onHighlightClear,
 	onDeleteItem,
 	onMoveItem,
 	selectedTypeFilter: controlledTypeFilter,
@@ -43,6 +47,9 @@ export const FolderItemList = memo(function FolderItemList({
 	const [localTypeFilter, setLocalTypeFilter] = useState("all");
 	const [viewMode, setViewMode] = useState<"list" | "grid">("list");
 	const [visibleCount, setVisibleCount] = useState(INITIAL_CHUNK_SIZE);
+	const [activeHighlightId, setActiveHighlightId] = useState<
+		string | number | null
+	>(null);
 
 	const selectedType = controlledTypeFilter ?? localTypeFilter;
 	const setSelectedType = controlledOnSelectTypeFilter ?? setLocalTypeFilter;
@@ -52,6 +59,64 @@ export const FolderItemList = memo(function FolderItemList({
 	useEffect(() => {
 		setVisibleCount(INITIAL_CHUNK_SIZE);
 	}, [folder.id, selectedType, localSearchQuery]);
+
+	// Scroll and pulse highlight when highlightItemId changes
+	useEffect(() => {
+		if (!highlightItemId) return;
+
+		const targetIndex = folder.items.findIndex(
+			(item) =>
+				(item.id !== undefined &&
+					item.id !== null &&
+					String(item.id) === String(highlightItemId)) ||
+				item.url === highlightItemId,
+		);
+
+		if (targetIndex !== -1) {
+			const targetItem = folder.items[targetIndex];
+			const matchKey = targetItem.id ?? targetItem.url ?? null;
+			setActiveHighlightId(matchKey);
+
+			// Reset filter / search if hidden
+			if (selectedType !== "all") {
+				setSelectedType("all");
+			}
+			if (localSearchQuery.trim()) {
+				setLocalSearchQuery("");
+			}
+
+			// Ensure visible
+			if (targetIndex >= visibleCount) {
+				setVisibleCount(targetIndex + INCREMENTAL_CHUNK_SIZE);
+			}
+
+			const timer = setTimeout(() => {
+				const selectorKey = CSS.escape(String(matchKey));
+				const el = document.querySelector(`[data-item-key="${selectorKey}"]`);
+				if (el) {
+					el.scrollIntoView({ behavior: "smooth", block: "center" });
+				}
+			}, 100);
+
+			const clearTimer = setTimeout(() => {
+				setActiveHighlightId(null);
+				onHighlightClear?.();
+			}, 3000);
+
+			return () => {
+				clearTimeout(timer);
+				clearTimeout(clearTimer);
+			};
+		}
+	}, [
+		highlightItemId,
+		folder.items,
+		selectedType,
+		localSearchQuery,
+		visibleCount,
+		setSelectedType,
+		onHighlightClear,
+	]);
 
 	// Other folders available for moving items
 	const otherFolders = useMemo(() => {
@@ -222,81 +287,124 @@ export const FolderItemList = memo(function FolderItemList({
 			) : viewMode === "list" ? (
 				/* Compact List Mode */
 				<div className="space-y-1">
-					{visibleItems.map((item, index) => (
-						<DraggableItem
-							key={item.id || `${item.name}-${index}`}
-							item={item}
-							sourceFolderId={folder.id}
-						>
-							<WorkbenchItemCard
-								item={item}
-								index={index}
-								compact={true}
-								otherFolders={otherFolders}
-								showMoveDropdown={true}
-								onDeleteItem={
-									onDeleteItem ? (it) => onDeleteItem(it, folder.id) : undefined
-								}
-								onMoveItem={
-									onMoveItem
-										? (it, targetId) => onMoveItem(it, folder.id, targetId)
-										: undefined
-								}
-							/>
-						</DraggableItem>
-					))}
+					{visibleItems.map((item, index) => {
+						const itemDomKey = String(
+							item.id ?? item.url ?? `${item.name}-${index}`,
+						);
+						const reactKey = `${itemDomKey}_${index}`;
+						const isHighlighted =
+							activeHighlightId !== null &&
+							(String(item.id) === String(activeHighlightId) ||
+								item.url === activeHighlightId);
+
+						return (
+							<div
+								key={reactKey}
+								data-item-key={itemDomKey}
+								className={`rounded-xl transition-all duration-500 ${
+									isHighlighted
+										? "ring-2 ring-accent bg-accent/15 shadow-sm scale-[1.01]"
+										: ""
+								}`}
+							>
+								<DraggableItem item={item} sourceFolderId={folder.id}>
+									<WorkbenchItemCard
+										item={item}
+										index={index}
+										compact={true}
+										otherFolders={otherFolders}
+										showMoveDropdown={true}
+										onDeleteItem={
+											onDeleteItem
+												? (it) => onDeleteItem(it, folder.id)
+												: undefined
+										}
+										onMoveItem={
+											onMoveItem
+												? (it, targetId) => onMoveItem(it, folder.id, targetId)
+												: undefined
+										}
+									/>
+								</DraggableItem>
+							</div>
+						);
+					})}
 				</div>
 			) : (
 				/* App Icon Grid Mode */
 				<div className="grid grid-cols-4 gap-1.5 pt-0.5">
-					{visibleItems.map((item, index) => (
-						<DraggableItem
-							key={item.id || `${item.name}-${index}`}
-							item={item}
-							sourceFolderId={folder.id}
-							className="min-w-0 w-full"
-						>
-							<Tooltip>
-								<Tooltip.Trigger className="w-full min-w-0 block">
-									<button
-										type="button"
-										onClick={() => {
-											if (item.url) {
-												window.open(item.url, "_blank", "noopener,noreferrer");
-											}
-										}}
-										className="group aspect-square w-full h-auto min-w-0 max-w-full rounded-xl bg-surface-secondary/60 hover:bg-accent-soft/80 border border-border/70 hover:border-accent/30 hover:scale-[1.04] transition-all duration-150 flex flex-col items-center justify-center p-1.5 cursor-pointer text-center relative overflow-hidden shadow-2xs"
-									>
-										<div className="w-6 h-6 rounded-lg bg-surface flex items-center justify-center shrink-0 shadow-2xs group-hover:bg-surface/90 transition-colors">
-											<ItemFavicon
-												url={item.url}
-												favicon={item.favicon}
-												type={item.type}
-												name={item.name}
-												size="xs"
-												className="group-hover:scale-110 transition-transform"
-												iconClassName="opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-transform"
-											/>
-										</div>
-										<span
-											className="text-[9px] font-medium text-foreground/80 group-hover:text-accent mt-1 truncate block w-full min-w-0 px-0.5 text-center leading-tight"
-											title={item.name}
-										>
-											{item.name}
-										</span>
-									</button>
-								</Tooltip.Trigger>
-								<Tooltip.Content className="text-xs py-1.5 px-2.5 max-w-[220px]">
-									<div className="font-semibold text-foreground line-clamp-1">
-										{item.name}
-									</div>
-									<div className="text-[10px] text-muted truncate mt-0.5">
-										{item.url}
-									</div>
-								</Tooltip.Content>
-							</Tooltip>
-						</DraggableItem>
-					))}
+					{visibleItems.map((item, index) => {
+						const itemDomKey = String(
+							item.id ?? item.url ?? `${item.name}-${index}`,
+						);
+						const reactKey = `${itemDomKey}_${index}`;
+						const isHighlighted =
+							activeHighlightId !== null &&
+							(String(item.id) === String(activeHighlightId) ||
+								item.url === activeHighlightId);
+
+						return (
+							<div
+								key={reactKey}
+								data-item-key={itemDomKey}
+								className={`rounded-xl transition-all duration-500 min-w-0 w-full ${
+									isHighlighted
+										? "ring-2 ring-accent bg-accent/20 shadow-sm scale-[1.05]"
+										: ""
+								}`}
+							>
+								<DraggableItem
+									item={item}
+									sourceFolderId={folder.id}
+									className="min-w-0 w-full"
+								>
+									<Tooltip>
+										<Tooltip.Trigger className="w-full min-w-0 block">
+											<button
+												type="button"
+												onClick={() => {
+													if (item.url) {
+														window.open(
+															item.url,
+															"_blank",
+															"noopener,noreferrer",
+														);
+													}
+												}}
+												className="group aspect-square w-full h-auto min-w-0 max-w-full rounded-xl bg-surface-secondary/60 hover:bg-accent-soft/80 border border-border/70 hover:border-accent/30 hover:scale-[1.04] transition-all duration-150 flex flex-col items-center justify-center p-1.5 cursor-pointer text-center relative overflow-hidden shadow-2xs"
+											>
+												<div className="w-6 h-6 rounded-lg bg-surface flex items-center justify-center shrink-0 shadow-2xs group-hover:bg-surface/90 transition-colors">
+													<ItemFavicon
+														url={item.url}
+														favicon={item.favicon}
+														type={item.type}
+														name={item.name}
+														size="xs"
+														className="group-hover:scale-110 transition-transform"
+														iconClassName="opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-transform"
+													/>
+												</div>
+												<span
+													className="text-[9px] font-medium text-foreground/80 group-hover:text-accent mt-1 truncate block w-full min-w-0 px-0.5 text-center leading-tight"
+													title={item.name}
+												>
+													{item.name}
+												</span>
+											</button>
+										</Tooltip.Trigger>
+										<Tooltip.Content className="text-xs py-1.5 px-2.5 max-w-[220px]">
+											<div className="font-semibold text-foreground line-clamp-1">
+												{item.name}
+											</div>
+											<div className="text-[10px] text-muted truncate mt-0.5">
+												{item.url}
+											</div>
+										</Tooltip.Content>
+									</Tooltip>
+								</DraggableItem>
+							</div>
+						);
+					})}
 				</div>
 			)}
 

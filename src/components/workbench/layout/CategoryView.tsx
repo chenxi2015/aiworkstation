@@ -1,6 +1,6 @@
 import { Button, EmptyState } from "@heroui/react";
 import { FolderPlus } from "lucide-react";
-import { memo } from "react";
+import { memo, useEffect } from "react";
 import { FolderCardSlot, FolderGridDropZone } from "../dnd/WorkbenchDnd";
 import { FolderCard } from "../FolderCard";
 import { FolderBreadcrumb } from "../folder/FolderBreadcrumb";
@@ -48,6 +48,21 @@ export const CategoryView = memo(function CategoryView({
 	allFolders,
 	onMoveFolder,
 }: CategoryViewProps) {
+	// Automatically scroll selected folder into viewport when selected
+	useEffect(() => {
+		if (selectedFolderId === null || selectedFolderId === undefined) return;
+		const timer = setTimeout(() => {
+			const targetEl = document.querySelector(
+				`[data-folder-id="${selectedFolderId}"]`,
+			);
+			if (targetEl) {
+				targetEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+			}
+		}, 120);
+
+		return () => clearTimeout(timer);
+	}, [selectedFolderId]);
+
 	if (isLoading) {
 		return (
 			<div className="flex-1 flex flex-col">
@@ -121,32 +136,38 @@ export const CategoryView = memo(function CategoryView({
 			<FolderGridDropZone>
 				<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5">
 					{folders.map((folder) => (
-						<FolderCardSlot key={folder.id} folder={folder}>
-							<FolderCard
-								folder={folder}
-								isSelected={folder.id === selectedFolderId}
-								childFolderCount={childFolderCounts[folder.id] ?? 0}
-								onClick={() => onSelectFolder(folder.id)}
-								onEnter={
-									onEnterFolder ? () => onEnterFolder(folder.id) : undefined
-								}
-								onEdit={onEditFolder ? () => onEditFolder(folder) : undefined}
-								onCreateFolder={onCreateFolder}
-								onCreateLink={
-									onCreateLink ? () => onCreateLink(folder) : undefined
-								}
-								onDelete={
-									onDeleteFolder ? () => onDeleteFolder(folder) : undefined
-								}
-								onAskAI={
-									onAskAIAboutFolder
-										? () => onAskAIAboutFolder(folder)
-										: undefined
-								}
-								allFolders={allFolders || folders}
-								onMoveFolder={onMoveFolder}
-							/>
-						</FolderCardSlot>
+						<div
+							key={folder.id}
+							data-folder-id={folder.id}
+							className="min-w-0 w-full"
+						>
+							<FolderCardSlot folder={folder}>
+								<FolderCard
+									folder={folder}
+									isSelected={folder.id === selectedFolderId}
+									childFolderCount={childFolderCounts[folder.id] ?? 0}
+									onClick={() => onSelectFolder(folder.id)}
+									onEnter={
+										onEnterFolder ? () => onEnterFolder(folder.id) : undefined
+									}
+									onEdit={onEditFolder ? () => onEditFolder(folder) : undefined}
+									onCreateFolder={onCreateFolder}
+									onCreateLink={
+										onCreateLink ? () => onCreateLink(folder) : undefined
+									}
+									onDelete={
+										onDeleteFolder ? () => onDeleteFolder(folder) : undefined
+									}
+									onAskAI={
+										onAskAIAboutFolder
+											? () => onAskAIAboutFolder(folder)
+											: undefined
+									}
+									allFolders={allFolders || folders}
+									onMoveFolder={onMoveFolder}
+								/>
+							</FolderCardSlot>
+						</div>
 					))}
 				</div>
 			</FolderGridDropZone>

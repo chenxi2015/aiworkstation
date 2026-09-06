@@ -76,9 +76,12 @@ export interface UseWorkbenchDataReturn {
 		newUnclassified: WorkbenchItem[],
 		onTriggerAI?: () => void,
 	) => void;
+	highlightItemId: string | number | null;
+	clearHighlightItem: () => void;
 	handleNavigateFromSearch: (
 		folderId: number | null,
 		category?: Category,
+		targetItemId?: string | number,
 	) => void;
 	reloadFromDb: () => Promise<void>;
 }
@@ -123,6 +126,8 @@ export function useWorkbenchData(
 		handleEnterFolder,
 		handleNavigateToContainer,
 		handleNavigateFromSearch,
+		highlightItemId,
+		clearHighlightItem,
 	} = useWorkbenchNavigation({
 		folders,
 		unclassified,
@@ -222,6 +227,8 @@ export function useWorkbenchData(
 		handleClassificationComplete,
 		handleBookmarksImported,
 		handleNavigateFromSearch,
+		highlightItemId,
+		clearHighlightItem,
 		reloadFromDb,
 	};
 }

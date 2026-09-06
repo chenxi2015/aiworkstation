@@ -221,7 +221,7 @@ export const FolderAppGridCover = memo(function FolderAppGridCover({
 			<div className={`grid place-items-center ${gridCols}`}>
 				{displayItems.map((item, idx) => (
 					<MicroAppTile
-						key={item.id || `${item.name}-${idx}`}
+						key={`${item.id ?? item.name}_${idx}`}
 						item={item}
 						layout={isQuarter ? "quarter" : "nine"}
 						size={size}

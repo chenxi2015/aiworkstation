@@ -4,6 +4,8 @@ import {
 	BookOpen,
 	Check,
 	CheckSquare,
+	ChevronDown,
+	ChevronUp,
 	Copy,
 	FolderInput,
 	FolderPlus,
@@ -41,7 +43,11 @@ export interface ChatMessageItemProps {
 		items: SearchResultItem[],
 		createMode?: boolean,
 	) => void;
-	onNavigateToFolder?: (folderId: number | null, category?: Category) => void;
+	onNavigateToFolder?: (
+		folderId: number | null,
+		category?: Category,
+		targetItemId?: string | number,
+	) => void;
 }
 
 /**
@@ -118,6 +124,8 @@ export const ChatMessageItem = memo(function ChatMessageItem({
 		setIsEditing(false);
 	};
 
+	const [isRefsExpanded, setIsRefsExpanded] = useState<boolean>(false);
+
 	const currentReferences = msg.references || [];
 	const selectedRefsInThisMsg = currentReferences.filter(
 		(r: SearchResultItem) => selectedRefKeys.has(r.id || r.url || ""),
@@ -127,6 +135,8 @@ export const ChatMessageItem = memo(function ChatMessageItem({
 		currentReferences.every((r: SearchResultItem) =>
 			selectedRefKeys.has(r.id || r.url || ""),
 		);
+	const effectiveRefsExpanded =
+		isRefsExpanded || selectedRefsInThisMsg.length > 0;
 
 	if (isSelectMode) {
 		return (
@@ -427,21 +437,42 @@ export const ChatMessageItem = memo(function ChatMessageItem({
 				</div>
 			)}
 
-			{/* References / Search Results Cards (displayed after thinking and streaming response completed) */}
+			{/* References / Search Results Cards (collapsible by default to avoid cluttering discussion) */}
 			{currentReferences.length > 0 && !msg.isStreaming && (
-				<div className="mt-2 w-full flex flex-col gap-2 p-3 rounded-xl bg-surface/90 border border-border shadow-2xs animate-in fade-in duration-200">
-					<div className="text-[11px] font-medium text-muted flex items-center justify-between">
-						<span className="inline-flex items-center gap-1">
-							<BookOpen className="w-3.5 h-3.5 text-accent" />
-							<span>命中的网址列表 ({currentReferences.length})</span>
-						</span>
+				<div className="mt-2 w-full flex flex-col rounded-xl bg-surface/90 border border-border animate-in fade-in duration-200 overflow-hidden">
+					{/* Toggle Header Bar */}
+					<div className="p-2.5 flex items-center justify-between text-[11px] font-medium text-muted hover:bg-surface-secondary/50 transition-colors">
+						<button
+							type="button"
+							onClick={() => setIsRefsExpanded(!effectiveRefsExpanded)}
+							className="inline-flex items-center gap-1.5 text-foreground hover:text-accent transition-colors cursor-pointer select-none text-left"
+						>
+							<BookOpen className="w-3.5 h-3.5 text-accent shrink-0" />
+							<span className="font-semibold">
+								命中的网址列表 ({currentReferences.length})
+							</span>
+							<span className="text-[10px] text-muted font-normal inline-flex items-center gap-0.5">
+								{effectiveRefsExpanded ? (
+									<>
+										<span>(点击收起)</span>
+										<ChevronUp className="w-3 h-3" />
+									</>
+								) : (
+									<>
+										<span>(点击展开查看)</span>
+										<ChevronDown className="w-3 h-3" />
+									</>
+								)}
+							</span>
+						</button>
+
 						<div className="flex items-center gap-2">
 							{selectedRefsInThisMsg.length > 0 && (
 								<span className="text-[10px] text-accent font-medium">
 									已选 {selectedRefsInThisMsg.length} 项
 								</span>
 							)}
-							{onToggleSelectGroup && (
+							{effectiveRefsExpanded && onToggleSelectGroup && (
 								<button
 									type="button"
 									onClick={() => onToggleSelectGroup(currentReferences)}
@@ -463,55 +494,62 @@ export const ChatMessageItem = memo(function ChatMessageItem({
 						</div>
 					</div>
 
-					{/* Reference items list with max height and internal scrolling */}
-					<div className="flex flex-col gap-1.5 max-h-72 sm:max-h-80 overflow-y-auto pr-1">
-						{currentReferences.map((ref: SearchResultItem, rIdx: number) => {
-							const refKey = ref.id || ref.url || rIdx;
-							const isChecked = selectedRefKeys.has(refKey);
+					{/* Collapsible Content */}
+					{effectiveRefsExpanded && (
+						<div className="p-3 pt-0 flex flex-col gap-2 border-t border-border/50">
+							{/* Reference items list with max height and internal scrolling */}
+							<div className="flex flex-col gap-1.5 max-h-72 sm:max-h-80 overflow-y-auto pr-1 pt-2">
+								{currentReferences.map(
+									(ref: SearchResultItem, rIdx: number) => {
+										const refKey = ref.id || ref.url || rIdx;
+										const isChecked = selectedRefKeys.has(refKey);
 
-							return (
-								<ChatReferenceCard
-									key={refKey}
-									reference={ref}
-									isChecked={isChecked}
-									onToggleCheck={() => onToggleRefCheck(refKey)}
-									onOpenAssign={(e) => onOpenAssignSingle(ref, e)}
-									onNavigateToFolder={onNavigateToFolder}
-								/>
-							);
-						})}
-					</div>
-
-					{/* Batch Actions Bar for selected references */}
-					{selectedRefsInThisMsg.length > 0 && (
-						<div className="mt-1 pt-2 border-t border-border flex items-center justify-between gap-1 flex-wrap bg-surface-secondary/40 p-1.5 rounded-lg">
-							<span className="text-[10px] text-foreground font-medium">
-								已选 {selectedRefsInThisMsg.length} 个书签
-							</span>
-							<div className="flex items-center gap-1">
-								<Button
-									variant="secondary"
-									size="sm"
-									className="h-6 px-2 text-[10px] rounded-md cursor-pointer flex items-center gap-1"
-									onPress={() =>
-										onOpenAssignMultiple(selectedRefsInThisMsg, false)
-									}
-								>
-									<FolderInput className="w-2.5 h-2.5" />
-									<span>归入已有</span>
-								</Button>
-								<Button
-									variant="primary"
-									size="sm"
-									className="h-6 px-2 text-[10px] rounded-md cursor-pointer flex items-center gap-1"
-									onPress={() =>
-										onOpenAssignMultiple(selectedRefsInThisMsg, true)
-									}
-								>
-									<FolderPlus className="w-2.5 h-2.5" />
-									<span>新建归入</span>
-								</Button>
+										return (
+											<ChatReferenceCard
+												key={`${ref.id ?? ref.url ?? "ref"}_${rIdx}`}
+												reference={ref}
+												isChecked={isChecked}
+												onToggleCheck={() => onToggleRefCheck(refKey)}
+												onOpenAssign={(e) => onOpenAssignSingle(ref, e)}
+												onNavigateToFolder={onNavigateToFolder}
+											/>
+										);
+									},
+								)}
 							</div>
+
+							{/* Batch Actions Bar for selected references */}
+							{selectedRefsInThisMsg.length > 0 && (
+								<div className="mt-1 pt-2 border-t border-border flex items-center justify-between gap-1 flex-wrap bg-surface-secondary/40 p-1.5 rounded-lg">
+									<span className="text-[10px] text-foreground font-medium">
+										已选 {selectedRefsInThisMsg.length} 个书签
+									</span>
+									<div className="flex items-center gap-1">
+										<Button
+											variant="secondary"
+											size="sm"
+											className="h-6 px-2 text-[10px] rounded-md cursor-pointer flex items-center gap-1"
+											onPress={() =>
+												onOpenAssignMultiple(selectedRefsInThisMsg, false)
+											}
+										>
+											<FolderInput className="w-2.5 h-2.5" />
+											<span>归入已有</span>
+										</Button>
+										<Button
+											variant="primary"
+											size="sm"
+											className="h-6 px-2 text-[10px] rounded-md cursor-pointer flex items-center gap-1"
+											onPress={() =>
+												onOpenAssignMultiple(selectedRefsInThisMsg, true)
+											}
+										>
+											<FolderPlus className="w-2.5 h-2.5" />
+											<span>新建归入</span>
+										</Button>
+									</div>
+								</div>
+							)}
 						</div>
 					)}
 				</div>
