@@ -9,6 +9,7 @@ import {
 	FolderPlus,
 	Pencil,
 	RotateCw,
+	Sparkles,
 	Square,
 	Trash2,
 	X,
@@ -174,206 +175,264 @@ export const ChatMessageItem = memo(function ChatMessageItem({
 		);
 	}
 
+	// User message: render as minimalist neutral rounded pill on the right
+	if (msg.role === "user") {
+		return (
+			<div className="w-full flex flex-col items-end gap-1 group relative my-2">
+				{isEditing ? (
+					<div className="w-full flex items-center gap-1.5 my-1">
+						{/* Cancel Button */}
+						<Tooltip>
+							<Tooltip.Trigger>
+								<button
+									type="button"
+									onClick={handleCancelEdit}
+									className="p-1 text-muted hover:text-foreground hover:bg-surface-secondary/80 rounded-md transition-colors cursor-pointer shrink-0"
+									aria-label="取消编辑"
+								>
+									<X className="w-4 h-4" />
+								</button>
+							</Tooltip.Trigger>
+							<Tooltip.Content className="text-[10px] py-0.5 px-1.5">
+								取消 (Esc)
+							</Tooltip.Content>
+						</Tooltip>
+
+						{/* Edit Textarea */}
+						<textarea
+							ref={textareaRef}
+							rows={1}
+							value={draftContent}
+							onChange={(e) => {
+								setDraftContent(e.target.value);
+								e.target.style.height = "auto";
+								e.target.style.height = `${Math.min(e.target.scrollHeight, 140)}px`;
+							}}
+							onKeyDown={(e) => {
+								if (e.key === "Enter" && !e.shiftKey) {
+									e.preventDefault();
+									handleSave();
+								} else if (e.key === "Escape") {
+									e.preventDefault();
+									handleCancelEdit();
+								}
+							}}
+							placeholder="编辑内容..."
+							className="flex-1 min-w-0 bg-surface border-2 border-accent rounded-xl px-3 py-1.5 text-xs text-foreground placeholder:text-muted focus:outline-none resize-none leading-relaxed shadow-xs max-h-36 transition-all"
+						/>
+
+						{/* Save Button */}
+						<Tooltip>
+							<Tooltip.Trigger>
+								<button
+									type="button"
+									onClick={handleSave}
+									disabled={!draftContent.trim() || isLoading}
+									className="w-7 h-7 rounded-full bg-accent hover:bg-accent/90 disabled:opacity-50 text-accent-foreground flex items-center justify-center shrink-0 shadow-xs cursor-pointer transition-all"
+									aria-label="保存并发送"
+								>
+									<ArrowUp className="w-4 h-4" />
+								</button>
+							</Tooltip.Trigger>
+							<Tooltip.Content className="text-[10px] py-0.5 px-1.5">
+								保存并重新提问 (Enter)
+							</Tooltip.Content>
+						</Tooltip>
+					</div>
+				) : (
+					<div className="flex flex-col items-end gap-1 max-w-[85%] sm:max-w-[75%]">
+						{/* Clean neutral rounded pill (Reference Fig. 1 & 2 style) */}
+						<div className="bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-2xl px-4 py-2 text-sm leading-relaxed font-normal shadow-2xs">
+							<div className="whitespace-pre-wrap leading-relaxed">
+								{msg.content}
+							</div>
+						</div>
+
+						{/* Hover action toolbar */}
+						<div className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center gap-0.5 text-muted text-xs px-1">
+							<Tooltip>
+								<Tooltip.Trigger>
+									<button
+										type="button"
+										onClick={handleCopy}
+										className="p-1 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/80 transition-colors cursor-pointer"
+										aria-label="复制"
+									>
+										{copied ? (
+											<Check className="w-3.5 h-3.5 text-emerald-500" />
+										) : (
+											<Copy className="w-3.5 h-3.5" />
+										)}
+									</button>
+								</Tooltip.Trigger>
+								<Tooltip.Content className="text-[10px] py-0.5 px-1.5">
+									{copied ? "已复制" : "复制"}
+								</Tooltip.Content>
+							</Tooltip>
+
+							<Tooltip>
+								<Tooltip.Trigger>
+									<button
+										type="button"
+										onClick={() => setIsEditing(true)}
+										className="p-1 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/80 transition-colors cursor-pointer"
+										aria-label="编辑"
+									>
+										<Pencil className="w-3.5 h-3.5" />
+									</button>
+								</Tooltip.Trigger>
+								<Tooltip.Content className="text-[10px] py-0.5 px-1.5">
+									编辑
+								</Tooltip.Content>
+							</Tooltip>
+
+							<Tooltip>
+								<Tooltip.Trigger>
+									<button
+										type="button"
+										onClick={() => onResend(index)}
+										disabled={isLoading}
+										className="p-1 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/80 disabled:opacity-40 transition-colors cursor-pointer"
+										aria-label="重新发送"
+									>
+										<RotateCw className="w-3.5 h-3.5" />
+									</button>
+								</Tooltip.Trigger>
+								<Tooltip.Content className="text-[10px] py-0.5 px-1.5">
+									重新发送
+								</Tooltip.Content>
+							</Tooltip>
+
+							<Tooltip>
+								<Tooltip.Trigger>
+									<button
+										type="button"
+										onClick={() =>
+											onStartSelectDelete
+												? onStartSelectDelete(index)
+												: onDelete(index)
+										}
+										className="p-1 rounded-md text-muted hover:text-danger hover:bg-danger/10 transition-colors cursor-pointer"
+										aria-label="删除"
+									>
+										<Trash2 className="w-3.5 h-3.5" />
+									</button>
+								</Tooltip.Trigger>
+								<Tooltip.Content className="text-[10px] py-0.5 px-1.5">
+									删除
+								</Tooltip.Content>
+							</Tooltip>
+						</div>
+					</div>
+				)}
+			</div>
+		);
+	}
+
+	// Assistant response: completely borderless, document canvas layout (Reference Fig. 1 & 2)
 	return (
-		<div
-			className={`flex flex-col gap-1 group relative ${
-				msg.role === "user" ? "items-end" : "items-start"
-			}`}
-		>
-			{/* Sender Info & Timestamp */}
-			<div className="flex items-center gap-1.5 text-[10px] text-muted px-1">
-				<span className="font-medium">
-					{msg.role === "user" ? "你" : "AI 助手"}
-				</span>
-				{msg.timestamp && <span>· {msg.timestamp}</span>}
+		<div className="w-full flex flex-col gap-1.5 group relative pt-1 pb-4 my-2">
+			{/* Assistant brand header (Fig. 1 style) */}
+			<div className="flex items-center gap-1.5 text-xs font-semibold text-neutral-800 dark:text-neutral-200 select-none pb-0.5">
+				<div className="w-4 h-4 rounded-full bg-gradient-to-tr from-accent to-primary flex items-center justify-center text-white text-[9px] shadow-2xs shrink-0">
+					<Sparkles className="w-2.5 h-2.5 text-white" />
+				</div>
+				<span>AI 助手</span>
+				{msg.timestamp && (
+					<span className="text-[10.5px] text-neutral-400 font-normal">
+						· {msg.timestamp}
+					</span>
+				)}
 			</div>
 
-			{/* Inline Edit View or Bubble Display View */}
-			{isEditing ? (
-				<div className="w-full flex items-center gap-1.5 my-1">
-					{/* Cancel Button */}
+			{/* Inline reasoning & tool process timeline */}
+			{msg.steps && msg.steps.length > 0 && (
+				<div className="mb-3">
+					<AgentStepTimeline steps={msg.steps} isStreaming={msg.isStreaming} />
+				</div>
+			)}
+
+			{/* Main markdown response body flowing freely without card borders */}
+			{msg.content ? (
+				<div className="text-foreground leading-relaxed">
+					<AiMarkdownRenderer content={msg.content} compact={false} />
+				</div>
+			) : msg.isStreaming ? (
+				<div className="flex items-center gap-2 text-muted py-2">
+					<span className="inline-block w-2 h-2 rounded-full bg-accent animate-ping" />
+					<span className="text-xs">
+						{msg.steps && msg.steps.length > 0
+							? "Agent 正在根据检索与工具结果整理回答..."
+							: "Agent 正在规划思考步骤..."}
+					</span>
+				</div>
+			) : null}
+
+			{/* Hover Action Toolbar for Assistant: Copy, Regenerate, Delete */}
+			{!msg.isStreaming && (
+				<div className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center gap-1 text-muted text-xs pt-1">
 					<Tooltip>
 						<Tooltip.Trigger>
 							<button
 								type="button"
-								onClick={handleCancelEdit}
-								className="p-1 text-muted hover:text-foreground hover:bg-surface-secondary/80 rounded-md transition-colors cursor-pointer shrink-0"
-								aria-label="取消编辑"
+								onClick={handleCopy}
+								className="p-1 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/80 transition-colors cursor-pointer"
+								aria-label="复制回答"
 							>
-								<X className="w-4 h-4" />
+								{copied ? (
+									<Check className="w-3.5 h-3.5 text-emerald-500" />
+								) : (
+									<Copy className="w-3.5 h-3.5" />
+								)}
 							</button>
 						</Tooltip.Trigger>
 						<Tooltip.Content className="text-[10px] py-0.5 px-1.5">
-							取消 (Esc)
+							{copied ? "已复制" : "复制"}
 						</Tooltip.Content>
 					</Tooltip>
 
-					{/* Edit Textarea with Blue Accent Border */}
-					<textarea
-						ref={textareaRef}
-						rows={1}
-						value={draftContent}
-						onChange={(e) => {
-							setDraftContent(e.target.value);
-							e.target.style.height = "auto";
-							e.target.style.height = `${Math.min(e.target.scrollHeight, 140)}px`;
-						}}
-						onKeyDown={(e) => {
-							if (e.key === "Enter" && !e.shiftKey) {
-								e.preventDefault();
-								handleSave();
-							} else if (e.key === "Escape") {
-								e.preventDefault();
-								handleCancelEdit();
-							}
-						}}
-						placeholder="编辑内容..."
-						className="flex-1 min-w-0 bg-surface border-2 border-accent rounded-xl px-3 py-1.5 text-xs text-foreground placeholder:text-muted focus:outline-none resize-none leading-relaxed shadow-xs max-h-36 transition-all"
-					/>
-
-					{/* Send / Save Button */}
 					<Tooltip>
 						<Tooltip.Trigger>
 							<button
 								type="button"
-								onClick={handleSave}
-								disabled={!draftContent.trim() || isLoading}
-								className="w-7 h-7 rounded-full bg-accent hover:bg-accent/90 disabled:opacity-50 text-accent-foreground flex items-center justify-center shrink-0 shadow-xs cursor-pointer transition-all"
-								aria-label="保存并发送"
+								onClick={() => onResend(index)}
+								disabled={isLoading}
+								className="p-1 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/80 disabled:opacity-40 transition-colors cursor-pointer"
+								aria-label="重新生成"
 							>
-								<ArrowUp className="w-4 h-4" />
+								<RotateCw className="w-3.5 h-3.5" />
 							</button>
 						</Tooltip.Trigger>
 						<Tooltip.Content className="text-[10px] py-0.5 px-1.5">
-							{msg.role === "user"
-								? "保存并重新提问 (Enter)"
-								: "保存修改 (Enter)"}
+							重新生成
+						</Tooltip.Content>
+					</Tooltip>
+
+					<Tooltip>
+						<Tooltip.Trigger>
+							<button
+								type="button"
+								onClick={() =>
+									onStartSelectDelete
+										? onStartSelectDelete(index)
+										: onDelete(index)
+								}
+								className="p-1 rounded-md text-muted hover:text-danger hover:bg-danger/10 transition-colors cursor-pointer"
+								aria-label="删除"
+							>
+								<Trash2 className="w-3.5 h-3.5" />
+							</button>
+						</Tooltip.Trigger>
+						<Tooltip.Content className="text-[10px] py-0.5 px-1.5">
+							删除
 						</Tooltip.Content>
 					</Tooltip>
 				</div>
-			) : (
-				<>
-					{/* Message Bubble */}
-					<div
-						className={`p-3 rounded-2xl max-w-full leading-relaxed text-xs shadow-2xs ${
-							msg.role === "user"
-								? "bg-accent text-accent-foreground rounded-tr-xs shadow-xs font-normal"
-								: "bg-surface border border-border text-foreground rounded-tl-xs"
-						}`}
-					>
-						{msg.role === "user" ? (
-							<div className="whitespace-pre-wrap leading-relaxed text-xs">
-								{msg.content}
-							</div>
-						) : (
-							<>
-								{msg.steps && msg.steps.length > 0 && (
-									<AgentStepTimeline
-										steps={msg.steps}
-										isStreaming={msg.isStreaming}
-									/>
-								)}
-								{msg.content ? (
-									<AiMarkdownRenderer content={msg.content} compact={true} />
-								) : msg.isStreaming ? (
-									<div className="flex items-center gap-2 text-neutral-400 py-1">
-										<span className="inline-block w-2 h-2 rounded-full bg-primary-500 animate-ping" />
-										<span className="text-xs">Agent 正在分析与组织回答...</span>
-									</div>
-								) : null}
-							</>
-						)}
-					</div>
-
-					{/* Hover Action Toolbar: Copy, Edit, Resend, Delete */}
-					<div
-						className={`opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center gap-0.5 text-muted text-xs mt-0.5 px-1 ${
-							msg.role === "user" ? "justify-end" : "justify-start"
-						}`}
-					>
-						{/* Copy */}
-						<Tooltip>
-							<Tooltip.Trigger>
-								<button
-									type="button"
-									onClick={handleCopy}
-									className="p-1 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/80 transition-colors cursor-pointer"
-									aria-label="复制"
-								>
-									{copied ? (
-										<Check className="w-3.5 h-3.5 text-emerald-500" />
-									) : (
-										<Copy className="w-3.5 h-3.5" />
-									)}
-								</button>
-							</Tooltip.Trigger>
-							<Tooltip.Content className="text-[10px] py-0.5 px-1.5">
-								{copied ? "已复制" : "复制"}
-							</Tooltip.Content>
-						</Tooltip>
-
-						{/* Edit */}
-						<Tooltip>
-							<Tooltip.Trigger>
-								<button
-									type="button"
-									onClick={() => setIsEditing(true)}
-									className="p-1 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/80 transition-colors cursor-pointer"
-									aria-label="编辑"
-								>
-									<Pencil className="w-3.5 h-3.5" />
-								</button>
-							</Tooltip.Trigger>
-							<Tooltip.Content className="text-[10px] py-0.5 px-1.5">
-								编辑
-							</Tooltip.Content>
-						</Tooltip>
-
-						{/* Resend / Regenerate */}
-						<Tooltip>
-							<Tooltip.Trigger>
-								<button
-									type="button"
-									onClick={() => onResend(index)}
-									disabled={isLoading}
-									className="p-1 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/80 disabled:opacity-40 transition-colors cursor-pointer"
-									aria-label={msg.role === "user" ? "重新发送" : "重新生成"}
-								>
-									<RotateCw className="w-3.5 h-3.5" />
-								</button>
-							</Tooltip.Trigger>
-							<Tooltip.Content className="text-[10px] py-0.5 px-1.5">
-								{msg.role === "user" ? "重新发送" : "重新生成"}
-							</Tooltip.Content>
-						</Tooltip>
-
-						{/* Delete - triggers multi-selection delete mode */}
-						<Tooltip>
-							<Tooltip.Trigger>
-								<button
-									type="button"
-									onClick={() =>
-										onStartSelectDelete
-											? onStartSelectDelete(index)
-											: onDelete(index)
-									}
-									className="p-1 rounded-md text-muted hover:text-danger hover:bg-danger/10 transition-colors cursor-pointer"
-									aria-label="删除"
-								>
-									<Trash2 className="w-3.5 h-3.5" />
-								</button>
-							</Tooltip.Trigger>
-							<Tooltip.Content className="text-[10px] py-0.5 px-1.5">
-								删除
-							</Tooltip.Content>
-						</Tooltip>
-					</div>
-				</>
 			)}
 
-			{/* References / Search Results Cards */}
-			{currentReferences.length > 0 && (
-				<div className="mt-1.5 w-full flex flex-col gap-2 p-3 rounded-xl bg-surface/90 border border-border shadow-2xs">
+			{/* References / Search Results Cards (displayed after thinking and streaming response completed) */}
+			{currentReferences.length > 0 && !msg.isStreaming && (
+				<div className="mt-2 w-full flex flex-col gap-2 p-3 rounded-xl bg-surface/90 border border-border shadow-2xs animate-in fade-in duration-200">
 					<div className="text-[11px] font-medium text-muted flex items-center justify-between">
 						<span className="inline-flex items-center gap-1">
 							<BookOpen className="w-3.5 h-3.5 text-accent" />
@@ -407,8 +466,8 @@ export const ChatMessageItem = memo(function ChatMessageItem({
 						</div>
 					</div>
 
-					{/* Reference items list */}
-					<div className="flex flex-col gap-1.5">
+					{/* Reference items list with max height and internal scrolling */}
+					<div className="flex flex-col gap-1.5 max-h-72 sm:max-h-80 overflow-y-auto pr-1">
 						{currentReferences.map((ref: SearchResultItem, rIdx: number) => {
 							const refKey = ref.id || ref.url || rIdx;
 							const isChecked = selectedRefKeys.has(refKey);

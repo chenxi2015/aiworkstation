@@ -5,8 +5,8 @@ import type {
 	Folder,
 	SearchResultItem,
 } from "../../components/workbench/types";
-import type { AgentStep } from "../../server/ai/agentTypes.ts";
 import { WorkbenchStorageService } from "../../services/workbenchStorage";
+import type { AgentStep } from "../../types/agent.ts";
 
 export type { AgentStep };
 

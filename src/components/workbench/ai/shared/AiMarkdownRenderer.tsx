@@ -77,7 +77,11 @@ export const AiMarkdownRenderer = memo(function AiMarkdownRenderer({
 				components={{
 					h1: ({ children, node, ...props }: ExtraProps<"h1">) => (
 						<h1
-							className="text-[14px] font-bold text-foreground mt-3 mb-1.5 leading-snug tracking-tight first:mt-0"
+							className={
+								compact
+									? "text-[14px] font-bold text-foreground mt-3 mb-1.5 leading-snug tracking-tight first:mt-0"
+									: "text-[18px] sm:text-[19px] font-bold text-foreground mt-5 mb-2.5 leading-snug tracking-tight first:mt-0"
+							}
 							{...props}
 						>
 							{children}
@@ -85,7 +89,11 @@ export const AiMarkdownRenderer = memo(function AiMarkdownRenderer({
 					),
 					h2: ({ children, node, ...props }: ExtraProps<"h2">) => (
 						<h2
-							className="text-[13px] font-bold text-foreground mt-2.5 mb-1 leading-snug tracking-tight first:mt-0"
+							className={
+								compact
+									? "text-[13px] font-bold text-foreground mt-2.5 mb-1 leading-snug tracking-tight first:mt-0"
+									: "text-[16px] sm:text-[17px] font-bold text-foreground mt-4.5 mb-2 leading-snug tracking-tight first:mt-0"
+							}
 							{...props}
 						>
 							{children}
@@ -93,7 +101,11 @@ export const AiMarkdownRenderer = memo(function AiMarkdownRenderer({
 					),
 					h3: ({ children, node, ...props }: ExtraProps<"h3">) => (
 						<h3
-							className="text-[12.5px] font-semibold text-foreground mt-2 mb-1 leading-snug first:mt-0"
+							className={
+								compact
+									? "text-[12.5px] font-semibold text-foreground mt-2 mb-1 leading-snug first:mt-0"
+									: "text-[14.5px] sm:text-[15px] font-semibold text-foreground mt-3.5 mb-1.5 leading-snug first:mt-0"
+							}
 							{...props}
 						>
 							{children}
@@ -101,7 +113,11 @@ export const AiMarkdownRenderer = memo(function AiMarkdownRenderer({
 					),
 					p: ({ children, node, ...props }: ExtraProps<"p">) => (
 						<p
-							className="text-[12px] text-foreground/90 leading-relaxed mb-2 last:mb-0"
+							className={
+								compact
+									? "text-[12px] text-foreground/90 leading-relaxed mb-2 last:mb-0"
+									: "text-[14px] sm:text-[14.5px] text-foreground/90 leading-[1.75] mb-3.5 last:mb-0"
+							}
 							{...props}
 						>
 							{children}
@@ -109,7 +125,11 @@ export const AiMarkdownRenderer = memo(function AiMarkdownRenderer({
 					),
 					ul: ({ children, node, ...props }: ExtraProps<"ul">) => (
 						<ul
-							className="list-disc list-outside pl-4 mb-2 space-y-0.5 text-[12px] text-foreground/90"
+							className={
+								compact
+									? "list-disc list-outside pl-4 mb-2 space-y-0.5 text-[12px] text-foreground/90"
+									: "list-disc list-outside pl-5 mb-3.5 space-y-2 text-[14px] sm:text-[14.5px] text-foreground/90"
+							}
 							{...props}
 						>
 							{children}
@@ -117,14 +137,21 @@ export const AiMarkdownRenderer = memo(function AiMarkdownRenderer({
 					),
 					ol: ({ children, node, ...props }: ExtraProps<"ol">) => (
 						<ol
-							className="list-decimal list-outside pl-4 mb-2 space-y-0.5 text-[12px] text-foreground/90"
+							className={
+								compact
+									? "list-decimal list-outside pl-4 mb-2 space-y-0.5 text-[12px] text-foreground/90"
+									: "list-decimal list-outside pl-5 mb-3.5 space-y-2 text-[14px] sm:text-[14.5px] text-foreground/90"
+							}
 							{...props}
 						>
 							{children}
 						</ol>
 					),
 					li: ({ children, node, ...props }: ExtraProps<"li">) => (
-						<li className="leading-relaxed" {...props}>
+						<li
+							className={compact ? "leading-relaxed" : "leading-[1.7]"}
+							{...props}
+						>
 							{children}
 						</li>
 					),
@@ -134,18 +161,31 @@ export const AiMarkdownRenderer = memo(function AiMarkdownRenderer({
 						...props
 					}: ExtraProps<"blockquote">) => (
 						<blockquote
-							className="border-l-2 border-accent/60 pl-2.5 my-2 text-[11.5px] text-muted italic bg-accent-soft/30 py-1 rounded-r"
+							className={
+								compact
+									? "border-l-2 border-accent/60 pl-2.5 my-2 text-[11.5px] text-muted italic bg-accent-soft/30 py-1 rounded-r"
+									: "border-l-2 border-accent/70 pl-3.5 my-3 text-[13.5px] text-muted leading-relaxed bg-accent-soft/20 py-1.5 rounded-r"
+							}
 							{...props}
 						>
 							{children}
 						</blockquote>
 					),
-					code: ({ children, className, node, ...props }: any) => {
+					code: ({
+						children,
+						className,
+						node,
+						...props
+					}: ExtraProps<"code">) => {
 						const isInline = !className;
 						if (isInline) {
 							return (
 								<code
-									className="px-1 py-0.5 text-[11px] font-mono bg-surface-secondary text-accent rounded border border-border/60"
+									className={
+										compact
+											? "px-1 py-0.5 text-[11px] font-mono bg-surface-secondary text-accent rounded border border-border/60"
+											: "px-1.5 py-0.5 text-[12.5px] font-mono bg-surface-secondary text-accent rounded border border-border/60"
+									}
 									{...props}
 								>
 									{children}
@@ -154,7 +194,7 @@ export const AiMarkdownRenderer = memo(function AiMarkdownRenderer({
 						}
 						return (
 							<code
-								className={`font-mono text-[11px] ${className || ""}`}
+								className={`font-mono ${compact ? "text-[11px]" : "text-[12.5px]"} ${className || ""}`}
 								{...props}
 							>
 								{children}

@@ -4,14 +4,15 @@ import type { Folder } from "../../types";
 
 export interface ChatPromptSuggestionsProps {
 	selectedFolder?: Folder | null;
+	scopeMode?: "global" | "folder";
 	onSelectPrompt: (prompt: string) => void;
 }
 
 const DEFAULT_GLOBAL_PROMPTS = [
-	"帮我检索所有关于 AI 视频剪辑与动画制作的开源库和工具",
-	"盘点我最近收藏的前端开发框架、组件库与提示词资源",
-	"我本周收藏了哪些实用网站？请按分类梳理并列出",
-	"根据我的书签，推荐一套高效率的自媒体内容创作工作流",
+	"检索我收藏的所有关于 AI、自动化与大模型相关的开源项目与工具",
+	"盘点我最近收藏的前端开发框架、组件库与实用资源",
+	"根据我的书签库，推荐一套高效的内容创作与自媒体运营工具集",
+	"分析我的全库书签资产，给出最有价值的核心工具与使用场景",
 ];
 
 /**
@@ -19,10 +20,13 @@ const DEFAULT_GLOBAL_PROMPTS = [
  */
 export const ChatPromptSuggestions = memo(function ChatPromptSuggestions({
 	selectedFolder,
+	scopeMode = "global",
 	onSelectPrompt,
 }: ChatPromptSuggestionsProps) {
+	const isFolderScope = scopeMode === "folder" && Boolean(selectedFolder);
+
 	const prompts = useMemo(() => {
-		if (selectedFolder && selectedFolder.items.length > 0) {
+		if (isFolderScope && selectedFolder) {
 			return [
 				`请深度盘点「${selectedFolder.name}」文件夹中的全部资源并总结核心亮点`,
 				`从「${selectedFolder.name}」中挑选最适合新手快速上手的 3 个工具`,
@@ -31,13 +35,17 @@ export const ChatPromptSuggestions = memo(function ChatPromptSuggestions({
 			];
 		}
 		return DEFAULT_GLOBAL_PROMPTS;
-	}, [selectedFolder]);
+	}, [isFolderScope, selectedFolder]);
 
 	return (
 		<div className="flex flex-col gap-2 mt-4 w-full">
 			<div className="flex items-center gap-1 text-[10px] font-semibold text-muted uppercase tracking-wider px-1">
 				<Sparkles className="w-3 h-3 text-accent" />
-				<span>{selectedFolder ? `针对「${selectedFolder.name}」提问` : "推荐快速提问"}</span>
+				<span>
+					{isFolderScope && selectedFolder
+						? `针对「${selectedFolder.name}」提问`
+						: "全库资产推荐提问"}
+				</span>
 			</div>
 			<div className="flex flex-col gap-1.5 w-full">
 				{prompts.map((prompt) => (

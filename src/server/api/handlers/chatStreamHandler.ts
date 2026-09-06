@@ -26,8 +26,10 @@ export async function handleChatStreamRequest(
 	res.write(": sse-connected\n\n");
 
 	const abortController = new AbortController();
-	req.on("close", () => {
-		abortController.abort();
+	res.on("close", () => {
+		if (!res.writableEnded) {
+			abortController.abort();
+		}
 	});
 
 	try {

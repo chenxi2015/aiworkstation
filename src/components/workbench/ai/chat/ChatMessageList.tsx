@@ -1,4 +1,4 @@
-import { Brain, Loader2 } from "lucide-react";
+import { Brain } from "lucide-react";
 import { type RefObject, useState } from "react";
 import type { ChatItem } from "../../../../hooks/ai/useAiChat";
 import type { Category, Folder, SearchResultItem } from "../../types";
@@ -9,6 +9,7 @@ export interface ChatMessageListProps {
 	messages: ChatItem[];
 	isLoading: boolean;
 	selectedFolder?: Folder | null;
+	scopeMode?: "global" | "folder";
 	selectedRefKeys: Set<string | number>;
 	messagesEndRef: RefObject<HTMLDivElement | null>;
 	onEditAndResend: (index: number, newContent: string) => void;
@@ -34,6 +35,7 @@ export function ChatMessageList({
 	messages,
 	isLoading,
 	selectedFolder,
+	scopeMode = "global",
 	selectedRefKeys,
 	messagesEndRef,
 	onEditAndResend,
@@ -114,6 +116,7 @@ export function ChatMessageList({
 					{/* Prompt Suggestions */}
 					<ChatPromptSuggestions
 						selectedFolder={selectedFolder}
+						scopeMode={scopeMode}
 						onSelectPrompt={onSelectPrompt}
 					/>
 				</div>
@@ -142,16 +145,6 @@ export function ChatMessageList({
 					onNavigateToFolder={onNavigateToFolder}
 				/>
 			))}
-
-			{/* Loading indicator */}
-			{isLoading && (
-				<div className="flex items-start gap-2">
-					<div className="p-3 rounded-2xl bg-surface border border-border text-xs flex items-center gap-2 text-muted shadow-2xs">
-						<Loader2 className="w-3.5 h-3.5 animate-spin text-accent" />
-						<span>正在检索与深度分析书签资产库...</span>
-					</div>
-				</div>
-			)}
 
 			{/* Sticky Delete Actions Bar (matching Figure 1) */}
 			{isSelectMode && (

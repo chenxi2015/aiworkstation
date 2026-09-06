@@ -3,7 +3,7 @@ import type {
 	AgentChatParams,
 	AgentStep,
 	AgentStreamEvent,
-} from "../../server/ai/agentTypes.ts";
+} from "../../types/agent.ts";
 
 export interface AgentStreamHandlers {
 	onStepStart?: (step: AgentStep) => void;

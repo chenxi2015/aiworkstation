@@ -160,7 +160,9 @@ export function executeQueryBookmarks(
 					: item.createdAt
 						? ` [入库日期: ${item.createdAt}]`
 						: "";
-				const desc = item.summary || item.description || "无详细描述";
+				const rawDesc = item.summary || item.description || "无详细描述";
+				const desc =
+					rawDesc.length > 60 ? `${rawDesc.slice(0, 60)}...` : rawDesc;
 				return `${i + 1}. 《${item.name}》 (ID: ${item.id})${tagsText}${folderText}${dateText}\n   - URL: ${item.url || "无"}\n   - 简介: ${desc}`;
 			})
 			.join("\n\n");

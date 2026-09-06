@@ -315,6 +315,7 @@ export const ChatWithBookmarksPanel = forwardRef<
 					messages={messages}
 					isLoading={isLoading}
 					selectedFolder={selectedFolder}
+					scopeMode={scopeMode}
 					selectedRefKeys={folderAssign.selectedItemKeys}
 					messagesEndRef={messagesEndRef}
 					onEditAndResend={editAndResendMessage}

@@ -1,12 +1,12 @@
 import { chat, EventType } from "@tanstack/ai";
 import { openaiCompatibleText } from "@tanstack/ai-openai/compatible";
-import { prepareRagAgentContext, resolveLlmConfig } from "../functions/rag.ts";
 import type {
 	AgentChatParams,
 	AgentStep,
 	AgentStreamEvent,
 } from "./agentTypes.ts";
 import { createBookmarkServerTools } from "./bookmarkTools.ts";
+import { prepareRagAgentContext, resolveLlmConfig } from "./ragContext.ts";
 
 export type StreamEventEmitter = (event: AgentStreamEvent) => void;
 
@@ -148,10 +148,16 @@ export async function runAgentStream(
 		>) {
 			if (signal?.aborted) break;
 
+			if (chunk.type === "RUN_ERROR") {
+				const errMsg = (chunk.error as any)?.message || JSON.stringify(chunk);
+				throw new Error(errMsg);
+			}
+
 			// Handle text content streaming
 			if (
 				chunk.type === EventType.TEXT_MESSAGE_CONTENT ||
-				chunk.type === EventType.TEXT_MESSAGE_CHUNK
+				chunk.type === EventType.TEXT_MESSAGE_CHUNK ||
+				chunk.type === EventType.TEXT_MESSAGE_CONTENT
 			) {
 				const delta = (chunk.delta || chunk.content || "") as string;
 				if (delta) {
@@ -159,6 +165,16 @@ export async function runAgentStream(
 					emit({ type: "text_chunk", delta });
 				}
 			}
+		}
+
+		if (signal?.aborted) {
+			emit({
+				type: "run_end",
+				answer: accumulatedAnswer || "（已停止本次回答）",
+				dbMutated: hasDbMutated,
+				timestamp: new Date().toLocaleTimeString(),
+			});
+			return;
 		}
 
 		emit({
