@@ -68,6 +68,7 @@ export interface UseWorkbenchDataReturn {
 	handleEnterFolder: (folderId: number) => void;
 	handleNavigateToContainer: (folderId: number | null) => void;
 	handleDeleteUnclassifiedItem: (item: WorkbenchItem) => Promise<void>;
+	handleClearUnclassified: () => Promise<void>;
 	handleClassificationComplete: (
 		updatedFolders: Folder[],
 		updatedUnclassified: WorkbenchItem[],
@@ -182,6 +183,7 @@ export function useWorkbenchData(
 		handleDeleteItemFromFolder,
 		handleMoveItem,
 		handleDeleteUnclassifiedItem,
+		handleClearUnclassified,
 		handleClassificationComplete,
 		handleBookmarksImported,
 	} = useWorkbenchItemActions({
@@ -224,6 +226,7 @@ export function useWorkbenchData(
 		handleEnterFolder,
 		handleNavigateToContainer,
 		handleDeleteUnclassifiedItem,
+		handleClearUnclassified,
 		handleClassificationComplete,
 		handleBookmarksImported,
 		handleNavigateFromSearch,

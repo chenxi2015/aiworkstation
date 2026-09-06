@@ -129,6 +129,10 @@ export class WorkbenchDatabase {
 		this.bookmarkRepo.clearAll();
 	}
 
+	clearUnclassified(): number {
+		return this.bookmarkRepo.clearUnclassifiedItems();
+	}
+
 	// ================= Embedding & Search Operations =================
 	getEmbeddingStats(): EmbeddingStats {
 		return this.searchRepo.getEmbeddingStats();

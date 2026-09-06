@@ -236,6 +236,17 @@ export const clearAllData = createServerFn({ method: "POST" }).handler(
 );
 
 /**
+ * Server Function: Clear all unclassified bookmarks from SQLite
+ */
+export const clearUnclassifiedBookmarks = createServerFn({ method: "POST" }).handler(
+	async (): Promise<{ deleted: number; unclassified: WorkbenchItem[] }> => {
+		const deleted = workbenchDb.clearUnclassified();
+		const unclassified = workbenchDb.getUnclassifiedItems();
+		return { deleted, unclassified };
+	},
+);
+
+/**
  * Server Function: Start an async dead-link scan job over all bookmarks.
  * Returns immediately; poll getDeadLinkScanStatus for progress and results.
  */

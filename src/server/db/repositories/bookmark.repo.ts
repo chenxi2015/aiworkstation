@@ -344,4 +344,19 @@ export class BookmarkRepository {
 			this.db.prepare("DELETE FROM bookmarks WHERE id = ?").run(itemId);
 		}
 	}
+
+	/**
+	 * Clear all unclassified bookmarks (items without any folder binding)
+	 */
+	clearUnclassifiedItems(): number {
+		const stmt = this.db.prepare(`
+			DELETE FROM bookmarks
+			WHERE NOT EXISTS (
+				SELECT 1 FROM folder_items
+				WHERE folder_items.item_id = bookmarks.id
+			)
+		`);
+		const info = stmt.run();
+		return info.changes;
+	}
 }

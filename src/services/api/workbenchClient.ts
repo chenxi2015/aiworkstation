@@ -8,6 +8,7 @@ import {
 	addBookmarks,
 	addLinkToFolder,
 	applyAIClassification,
+	clearUnclassifiedBookmarks,
 	deleteFolder,
 	deleteItem,
 	getWorkbenchData,
@@ -152,4 +153,14 @@ export async function addLinkToFolderInDb(params: {
 	description?: string;
 }): Promise<Folder[]> {
 	return await addLinkToFolder({ data: params });
+}
+
+/**
+ * Clear all unclassified items from SQLite via createServerFn
+ */
+export async function clearUnclassifiedInDb(): Promise<{
+	deleted: number;
+	unclassified: WorkbenchItem[];
+}> {
+	return await clearUnclassifiedBookmarks();
 }

@@ -86,6 +86,14 @@ export function useWorkbenchItemActions({
 		[setUnclassified],
 	);
 
+	// Clear all items from unclassified pool
+	const handleClearUnclassified = useCallback(async () => {
+		const { deleted, unclassified: updatedUnclassified } =
+			await WorkbenchStorageService.clearUnclassifiedInDb();
+		setUnclassified(updatedUnclassified);
+		toast.success(`已清空未分类池 (${deleted} 条书签)`);
+	}, [setUnclassified]);
+
 	// Handle AI classification completion
 	const handleClassificationComplete = useCallback(
 		(updatedFolders: Folder[], updatedUnclassified: WorkbenchItem[]) => {
@@ -116,6 +124,7 @@ export function useWorkbenchItemActions({
 		handleDeleteItemFromFolder,
 		handleMoveItem,
 		handleDeleteUnclassifiedItem,
+		handleClearUnclassified,
 		handleClassificationComplete,
 		handleBookmarksImported,
 	};

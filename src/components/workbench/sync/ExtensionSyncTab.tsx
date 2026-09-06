@@ -273,7 +273,7 @@ export function ExtensionSyncTab({
 					<div className="text-[11px] text-muted mr-auto">
 						已勾选{" "}
 						<strong className="text-foreground">{selectedIds.size}</strong> /{" "}
-						{filteredChromeBookmarks.length} 个书签
+						{filteredChromeBookmarks.length}
 					</div>
 					<Button
 						variant="secondary"

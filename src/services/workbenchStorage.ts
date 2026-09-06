@@ -32,6 +32,7 @@ import {
 	addBookmarksToDb,
 	addLinkToFolderInDb,
 	applyAIClassificationToDb,
+	clearUnclassifiedInDb,
 	deleteFolderFromDb,
 	deleteItemInDb,
 	fetchAllFromDb,
@@ -81,6 +82,7 @@ export class WorkbenchStorageService {
 	static applyAIClassificationToDb = applyAIClassificationToDb;
 	static moveItemInDb = moveItemInDb;
 	static deleteItemInDb = deleteItemInDb;
+	static clearUnclassifiedInDb = clearUnclassifiedInDb;
 	static addBookmarksToDb = addBookmarksToDb;
 	static addLinkToFolder = addLinkToFolderInDb;
 

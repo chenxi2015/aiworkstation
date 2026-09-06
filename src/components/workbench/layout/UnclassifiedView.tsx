@@ -1,7 +1,8 @@
 import { Button, EmptyState } from "@heroui/react";
-import { Folder, Inbox, Loader2, Sparkles, Zap } from "lucide-react";
+import { Folder, Inbox, Loader2, Sparkles, Trash2, Zap } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { extractDomain } from "../../../lib/url";
+import { ConfirmDialog } from "../ConfirmDialog";
 import { WorkbenchItemCard } from "../item/WorkbenchItemCard";
 import type { Folder as WorkbenchFolder, WorkbenchItem } from "../types";
 
@@ -11,6 +12,7 @@ export interface UnclassifiedViewProps {
 	onOpenAIClassify: () => void;
 	onDeleteItem: (item: WorkbenchItem) => void;
 	onMoveItem?: (item: WorkbenchItem, targetFolderId: number) => void;
+	onClearUnclassified?: () => void | Promise<void>;
 }
 
 const INITIAL_BATCH_SIZE = 60;
@@ -25,7 +27,9 @@ export function UnclassifiedView({
 	onOpenAIClassify,
 	onDeleteItem,
 	onMoveItem,
+	onClearUnclassified,
 }: UnclassifiedViewProps) {
+	const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
 	// Progressive rendering states for 2000+ items
 	const [visibleCount, setVisibleCount] = useState(INITIAL_BATCH_SIZE);
 	const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -102,15 +106,29 @@ export function UnclassifiedView({
 						</div>
 					</div>
 
-					<Button
-						variant="primary"
-						size="sm"
-						className="rounded-full shadow-sm shrink-0 flex items-center gap-1.5 cursor-pointer"
-						onPress={onOpenAIClassify}
-					>
-						<Sparkles className="w-3.5 h-3.5" />
-						<span>启动 AI 一键智能分类</span>
-					</Button>
+					<div className="flex items-center gap-2 shrink-0">
+						{onClearUnclassified && unclassified.length > 0 && (
+							<Button
+								type="button"
+								variant="danger-soft"
+								size="sm"
+								className="rounded-full flex items-center gap-1.5 cursor-pointer"
+								onPress={() => setIsClearConfirmOpen(true)}
+							>
+								<Trash2 className="w-3.5 h-3.5" />
+								<span>清空</span>
+							</Button>
+						)}
+						<Button
+							variant="primary"
+							size="sm"
+							className="rounded-full shadow-sm flex items-center gap-1.5 cursor-pointer"
+							onPress={onOpenAIClassify}
+						>
+							<Sparkles className="w-3.5 h-3.5" />
+							<span>启动 AI 一键智能分类</span>
+						</Button>
+					</div>
 				</div>
 
 				{/* Unclassified Items Grid: 5 to 6 cards per row on larger screens */}
@@ -176,6 +194,17 @@ export function UnclassifiedView({
 					</div>
 				)}
 			</div>
+
+			<ConfirmDialog
+				isOpen={isClearConfirmOpen}
+				onOpenChange={setIsClearConfirmOpen}
+				title="清空未分类池"
+				description={`确定清空未分类池中的所有书签（共 ${unclassified.length} 条）吗？此操作不可撤销。`}
+				confirmLabel="清空"
+				onConfirm={async () => {
+					await onClearUnclassified?.();
+				}}
+			/>
 		</div>
 	);
 }

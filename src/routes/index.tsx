@@ -101,6 +101,7 @@ function WorkbenchHome() {
 		handleEnterFolder,
 		handleNavigateToContainer,
 		handleDeleteUnclassifiedItem,
+		handleClearUnclassified,
 		handleClassificationComplete,
 		handleBookmarksImported,
 		handleNavigateFromSearch,
@@ -252,6 +253,7 @@ function WorkbenchHome() {
 								unclassified={filteredUnclassified}
 								folders={folders}
 								onOpenAIClassify={() => setIsAIClassifyModalOpen(true)}
+								onClearUnclassified={handleClearUnclassified}
 								onDeleteItem={(item) =>
 									setItemPendingDelete({ item, folderId: null })
 								}
