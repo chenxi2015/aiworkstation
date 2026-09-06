@@ -6,7 +6,7 @@ import {
 	Folder as FolderIconLucide,
 	FolderPlus,
 } from "lucide-react";
-import { memo, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { folderRowDropId } from "./dnd/dndUtils";
 import { FolderHeader } from "./folder/FolderHeader";
 import { FolderItemList } from "./folder/FolderItemList";
@@ -84,6 +84,11 @@ export const FolderDetailPanel = memo(function FolderDetailPanel({
 	onAskAIAboutFolder,
 }: FolderDetailPanelProps) {
 	const [typeFilter, setTypeFilter] = useState("all");
+
+	// Reset type filter when switching folders
+	useEffect(() => {
+		setTypeFilter("all");
+	}, [folder?.id]);
 
 	// 1. Empty State when no folder is selected or no folders in category
 	if (!folder) {

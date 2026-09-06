@@ -60,6 +60,12 @@ export const FolderItemList = memo(function FolderItemList({
 		setVisibleCount(INITIAL_CHUNK_SIZE);
 	}, [folder.id, selectedType, localSearchQuery]);
 
+	// Reset local search and type filter when switching folders
+	useEffect(() => {
+		setLocalSearchQuery("");
+		setLocalTypeFilter("all");
+	}, [folder.id]);
+
 	// Scroll and pulse highlight when highlightItemId changes
 	useEffect(() => {
 		if (!highlightItemId) return;
@@ -131,6 +137,16 @@ export const FolderItemList = memo(function FolderItemList({
 		}
 		return Array.from(types);
 	}, [folder.items]);
+
+	// Fallback to "all" if selected type is not available in the current folder
+	useEffect(() => {
+		if (
+			selectedType !== "all" &&
+			!availableTypes.includes(selectedType as ItemType)
+		) {
+			setSelectedType("all");
+		}
+	}, [availableTypes, selectedType, setSelectedType]);
 
 	// Filtered item list based on search and type filter
 	const filteredItems = useMemo(() => {
