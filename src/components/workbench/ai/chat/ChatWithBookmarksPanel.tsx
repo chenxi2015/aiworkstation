@@ -5,13 +5,7 @@ import {
 	Search,
 	Sparkles,
 } from "lucide-react";
-import {
-	forwardRef,
-	useEffect,
-	useImperativeHandle,
-	useRef,
-	useState,
-} from "react";
+import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { type ChatItem, useAiChat } from "../../../../hooks/ai/useAiChat";
 import { useEmbeddingStats } from "../../../../hooks/ai/useEmbeddingStats";
 import { useItemFolderAssign } from "../../../../hooks/ai/useItemFolderAssign";
@@ -157,12 +151,6 @@ export const ChatWithBookmarksPanel = forwardRef<
 			...options,
 		});
 	};
-
-	// Auto scroll to bottom on new messages or loading state
-	// biome-ignore lint/correctness/useExhaustiveDependencies: scroll triggered on message update
-	useEffect(() => {
-		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-	}, [messages, isLoading]);
 
 	// Expose methods for parent components
 	useImperativeHandle(ref, () => ({
@@ -334,6 +322,7 @@ export const ChatWithBookmarksPanel = forwardRef<
 				<ChatMessageList
 					messages={messages}
 					isLoading={isLoading}
+					currentSessionId={currentSessionId}
 					selectedFolder={selectedFolder}
 					scopeMode={scopeMode}
 					selectedRefKeys={folderAssign.selectedItemKeys}
