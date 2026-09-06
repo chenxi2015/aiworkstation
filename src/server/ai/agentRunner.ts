@@ -42,6 +42,7 @@ export async function runAgentStream(
 		folderId,
 		folderName,
 		embeddingConfig,
+		contextItems: params.contextItems,
 	});
 
 	if (prepared.emptyFallbackMessage) {

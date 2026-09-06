@@ -6,6 +6,7 @@ import {
 	type ChatSession,
 	WorkbenchStorageService,
 } from "../../services/workbenchStorage";
+import type { ChatContextItem } from "../../types/chatContext";
 import { type ChatItem, useChatMessages } from "./useChatMessages";
 import { useChatSessions } from "./useChatSessions";
 
@@ -22,8 +23,32 @@ export interface UseAiChatOptions {
  */
 export function useAiChat(options?: UseAiChatOptions) {
 	const [input, setInput] = useState<string>("");
+	const [contextItems, setContextItems] = useState<ChatContextItem[]>([]);
 	const [isLoading, setIsLoading] = useState<boolean>(false);
 	const abortControllerRef = useRef<AbortController | null>(null);
+
+	const addContextItem = useCallback((item: ChatContextItem) => {
+		setContextItems((prev) => {
+			if (
+				prev.some(
+					(existing) =>
+						existing.id === item.id ||
+						(item.url && existing.url && existing.url === item.url),
+				)
+			) {
+				return prev;
+			}
+			return [...prev, item];
+		});
+	}, []);
+
+	const removeContextItem = useCallback((id: string) => {
+		setContextItems((prev) => prev.filter((item) => item.id !== id));
+	}, []);
+
+	const clearContextItems = useCallback(() => {
+		setContextItems([]);
+	}, []);
 
 	const onSessionLoadedRef = useRef<(msgs: ChatItem[]) => void>(() => {});
 	const onSessionClearedRef = useRef<() => void>(() => {});
@@ -170,7 +195,13 @@ export function useAiChat(options?: UseAiChatOptions) {
 				baseMessages?: ChatItem[];
 			},
 		) => {
-			const textToSend = (userPrompt || input).trim();
+			const rawText = (userPrompt || input).trim();
+			const activeAttachments = [...contextItems];
+			const textToSend =
+				rawText ||
+				(activeAttachments.length > 0
+					? "请结合上述引用的上下文进行深度分析与总结"
+					: "");
 			if (!textToSend) return;
 			if (isLoading) {
 				toast.warning("AI 正在回答中，请稍候...");
@@ -197,6 +228,8 @@ export function useAiChat(options?: UseAiChatOptions) {
 			const userMsg: ChatItem = {
 				role: "user",
 				content: textToSend,
+				contextItems:
+					activeAttachments.length > 0 ? activeAttachments : undefined,
 				timestamp: timeStr,
 			};
 
@@ -210,6 +243,8 @@ export function useAiChat(options?: UseAiChatOptions) {
 			setMessages(nextMessages);
 
 			if (!userPrompt) setInput("");
+			// Clear attached contexts after successfully queuing send
+			setContextItems([]);
 			setIsLoading(true);
 			options?.onMessageSent?.();
 
@@ -258,6 +293,8 @@ export function useAiChat(options?: UseAiChatOptions) {
 						llmConfig,
 						folderId: sendOptions?.folderId,
 						folderName: sendOptions?.folderName,
+						contextItems:
+							activeAttachments.length > 0 ? activeAttachments : undefined,
 					},
 					{
 						onStepStart: (step) => {
@@ -405,6 +442,7 @@ export function useAiChat(options?: UseAiChatOptions) {
 		},
 		[
 			input,
+			contextItems,
 			isLoading,
 			messages,
 			options,
@@ -485,5 +523,9 @@ export function useAiChat(options?: UseAiChatOptions) {
 		clearHistory,
 		setMessages,
 		updateMessageReferences,
+		contextItems,
+		addContextItem,
+		removeContextItem,
+		clearContextItems,
 	};
 }

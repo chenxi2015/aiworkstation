@@ -1,5 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "@heroui/react";
+import { createFileRoute } from "@tanstack/react-router";
 import { lazy, Suspense, useCallback, useRef, useState } from "react";
 import {
 	type Category,
@@ -13,7 +13,10 @@ import {
 	type WorkbenchItem,
 	WorkbenchSkeleton,
 } from "../components/workbench";
-import { WorkbenchDndProvider } from "../components/workbench/dnd/WorkbenchDnd";
+import {
+	WorkbenchDndProvider,
+	type WorkbenchDragData,
+} from "../components/workbench/dnd/WorkbenchDnd";
 import { useGlobalShortcuts } from "../hooks/useGlobalShortcuts";
 import { useWorkbenchData } from "../hooks/useWorkbenchData";
 import { useWorkbenchModals } from "../hooks/useWorkbenchModals";
@@ -201,6 +204,40 @@ function WorkbenchHome() {
 		setIsSyncModalOpen(true);
 	}, [setIsSyncModalOpen]);
 
+	// Attach dropped bookmark or folder to AI chat context
+	const handleAttachToChat = useCallback((data: WorkbenchDragData) => {
+		if (data.kind === "item") {
+			const item = data.item;
+			let host = "";
+			if (item.url) {
+				try {
+					host = new URL(item.url).hostname;
+				} catch {}
+			}
+
+			chatPanelRef.current?.addContextItem({
+				id: `bookmark_${item.id ?? Date.now()}`,
+				type: "bookmark",
+				title: item.name,
+				subtitle: host || undefined,
+				url: item.url,
+				icon: item.favicon,
+			});
+			// toast.success(`已引用书签「${item.name}」至对话上下文`);
+		} else if (data.kind === "folder") {
+			const folder = data.folder;
+			const count = folder.items?.length ?? 0;
+			chatPanelRef.current?.addContextItem({
+				id: `folder_${folder.id}`,
+				type: "folder",
+				title: folder.name,
+				subtitle: `${count} 个书签`,
+				folderId: folder.id,
+			});
+			// toast.success(`已引用文件夹「${folder.name}」至对话上下文`);
+		}
+	}, []);
+
 	return (
 		<WorkbenchDndProvider
 			gridFolderIds={gridFolders.map((f) => f.id)}
@@ -208,6 +245,7 @@ function WorkbenchHome() {
 			onMoveFolder={handleMoveFolder}
 			onMoveFolderToCategory={handleMoveFolderToCategory}
 			onReorderFolders={handleReorderFolders}
+			onAttachToChat={handleAttachToChat}
 		>
 			<div className="h-screen bg-surface dark:bg-background text-foreground flex flex-col overflow-hidden selection:bg-accent-soft selection:text-accent-soft-foreground">
 				{/* Topbar Navigation Header — Unified Search Triggers Right Panel */}

@@ -18,6 +18,7 @@ export type WorkbenchDragData = ItemDragData | FolderDragData;
 
 export const GRID_DROP_ID = "folder-grid";
 export const ROOT_CRUMB_DROP_ID = "crumb:root";
+export const CHAT_INPUT_DROP_ID = "chat-input-dropzone";
 
 export const folderDropId = (folderId: number) => `folder:${folderId}`;
 export const folderRowDropId = (folderId: number) => `folder-row:${folderId}`;
@@ -30,7 +31,7 @@ export const itemDragId = (
 
 /**
  * pointerWithin returns every droppable under the cursor, including the grid
- * background behind cards. Prefer specific targets (cards / breadcrumbs).
+ * background behind cards. Prefer specific targets (cards / breadcrumbs / chat input).
  */
 export const preferSpecificTargets: CollisionDetection = (args) => {
 	const collisions = pointerWithin(args);
@@ -47,8 +48,10 @@ export function parseDropId(
 	| { type: "crumb-root" }
 	| { type: "category"; category: string }
 	| { type: "grid" }
+	| { type: "chat-input" }
 	| null {
 	const raw = String(id);
+	if (raw === CHAT_INPUT_DROP_ID) return { type: "chat-input" };
 	if (raw === GRID_DROP_ID) return { type: "grid" };
 	if (raw === ROOT_CRUMB_DROP_ID) return { type: "crumb-root" };
 	if (raw.startsWith("category:")) {

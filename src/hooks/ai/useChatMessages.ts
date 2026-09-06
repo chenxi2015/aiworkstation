@@ -6,6 +6,7 @@ import type {
 	SearchResultItem,
 } from "../../components/workbench/types";
 import type { AgentStep } from "../../types/agent.ts";
+import type { ChatContextItem } from "../../types/chatContext.ts";
 
 export type { AgentStep };
 
@@ -14,6 +15,7 @@ export interface ChatItem {
 	content: string;
 	references?: SearchResultItem[];
 	steps?: AgentStep[];
+	contextItems?: ChatContextItem[];
 	isStreaming?: boolean;
 	timestamp?: string;
 }

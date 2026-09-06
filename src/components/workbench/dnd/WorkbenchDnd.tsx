@@ -26,15 +26,15 @@ import {
 	type DropIndicator,
 	type DropMode,
 	type FolderDragData,
+	folderDropId,
 	GRID_DROP_ID,
 	INTO_ZONE_MAX,
 	INTO_ZONE_MIN,
 	type ItemDragData,
+	itemDragId,
 	parseDropId,
 	preferSpecificTargets,
 	type WorkbenchDragData,
-	folderDropId,
-	itemDragId,
 } from "./dndUtils";
 
 /** Offsets from the cursor so the drag preview sits beside it instead of covering the drop target */
@@ -57,7 +57,8 @@ const snapBesideCursor: Modifier = ({
 	}
 	return {
 		...transform,
-		x: transform.x + activator.clientX - draggingNodeRect.left + CURSOR_OFFSET_X,
+		x:
+			transform.x + activator.clientX - draggingNodeRect.left + CURSOR_OFFSET_X,
 		y: transform.y + activator.clientY - draggingNodeRect.top + CURSOR_OFFSET_Y,
 	};
 };
@@ -96,6 +97,7 @@ export interface WorkbenchDndProviderProps {
 	onMoveFolder: (folderId: number, targetParentId: number | null) => void;
 	onMoveFolderToCategory?: (folderId: number, targetCategory: string) => void;
 	onReorderFolders: (orderedIds: number[]) => void;
+	onAttachToChat?: (data: WorkbenchDragData) => void;
 	children: ReactNode;
 }
 
@@ -105,6 +107,7 @@ export function WorkbenchDndProvider({
 	onMoveFolder,
 	onMoveFolderToCategory,
 	onReorderFolders,
+	onAttachToChat,
 	children,
 }: WorkbenchDndProviderProps) {
 	const [activeDrag, setActiveDrag] = useState<WorkbenchDragData | null>(null);
@@ -130,11 +133,13 @@ export function WorkbenchDndProvider({
 				return "into";
 			}
 			if (target.type === "category") return "into";
+			if (target.type === "chat-input") return "into";
 			if (target.type === "grid") return null;
 
 			// Hovering a folder card
 			if (data.kind === "item") return "into";
-			if (data.folder.id === target.folderId) return null;
+			if (target.type !== "folder" || data.folder.id === target.folderId)
+				return null;
 
 			// Folder over folder: pointer zone decides reorder vs nest
 			const overRect = event.over?.rect;
@@ -180,6 +185,11 @@ export function WorkbenchDndProvider({
 			if (!data || !overId) return;
 			const target = parseDropId(overId);
 			if (!target) return;
+
+			if (target.type === "chat-input") {
+				onAttachToChat?.(data);
+				return;
+			}
 
 			if (data.kind === "item") {
 				if (
@@ -239,6 +249,7 @@ export function WorkbenchDndProvider({
 		},
 		[
 			gridFolderIds,
+			onAttachToChat,
 			onMoveFolder,
 			onMoveFolderToCategory,
 			onMoveItemToFolder,

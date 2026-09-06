@@ -1,5 +1,6 @@
 import type { SearchResultItem } from "../components/workbench/types";
 import type { EmbeddingConfig } from "../services/embedding/client";
+import type { ChatContextItem } from "./chatContext";
 
 /**
  * Individual step representing a tool invocation during the Agent ReAct loop
@@ -43,4 +44,5 @@ export interface AgentChatParams {
 	};
 	folderId?: number | null;
 	folderName?: string;
+	contextItems?: ChatContextItem[];
 }

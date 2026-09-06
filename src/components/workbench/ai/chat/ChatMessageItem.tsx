@@ -252,6 +252,34 @@ export const ChatMessageItem = memo(function ChatMessageItem({
 					</div>
 				) : (
 					<div className="flex flex-col items-end gap-1 max-w-[85%] sm:max-w-[75%]">
+						{/* Render context attachments chips above text if any */}
+						{msg.contextItems && msg.contextItems.length > 0 && (
+							<div className="flex flex-wrap gap-1 mb-0.5 justify-end">
+								{msg.contextItems.map((ci) => (
+									<div
+										key={ci.id}
+										className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-surface-secondary border border-border/60 text-[10px] text-foreground/80"
+										title={ci.title}
+									>
+										{ci.type === "image" && ci.thumbnail ? (
+											<img
+												src={ci.thumbnail}
+												alt=""
+												className="w-3 h-3 rounded object-cover"
+											/>
+										) : ci.type === "folder" ? (
+											<span className="text-amber-500 font-medium">📁</span>
+										) : (
+											<span className="text-accent font-medium">🔗</span>
+										)}
+										<span className="truncate max-w-[130px] font-medium">
+											{ci.title}
+										</span>
+									</div>
+								))}
+							</div>
+						)}
+
 						{/* Clean neutral rounded pill (Reference Fig. 1 & 2 style) */}
 						<div className="bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-2xl px-4 py-2 text-sm leading-relaxed font-normal shadow-2xs">
 							<div className="whitespace-pre-wrap leading-relaxed">

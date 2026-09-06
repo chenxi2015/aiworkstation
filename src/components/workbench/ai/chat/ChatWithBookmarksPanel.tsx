@@ -15,6 +15,7 @@ import {
 import { useAiChat } from "../../../../hooks/ai/useAiChat";
 import { useEmbeddingStats } from "../../../../hooks/ai/useEmbeddingStats";
 import { useItemFolderAssign } from "../../../../hooks/ai/useItemFolderAssign";
+import type { ChatContextItem } from "../../../../types/chatContext";
 import type {
 	Category,
 	Folder,
@@ -48,6 +49,7 @@ export interface ChatWithBookmarksPanelRef {
 			folderName?: string;
 		},
 	) => void;
+	addContextItem: (item: ChatContextItem) => void;
 }
 
 export interface ChatWithBookmarksPanelProps {
@@ -121,6 +123,10 @@ export const ChatWithBookmarksPanel = forwardRef<
 		exportSessionToJson,
 		clearHistory,
 		updateMessageReferences,
+		contextItems,
+		addContextItem,
+		removeContextItem,
+		clearContextItems,
 	} = useAiChat({
 		onResponseReceived: () => {
 			fetchStats();
@@ -194,6 +200,11 @@ export const ChatWithBookmarksPanel = forwardRef<
 				}
 				setTimeout(() => inputRef.current?.focus(), 50);
 			}
+		},
+		addContextItem: (item: ChatContextItem) => {
+			setActiveTab("chat");
+			addContextItem(item);
+			setTimeout(() => inputRef.current?.focus(), 50);
 		},
 	}));
 
@@ -405,6 +416,10 @@ export const ChatWithBookmarksPanel = forwardRef<
 					onToggleScope={() =>
 						setScopeMode((prev) => (prev === "global" ? "folder" : "global"))
 					}
+					contextItems={contextItems}
+					onRemoveContextItem={removeContextItem}
+					onClearContextItems={clearContextItems}
+					onAttachContextItem={addContextItem}
 				/>
 			</div>
 		</aside>
