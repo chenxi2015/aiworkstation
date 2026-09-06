@@ -104,7 +104,10 @@ export function searchMentionCandidates(
 	// Default suggestions when no query is typed after '@'
 	if (!q) {
 		const defaultList: MentionCandidate[] = [];
+		const seenFolderIds = new Set<number>();
 		for (const f of folders) {
+			if (seenFolderIds.has(f.id)) continue;
+			seenFolderIds.add(f.id);
 			defaultList.push({
 				id: `mention_folder_${f.id}`,
 				type: "folder",
@@ -114,10 +117,14 @@ export function searchMentionCandidates(
 				category: f.category,
 			});
 		}
+		const seenBmKeys = new Set<string>();
 		for (const f of folders) {
 			for (const item of f.items || []) {
+				const bmKey = String(item.id ?? item.url);
+				if (seenBmKeys.has(bmKey)) continue;
+				seenBmKeys.add(bmKey);
 				defaultList.push({
-					id: `mention_bm_${item.id ?? item.url}`,
+					id: `mention_bm_${bmKey}`,
 					type: "bookmark",
 					title: item.name,
 					subtitle: extractHostname(item.url) || f.name,
@@ -137,7 +144,9 @@ export function searchMentionCandidates(
 	const scoredList: MentionCandidate[] = [];
 
 	// 1. Folders matching (folders represent high-level collections, prioritized over bookmarks)
+	const seenFolderIds = new Set<number>();
 	for (const f of folders) {
+		if (seenFolderIds.has(f.id)) continue;
 		const fNameLower = f.name.toLowerCase();
 		const fNameClean = fNameLower.replace(/\s+/g, "");
 		const fDescLower = (f.desc || "").toLowerCase();
@@ -181,6 +190,7 @@ export function searchMentionCandidates(
 		}
 
 		if (fScore > 0) {
+			seenFolderIds.add(f.id);
 			const subtitle = f.desc
 				? `${f.desc} · ${f.items?.length ?? 0} 项`
 				: `${f.items?.length ?? 0} 个书签 · ${f.category}`;
@@ -197,7 +207,8 @@ export function searchMentionCandidates(
 		}
 	}
 
-	// 2. Bookmarks matching
+	// 2. Bookmarks matching (deduplicating across folders and keeping highest score)
+	const bookmarkMap = new Map<string, MentionCandidate>();
 	for (const f of folders) {
 		for (const item of f.items || []) {
 			const host = extractHostname(item.url);
@@ -210,20 +221,28 @@ export function searchMentionCandidates(
 			);
 
 			if (score > 0) {
-				scoredList.push({
-					id: `mention_bm_${item.id ?? item.url}`,
-					type: "bookmark",
-					title: item.name,
-					subtitle: host || f.name,
-					url: item.url,
-					icon: item.favicon,
-					folderId: f.id,
-					category: f.category,
-					score,
-					matchReason: reason,
-				});
+				const bmKey = String(item.id ?? item.url);
+				const existing = bookmarkMap.get(bmKey);
+				if (!existing || score > (existing.score ?? 0)) {
+					bookmarkMap.set(bmKey, {
+						id: `mention_bm_${bmKey}`,
+						type: "bookmark",
+						title: item.name,
+						subtitle: host || f.name,
+						url: item.url,
+						icon: item.favicon,
+						folderId: f.id,
+						category: f.category,
+						score,
+						matchReason: reason,
+					});
+				}
 			}
 		}
+	}
+
+	for (const cand of bookmarkMap.values()) {
+		scoredList.push(cand);
 	}
 
 	// Sort descending by score

@@ -10,6 +10,7 @@ import {
 	Folder as FolderIcon,
 	FolderInput,
 	FolderPlus,
+	Globe,
 	Pencil,
 	RotateCw,
 	Sparkles,
@@ -258,9 +259,65 @@ export const ChatMessageItem = memo(function ChatMessageItem({
 						{msg.contextItems && msg.contextItems.length > 0 && (
 							<div className="flex flex-wrap gap-1 mb-0.5 justify-end">
 								{msg.contextItems.map((ci) => {
-									const isFolder =
-										ci.type === "folder" || typeof ci.folderId === "number";
 									const isLink = ci.type === "bookmark" || Boolean(ci.url);
+									const isFolder = ci.type === "folder";
+
+									// Bookmark / URL Context Chip: clickable to open in new tab with optional folder locator
+									if (isLink && ci.url) {
+										return (
+											<div
+												key={ci.id}
+												className="inline-flex items-center gap-1 pl-2 pr-1.5 py-0.5 rounded-lg bg-surface-secondary/90 hover:bg-accent/10 border border-border/60 hover:border-accent/40 text-[10px] text-foreground/80 hover:text-accent transition-all group/chip select-none hover:scale-[1.02] active:scale-[0.98]"
+											>
+												<a
+													href={ci.url}
+													target="_blank"
+													rel="noopener noreferrer"
+													onClick={(e) => e.stopPropagation()}
+													className="inline-flex items-center gap-1 min-w-0 max-w-[150px] cursor-pointer"
+													title={`点击在新标签页打开：${ci.url}`}
+												>
+													{ci.icon ? (
+														<img
+															src={ci.icon}
+															alt=""
+															className="w-3 h-3 rounded-sm object-contain shrink-0"
+															onError={(e) => {
+																(e.currentTarget as HTMLElement).style.display =
+																	"none";
+															}}
+														/>
+													) : (
+														<Globe className="w-3 h-3 text-accent shrink-0" />
+													)}
+													<span className="truncate font-medium group-hover/chip:underline">
+														{ci.title}
+													</span>
+													<ExternalLink className="w-2.5 h-2.5 opacity-60 group-hover/chip:opacity-100 shrink-0" />
+												</a>
+
+												{/* If bookmark is associated with a folder, allow locating it */}
+												{typeof ci.folderId === "number" && onNavigateToFolder && (
+													<button
+														type="button"
+														onClick={(e) => {
+															e.stopPropagation();
+															e.preventDefault();
+															onNavigateToFolder(
+																ci.folderId ?? null,
+																ci.category as Category,
+															);
+															toast.success("已定位到书签所在文件夹");
+														}}
+														className="p-0.5 rounded hover:bg-amber-500/20 text-muted hover:text-amber-600 dark:hover:text-amber-400 transition-colors shrink-0 cursor-pointer"
+														title="在工作台中定位所在文件夹"
+													>
+														<FolderIcon className="w-2.5 h-2.5" />
+													</button>
+												)}
+											</div>
+										);
+									}
 
 									// Folder Context Chip: clickable to navigate & locate in workbench
 									if (isFolder && typeof ci.folderId === "number") {
@@ -287,39 +344,6 @@ export const ChatMessageItem = memo(function ChatMessageItem({
 												</span>
 												<FolderIcon className="w-2.5 h-2.5 opacity-60 group-hover/chip:opacity-100 shrink-0" />
 											</button>
-										);
-									}
-
-									// Bookmark / URL Context Chip: clickable to open in new tab
-									if (isLink && ci.url) {
-										return (
-											<a
-												key={ci.id}
-												href={ci.url}
-												target="_blank"
-												rel="noopener noreferrer"
-												onClick={(e) => e.stopPropagation()}
-												className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-surface-secondary/90 hover:bg-accent/10 border border-border/60 hover:border-accent/40 text-[10px] text-foreground/80 hover:text-accent transition-all cursor-pointer group/chip select-none hover:scale-[1.02] active:scale-[0.98]"
-												title={`点击在新标签页打开：${ci.url}`}
-											>
-												{ci.icon ? (
-													<img
-														src={ci.icon}
-														alt=""
-														className="w-3 h-3 rounded-sm object-contain"
-														onError={(e) => {
-															(e.currentTarget as HTMLElement).style.display =
-																"none";
-														}}
-													/>
-												) : (
-													<span className="text-accent font-medium">🔗</span>
-												)}
-												<span className="truncate max-w-[140px] font-medium group-hover/chip:underline">
-													{ci.title}
-												</span>
-												<ExternalLink className="w-2.5 h-2.5 opacity-60 group-hover/chip:opacity-100 shrink-0" />
-											</a>
 										);
 									}
 
