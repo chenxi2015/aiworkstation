@@ -49,10 +49,7 @@ import {
 	fetchChatSessionsFromDb,
 	saveChatSessionToDb,
 } from "./api/chatSessionClient";
-import {
-	type ChatSession,
-	purgeLegacyChatLocalStorage,
-} from "./storage/chatStorage";
+import type { ChatSession } from "./storage/chatStorage";
 import {
 	DEFAULT_SETTINGS,
 	fetchSettingsFromDb,
@@ -145,14 +142,14 @@ export class WorkbenchStorageService {
 	// ================= Chat Sessions SQLite Storage =================
 	static fetchChatSessions = <T = any>(): Promise<ChatSession<T>[]> =>
 		fetchChatSessionsFromDb<T>();
-	static saveChatSession = <T = any>(session: ChatSession<T>): Promise<boolean> =>
-		saveChatSessionToDb<T>(session);
-	static deleteChatSession = (sessionId: string): Promise<boolean> =>
-		deleteChatSessionFromDb(sessionId);
-	static clearChatSessions = (): Promise<boolean> =>
-		clearChatSessionsFromDb();
+	static saveChatSession = <T = any>(
+		session: ChatSession<T>,
+	): Promise<boolean> => saveChatSessionToDb<T>(session);
+	static deleteChatSession = (sessionId: string): Promise<boolean> => deleteChatSessionFromDb(sessionId);
+	static clearChatSessions = (): Promise<boolean> => clearChatSessionsFromDb();
+	static clearAllChatData = (): Promise<boolean> => clearChatSessionsFromDb();
+	
 	static exportChatSessionsJson = exportChatSessionsJsonFromDb;
-	static purgeLegacyChatLocalStorage = purgeLegacyChatLocalStorage;
 
 	// ================= Maintenance & Models RPC =================
 	static clearAllDataInDb = (): Promise<{ backupPath: string | null }> =>

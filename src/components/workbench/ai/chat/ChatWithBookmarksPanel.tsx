@@ -334,6 +334,7 @@ export const ChatWithBookmarksPanel = forwardRef<
 					onOpenAssignSingle={folderAssign.openAssignSingle}
 					onOpenAssignMultiple={folderAssign.openAssignMultiple}
 					onSelectPrompt={(p) => handleSendPrompt(p)}
+					folders={folders}
 					onNavigateToFolder={onNavigateToFolder}
 				/>
 

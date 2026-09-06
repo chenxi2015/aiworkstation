@@ -5,7 +5,6 @@ import {
 	Check,
 	CheckSquare,
 	ChevronDown,
-	ChevronUp,
 	Copy,
 	FolderInput,
 	FolderPlus,
@@ -18,7 +17,7 @@ import {
 } from "lucide-react";
 import { memo, useEffect, useRef, useState } from "react";
 import type { ChatItem } from "../../../../hooks/ai/useAiChat";
-import type { Category, SearchResultItem } from "../../types";
+import type { Category, Folder, SearchResultItem } from "../../types";
 import { AiMarkdownRenderer } from "../shared/AiMarkdownRenderer";
 import { AgentStepTimeline } from "./AgentStepTimeline";
 import { ChatReferenceCard } from "./ChatReferenceCard";
@@ -43,6 +42,7 @@ export interface ChatMessageItemProps {
 		items: SearchResultItem[],
 		createMode?: boolean,
 	) => void;
+	folders?: Folder[];
 	onNavigateToFolder?: (
 		folderId: number | null,
 		category?: Category,
@@ -70,6 +70,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
 	onToggleSelectGroup,
 	onOpenAssignSingle,
 	onOpenAssignMultiple,
+	folders,
 	onNavigateToFolder,
 }: ChatMessageItemProps) {
 	const [isEditing, setIsEditing] = useState(false);
@@ -365,7 +366,12 @@ export const ChatMessageItem = memo(function ChatMessageItem({
 			{/* Main markdown response body flowing freely without card borders */}
 			{msg.content ? (
 				<div className="text-foreground leading-relaxed">
-					<AiMarkdownRenderer content={msg.content} compact={false} />
+					<AiMarkdownRenderer
+						content={msg.content}
+						compact={false}
+						folders={folders}
+						onNavigateToFolder={onNavigateToFolder}
+					/>
 				</div>
 			) : msg.isStreaming && (!msg.steps || msg.steps.length === 0) ? (
 				/* Only show initial planning status if no steps timeline is present yet */
@@ -441,64 +447,83 @@ export const ChatMessageItem = memo(function ChatMessageItem({
 			{currentReferences.length > 0 && !msg.isStreaming && (
 				<div className="mt-2 w-full flex flex-col rounded-xl bg-surface/90 border border-border animate-in fade-in duration-200 overflow-hidden">
 					{/* Toggle Header Bar */}
-					<div className="p-2.5 flex items-center justify-between text-[11px] font-medium text-muted hover:bg-surface-secondary/50 transition-colors">
-						<button
-							type="button"
-							onClick={() => setIsRefsExpanded(!effectiveRefsExpanded)}
-							className="inline-flex items-center gap-1.5 text-foreground hover:text-accent transition-colors cursor-pointer select-none text-left"
-						>
+					<div
+						role="button"
+						tabIndex={0}
+						onClick={() => setIsRefsExpanded(!effectiveRefsExpanded)}
+						onKeyDown={(e) => {
+							if (e.key === "Enter" || e.key === " ") {
+								e.preventDefault();
+								setIsRefsExpanded(!effectiveRefsExpanded);
+							}
+						}}
+						className="px-2.5 py-2 flex items-center justify-between text-[11px] font-medium text-muted hover:bg-surface-secondary/50 transition-colors cursor-pointer select-none"
+					>
+						{/* Left: icon + title + badge counts */}
+						<div className="flex items-center gap-1.5 min-w-0">
 							<BookOpen className="w-3.5 h-3.5 text-accent shrink-0" />
-							<span className="font-semibold">
-								命中的网址列表 ({currentReferences.length})
+							<span className="font-semibold text-xs text-foreground truncate">
+								命中的网址列表
 							</span>
-							<span className="text-[10px] text-muted font-normal inline-flex items-center gap-0.5">
-								{effectiveRefsExpanded ? (
-									<>
-										<span>(点击收起)</span>
-										<ChevronUp className="w-3 h-3" />
-									</>
-								) : (
-									<>
-										<span>(点击展开查看)</span>
-										<ChevronDown className="w-3 h-3" />
-									</>
-								)}
+							<span className="px-1.5 py-0.2 text-[10px] font-medium rounded-full bg-surface-secondary text-muted border border-border/60 shrink-0">
+								{currentReferences.length}
 							</span>
-						</button>
-
-						<div className="flex items-center gap-2">
 							{selectedRefsInThisMsg.length > 0 && (
-								<span className="text-[10px] text-accent font-medium">
+								<span className="px-1.5 py-0.2 text-[10px] font-medium rounded-full bg-accent-soft text-accent border border-accent/30 shrink-0">
 									已选 {selectedRefsInThisMsg.length} 项
 								</span>
 							)}
+						</div>
+
+						{/* Right: select-all button + collapse chevron */}
+						<div
+							className="flex items-center gap-1.5 shrink-0"
+							onClick={(e) => e.stopPropagation()}
+						>
 							{effectiveRefsExpanded && onToggleSelectGroup && (
 								<button
 									type="button"
 									onClick={() => onToggleSelectGroup(currentReferences)}
-									className={`text-[10px] font-medium inline-flex items-center gap-1 cursor-pointer transition-colors px-1.5 py-0.5 rounded-md ${
+									className={`text-[10px] font-medium inline-flex items-center gap-1 cursor-pointer transition-colors px-1.5 py-0.5 rounded-md border ${
 										isAllInMsgChecked
-											? "text-accent bg-accent-soft/50 hover:bg-accent-soft/80"
-											: "text-muted hover:text-foreground hover:bg-surface-secondary"
+											? "text-accent bg-accent-soft/60 border-accent/30 hover:bg-accent-soft"
+											: "text-muted hover:text-foreground bg-surface-secondary/50 hover:bg-surface-secondary border-border/40"
 									}`}
 									aria-label={isAllInMsgChecked ? "取消全选" : "全选全部网址"}
 								>
 									{isAllInMsgChecked ? (
 										<CheckSquare className="w-3 h-3 text-accent" />
 									) : (
-										<Square className="w-3 h-3 opacity-50 hover:opacity-80" />
+										<Square className="w-3 h-3 opacity-60" />
 									)}
 									<span>{isAllInMsgChecked ? "取消全选" : "全选"}</span>
 								</button>
 							)}
+
+							<button
+								type="button"
+								onClick={() => setIsRefsExpanded(!effectiveRefsExpanded)}
+								className="p-0.5 rounded-md text-muted hover:text-foreground transition-colors cursor-pointer"
+								aria-label={effectiveRefsExpanded ? "收起列表" : "展开列表"}
+							>
+								<ChevronDown
+									className={`w-3.5 h-3.5 transition-transform duration-200 ${
+										effectiveRefsExpanded ? "rotate-180" : ""
+									}`}
+								/>
+							</button>
 						</div>
 					</div>
 
 					{/* Collapsible Content */}
 					{effectiveRefsExpanded && (
-						<div className="p-3 pt-0 flex flex-col gap-2 border-t border-border/50">
-							{/* Reference items list with max height and internal scrolling */}
-							<div className="flex flex-col gap-1.5 max-h-72 sm:max-h-80 overflow-y-auto pr-1 pt-2">
+						<div className="flex flex-col border-t border-border/50">
+							{/* Reference items list with symmetrical margins accounting for scrollbar */}
+							<div
+								className={`flex flex-col gap-1.5 max-h-72 sm:max-h-80 overflow-y-auto pl-2.5 py-2 ${
+									currentReferences.length > 3 ? "pr-1" : "pr-2.5"
+								}`}
+							>
 								{currentReferences.map(
 									(ref: SearchResultItem, rIdx: number) => {
 										const refKey = ref.id || ref.url || rIdx;
@@ -520,7 +545,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
 
 							{/* Batch Actions Bar for selected references */}
 							{selectedRefsInThisMsg.length > 0 && (
-								<div className="mt-1 pt-2 border-t border-border flex items-center justify-between gap-1 flex-wrap bg-surface-secondary/40 p-1.5 rounded-lg">
+								<div className="border-t border-border flex items-center justify-between gap-1 flex-wrap bg-surface-secondary/40 px-2.5 py-2">
 									<span className="text-[10px] text-foreground font-medium">
 										已选 {selectedRefsInThisMsg.length} 个书签
 									</span>

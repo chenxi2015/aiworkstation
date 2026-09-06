@@ -25,6 +25,7 @@ export interface ChatMessageListProps {
 		createMode?: boolean,
 	) => void;
 	onSelectPrompt: (prompt: string) => void;
+	folders?: Folder[];
 	onNavigateToFolder?: (
 		folderId: number | null,
 		category?: Category,
@@ -52,6 +53,7 @@ export function ChatMessageList({
 	onOpenAssignSingle,
 	onOpenAssignMultiple,
 	onSelectPrompt,
+	folders,
 	onNavigateToFolder,
 }: ChatMessageListProps) {
 	const [isSelectMode, setIsSelectMode] = useState(false);
@@ -146,6 +148,7 @@ export function ChatMessageList({
 					onToggleSelectGroup={onToggleSelectGroup}
 					onOpenAssignSingle={onOpenAssignSingle}
 					onOpenAssignMultiple={onOpenAssignMultiple}
+					folders={folders}
 					onNavigateToFolder={onNavigateToFolder}
 				/>
 			))}

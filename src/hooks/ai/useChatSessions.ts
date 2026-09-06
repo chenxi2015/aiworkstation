@@ -38,12 +38,9 @@ export function useChatSessions<
 		() => `session_${Date.now()}`,
 	);
 
-	// Load chat sessions on mount solely from SQLite and purge legacy localStorage cache
+	// Load chat sessions on mount solely from SQLite
 	useEffect(() => {
 		let isMounted = true;
-
-		// Purge any legacy localStorage chat cache to reclaim browser quota
-		WorkbenchStorageService.purgeLegacyChatLocalStorage();
 
 		async function loadSessionsFromDb() {
 			try {
@@ -63,7 +60,10 @@ export function useChatSessions<
 					}
 				}
 			} catch (e) {
-				console.error("[useChatSessions] Failed to load sessions from SQLite:", e);
+				console.error(
+					"[useChatSessions] Failed to load sessions from SQLite:",
+					e,
+				);
 			}
 		}
 
@@ -75,63 +75,60 @@ export function useChatSessions<
 	}, []);
 
 	// Synchronize current messages with sessions list and SQLite database
-	const syncSession = useCallback(
-		(msgs: TMessage[], sessId: string) => {
-			try {
-				if (msgs.length === 0) return;
+	const syncSession = useCallback((msgs: TMessage[], sessId: string) => {
+		try {
+			if (msgs.length === 0) return;
 
-				const nowStr = new Date().toLocaleString([], {
-					month: "2-digit",
-					day: "2-digit",
-					hour: "2-digit",
-					minute: "2-digit",
-				});
-				const firstUserMsg = msgs.find((m) => m.role === "user");
-				const rawTitle = firstUserMsg
-					? firstUserMsg.content.slice(0, 24)
-					: "新对话";
-				const title = rawTitle.length >= 24 ? `${rawTitle}...` : rawTitle;
+			const nowStr = new Date().toLocaleString([], {
+				month: "2-digit",
+				day: "2-digit",
+				hour: "2-digit",
+				minute: "2-digit",
+			});
+			const firstUserMsg = msgs.find((m) => m.role === "user");
+			const rawTitle = firstUserMsg
+				? firstUserMsg.content.slice(0, 24)
+				: "新对话";
+			const title = rawTitle.length >= 24 ? `${rawTitle}...` : rawTitle;
 
-				let sessionToPersist: ChatSession<TMessage>;
+			let sessionToPersist: ChatSession<TMessage>;
 
-				setSessions((prev) => {
-					const existingIndex = prev.findIndex((s) => s.id === sessId);
-					if (existingIndex >= 0) {
-						const updated = prev.map((s, idx) => {
-							if (idx === existingIndex) {
-								sessionToPersist = {
-									...s,
-									title: s.title || title,
-									updatedAt: nowStr,
-									messages: msgs,
-								};
-								return sessionToPersist;
-							}
-							return s;
-						});
-						return updated;
-					}
-
-					sessionToPersist = {
-						id: sessId,
-						title,
-						createdAt: nowStr,
-						updatedAt: nowStr,
-						messages: msgs,
-					};
-					return [sessionToPersist, ...prev];
-				});
-
-				// Persist single session to SQLite in background
-				if (sessionToPersist!) {
-					WorkbenchStorageService.saveChatSession(sessionToPersist);
+			setSessions((prev) => {
+				const existingIndex = prev.findIndex((s) => s.id === sessId);
+				if (existingIndex >= 0) {
+					const updated = prev.map((s, idx) => {
+						if (idx === existingIndex) {
+							sessionToPersist = {
+								...s,
+								title: s.title || title,
+								updatedAt: nowStr,
+								messages: msgs,
+							};
+							return sessionToPersist;
+						}
+						return s;
+					});
+					return updated;
 				}
-			} catch (e) {
-				console.error("[useChatSessions] Failed to sync session:", e);
+
+				sessionToPersist = {
+					id: sessId,
+					title,
+					createdAt: nowStr,
+					updatedAt: nowStr,
+					messages: msgs,
+				};
+				return [sessionToPersist, ...prev];
+			});
+
+			// Persist single session to SQLite in background
+			if (sessionToPersist!) {
+				WorkbenchStorageService.saveChatSession(sessionToPersist);
 			}
-		},
-		[],
-	);
+		} catch (e) {
+			console.error("[useChatSessions] Failed to sync session:", e);
+		}
+	}, []);
 
 	// Create a new blank session
 	const createNewChat = useCallback(
@@ -194,12 +191,15 @@ export function useChatSessions<
 			const nowFormatted = new Date().toISOString().slice(0, 10);
 			const filename = `aiworkstation_chat_history_${nowFormatted}.json`;
 
-			downloadJsonFile(filename, exportData || {
-				exportedAt: new Date().toISOString(),
-				version: "1.0",
-				totalSessions: sessions.length,
-				sessions,
-			});
+			downloadJsonFile(
+				filename,
+				exportData || {
+					exportedAt: new Date().toISOString(),
+					version: "1.0",
+					totalSessions: sessions.length,
+					sessions,
+				},
+			);
 			toast.success("已成功导出所有对话记录");
 		} catch (err) {
 			console.error("[useChatSessions] Failed to export JSON:", err);
@@ -208,27 +208,24 @@ export function useChatSessions<
 	}, [sessions]);
 
 	// Export a single session as JSON file
-	const exportSessionToJson = useCallback(
-		(session: ChatSession<TMessage>) => {
-			try {
-				const dateTag = new Date().toISOString().slice(0, 10);
-				const cleanTitle = (session.title || "chat")
-					.replace(/[\\/:*?"<>|]/g, "_")
-					.slice(0, 30);
-				const filename = `${cleanTitle}_${dateTag}.json`;
+	const exportSessionToJson = useCallback((session: ChatSession<TMessage>) => {
+		try {
+			const dateTag = new Date().toISOString().slice(0, 10);
+			const cleanTitle = (session.title || "chat")
+				.replace(/[\\/:*?"<>|]/g, "_")
+				.slice(0, 30);
+			const filename = `${cleanTitle}_${dateTag}.json`;
 
-				downloadJsonFile(filename, {
-					exportedAt: new Date().toISOString(),
-					session,
-				});
-				toast.success(`已导出「${session.title}」`);
-			} catch (err) {
-				console.error("[useChatSessions] Failed to export single session:", err);
-				toast.danger("导出单条会话失败");
-			}
-		},
-		[],
-	);
+			downloadJsonFile(filename, {
+				exportedAt: new Date().toISOString(),
+				session,
+			});
+			toast.success(`已导出「${session.title}」`);
+		} catch (err) {
+			console.error("[useChatSessions] Failed to export single session:", err);
+			toast.danger("导出单条会话失败");
+		}
+	}, []);
 
 	return {
 		sessions,

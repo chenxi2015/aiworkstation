@@ -1,11 +1,124 @@
+import { Link } from "@heroui/react";
+import { Folder as FolderIcon } from "lucide-react";
 import type { ComponentPropsWithoutRef, ElementType, ReactNode } from "react";
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import { Streamdown } from "streamdown";
+import type { Category, Folder } from "../../types";
+
+const URL_REGEX = /(https?:\/\/[^\s<>)\]}]+)/g;
+
+/**
+ * Normalizes backtick URLs (`https://...`) into standard markdown links [url](url)
+ * so they are consistently recognized by markdown parser.
+ */
+function normalizeMarkdownUrls(markdown: string): string {
+	if (!markdown) return "";
+	return markdown.replace(/`\s*(https?:\/\/[^\s`]+)\s*`/g, "[$1]($1)");
+}
+
+/**
+ * Safely wraps plain text URLs into interactive HeroUI Link components
+ */
+function renderTextWithUrls(text: string): ReactNode {
+	if (!text || !URL_REGEX.test(text)) return text;
+	const parts = text.split(URL_REGEX);
+	return parts.map((part, i) => {
+		if (/^https?:\/\//i.test(part)) {
+			// Strip trailing punctuation often appended in prose
+			const cleanUrl = part.replace(/[.,;!?，。！？"“”'‘’）]+$/, "");
+			const trailing = part.slice(cleanUrl.length);
+			return (
+				<span key={i}>
+					<Link
+						href={cleanUrl}
+						target="_blank"
+						rel="noreferrer"
+						style={{ color: "#2563eb" }}
+					>
+						<span>{cleanUrl}</span>
+						<Link.Icon />
+					</Link>
+					{trailing}
+				</span>
+			);
+		}
+		return part;
+	});
+}
+
+/**
+ * Recursively scans children to convert raw URL strings into Link components
+ */
+function processChildrenWithUrls(children: ReactNode): ReactNode {
+	if (typeof children === "string") {
+		return renderTextWithUrls(children);
+	}
+	if (Array.isArray(children)) {
+		return children.map((child, index) => {
+			if (typeof child === "string") {
+				return <span key={index}>{renderTextWithUrls(child)}</span>;
+			}
+			return child;
+		});
+	}
+	return children;
+}
+
+/**
+ * Safely find a folder matching a given text string.
+ * Supports exact match as well as stripping leading emoji/symbols.
+ */
+function findMatchingFolder(
+	text: string,
+	folders?: Folder[],
+): Folder | undefined {
+	if (!folders || !text) return undefined;
+	const clean = text.trim().toLowerCase();
+	if (!clean || clean.length < 2) return undefined;
+
+	// 1. Exact match (case-insensitive)
+	const exact = folders.find((f) => f.name.trim().toLowerCase() === clean);
+	if (exact) return exact;
+
+	// 2. Strip leading emojis/symbols/punctuation (e.g. "🐙 GitHub 资源库" -> "GitHub 资源库")
+	const stripped = clean
+		.replace(/^[\p{Emoji}\p{Extended_Pictographic}\s/\\#\-_:：]+/u, "")
+		.trim();
+	if (stripped && stripped.length >= 2) {
+		const match = folders.find((f) => {
+			const fClean = f.name.trim().toLowerCase();
+			const fStripped = fClean
+				.replace(/^[\p{Emoji}\p{Extended_Pictographic}\s/\\#\-_:：]+/u, "")
+				.trim();
+			return fClean === stripped || fStripped === stripped || fClean === clean;
+		});
+		if (match) return match;
+	}
+
+	return undefined;
+}
+
+/**
+ * Validates whether a string is a full valid HTTP/HTTPS URL
+ */
+function isValidHttpUrl(str: string): boolean {
+	if (!str || typeof str !== "string") return false;
+	const trimmed = str.trim();
+	if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
+		return false;
+	}
+	try {
+		const parsed = new URL(trimmed);
+		return parsed.protocol === "http:" || parsed.protocol === "https:";
+	} catch {
+		return false;
+	}
+}
 
 /**
  * Chinese translations for Streamdown controls and tooltips
  */
-export const STREAMDOWN_ZH_TRANSLATIONS = {
+const STREAMDOWN_ZH_TRANSLATIONS = {
 	close: "关闭",
 	copied: "已复制",
 	copyCode: "复制代码",
@@ -41,6 +154,12 @@ export interface AiMarkdownRendererProps {
 	content: string;
 	className?: string;
 	compact?: boolean;
+	folders?: Folder[];
+	onNavigateToFolder?: (
+		folderId: number | null,
+		category?: Category,
+		targetItemId?: string | number,
+	) => void;
 }
 
 type ExtraProps<T extends ElementType> = ComponentPropsWithoutRef<T> & {
@@ -50,18 +169,26 @@ type ExtraProps<T extends ElementType> = ComponentPropsWithoutRef<T> & {
 
 /**
  * Shared AI Markdown & Streamdown renderer with optimized font scaling,
- * compact spacing for sidebars/modals, and robust table action toolbars.
+ * compact spacing for sidebars/modals, direct URL opening, and interactive folder tags.
  */
 export const AiMarkdownRenderer = memo(function AiMarkdownRenderer({
 	content,
 	className = "",
 	compact = true,
+	folders,
+	onNavigateToFolder,
 }: AiMarkdownRendererProps) {
+	const processedContent = useMemo(
+		() => normalizeMarkdownUrls(content),
+		[content],
+	);
+
 	return (
 		<div
 			className={`ai-markdown-root ${compact ? "ai-markdown-compact" : ""} ${className}`}
 		>
 			<Streamdown
+				linkSafety={{ enabled: false }}
 				controls={{
 					table: {
 						copy: true,
@@ -120,7 +247,7 @@ export const AiMarkdownRenderer = memo(function AiMarkdownRenderer({
 							}
 							{...props}
 						>
-							{children}
+							{processChildrenWithUrls(children)}
 						</p>
 					),
 					ul: ({ children, node, ...props }: ExtraProps<"ul">) => (
@@ -152,7 +279,7 @@ export const AiMarkdownRenderer = memo(function AiMarkdownRenderer({
 							className={compact ? "leading-relaxed" : "leading-[1.7]"}
 							{...props}
 						>
-							{children}
+							{processChildrenWithUrls(children)}
 						</li>
 					),
 					blockquote: ({
@@ -178,7 +305,46 @@ export const AiMarkdownRenderer = memo(function AiMarkdownRenderer({
 						...props
 					}: ExtraProps<"code">) => {
 						const isInline = !className;
-						if (isInline) {
+						if (isInline && typeof children === "string") {
+							const text = children.trim();
+
+							// 1. Detect if the inline code is actually an HTTP/HTTPS URL
+							if (isValidHttpUrl(text)) {
+								return (
+									<Link
+										href={text}
+										target="_blank"
+										rel="noreferrer"
+										style={{ color: "#2563eb" }}
+									>
+										<span>{text}</span>
+										<Link.Icon />
+									</Link>
+								);
+							}
+
+							// 2. Detect if the inline code references an existing folder
+							const matchedFolder = findMatchingFolder(text, folders);
+							if (matchedFolder && onNavigateToFolder) {
+								return (
+									<button
+										type="button"
+										onClick={(e) => {
+											e.stopPropagation();
+											onNavigateToFolder(
+												matchedFolder.id,
+												matchedFolder.category as Category,
+											);
+										}}
+										className="inline-flex items-center gap-1 px-2 text-[11.5px] font-medium rounded-md bg-accent/10 hover:bg-accent/20 text-accent border border-accent/30 hover:border-accent/50 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98] align-middle"
+										title={`在工作台中定位并进入「${matchedFolder.name}」文件夹`}
+									>
+										<FolderIcon className="w-3 h-3 shrink-0 text-accent" />
+										<span>{matchedFolder.name}</span>
+									</button>
+								);
+							}
+
 							return (
 								<code
 									className={
@@ -235,20 +401,55 @@ export const AiMarkdownRenderer = memo(function AiMarkdownRenderer({
 							{children}
 						</td>
 					),
-					a: ({ children, href, node, ...props }: ExtraProps<"a">) => (
-						<a
-							href={href}
-							target="_blank"
-							rel="noreferrer"
-							className="text-accent hover:underline inline-flex items-center gap-0.5 font-medium cursor-pointer"
-							{...props}
-						>
-							{children}
-						</a>
-					),
+					a: ({ children, href }: ExtraProps<"a">) => {
+						// 1. Intercept custom folder:// protocols or matching folder links
+						if (href && onNavigateToFolder) {
+							if (href.startsWith("folder://")) {
+								const folderKey = decodeURIComponent(
+									href.replace("folder://", "").trim(),
+								);
+								const matched = folders?.find(
+									(f) =>
+										String(f.id) === folderKey ||
+										f.name.toLowerCase() === folderKey.toLowerCase(),
+								);
+								if (matched) {
+									return (
+										<button
+											type="button"
+											onClick={(e) => {
+												e.stopPropagation();
+												onNavigateToFolder(
+													matched.id,
+													matched.category as Category,
+												);
+											}}
+											className="inline-flex items-center gap-1 px-2 py-0.5 mx-0.5 text-[11.5px] font-medium rounded-md bg-accent/10 hover:bg-accent/20 text-accent border border-accent/30 hover:border-accent/50 transition-all cursor-pointer align-middle"
+											title={`在工作台中定位并进入「${matched.name}」文件夹`}
+										>
+											<FolderIcon className="w-3 h-3 shrink-0 text-accent" />
+											<span>{children || matched.name}</span>
+										</button>
+									);
+								}
+							}
+						}
+
+						return (
+							<Link
+								href={href}
+								target="_blank"
+								rel="noreferrer"
+								style={{ color: "#2563eb" }}
+							>
+								<span>{children}</span>
+								<Link.Icon />
+							</Link>
+						);
+					},
 				}}
 			>
-				{content}
+				{processedContent}
 			</Streamdown>
 		</div>
 	);
