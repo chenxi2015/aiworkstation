@@ -1,5 +1,6 @@
-import { toast } from "@heroui/react";
+import { Button, toast } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
+import { Pencil, RefreshCw } from "lucide-react";
 import { lazy, Suspense, useCallback, useRef, useState } from "react";
 import {
 	type Category,
@@ -8,6 +9,7 @@ import {
 	type ChatWithBookmarksPanelRef,
 	ConfirmDialog,
 	FolderDetailPanel,
+	RenameCategoryModal,
 	UnclassifiedView,
 	WorkbenchHeader,
 	type WorkbenchItem,
@@ -84,6 +86,7 @@ function WorkbenchHome() {
 		settings,
 		activeCategory,
 		selectedFolder,
+		currentFolder,
 		folderPath,
 		gridFolders,
 		childFolderCounts,
@@ -101,6 +104,7 @@ function WorkbenchHome() {
 		handleMoveFolder,
 		handleMoveFolderToCategory,
 		handleReorderFolders,
+		handleRenameCategory,
 		handleEnterFolder,
 		handleNavigateToContainer,
 		handleDeleteUnclassifiedItem,
@@ -158,6 +162,38 @@ function WorkbenchHome() {
 		},
 		[handleAskAIAboutFolder],
 	);
+
+	// Refresh folder list state and action
+	const [isRefreshing, setIsRefreshing] = useState(false);
+	const handleRefresh = useCallback(async () => {
+		if (isRefreshing) return;
+		setIsRefreshing(true);
+		try {
+			await Promise.all([
+				reloadFromDb(),
+				new Promise((resolve) => setTimeout(resolve, 350)),
+			]);
+			toast.success("文件夹列表已刷新");
+		} catch (error) {
+			console.error("Failed to refresh folder list:", error);
+			toast.danger("刷新文件夹列表失败，请稍后重试");
+		} finally {
+			setIsRefreshing(false);
+		}
+	}, [isRefreshing, reloadFromDb]);
+
+	// Category rename modal state
+	const [isRenameCategoryOpen, setIsRenameCategoryOpen] = useState(false);
+
+	// Handle title edit button: edit currentFolder if inside subfolder, or rename category
+	const canEditTitle = Boolean(currentFolder) || activeCategory !== "未分类";
+	const handleEditTitle = useCallback(() => {
+		if (currentFolder) {
+			openEditFolderModal(currentFolder);
+		} else if (activeCategory !== "未分类") {
+			setIsRenameCategoryOpen(true);
+		}
+	}, [currentFolder, openEditFolderModal, activeCategory]);
 
 	// Destructive actions pending user confirmation via HeroUI AlertDialog
 	const [folderPendingDelete, setFolderPendingDelete] = useState<
@@ -329,20 +365,56 @@ function WorkbenchHome() {
 							{/* 2. Main Column: 文件夹列表与卡片区 (Category Folders Grid) */}
 							<main className="flex-1 p-6 lg:p-7 min-w-0 flex flex-col overflow-y-auto h-full">
 								{/* Workspace Title */}
-								<div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-4 mb-6">
+								<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
 									<div>
 										<div className="flex items-center gap-2">
 											<h1 className="text-2xl font-bold tracking-tight text-foreground">
-												{activeCategory}
+												{currentFolder ? currentFolder.name : activeCategory}
 											</h1>
 											<span className="text-xs font-medium text-muted">
-												{gridFolders.length} 个文件夹
+												{gridFolders.length} 个
+												{currentFolder ? "子文件夹" : "文件夹"}
 											</span>
+											{canEditTitle && (
+												<Button
+													variant="ghost"
+													size="sm"
+													className="rounded-full h-7 w-7 p-0 min-w-0 cursor-pointer text-muted hover:text-foreground hover:bg-surface-secondary/80 transition-colors"
+													onPress={handleEditTitle}
+													aria-label={
+														currentFolder ? "编辑当前文件夹" : "编辑分类名称"
+													}
+												>
+													<Pencil className="w-3.5 h-3.5" />
+												</Button>
+											)}
 										</div>
 										<p className="text-xs text-muted mt-1 leading-relaxed max-w-2xl">
-											点击文件夹卡片可在左侧查看书签与快捷看板，支持自由拖拽排序与移动归类；右侧随时进行
-											AI 搜索与知识问答。
+											{currentFolder
+												? currentFolder.desc?.trim() ||
+													`当前位于「${currentFolder.name}」文件夹，可在此浏览子文件夹与归集书签。`
+												: "点击文件夹卡片可在左侧查看书签与快捷看板，支持自由拖拽排序与移动归类；右侧随时进行 AI 搜索与知识问答。"}
 										</p>
+									</div>
+
+									{/* Action buttons: Refresh folder list */}
+									<div className="flex items-center gap-2 shrink-0">
+										<Button
+											variant="secondary"
+											size="sm"
+											className="rounded-full flex items-center gap-1.5 cursor-pointer text-xs"
+											isDisabled={isRefreshing}
+											onPress={handleRefresh}
+										>
+											<RefreshCw
+												className={`w-3.5 h-3.5 ${
+													isRefreshing
+														? "animate-spin text-accent"
+														: "text-muted"
+												}`}
+											/>
+											<span>刷新列表</span>
+										</Button>
 									</div>
 								</div>
 
@@ -388,6 +460,7 @@ function WorkbenchHome() {
 							isOpen={folderModalState.isOpen}
 							folder={folderModalState.folder}
 							folders={folders}
+							categories={dynamicCategories}
 							defaultCategory={isUnclassified ? "工作台" : activeCategory}
 							defaultParentId={folderModalState.defaultParentId}
 							onClose={closeFolderModal}
@@ -399,6 +472,17 @@ function WorkbenchHome() {
 								await handleDeleteFolder(id);
 								closeFolderModal();
 							}}
+						/>
+					)}
+
+					{/* Category rename modal */}
+					{isRenameCategoryOpen && (
+						<RenameCategoryModal
+							isOpen={isRenameCategoryOpen}
+							category={activeCategory}
+							allCategories={dynamicCategories}
+							onClose={() => setIsRenameCategoryOpen(false)}
+							onRename={handleRenameCategory}
 						/>
 					)}
 

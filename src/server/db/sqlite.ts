@@ -12,6 +12,15 @@ import {
 } from "./repositories/chatSession.repo.ts";
 import { FolderRepository } from "./repositories/folder.repo.ts";
 import { SearchRepository } from "./repositories/search.repo.ts";
+import {
+	type AddTagsPlanItem,
+	type AddTagsResult,
+	type AffectedBookmarkInfo,
+	type RemoveTagsResult,
+	type RenameOrMergeTagsResult,
+	TagRepository,
+	type TagWithCount,
+} from "./repositories/tag.repo.ts";
 import type {
 	BookmarkQueryParams,
 	EmbeddingStats,
@@ -21,13 +30,14 @@ import type {
 
 /**
  * SQLite Database Facade for AI Workstation
- * Composes domain repositories (Folder, Bookmark, Search/Embedding, ChatSession)
+ * Composes domain repositories (Folder, Bookmark, Search/Embedding, ChatSession, Tag)
  */
 export class WorkbenchDatabase {
 	private folderRepo!: FolderRepository;
 	private bookmarkRepo!: BookmarkRepository;
 	private searchRepo!: SearchRepository;
 	private chatSessionRepo!: ChatSessionRepository;
+	private tagRepo!: TagRepository;
 
 	private initRepositories(): void {
 		const db = getDb();
@@ -35,6 +45,7 @@ export class WorkbenchDatabase {
 		this.bookmarkRepo = new BookmarkRepository(db);
 		this.searchRepo = new SearchRepository(db);
 		this.chatSessionRepo = new ChatSessionRepository(db);
+		this.tagRepo = new TagRepository(db);
 	}
 
 	constructor() {
@@ -47,7 +58,6 @@ export class WorkbenchDatabase {
 	reloadConnection(): void {
 		this.initRepositories();
 	}
-
 
 	// ================= Folder Operations =================
 	getAllFolders(): Folder[] {
@@ -91,6 +101,10 @@ export class WorkbenchDatabase {
 
 	moveFolderToCategory(folderId: number, targetCategory: string): void {
 		this.folderRepo.moveFolderToCategory(folderId, targetCategory);
+	}
+
+	renameCategory(oldCategory: string, newCategory: string): number {
+		return this.folderRepo.renameCategory(oldCategory, newCategory);
 	}
 
 	// ================= Bookmark Operations =================
@@ -219,9 +233,53 @@ export class WorkbenchDatabase {
 	} {
 		return this.chatSessionRepo.exportAllToJson();
 	}
+
+	// ================= Tag Operations =================
+	createTags(tags: Array<{ name: string; color?: string | null }>): {
+		createdTags: string[];
+		skipped: string[];
+	} {
+		return this.tagRepo.createTags(tags);
+	}
+
+	getAllTags(): TagWithCount[] {
+		return this.tagRepo.getAllTags();
+	}
+
+	addTagsToBookmarks(params: {
+		bookmarkIds?: string[] | null;
+		itemNamesOrUrls?: string[] | null;
+		tags?: string[] | null;
+		plans?: AddTagsPlanItem[] | null;
+	}): AddTagsResult {
+		return this.tagRepo.addTagsToBookmarks(params);
+	}
+
+	removeTags(params: {
+		bookmarkIds?: string[] | null;
+		tags: string[];
+		deleteGlobal?: boolean | null;
+	}): RemoveTagsResult {
+		return this.tagRepo.removeTags(params);
+	}
+
+	renameOrMergeTags(
+		sourceTags: string[],
+		targetTag: string,
+	): RenameOrMergeTagsResult {
+		return this.tagRepo.renameOrMergeTags(sourceTags, targetTag);
+	}
 }
 
-export type { ChatSessionRecord };
+export type {
+	AddTagsPlanItem,
+	AddTagsResult,
+	AffectedBookmarkInfo,
+	ChatSessionRecord,
+	RemoveTagsResult,
+	RenameOrMergeTagsResult,
+	TagWithCount,
+};
 
 // Re-export query types for backward compatibility
 export type {

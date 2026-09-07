@@ -20,7 +20,6 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { FolderAppGridCover } from "./folder/FolderAppGridCover";
 import type { Folder } from "./types";
-import { FOLDER_CATEGORIES } from "./types";
 
 export const FOLDER_COLORS = [
 	"#F43F5E",
@@ -38,6 +37,7 @@ interface FolderModalProps {
 	folders: Folder[];
 	defaultCategory: string;
 	defaultParentId?: number | null;
+	categories?: string[];
 	onClose: () => void;
 	onSave: (data: {
 		id?: number;
@@ -56,6 +56,7 @@ export function FolderModal({
 	folders,
 	defaultCategory,
 	defaultParentId = null,
+	categories = [],
 	onClose,
 	onSave,
 	onDelete,
@@ -68,6 +69,27 @@ export function FolderModal({
 	const [error, setError] = useState("");
 
 	const isEdit = !!folder;
+
+	// Calculate all available top-level navigation spaces/categories
+	const availableCategories = useMemo(() => {
+		const set = new Set<string>();
+		for (const c of categories) {
+			if (c && c !== "未分类") set.add(c);
+		}
+		set.add("工作台");
+		for (const f of folders) {
+			if (f.category && f.category !== "未分类") {
+				set.add(f.category);
+			}
+		}
+		if (defaultCategory && defaultCategory !== "未分类") {
+			set.add(defaultCategory);
+		}
+		if (folder?.category && folder.category !== "未分类") {
+			set.add(folder.category);
+		}
+		return Array.from(set);
+	}, [categories, folders, defaultCategory, folder]);
 
 	// Parent candidates: all folders except the folder itself and its descendants
 	const parentOptions = useMemo(() => {
@@ -108,6 +130,31 @@ export function FolderModal({
 			setError("");
 		}
 	}, [isOpen, folder, folders, defaultCategory, defaultParentId]);
+
+	// Unified parent key representation: `root:${category}` or `folder:${folderId}`
+	const selectedParentKey = useMemo(() => {
+		if (parentId != null) {
+			return `folder:${parentId}`;
+		}
+		return `root:${category || defaultCategory || "工作台"}`;
+	}, [parentId, category, defaultCategory]);
+
+	const handleParentChange = (key: unknown) => {
+		if (!key) return;
+		const keyStr = String(key);
+		if (keyStr.startsWith("root:")) {
+			const targetCat = keyStr.slice(5);
+			setParentId(null);
+			setCategory(targetCat);
+		} else if (keyStr.startsWith("folder:")) {
+			const targetId = Number(keyStr.slice(7));
+			const targetFolder = folders.find((f) => f.id === targetId);
+			setParentId(targetId);
+			if (targetFolder) {
+				setCategory(targetFolder.category);
+			}
+		}
+	};
 
 	const handleSubmit = (e: FormEvent) => {
 		e.preventDefault();
@@ -178,68 +225,48 @@ export function FolderModal({
 									{error && <FieldError>{error}</FieldError>}
 								</TextField>
 
-								{/* Parent Folder Select */}
+								{/* Unified Parent Folder / Space Select */}
 								<Select
-									selectedKey={parentId === null ? "none" : String(parentId)}
-									onSelectionChange={(key) => {
-										if (key == null) return;
-										if (key === "none") {
-											setParentId(null);
-											return;
-										}
-										const parent = parentOptions.find(
-											(f) => f.id === Number(key),
-										);
-										setParentId(parent?.id ?? null);
-										if (parent) setCategory(parent.category);
-									}}
+									selectedKey={selectedParentKey}
+									onSelectionChange={handleParentChange}
 								>
-									<Label>父级文件夹</Label>
+									<Label>父级文件夹 / 所属空间</Label>
 									<SelectTrigger className={fieldClassName}>
 										<SelectValue />
 									</SelectTrigger>
 									<SelectPopover>
 										<ListBox>
-											<ListBoxItem id="none" textValue="无（顶级文件夹）">
-												无（顶级文件夹）
-											</ListBoxItem>
-											{parentOptions.map((f) => (
+											{availableCategories.map((cat) => (
 												<ListBoxItem
-													key={f.id}
-													id={String(f.id)}
-													textValue={f.name}
+													key={`root:${cat}`}
+													id={`root:${cat}`}
+													textValue={`📂 ${cat} (顶层空间)`}
 												>
-													{f.name}
+													<div className="flex items-center gap-2 py-0.5">
+														<span className="text-base">📂</span>
+														<span className="font-medium text-foreground">
+															{cat}
+														</span>
+														<span className="text-[10px] text-muted ml-auto bg-surface-secondary px-1.5 py-0.5 rounded font-mono">
+															顶层空间
+														</span>
+													</div>
 												</ListBoxItem>
 											))}
-										</ListBox>
-									</SelectPopover>
-								</Select>
 
-								{/* Category Select */}
-								<Select
-									selectedKey={category}
-									onSelectionChange={(key) => {
-										if (key) setCategory(String(key));
-									}}
-									isDisabled={parentId !== null}
-								>
-									<Label>
-										所属分类
-										{parentId !== null && (
-											<span className="ml-1 text-[10px] text-muted font-normal">
-												（子文件夹跟随父级分类）
-											</span>
-										)}
-									</Label>
-									<SelectTrigger className={fieldClassName}>
-										<SelectValue />
-									</SelectTrigger>
-									<SelectPopover>
-										<ListBox>
-											{FOLDER_CATEGORIES.map((cat) => (
-												<ListBoxItem key={cat} id={cat} textValue={cat}>
-													{cat}
+											{parentOptions.map((f) => (
+												<ListBoxItem
+													key={`folder:${f.id}`}
+													id={`folder:${f.id}`}
+													textValue={`📁 ${f.name}`}
+												>
+													<div className="flex items-center gap-2 py-0.5">
+														<span className="text-sm opacity-70">📁</span>
+														<span className="text-foreground">{f.name}</span>
+														<span className="text-[10px] text-muted ml-auto">
+															空间: {f.category}
+														</span>
+													</div>
 												</ListBoxItem>
 											))}
 										</ListBox>

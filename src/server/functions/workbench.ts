@@ -9,7 +9,9 @@ import type {
 } from "../../components/workbench/types";
 import { workbenchDb } from "../db/sqlite.ts";
 import {
+	type BackupFileInfo,
 	backupDatabase,
+	type DeadLinkScanJob,
 	deleteBackup,
 	getBackupsList,
 	getDeadLinkScanStatus,
@@ -17,8 +19,6 @@ import {
 	removeIdsFromLastScan,
 	restoreDatabase,
 	startDeadLinkScan,
-	type BackupFileInfo,
-	type DeadLinkScanJob,
 } from "../maintenance.ts";
 
 /**
@@ -191,6 +191,19 @@ export const moveFolderToCategory = createServerFn({ method: "POST" })
 	});
 
 /**
+ * Server Function: Batch rename a category across all folders
+ */
+export const renameCategory = createServerFn({ method: "POST" })
+	.validator((data: { oldCategory: string; newCategory: string }) => data)
+	.handler(async ({ data }): Promise<{ folders: Folder[]; count: number }> => {
+		const count = workbenchDb.renameCategory(
+			data.oldCategory,
+			data.newCategory,
+		);
+		return { folders: workbenchDb.getAllFolders(), count };
+	});
+
+/**
  * Server Function: Batch add bookmarks to SQLite
  */
 export const addBookmarks = createServerFn({ method: "POST" })
@@ -242,7 +255,9 @@ export const clearAllData = createServerFn({ method: "POST" }).handler(
 /**
  * Server Function: Clear all unclassified bookmarks from SQLite
  */
-export const clearUnclassifiedBookmarks = createServerFn({ method: "POST" }).handler(
+export const clearUnclassifiedBookmarks = createServerFn({
+	method: "POST",
+}).handler(
 	async (): Promise<{ deleted: number; unclassified: WorkbenchItem[] }> => {
 		const deleted = workbenchDb.clearUnclassified();
 		const unclassified = workbenchDb.getUnclassifiedItems();
@@ -337,7 +352,10 @@ export const getBackupsListFn = createServerFn({ method: "GET" }).handler(
  * Server Function: Manually create a new database backup
  */
 export const createBackupFn = createServerFn({ method: "POST" }).handler(
-	async (): Promise<{ backupPath: string | null; backups: BackupFileInfo[] }> => {
+	async (): Promise<{
+		backupPath: string | null;
+		backups: BackupFileInfo[];
+	}> => {
 		const backupPath = backupDatabase();
 		const backups = getBackupsList();
 		return { backupPath, backups };
@@ -378,4 +396,3 @@ export const deleteBackupFn = createServerFn({ method: "POST" })
 	.handler(async ({ data: filename }): Promise<{ success: boolean }> => {
 		return deleteBackup(filename);
 	});
-

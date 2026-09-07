@@ -15,6 +15,8 @@ import {
 	Pencil,
 	Search,
 	Sparkles,
+	Tag,
+	Tags,
 	Trash2,
 	Wrench,
 } from "lucide-react";
@@ -170,6 +172,66 @@ function formatStepAction(step: AgentStep): StepActionMeta {
 				Icon: Trash2,
 				iconColor: "text-rose-500 dark:text-rose-400",
 				title: `删除指定文件夹 ${name}`,
+			};
+		}
+		case "create_tags": {
+			if (Array.isArray(args.tags) && args.tags.length > 0) {
+				return {
+					Icon: Tags,
+					iconColor: "text-amber-500 dark:text-amber-400",
+					title: `批量创建 ${args.tags.length} 个标签`,
+				};
+			}
+			const name = args.name ? `「${String(args.name)}」` : "新标签";
+			return {
+				Icon: Tag,
+				iconColor: "text-amber-500 dark:text-amber-400",
+				title: `创建标签 ${name}`,
+			};
+		}
+		case "add_tags_to_bookmarks": {
+			if (Array.isArray(args.plans) && args.plans.length > 0) {
+				return {
+					Icon: Tags,
+					iconColor: "text-indigo-500 dark:text-indigo-400",
+					title: `批量为 ${args.plans.length} 组书签规划打标`,
+				};
+			}
+			const tagsList = Array.isArray(args.tags)
+				? ` [${args.tags.join("、")}]`
+				: "";
+			const count =
+				Array.isArray(args.bookmarkIds) || Array.isArray(args.itemNamesOrUrls)
+					? `${((args.bookmarkIds || args.itemNamesOrUrls) as unknown[]).length} 个目标`
+					: "书签";
+			return {
+				Icon: Tag,
+				iconColor: "text-indigo-500 dark:text-indigo-400",
+				title: `为 ${count}添加标签${tagsList}`,
+			};
+		}
+		case "remove_tags": {
+			const tagsList = Array.isArray(args.tags)
+				? ` [${args.tags.join("、")}]`
+				: "";
+			const isGlobal = Boolean(args.deleteGlobal);
+			return {
+				Icon: isGlobal ? Trash2 : Tag,
+				iconColor: "text-rose-500 dark:text-rose-400",
+				title: isGlobal
+					? `全库彻底删除标签${tagsList}`
+					: `从指定书签摘除标签${tagsList}`,
+			};
+		}
+		case "rename_or_merge_tags": {
+			const target = args.targetTag ? `为「${String(args.targetTag)}」` : "";
+			const count = Array.isArray(args.sourceTags)
+				? `${args.sourceTags.length} 个源标签`
+				: "源标签";
+			return {
+				Icon: Tags,
+				iconColor: "text-purple-500 dark:text-purple-400",
+				title: `合并治理 ${count} ${target}`.trim(),
 			};
 		}
 		default:

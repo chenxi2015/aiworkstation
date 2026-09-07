@@ -65,6 +65,10 @@ export interface UseWorkbenchDataReturn {
 		targetCategory: string,
 	) => Promise<void>;
 	handleReorderFolders: (orderedIds: number[]) => Promise<void>;
+	handleRenameCategory: (
+		oldCategory: string,
+		newCategory: string,
+	) => Promise<void>;
 	handleEnterFolder: (folderId: number) => void;
 	handleNavigateToContainer: (folderId: number | null) => void;
 	handleDeleteUnclassifiedItem: (item: WorkbenchItem) => Promise<void>;
@@ -169,6 +173,7 @@ export function useWorkbenchData(
 		handleMoveFolder,
 		handleMoveFolderToCategory,
 		handleReorderFolders,
+		handleRenameCategory,
 	} = useWorkbenchFolderActions({
 		folders,
 		setFolders,
@@ -223,6 +228,7 @@ export function useWorkbenchData(
 		handleMoveFolder,
 		handleMoveFolderToCategory,
 		handleReorderFolders,
+		handleRenameCategory,
 		handleEnterFolder,
 		handleNavigateToContainer,
 		handleDeleteUnclassifiedItem,

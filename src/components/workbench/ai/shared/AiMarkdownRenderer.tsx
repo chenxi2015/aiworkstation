@@ -100,7 +100,64 @@ function findMatchingFolder(
 		if (match) return match;
 	}
 
+	// 3. Strip trailing "文件夹" or "目录" (e.g. "Java 学习文件夹" -> "Java 学习")
+	const withoutFolderSuffix = stripped.replace(/(?:文件夹|目录)$/u, "").trim();
+	if (withoutFolderSuffix && withoutFolderSuffix.length >= 2) {
+		const match = folders.find((f) => {
+			const fClean = f.name.trim().toLowerCase();
+			const fStripped = fClean
+				.replace(/^[\p{Emoji}\p{Extended_Pictographic}\s/\\#\-_:：]+/u, "")
+				.replace(/(?:文件夹|目录)$/u, "")
+				.trim();
+			return (
+				fClean === withoutFolderSuffix || fStripped === withoutFolderSuffix
+			);
+		});
+		if (match) return match;
+	}
+
 	return undefined;
+}
+
+/**
+ * Intelligently wraps folder names in backticks if they are referenced
+ * inside Chinese brackets 「...」 or section headings like `### 📂 FolderName`,
+ * so they trigger the interactive folder capsule button.
+ */
+function normalizeMarkdownFolders(
+	markdown: string,
+	folders?: Folder[],
+): string {
+	if (!markdown || !folders || folders.length === 0) return markdown;
+
+	let result = markdown;
+
+	// 1. Convert 「FolderName」 or 『FolderName』 if FolderName matches an existing folder
+	result = result.replace(
+		/[「『“"‘']([^」』”"’'\n]{2,40})[」』”"’']/g,
+		(match, inner) => {
+			const matched = findMatchingFolder(inner, folders);
+			if (matched) {
+				return `\`${matched.name}\``;
+			}
+			return match;
+		},
+	);
+
+	// 2. Match headings like `### 📂 FolderName (extra info)` or `### FolderName`
+	// where core text matches an existing folder and is not already wrapped in backticks
+	result = result.replace(
+		/^(#{1,6}\s*(?:[📂📁]\s*)?)([^`\n(（]+?)(\s*(?:[（(][^\n)]+[)）])?\s*)$/gmu,
+		(match, prefix, folderCandidate, suffix) => {
+			const matched = findMatchingFolder(folderCandidate, folders);
+			if (matched) {
+				return `${prefix}\`${matched.name}\`${suffix}`;
+			}
+			return match;
+		},
+	);
+
+	return result;
 }
 
 /**
@@ -190,8 +247,8 @@ export const AiMarkdownRenderer = memo(function AiMarkdownRenderer({
 	onNavigateToFolder,
 }: AiMarkdownRendererProps) {
 	const processedContent = useMemo(
-		() => normalizeMarkdownUrls(content),
-		[content],
+		() => normalizeMarkdownFolders(normalizeMarkdownUrls(content), folders),
+		[content, folders],
 	);
 
 	return (
@@ -354,7 +411,7 @@ export const AiMarkdownRenderer = memo(function AiMarkdownRenderer({
 											matchedFolder.category as Category,
 										);
 									}}
-									className="inline-flex items-center gap-1 px-2 text-[11.5px] font-medium rounded-md bg-accent/10 hover:bg-accent/20 text-accent border border-accent/30 hover:border-accent/50 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98] align-middle"
+									className="inline-flex items-center gap-1 px-2 py-0.5 mx-0.5 text-[11.5px] font-medium rounded-md bg-accent/10 hover:bg-accent/20 text-accent border border-accent/30 hover:border-accent/50 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98] align-middle"
 									title={`在工作台中定位并进入「${matchedFolder.name}」文件夹`}
 								>
 									<FolderIcon className="w-3 h-3 shrink-0 text-accent" />

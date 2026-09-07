@@ -71,7 +71,7 @@ export const WorkbenchItemCard = memo(function WorkbenchItemCard({
 	if (compact) {
 		return (
 			<div
-				className={`group/item flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl border transition-all ${
+				className={`group/item relative flex items-center justify-between px-2.5 py-1.5 rounded-xl border transition-all overflow-hidden ${
 					isAssignMenuOpen
 						? "bg-surface-secondary border-accent/40 shadow-xs"
 						: "hover:bg-surface-secondary/70 border-transparent hover:border-border/60"
@@ -81,7 +81,7 @@ export const WorkbenchItemCard = memo(function WorkbenchItemCard({
 				<button
 					type="button"
 					onClick={() => handleOpenLink(item.url)}
-					className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer text-left"
+					className="flex items-center gap-2 min-w-0 flex-1 w-full cursor-pointer text-left"
 				>
 					<div className="w-5 h-5 rounded-md bg-surface flex items-center justify-center shrink-0 text-accent shadow-2xs">
 						<ItemFavicon
@@ -111,12 +111,12 @@ export const WorkbenchItemCard = memo(function WorkbenchItemCard({
 					</div>
 				</button>
 
-				{/* Actions (visible on hover or when assign menu is open) */}
+				{/* Actions (floating on hover or when assign menu is open, covering end of title) */}
 				<div
-					className={`flex items-center gap-0.5 transition-opacity shrink-0 ${
+					className={`absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 px-1 py-0.5 rounded-lg border border-border/70 bg-surface/95 dark:bg-surface-secondary/95 backdrop-blur-md shadow-xs transition-all duration-150 z-10 ${
 						isAssignMenuOpen
-							? "opacity-100"
-							: "opacity-0 group-hover/item:opacity-100"
+							? "opacity-100 pointer-events-auto"
+							: "opacity-0 pointer-events-none group-hover/item:opacity-100 group-hover/item:pointer-events-auto"
 					}`}
 				>
 					{item.url && (
@@ -124,8 +124,11 @@ export const WorkbenchItemCard = memo(function WorkbenchItemCard({
 							<Tooltip.Trigger>
 								<button
 									type="button"
-									onClick={() => handleOpenLink(item.url)}
-									className="w-6 h-6 rounded-md flex items-center justify-center text-muted hover:text-foreground hover:bg-surface cursor-pointer transition-colors"
+									onClick={(e) => {
+										e.stopPropagation();
+										handleOpenLink(item.url);
+									}}
+									className="w-6 h-6 rounded-md flex items-center justify-center text-muted hover:text-foreground hover:bg-surface/80 cursor-pointer transition-colors"
 									aria-label="打开链接"
 								>
 									<ExternalLink className="w-3 h-3" />
@@ -142,8 +145,11 @@ export const WorkbenchItemCard = memo(function WorkbenchItemCard({
 							<Tooltip.Trigger>
 								<button
 									type="button"
-									onClick={() => handleCopyLink(item.url)}
-									className="w-6 h-6 rounded-md flex items-center justify-center text-muted hover:text-foreground hover:bg-surface cursor-pointer transition-colors"
+									onClick={(e) => {
+										e.stopPropagation();
+										handleCopyLink(item.url);
+									}}
+									className="w-6 h-6 rounded-md flex items-center justify-center text-muted hover:text-foreground hover:bg-surface/80 cursor-pointer transition-colors"
 									aria-label="复制链接"
 								>
 									<Copy className="w-3 h-3" />
@@ -160,7 +166,10 @@ export const WorkbenchItemCard = memo(function WorkbenchItemCard({
 							<Tooltip.Trigger>
 								<button
 									type="button"
-									onClick={() => onAttachToChat(item)}
+									onClick={(e) => {
+										e.stopPropagation();
+										onAttachToChat(item);
+									}}
 									className="w-6 h-6 rounded-md flex items-center justify-center text-muted hover:text-accent hover:bg-accent/10 cursor-pointer transition-colors"
 									aria-label="引用到 AI 对话"
 								>
@@ -181,7 +190,7 @@ export const WorkbenchItemCard = memo(function WorkbenchItemCard({
 							originalFolderName={item.folderName}
 							onSelectFolder={(targetId) => onMoveItem(item, targetId)}
 							onOpenChange={setIsAssignMenuOpen}
-							triggerClassName="w-6 h-6 rounded-md flex items-center justify-center text-muted hover:text-foreground hover:bg-surface cursor-pointer transition-colors"
+							triggerClassName="w-6 h-6 rounded-md flex items-center justify-center text-muted hover:text-foreground hover:bg-surface/80 cursor-pointer transition-colors"
 						/>
 					)}
 
@@ -190,7 +199,10 @@ export const WorkbenchItemCard = memo(function WorkbenchItemCard({
 							<Tooltip.Trigger>
 								<button
 									type="button"
-									onClick={() => onDeleteItem(item)}
+									onClick={(e) => {
+										e.stopPropagation();
+										onDeleteItem(item);
+									}}
 									className="w-6 h-6 rounded-md flex items-center justify-center text-muted hover:text-danger hover:bg-danger-soft/20 cursor-pointer transition-colors"
 									aria-label="删除此条目"
 								>

@@ -1,8 +1,18 @@
 import {
+	addTagsToBookmarksInputSchema,
+	addTagsToBookmarksToolDef,
+	executeAddTagsToBookmarks,
+} from "./addTagsToBookmarksTool.ts";
+import {
 	createFolderInputSchema,
 	createFolderToolDef,
 	executeCreateFolder,
 } from "./createFolderTool.ts";
+import {
+	createTagsInputSchema,
+	createTagsToolDef,
+	executeCreateTags,
+} from "./createTagsTool.ts";
 import {
 	deleteFolderInputSchema,
 	deleteFolderToolDef,
@@ -45,6 +55,16 @@ import {
 	removeBookmarksInputSchema,
 } from "./removeBookmarksTool.ts";
 import {
+	executeRemoveTags,
+	removeTagsInputSchema,
+	removeTagsToolDef,
+} from "./removeTagsTool.ts";
+import {
+	executeRenameOrMergeTags,
+	renameOrMergeTagsInputSchema,
+	renameOrMergeTagsToolDef,
+} from "./renameOrMergeTagsTool.ts";
+import {
 	executeReorderFolders,
 	reorderFoldersInputSchema,
 	reorderFoldersToolDef,
@@ -56,7 +76,9 @@ import {
 	updateFolderToolDef,
 } from "./updateFolderTool.ts";
 
+export * from "./addTagsToBookmarksTool.ts";
 export * from "./createFolderTool.ts";
+export * from "./createTagsTool.ts";
 export * from "./deleteFolderTool.ts";
 export * from "./getStatsTool.ts";
 export * from "./mergeFoldersTool.ts";
@@ -65,6 +87,8 @@ export * from "./moveFolderTool.ts";
 export * from "./queryBookmarksTool.ts";
 export * from "./readWebpageTool.ts";
 export * from "./removeBookmarksTool.ts";
+export * from "./removeTagsTool.ts";
+export * from "./renameOrMergeTagsTool.ts";
 export * from "./reorderFoldersTool.ts";
 export * from "./timeResolver.ts";
 // Re-export all tool definitions and helpers
@@ -189,6 +213,28 @@ export function createBookmarkServerTools(hooks?: BookmarkToolHooks) {
 				hooks,
 			),
 		),
+		createTagsToolDef.server((args) =>
+			wrapExecution("create_tags", args, () => executeCreateTags(args), hooks),
+		),
+		addTagsToBookmarksToolDef.server((args) =>
+			wrapExecution(
+				"add_tags_to_bookmarks",
+				args,
+				() => executeAddTagsToBookmarks(args),
+				hooks,
+			),
+		),
+		removeTagsToolDef.server((args) =>
+			wrapExecution("remove_tags", args, () => executeRemoveTags(args), hooks),
+		),
+		renameOrMergeTagsToolDef.server((args) =>
+			wrapExecution(
+				"rename_or_merge_tags",
+				args,
+				() => executeRenameOrMergeTags(args),
+				hooks,
+			),
+		),
 	];
 }
 
@@ -219,6 +265,22 @@ export async function executeBookmarkToolCall(
 		case "query_bookmarks":
 			result = executeQueryBookmarks(
 				queryBookmarksInputSchema.parse(parsedArgs),
+			);
+			break;
+		case "create_tags":
+			result = executeCreateTags(createTagsInputSchema.parse(parsedArgs));
+			break;
+		case "add_tags_to_bookmarks":
+			result = executeAddTagsToBookmarks(
+				addTagsToBookmarksInputSchema.parse(parsedArgs),
+			);
+			break;
+		case "remove_tags":
+			result = executeRemoveTags(removeTagsInputSchema.parse(parsedArgs));
+			break;
+		case "rename_or_merge_tags":
+			result = executeRenameOrMergeTags(
+				renameOrMergeTagsInputSchema.parse(parsedArgs),
 			);
 			break;
 		case "create_folder":

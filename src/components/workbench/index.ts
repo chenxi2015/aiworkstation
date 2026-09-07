@@ -12,6 +12,7 @@ export * from "./folder/FolderAssignMenu";
 export * from "./folder/FolderGridPreview";
 export * from "./folder/FolderHeader";
 export * from "./folder/FolderItemList";
+export * from "./folder/RenameCategoryModal";
 export * from "./Icons";
 export * from "./ItemFavicon";
 // Item components

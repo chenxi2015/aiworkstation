@@ -8,8 +8,17 @@ import type {
 	WorkbenchSettings,
 } from "../components/workbench/types";
 import {
+	clearChatSessionsFromDb,
+	deleteChatSessionFromDb,
+	exportChatSessionsJsonFromDb,
+	fetchChatSessionsFromDb,
+	saveChatSessionToDb,
+} from "./api/chatSessionClient";
+import {
+	type BackupFileInfo,
 	clearAllDataInDb,
 	createBackup,
+	type DeadLinkScanJob,
 	deleteBackup,
 	deleteItemsBatchInDb,
 	fetchAvailableModels,
@@ -18,8 +27,6 @@ import {
 	getLastDeadLinkScan,
 	restoreBackup,
 	startDeadLinkScan,
-	type BackupFileInfo,
-	type DeadLinkScanJob,
 } from "./api/maintenanceClient";
 import {
 	type ChatMessage,
@@ -44,17 +51,11 @@ import {
 	moveFolderInDb,
 	moveFolderToCategoryInDb,
 	moveItemInDb,
+	renameCategoryInDb,
 	reorderFoldersInDb,
 	saveFolderToDb,
 } from "./api/workbenchClient";
 import type { EmbeddingConfig } from "./embedding/client";
-import {
-	clearChatSessionsFromDb,
-	deleteChatSessionFromDb,
-	exportChatSessionsJsonFromDb,
-	fetchChatSessionsFromDb,
-	saveChatSessionToDb,
-} from "./api/chatSessionClient";
 import type { ChatSession } from "./storage/chatStorage";
 import {
 	DEFAULT_SETTINGS,
@@ -152,10 +153,11 @@ export class WorkbenchStorageService {
 	static saveChatSession = <T = any>(
 		session: ChatSession<T>,
 	): Promise<boolean> => saveChatSessionToDb<T>(session);
-	static deleteChatSession = (sessionId: string): Promise<boolean> => deleteChatSessionFromDb(sessionId);
+	static deleteChatSession = (sessionId: string): Promise<boolean> =>
+		deleteChatSessionFromDb(sessionId);
 	static clearChatSessions = (): Promise<boolean> => clearChatSessionsFromDb();
 	static clearAllChatData = (): Promise<boolean> => clearChatSessionsFromDb();
-	
+
 	static exportChatSessionsJson = exportChatSessionsJsonFromDb;
 
 	// ================= Maintenance & Models RPC =================
@@ -181,8 +183,7 @@ export class WorkbenchStorageService {
 	}): Promise<string[]> => fetchAvailableModels(params);
 
 	// ================= Backup & Restore RPC =================
-	static fetchBackupsList = (): Promise<BackupFileInfo[]> =>
-		fetchBackupsList();
+	static fetchBackupsList = (): Promise<BackupFileInfo[]> => fetchBackupsList();
 	static createBackup = (): Promise<{
 		backupPath: string | null;
 		backups: BackupFileInfo[];
@@ -197,5 +198,11 @@ export class WorkbenchStorageService {
 	}> => restoreBackup(filename);
 	static deleteBackup = (filename: string): Promise<{ success: boolean }> =>
 		deleteBackup(filename);
-}
 
+	// ================= Category Operations =================
+	static renameCategory = (
+		oldCategory: string,
+		newCategory: string,
+	): Promise<{ folders: Folder[]; count: number }> =>
+		renameCategoryInDb(oldCategory, newCategory);
+}

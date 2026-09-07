@@ -15,6 +15,7 @@ import {
 	moveFolder,
 	moveFolderToCategory,
 	moveItem,
+	renameCategory,
 	reorderFolders,
 	saveFolder,
 } from "../../server/functions/workbench";
@@ -163,4 +164,16 @@ export async function clearUnclassifiedInDb(): Promise<{
 	unclassified: WorkbenchItem[];
 }> {
 	return await clearUnclassifiedBookmarks();
+}
+
+/**
+ * Batch rename category in SQLite via createServerFn
+ */
+export async function renameCategoryInDb(
+	oldCategory: string,
+	newCategory: string,
+): Promise<{ folders: Folder[]; count: number }> {
+	return await renameCategory({
+		data: { oldCategory, newCategory },
+	});
 }

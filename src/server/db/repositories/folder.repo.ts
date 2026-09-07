@@ -276,4 +276,17 @@ export class FolderRepository {
 		});
 		transaction();
 	}
+
+	/**
+	 * Batch rename a navigation category across all folders
+	 */
+	renameCategory(oldCategory: string, newCategory: string): number {
+		const today = new Date().toISOString().split("T")[0];
+		const result = this.db
+			.prepare(
+				"UPDATE folders SET category = ?, updated_at = ? WHERE category = ?",
+			)
+			.run(newCategory, today, oldCategory);
+		return result.changes;
+	}
 }

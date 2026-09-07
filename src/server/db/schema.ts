@@ -67,12 +67,33 @@ export function initSchema(db: SqliteDatabase): void {
       updated_at TEXT NOT NULL
     );
 
+    -- 6. Tags table
+    CREATE TABLE IF NOT EXISTS tags (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      color TEXT DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    -- 7. Relationship table: bookmark_tags (Many-to-Many binding)
+    CREATE TABLE IF NOT EXISTS bookmark_tags (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      bookmark_id TEXT NOT NULL REFERENCES bookmarks(id) ON DELETE CASCADE,
+      tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL,
+      UNIQUE(bookmark_id, tag_id)
+    );
+
     -- Indexes for fast queries
     CREATE INDEX IF NOT EXISTS idx_folders_category ON folders(category);
     CREATE INDEX IF NOT EXISTS idx_folder_items_folder_id ON folder_items(folder_id);
     CREATE INDEX IF NOT EXISTS idx_folder_items_item_id ON folder_items(item_id);
     CREATE INDEX IF NOT EXISTS idx_bookmarks_url ON bookmarks(url);
     CREATE INDEX IF NOT EXISTS idx_chat_sessions_updated_at ON chat_sessions(updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_tags_name ON tags(name);
+    CREATE INDEX IF NOT EXISTS idx_bookmark_tags_bookmark_id ON bookmark_tags(bookmark_id);
+    CREATE INDEX IF NOT EXISTS idx_bookmark_tags_tag_id ON bookmark_tags(tag_id);
   `);
 
 	// Graceful migration for existing SQLite DBs without embedding columns or color column
@@ -102,6 +123,58 @@ export function initSchema(db: SqliteDatabase): void {
 		}
 		if (!folderColNames.has("parent_id")) {
 			db.exec("ALTER TABLE folders ADD COLUMN parent_id INTEGER DEFAULT NULL");
+		}
+
+		// Graceful backfill migration: populate tags and bookmark_tags from existing bookmarks.tags if table is empty
+		const countRow = db
+			.prepare("SELECT COUNT(*) as cnt FROM bookmark_tags")
+			.get() as { cnt: number } | undefined;
+		if (countRow && countRow.cnt === 0) {
+			const rowsWithTags = db
+				.prepare(
+					"SELECT id, tags, created_at FROM bookmarks WHERE tags IS NOT NULL AND tags != '[]' AND tags != ''",
+				)
+				.all() as Array<{ id: string; tags: string; created_at: string }>;
+
+			if (rowsWithTags.length > 0) {
+				const now = new Date().toISOString();
+				const insertTagStmt = db.prepare(
+					"INSERT OR IGNORE INTO tags (name, color, created_at, updated_at) VALUES (?, '', ?, ?)",
+				);
+				const getTagStmt = db.prepare("SELECT id FROM tags WHERE name = ?");
+				const insertRelStmt = db.prepare(
+					"INSERT OR IGNORE INTO bookmark_tags (bookmark_id, tag_id, created_at) VALUES (?, ?, ?)",
+				);
+
+				const migrateTx = db.transaction(() => {
+					for (const row of rowsWithTags) {
+						try {
+							const parsed = JSON.parse(row.tags);
+							if (Array.isArray(parsed)) {
+								for (const tagName of parsed) {
+									if (typeof tagName === "string" && tagName.trim()) {
+										const trimmed = tagName.trim();
+										insertTagStmt.run(trimmed, now, now);
+										const tagRow = getTagStmt.get(trimmed) as
+											| { id: number }
+											| undefined;
+										if (tagRow) {
+											insertRelStmt.run(
+												row.id,
+												tagRow.id,
+												row.created_at || now,
+											);
+										}
+									}
+								}
+							}
+						} catch {
+							// Ignore malformed JSON in legacy data
+						}
+					}
+				});
+				migrateTx();
+			}
 		}
 	} catch (err) {
 		console.warn("[DatabaseSchema] Migration pragma error:", err);

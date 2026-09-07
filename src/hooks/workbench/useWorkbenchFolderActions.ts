@@ -2,6 +2,7 @@ import { toast } from "@heroui/react";
 import { useCallback } from "react";
 import type { Category, Folder } from "../../components/workbench/types";
 import { WorkbenchStorageService } from "../../services/workbenchStorage";
+import { saveActiveCategory } from "./useWorkbenchStorageSync";
 
 export interface SaveFolderPayload {
 	id?: number;
@@ -215,11 +216,35 @@ export function useWorkbenchFolderActions({
 		[folders, setFolders],
 	);
 
+	// Batch rename category
+	const handleRenameCategory = useCallback(
+		async (oldCategory: string, newCategory: string) => {
+			try {
+				const { folders: updated, count } =
+					await WorkbenchStorageService.renameCategory(
+						oldCategory,
+						newCategory,
+					);
+				setFolders(updated);
+				setActiveCategory(newCategory as Category);
+				saveActiveCategory(newCategory);
+				toast.success(
+					`已成功重命名分类为「${newCategory}」(${count} 个文件夹)`,
+				);
+			} catch (error) {
+				console.error("Failed to rename category:", error);
+				toast.danger("重命名分类失败，请重试");
+			}
+		},
+		[setFolders, setActiveCategory],
+	);
+
 	return {
 		handleSaveFolder,
 		handleDeleteFolder,
 		handleMoveFolder,
 		handleMoveFolderToCategory,
 		handleReorderFolders,
+		handleRenameCategory,
 	};
 }

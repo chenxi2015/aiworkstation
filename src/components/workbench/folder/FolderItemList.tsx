@@ -1,15 +1,16 @@
-import { Button, EmptyState, InputGroup, Tooltip } from "@heroui/react";
+import {
+	Button,
+	EmptyState,
+	InputGroup,
+	ScrollShadow,
+	Tooltip,
+} from "@heroui/react";
 import { ChevronDown, LayoutGrid, List, Search, X } from "lucide-react";
 import { memo, useEffect, useMemo, useState } from "react";
 import { DraggableItem } from "../dnd/WorkbenchDnd";
 import { ItemFavicon } from "../ItemFavicon";
 import { WorkbenchItemCard } from "../item/WorkbenchItemCard";
-import {
-	type Folder,
-	ITEM_TYPES,
-	type ItemType,
-	type WorkbenchItem,
-} from "../types";
+import type { Folder, WorkbenchItem } from "../types";
 
 const INITIAL_CHUNK_SIZE = 30;
 const INCREMENTAL_CHUNK_SIZE = 30;
@@ -26,8 +27,8 @@ export interface FolderItemListProps {
 		targetFolderId: number,
 	) => void;
 	onAttachToChat?: (item: WorkbenchItem) => void;
-	selectedTypeFilter?: string;
-	onSelectTypeFilter?: (type: string) => void;
+	selectedTagFilter?: string;
+	onSelectTagFilter?: (tag: string) => void;
 }
 
 /**
@@ -42,30 +43,30 @@ export const FolderItemList = memo(function FolderItemList({
 	onDeleteItem,
 	onMoveItem,
 	onAttachToChat,
-	selectedTypeFilter: controlledTypeFilter,
-	onSelectTypeFilter: controlledOnSelectTypeFilter,
+	selectedTagFilter: controlledTagFilter,
+	onSelectTagFilter: controlledOnSelectTagFilter,
 }: FolderItemListProps) {
 	const [localSearchQuery, setLocalSearchQuery] = useState("");
-	const [localTypeFilter, setLocalTypeFilter] = useState("all");
+	const [localTagFilter, setLocalTagFilter] = useState("all");
 	const [viewMode, setViewMode] = useState<"list" | "grid">("list");
 	const [visibleCount, setVisibleCount] = useState(INITIAL_CHUNK_SIZE);
 	const [activeHighlightId, setActiveHighlightId] = useState<
 		string | number | null
 	>(null);
 
-	const selectedType = controlledTypeFilter ?? localTypeFilter;
-	const setSelectedType = controlledOnSelectTypeFilter ?? setLocalTypeFilter;
+	const selectedTag = controlledTagFilter ?? localTagFilter;
+	const setSelectedTag = controlledOnSelectTagFilter ?? setLocalTagFilter;
 
 	// Reset pagination on folder, search or filter changes
 	// biome-ignore lint/correctness/useExhaustiveDependencies: Reset pagination on folder, filter or search changes
 	useEffect(() => {
 		setVisibleCount(INITIAL_CHUNK_SIZE);
-	}, [folder.id, selectedType, localSearchQuery]);
+	}, [folder.id, selectedTag, localSearchQuery]);
 
-	// Reset local search and type filter when switching folders
+	// Reset local search and tag filter when switching folders
 	useEffect(() => {
 		setLocalSearchQuery("");
-		setLocalTypeFilter("all");
+		setLocalTagFilter("all");
 	}, [folder.id]);
 
 	// Scroll and pulse highlight when highlightItemId changes
@@ -85,9 +86,9 @@ export const FolderItemList = memo(function FolderItemList({
 			const matchKey = targetItem.id ?? targetItem.url ?? null;
 			setActiveHighlightId(matchKey);
 
-			// Reset filter / search if hidden
-			if (selectedType !== "all") {
-				setSelectedType("all");
+			// Reset tag filter / search if hidden
+			if (selectedTag !== "all") {
+				setSelectedTag("all");
 			}
 			if (localSearchQuery.trim()) {
 				setLocalSearchQuery("");
@@ -119,10 +120,10 @@ export const FolderItemList = memo(function FolderItemList({
 	}, [
 		highlightItemId,
 		folder.items,
-		selectedType,
+		selectedTag,
 		localSearchQuery,
 		visibleCount,
-		setSelectedType,
+		setSelectedTag,
 		onHighlightClear,
 	]);
 
@@ -131,33 +132,44 @@ export const FolderItemList = memo(function FolderItemList({
 		return allFolders.filter((f) => f.id !== folder.id);
 	}, [allFolders, folder.id]);
 
-	// Types available inside this folder
-	const availableTypes = useMemo(() => {
-		const types = new Set<ItemType>();
+	// Tags available inside this folder (sorted by count descending, then alphabetical)
+	const availableTags = useMemo(() => {
+		const tagMap = new Map<string, number>();
 		for (const item of folder.items) {
-			if (item.type) types.add(item.type);
+			if (Array.isArray(item.tags)) {
+				for (const tag of item.tags) {
+					const trimmed = typeof tag === "string" ? tag.trim() : "";
+					if (trimmed) {
+						tagMap.set(trimmed, (tagMap.get(trimmed) || 0) + 1);
+					}
+				}
+			}
 		}
-		return Array.from(types);
+		return Array.from(tagMap.entries())
+			.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+			.map(([name, count]) => ({ name, count }));
 	}, [folder.items]);
 
-	// Fallback to "all" if selected type is not available in the current folder
+	// Fallback to "all" if selected tag is no longer available in the current folder
 	useEffect(() => {
 		if (
-			selectedType !== "all" &&
-			!availableTypes.includes(selectedType as ItemType)
+			selectedTag !== "all" &&
+			!availableTags.some((t) => t.name === selectedTag)
 		) {
-			setSelectedType("all");
+			setSelectedTag("all");
 		}
-	}, [availableTypes, selectedType, setSelectedType]);
+	}, [availableTags, selectedTag, setSelectedTag]);
 
-	// Filtered item list based on search and type filter
+	// Filtered item list based on search and tag filter
 	const filteredItems = useMemo(() => {
 		let list = folder.items;
 
-		if (selectedType !== "all") {
-			list = list.filter((item) => item.type === selectedType);
+		// 1. Tag Filter
+		if (selectedTag !== "all") {
+			list = list.filter((item) => item.tags?.includes(selectedTag));
 		}
 
+		// 2. Search query filter
 		if (localSearchQuery.trim()) {
 			const q = localSearchQuery.toLowerCase();
 			list = list.filter(
@@ -171,7 +183,7 @@ export const FolderItemList = memo(function FolderItemList({
 		}
 
 		return list;
-	}, [folder.items, selectedType, localSearchQuery]);
+	}, [folder.items, selectedTag, localSearchQuery]);
 
 	// Slice visible items for ultra-fast initial DOM mounting
 	const visibleItems = useMemo(() => {
@@ -186,9 +198,9 @@ export const FolderItemList = memo(function FolderItemList({
 	};
 
 	return (
-		<div className="space-y-2.5">
-			{/* Header & Filter Controls */}
-			<div className="space-y-2">
+		<div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+			{/* Header & Filter Controls (Fixed at top) */}
+			<div className="shrink-0 px-3 pt-1 pb-2 space-y-2">
 				<div className="flex items-center justify-between gap-2">
 					<div className="flex items-center gap-1.5 text-xs font-semibold text-foreground tracking-tight">
 						<span>归集内容</span>
@@ -253,14 +265,14 @@ export const FolderItemList = memo(function FolderItemList({
 					</InputGroup>
 				)}
 
-				{/* Type Filter Chips */}
-				{availableTypes.length > 1 && (
+				{/* Tag Filter Chips */}
+				{availableTags.length > 0 && (
 					<div className="flex items-center gap-1 overflow-x-auto pb-0.5 scrollbar-none">
 						<button
 							type="button"
-							onClick={() => setSelectedType("all")}
+							onClick={() => setSelectedTag("all")}
 							className={`text-[10px] px-2 py-0.5 rounded-full transition-colors cursor-pointer shrink-0 font-medium ${
-								selectedType === "all"
+								selectedTag === "all"
 									? "bg-foreground text-background"
 									: "bg-surface-secondary text-muted hover:text-foreground"
 							}`}
@@ -268,23 +280,22 @@ export const FolderItemList = memo(function FolderItemList({
 							全部 ({folder.items.length})
 						</button>
 
-						{availableTypes.map((type) => {
-							const typeInfo = ITEM_TYPES[type] || { label: type };
-							const count = folder.items.filter((i) => i.type === type).length;
-							const isActive = selectedType === type;
+						{availableTags.map((tag) => {
+							const isActive = selectedTag === tag.name;
 
 							return (
 								<button
-									key={type}
+									key={tag.name}
 									type="button"
-									onClick={() => setSelectedType(isActive ? "all" : type)}
-									className={`text-[10px] px-2 py-0.5 rounded-full transition-colors cursor-pointer shrink-0 font-medium ${
+									onClick={() => setSelectedTag(isActive ? "all" : tag.name)}
+									className={`text-[10px] px-2 py-0.5 rounded-full transition-colors cursor-pointer shrink-0 font-medium inline-flex items-center gap-0.5 ${
 										isActive
-											? "bg-accent text-accent-foreground"
-											: "bg-surface-secondary text-muted hover:text-foreground"
+											? "bg-accent text-accent-foreground shadow-2xs"
+											: "bg-surface-secondary text-muted hover:text-foreground hover:bg-surface-secondary/80"
 									}`}
 								>
-									{typeInfo.label} ({count})
+									<span>#{tag.name}</span>
+									<span className="opacity-70 text-[9px]">({tag.count})</span>
 								</button>
 							);
 						})}
@@ -292,159 +303,163 @@ export const FolderItemList = memo(function FolderItemList({
 				)}
 			</div>
 
-			{/* Item List or Empty States */}
-			{folder.items.length === 0 ? (
-				<EmptyState className="text-xs text-muted py-6 text-center rounded-2xl bg-surface-secondary/20">
-					暂无归集内容
-				</EmptyState>
-			) : filteredItems.length === 0 ? (
-				<EmptyState className="text-xs text-muted py-6 text-center rounded-2xl bg-surface-secondary/20 flex flex-col items-center justify-center">
-					<Search className="w-5 h-5 opacity-40 mb-1 text-muted" />
-					<span>未找到匹配的归集内容</span>
-				</EmptyState>
-			) : viewMode === "list" ? (
-				/* Compact List Mode */
-				<div className="space-y-1">
-					{visibleItems.map((item, index) => {
-						const itemDomKey = String(
-							item.id ?? item.url ?? `${item.name}-${index}`,
-						);
-						const reactKey = `${itemDomKey}_${index}`;
-						const isHighlighted =
-							activeHighlightId !== null &&
-							(String(item.id) === String(activeHighlightId) ||
-								item.url === activeHighlightId);
+			{/* Scrollable Bookmark List Area */}
+			<ScrollShadow className="flex-1 min-h-0 px-3 pb-3 overflow-y-auto">
+				{/* Item List or Empty States */}
+				{folder.items.length === 0 ? (
+					<EmptyState className="text-xs text-muted py-6 text-center rounded-2xl bg-surface-secondary/20">
+						暂无归集内容
+					</EmptyState>
+				) : filteredItems.length === 0 ? (
+					<EmptyState className="text-xs text-muted py-6 text-center rounded-2xl bg-surface-secondary/20 flex flex-col items-center justify-center">
+						<Search className="w-5 h-5 opacity-40 mb-1 text-muted" />
+						<span>未找到匹配的归集内容</span>
+					</EmptyState>
+				) : viewMode === "list" ? (
+					/* Compact List Mode */
+					<div className="space-y-1">
+						{visibleItems.map((item, index) => {
+							const itemDomKey = String(
+								item.id ?? item.url ?? `${item.name}-${index}`,
+							);
+							const reactKey = `${itemDomKey}_${index}`;
+							const isHighlighted =
+								activeHighlightId !== null &&
+								(String(item.id) === String(activeHighlightId) ||
+									item.url === activeHighlightId);
 
-						return (
-							<div
-								key={reactKey}
-								data-item-key={itemDomKey}
-								className={`rounded-xl transition-all duration-500 ${
-									isHighlighted
-										? "ring-2 ring-accent bg-accent/15 shadow-sm scale-[1.01]"
-										: ""
-								}`}
-							>
-								<DraggableItem item={item} sourceFolderId={folder.id}>
-									<WorkbenchItemCard
-										item={item}
-										index={index}
-										compact={true}
-										otherFolders={otherFolders}
-										showMoveDropdown={true}
-										onDeleteItem={
-											onDeleteItem
-												? (it) => onDeleteItem(it, folder.id)
-												: undefined
-										}
-										onMoveItem={
-											onMoveItem
-												? (it, targetId) => onMoveItem(it, folder.id, targetId)
-												: undefined
-										}
-										onAttachToChat={onAttachToChat}
-									/>
-								</DraggableItem>
-							</div>
-						);
-					})}
-				</div>
-			) : (
-				/* App Icon Grid Mode */
-				<div className="grid grid-cols-4 gap-1.5 pt-0.5">
-					{visibleItems.map((item, index) => {
-						const itemDomKey = String(
-							item.id ?? item.url ?? `${item.name}-${index}`,
-						);
-						const reactKey = `${itemDomKey}_${index}`;
-						const isHighlighted =
-							activeHighlightId !== null &&
-							(String(item.id) === String(activeHighlightId) ||
-								item.url === activeHighlightId);
-
-						return (
-							<div
-								key={reactKey}
-								data-item-key={itemDomKey}
-								className={`rounded-xl transition-all duration-500 min-w-0 w-full ${
-									isHighlighted
-										? "ring-2 ring-accent bg-accent/20 shadow-sm scale-[1.05]"
-										: ""
-								}`}
-							>
-								<DraggableItem
-									item={item}
-									sourceFolderId={folder.id}
-									className="min-w-0 w-full"
+							return (
+								<div
+									key={reactKey}
+									data-item-key={itemDomKey}
+									className={`rounded-xl transition-all duration-500 ${
+										isHighlighted
+											? "ring-2 ring-accent bg-accent/15 shadow-sm scale-[1.01]"
+											: ""
+									}`}
 								>
-									<Tooltip>
-										<Tooltip.Trigger className="w-full min-w-0 block">
-											<button
-												type="button"
-												onClick={() => {
-													if (item.url) {
-														window.open(
-															item.url,
-															"_blank",
-															"noopener,noreferrer",
-														);
-													}
-												}}
-												className="group aspect-square w-full h-auto min-w-0 max-w-full rounded-xl bg-surface-secondary/60 hover:bg-accent-soft/80 border border-border/70 hover:border-accent/30 hover:scale-[1.04] transition-all duration-150 flex flex-col items-center justify-center p-1.5 cursor-pointer text-center relative overflow-hidden shadow-2xs"
-											>
-												<div className="w-6 h-6 rounded-lg bg-surface flex items-center justify-center shrink-0 shadow-2xs group-hover:bg-surface/90 transition-colors">
-													<ItemFavicon
-														url={item.url}
-														favicon={item.favicon}
-														type={item.type}
-														name={item.name}
-														size="xs"
-														className="group-hover:scale-110 transition-transform"
-														iconClassName="opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-transform"
-													/>
-												</div>
-												<span
-													className="text-[9px] font-medium text-foreground/80 group-hover:text-accent mt-1 truncate block w-full min-w-0 px-0.5 text-center leading-tight"
-													title={item.name}
-												>
-													{item.name}
-												</span>
-											</button>
-										</Tooltip.Trigger>
-										<Tooltip.Content className="text-xs py-1.5 px-2.5 max-w-[220px]">
-											<div className="font-semibold text-foreground line-clamp-1">
-												{item.name}
-											</div>
-											<div className="text-[10px] text-muted truncate mt-0.5">
-												{item.url}
-											</div>
-										</Tooltip.Content>
-									</Tooltip>
-								</DraggableItem>
-							</div>
-						);
-					})}
-				</div>
-			)}
+									<DraggableItem item={item} sourceFolderId={folder.id}>
+										<WorkbenchItemCard
+											item={item}
+											index={index}
+											compact={true}
+											otherFolders={otherFolders}
+											showMoveDropdown={true}
+											onDeleteItem={
+												onDeleteItem
+													? (it) => onDeleteItem(it, folder.id)
+													: undefined
+											}
+											onMoveItem={
+												onMoveItem
+													? (it, targetId) =>
+															onMoveItem(it, folder.id, targetId)
+													: undefined
+											}
+											onAttachToChat={onAttachToChat}
+										/>
+									</DraggableItem>
+								</div>
+							);
+						})}
+					</div>
+				) : (
+					/* App Icon Grid Mode */
+					<div className="grid grid-cols-4 gap-1.5 pt-0.5">
+						{visibleItems.map((item, index) => {
+							const itemDomKey = String(
+								item.id ?? item.url ?? `${item.name}-${index}`,
+							);
+							const reactKey = `${itemDomKey}_${index}`;
+							const isHighlighted =
+								activeHighlightId !== null &&
+								(String(item.id) === String(activeHighlightId) ||
+									item.url === activeHighlightId);
 
-			{/* Progressive Load More Action */}
-			{hasMore && filteredItems.length > 0 && (
-				<div className="pt-1.5 pb-1 text-center">
-					<Button
-						variant="secondary"
-						size="sm"
-						className="w-full py-1 h-7 text-xs rounded-xl bg-surface-secondary/60 hover:bg-surface-secondary text-muted hover:text-foreground border border-border/60 cursor-pointer flex items-center justify-center gap-1 shadow-2xs font-medium"
-						onPress={handleLoadMore}
-					>
-						<span>加载更多</span>
-						<span className="text-[10px] font-mono opacity-70">
-							(+{Math.min(INCREMENTAL_CHUNK_SIZE, remainingCount)} / 剩余{" "}
-							{remainingCount})
-						</span>
-						<ChevronDown className="w-3.5 h-3.5 opacity-70" />
-					</Button>
-				</div>
-			)}
+							return (
+								<div
+									key={reactKey}
+									data-item-key={itemDomKey}
+									className={`rounded-xl transition-all duration-500 min-w-0 w-full ${
+										isHighlighted
+											? "ring-2 ring-accent bg-accent/20 shadow-sm scale-[1.05]"
+											: ""
+									}`}
+								>
+									<DraggableItem
+										item={item}
+										sourceFolderId={folder.id}
+										className="min-w-0 w-full"
+									>
+										<Tooltip>
+											<Tooltip.Trigger className="w-full min-w-0 block">
+												<button
+													type="button"
+													onClick={() => {
+														if (item.url) {
+															window.open(
+																item.url,
+																"_blank",
+																"noopener,noreferrer",
+															);
+														}
+													}}
+													className="group aspect-square w-full h-auto min-w-0 max-w-full rounded-xl bg-surface-secondary/60 hover:bg-accent-soft/80 border border-border/70 hover:border-accent/30 hover:scale-[1.04] transition-all duration-150 flex flex-col items-center justify-center p-1.5 cursor-pointer text-center relative overflow-hidden shadow-2xs"
+												>
+													<div className="w-6 h-6 rounded-lg bg-surface flex items-center justify-center shrink-0 shadow-2xs group-hover:bg-surface/90 transition-colors">
+														<ItemFavicon
+															url={item.url}
+															favicon={item.favicon}
+															type={item.type}
+															name={item.name}
+															size="xs"
+															className="group-hover:scale-110 transition-transform"
+															iconClassName="opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-transform"
+														/>
+													</div>
+													<span
+														className="text-[9px] font-medium text-foreground/80 group-hover:text-accent mt-1 truncate block w-full min-w-0 px-0.5 text-center leading-tight"
+														title={item.name}
+													>
+														{item.name}
+													</span>
+												</button>
+											</Tooltip.Trigger>
+											<Tooltip.Content className="text-xs py-1.5 px-2.5 max-w-[220px]">
+												<div className="font-semibold text-foreground line-clamp-1">
+													{item.name}
+												</div>
+												<div className="text-[10px] text-muted truncate mt-0.5">
+													{item.url}
+												</div>
+											</Tooltip.Content>
+										</Tooltip>
+									</DraggableItem>
+								</div>
+							);
+						})}
+					</div>
+				)}
+
+				{/* Progressive Load More Action */}
+				{hasMore && filteredItems.length > 0 && (
+					<div className="pt-1.5 pb-1 text-center">
+						<Button
+							variant="secondary"
+							size="sm"
+							className="w-full py-1 h-7 text-xs rounded-xl bg-surface-secondary/60 hover:bg-surface-secondary text-muted hover:text-foreground border border-border/60 cursor-pointer flex items-center justify-center gap-1 shadow-2xs font-medium"
+							onPress={handleLoadMore}
+						>
+							<span>加载更多</span>
+							<span className="text-[10px] font-mono opacity-70">
+								(+{Math.min(INCREMENTAL_CHUNK_SIZE, remainingCount)} / 剩余{" "}
+								{remainingCount})
+							</span>
+							<ChevronDown className="w-3.5 h-3.5 opacity-70" />
+						</Button>
+					</div>
+				)}
+			</ScrollShadow>
 		</div>
 	);
 });

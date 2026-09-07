@@ -1,5 +1,5 @@
 import { useDroppable } from "@dnd-kit/core";
-import { Button, EmptyState, ScrollShadow } from "@heroui/react";
+import { Button, EmptyState } from "@heroui/react";
 import {
 	ChevronRight,
 	CornerUpLeft,
@@ -85,11 +85,11 @@ export const FolderDetailPanel = memo(function FolderDetailPanel({
 	onAskAIAboutFolder,
 	onAttachToChat,
 }: FolderDetailPanelProps) {
-	const [typeFilter, setTypeFilter] = useState("all");
+	const [tagFilter, setTagFilter] = useState("all");
 
-	// Reset type filter when switching folders
+	// Reset tag filter when switching folders
 	useEffect(() => {
-		setTypeFilter("all");
+		setTagFilter("all");
 	}, [folder?.id]);
 
 	// 1. Empty State when no folder is selected or no folders in category
@@ -136,8 +136,9 @@ export const FolderDetailPanel = memo(function FolderDetailPanel({
 			: null;
 
 	return (
-		<aside className="w-[280px] xl:w-[310px] 2xl:w-[330px] shrink-0 bg-surface/95 backdrop-blur-md border-r border-border flex flex-col h-full shadow-xs">
-			<ScrollShadow className="flex-1 px-3 py-3 overflow-y-auto">
+		<aside className="w-[280px] xl:w-[310px] 2xl:w-[330px] shrink-0 bg-surface/95 backdrop-blur-md border-r border-border flex flex-col h-full shadow-xs overflow-hidden">
+			{/* Top Fixed Area: Header & Navigation */}
+			<div className="shrink-0 px-3 pt-3">
 				{/* Back to parent folder */}
 				{parentFolder && onSelectFolder && (
 					<button
@@ -160,7 +161,7 @@ export const FolderDetailPanel = memo(function FolderDetailPanel({
 
 				{/* Subfolder list */}
 				{childFolders.length > 0 && onSelectFolder && (
-					<div className="my-3 space-y-1">
+					<div className="my-2 space-y-1 max-h-28 overflow-y-auto">
 						<div className="flex items-center gap-1.5 px-0.5 pb-1 text-xs font-semibold text-foreground tracking-tight">
 							<span>子文件夹</span>
 							<span className="text-[10px] text-muted font-mono bg-surface-secondary px-1.5 py-0.2 rounded-md">
@@ -176,20 +177,20 @@ export const FolderDetailPanel = memo(function FolderDetailPanel({
 						))}
 					</div>
 				)}
+			</div>
 
-				{/* Searchable, Filterable & Toggleable Bookmark List */}
-				<FolderItemList
-					folder={folder}
-					allFolders={allFolders}
-					highlightItemId={highlightItemId}
-					onHighlightClear={onHighlightClear}
-					onDeleteItem={onDeleteItem}
-					onMoveItem={onMoveItem}
-					onAttachToChat={onAttachToChat}
-					selectedTypeFilter={typeFilter}
-					onSelectTypeFilter={setTypeFilter}
-				/>
-			</ScrollShadow>
+			{/* Searchable, Filterable & Toggleable Bookmark List */}
+			<FolderItemList
+				folder={folder}
+				allFolders={allFolders}
+				highlightItemId={highlightItemId}
+				onHighlightClear={onHighlightClear}
+				onDeleteItem={onDeleteItem}
+				onMoveItem={onMoveItem}
+				onAttachToChat={onAttachToChat}
+				selectedTagFilter={tagFilter}
+				onSelectTagFilter={setTagFilter}
+			/>
 		</aside>
 	);
 });
