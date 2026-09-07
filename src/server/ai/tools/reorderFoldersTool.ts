@@ -1,8 +1,8 @@
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
-import type { Folder } from "../../../components/workbench/types";
+import type { Folder } from "../../../components/workbench/types.ts";
 import { workbenchDb } from "../../db/sqlite.ts";
-import type { ToolExecutionResult } from "./types";
+import type { ToolExecutionResult } from "./types.ts";
 
 export const reorderFoldersInputSchema = z
 	.object({

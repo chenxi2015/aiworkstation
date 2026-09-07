@@ -4,8 +4,8 @@ import type {
 	SearchMode,
 	SearchResultItem,
 	SearchScope,
-} from "../../components/workbench/types";
-import { cosineSimilarity } from "./vectorMath";
+} from "../../components/workbench/types.ts";
+import { cosineSimilarity } from "./vectorMath.ts";
 
 /**
  * Builds highlight HTML by wrapping query terms with <mark> tags

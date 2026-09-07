@@ -3,7 +3,7 @@ import type {
 	SearchMode,
 	SearchResultItem,
 	SearchScope,
-} from "../components/workbench/types";
+} from "../components/workbench/types.ts";
 import {
 	DEFAULT_EMBEDDING_BASE_URL,
 	DEFAULT_EMBEDDING_MODEL,

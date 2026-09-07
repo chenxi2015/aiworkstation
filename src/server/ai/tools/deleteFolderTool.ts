@@ -1,7 +1,7 @@
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 import { workbenchDb } from "../../db/sqlite.ts";
-import type { ToolExecutionResult } from "./types";
+import type { ToolExecutionResult } from "./types.ts";
 
 export const deleteFolderInputSchema = z
 	.object({

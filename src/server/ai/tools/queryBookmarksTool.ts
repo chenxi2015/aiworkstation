@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { SearchResultItem } from "../../../components/workbench/types.ts";
 import { type BookmarkQueryParams, workbenchDb } from "../../db/sqlite.ts";
 import { resolveTimeRange } from "./timeResolver.ts";
-import type { ToolExecutionResult } from "./types";
+import type { ToolExecutionResult } from "./types.ts";
 
 export const queryBookmarksInputSchema = z
 	.object({
