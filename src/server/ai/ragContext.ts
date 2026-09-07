@@ -199,6 +199,13 @@ export async function prepareRagAgentContext(params: {
 		? "\n\n★ 重要指引：用户在当前上下文中提供了具体的网址链接。如果用户的提问涉及深度分析该网页、总结文章、提取要点或了解项目详情，请主动调用 `read_webpage_content` 工具抓取该网址的真实正文，然后向用户输出有深度、有条理的分析报告！"
 		: "";
 
+	const hasImageInContext = contextItems.some(
+		(item) => item.type === "image" && Boolean(item.thumbnail),
+	);
+	const imageGuidance = hasImageInContext
+		? "\n\n★ 重要视觉指引：用户在当前提问中附带了完整的图片/截图。如果用户的提问涉及提取图片文字（OCR）、分析截图、描述设计或解释图表，你可以直接基于接收到的图像内容给出完整、准确的分析与文字提取结果！"
+		: "";
+
 	const explicitContextPrompt =
 		contextItems.length > 0
 			? `\n- 【用户显式注入的上下文实体（重点优先参考）】:\n${contextItems
@@ -216,11 +223,15 @@ export async function prepareRagAgentContext(params: {
 							: item.subtitle
 								? ` (${item.subtitle})`
 								: "";
-						return `  ${i + 1}. [${typeLabel}] 《${item.title}》${detail}`;
+						const itemImageNotice =
+							item.type === "image" && item.thumbnail
+								? " [已附带完整图像数据]"
+								: "";
+						return `  ${i + 1}. [${typeLabel}] 《${item.title}》${detail}${itemImageNotice}`;
 					})
 					.join(
 						"\n",
-					)}\n提示：用户在本次提问中显式拖入或引用了以上实体作为上下文，请在回答或调用工具时优先围绕这些目标进行深度剖析、总结或比对。${webpageToolGuidance}`
+					)}\n提示：用户在本次提问中显式拖入或引用了以上实体作为上下文，请在回答或调用工具时优先围绕这些目标进行深度剖析、总结或比对。${webpageToolGuidance}${imageGuidance}`
 			: "";
 
 	const systemPrompt = `你内置于用户本地个人 AI 工作台（AI Workstation），是用户的专属【私人知识智囊与外脑合伙人】（Personal Intelligence & Knowledge Partner）。

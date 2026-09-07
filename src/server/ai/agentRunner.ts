@@ -116,11 +116,40 @@ export async function runAgentStream(
 		apiKey,
 	});
 
-	// 4. Prepare message history
-	const messages: Array<{
-		role: "user" | "assistant" | "tool";
-		content: string;
-	}> = [
+	// 4. Prepare message history with multimodal image support
+	const imageItems = (params.contextItems || []).filter(
+		(item) => item.type === "image" && Boolean(item.thumbnail),
+	);
+
+	let userContent: any = q;
+	if (imageItems.length > 0) {
+		const parts: any[] = [{ type: "text", content: q }];
+		for (const img of imageItems) {
+			const thumbnail = img.thumbnail!;
+			const match = thumbnail.match(/^data:([^;]+);base64,(.+)$/);
+			if (match) {
+				parts.push({
+					type: "image",
+					source: {
+						type: "data",
+						value: match[2],
+						mimeType: match[1],
+					},
+				});
+			} else {
+				parts.push({
+					type: "image",
+					source: {
+						type: "url",
+						value: thumbnail,
+					},
+				});
+			}
+		}
+		userContent = parts;
+	}
+
+	const messages: any[] = [
 		...history
 			.filter(
 				(h) => h.role === "user" || h.role === "assistant" || h.role === "tool",
@@ -130,7 +159,7 @@ export async function runAgentStream(
 				role: h.role as "user" | "assistant" | "tool",
 				content: h.content,
 			})),
-		{ role: "user", content: q },
+		{ role: "user", content: userContent },
 	];
 
 	// 5. Execute Agent Stream
