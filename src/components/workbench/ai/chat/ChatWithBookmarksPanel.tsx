@@ -20,6 +20,7 @@ import { CATEGORIES } from "../../types";
 import { SearchTabContent } from "../search/SearchTabContent";
 import { EmbeddingStatusWidget } from "../shared/EmbeddingStatusWidget";
 import { ItemFolderAssignPopover } from "../shared/ItemFolderAssignPopover";
+import { ImagePreviewProvider } from "../shared/ImagePreviewModal";
 import { ChatHistoryDrawer } from "./ChatHistoryDrawer";
 import { ChatInputArea } from "./ChatInputArea";
 import { ChatMessageList } from "./ChatMessageList";
@@ -200,9 +201,10 @@ export const ChatWithBookmarksPanel = forwardRef<
 	}));
 
 	return (
-		<aside
-			className={`w-[380px] xl:w-[440px] 2xl:w-[480px] shrink-0 bg-surface/95 backdrop-blur-md border-l border-border flex flex-col h-full shadow-xs relative ${className}`}
-		>
+		<ImagePreviewProvider>
+			<aside
+				className={`w-[380px] xl:w-[440px] 2xl:w-[480px] shrink-0 bg-surface/95 backdrop-blur-md border-l border-border flex flex-col h-full shadow-xs relative ${className}`}
+			>
 			{/* Top Header: Title & Embedding Status Widget */}
 			<div className="p-3 border-b border-border/80 bg-surface-secondary/30 shrink-0 flex flex-col gap-2">
 				<div className="flex items-center justify-between">
@@ -417,5 +419,6 @@ export const ChatWithBookmarksPanel = forwardRef<
 				/>
 			</div>
 		</aside>
-	);
+	</ImagePreviewProvider>
+);
 });

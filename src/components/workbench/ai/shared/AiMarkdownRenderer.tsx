@@ -7,6 +7,7 @@ import type { ComponentPropsWithoutRef, ElementType, ReactNode } from "react";
 import { memo, useMemo } from "react";
 import { type BundledTheme, Streamdown } from "streamdown";
 import type { Category, Folder } from "../../types";
+import { useImagePreview } from "./ImagePreviewModal";
 
 const URL_REGEX = /(https?:\/\/[^\s<>)\]}]+)/g;
 
@@ -246,6 +247,7 @@ export const AiMarkdownRenderer = memo(function AiMarkdownRenderer({
 	folders,
 	onNavigateToFolder,
 }: AiMarkdownRendererProps) {
+	const { openPreview } = useImagePreview();
 	const processedContent = useMemo(
 		() => normalizeMarkdownFolders(normalizeMarkdownUrls(content), folders),
 		[content, folders],
@@ -511,6 +513,29 @@ export const AiMarkdownRenderer = memo(function AiMarkdownRenderer({
 								<span>{children}</span>
 								<Link.Icon />
 							</Link>
+						);
+					},
+					img: ({ src, alt, className, ...props }: ExtraProps<"img">) => {
+						const titleText = alt || "图片预览";
+						return (
+							<span className="block my-2.5 max-w-full">
+								<img
+									src={src}
+									alt={alt || ""}
+									className={`max-w-full max-h-96 rounded-xl border border-border/60 object-contain cursor-zoom-in hover:opacity-95 hover:shadow-md transition-all ${className || ""}`}
+									onClick={(e) => {
+										e.stopPropagation();
+										if (src) {
+											openPreview({
+												src,
+												title: titleText,
+											});
+										}
+									}}
+									title={`${titleText} · 点击放大预览`}
+									{...props}
+								/>
+							</span>
 						);
 					},
 				}}

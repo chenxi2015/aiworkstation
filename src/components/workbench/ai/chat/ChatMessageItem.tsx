@@ -17,11 +17,13 @@ import {
 	Square,
 	Trash2,
 	X,
+	ZoomIn,
 } from "lucide-react";
 import { memo, useEffect, useRef, useState } from "react";
 import type { ChatItem } from "../../../../hooks/ai/useAiChat";
 import type { Category, Folder, SearchResultItem } from "../../types";
 import { AiMarkdownRenderer } from "../shared/AiMarkdownRenderer";
+import { useImagePreview } from "../shared/ImagePreviewModal";
 import { AgentStepTimeline } from "./AgentStepTimeline";
 import { ChatReferenceCard } from "./ChatReferenceCard";
 
@@ -80,6 +82,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
 	const [draftContent, setDraftContent] = useState(msg.content);
 	const [copied, setCopied] = useState(false);
 	const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+	const { openPreview } = useImagePreview();
 
 	// Synchronize draft when msg content updates externally
 	useEffect(() => {
@@ -347,22 +350,44 @@ export const ChatMessageItem = memo(function ChatMessageItem({
 										);
 									}
 
-									// Other context items (image, file, tag)
+									// Image context item: clickable to view full image in preview modal
+									if (ci.type === "image" && ci.thumbnail) {
+										return (
+											<button
+												key={ci.id}
+												type="button"
+												onClick={(e) => {
+													e.stopPropagation();
+													openPreview({
+														src: ci.thumbnail!,
+														title: ci.title,
+														subtitle: ci.subtitle,
+													});
+												}}
+												className="inline-flex items-center gap-1.5 pl-1.5 pr-2 py-0.5 rounded-lg bg-surface-secondary/90 hover:bg-surface-secondary border border-border/70 hover:border-accent/40 text-[10px] text-foreground/80 hover:text-foreground transition-all cursor-pointer select-none group/img-chip hover:scale-[1.02] active:scale-[0.98] shadow-2xs"
+												title={`${ci.title} · 点击预览图片`}
+											>
+												<img
+													src={ci.thumbnail}
+													alt=""
+													className="w-3.5 h-3.5 rounded object-cover border border-border/50 shrink-0"
+												/>
+												<span className="truncate max-w-[130px] font-medium group-hover/img-chip:underline">
+													{ci.title}
+												</span>
+												<ZoomIn className="w-2.5 h-2.5 opacity-50 group-hover/img-chip:opacity-100 text-accent shrink-0" />
+											</button>
+										);
+									}
+
+									// Other context items (file, tag)
 									return (
 										<div
 											key={ci.id}
 											className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-surface-secondary border border-border/60 text-[10px] text-foreground/80 select-none"
 											title={ci.title}
 										>
-											{ci.type === "image" && ci.thumbnail ? (
-												<img
-													src={ci.thumbnail}
-													alt=""
-													className="w-3 h-3 rounded object-cover"
-												/>
-											) : (
-												<span className="text-accent font-medium">📎</span>
-											)}
+											<span className="text-accent font-medium">📎</span>
 											<span className="truncate max-w-[130px] font-medium">
 												{ci.title}
 											</span>

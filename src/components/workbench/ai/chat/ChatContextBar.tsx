@@ -3,6 +3,7 @@ import { FileText, Folder as FolderIcon, Globe, Tag, X } from "lucide-react";
 import { memo } from "react";
 import type { ChatContextItem } from "../../../../types/chatContext";
 import type { Category } from "../../types";
+import { useImagePreview } from "../shared/ImagePreviewModal";
 
 export interface ChatContextBarProps {
 	items: ChatContextItem[];
@@ -28,9 +29,16 @@ export const ChatContextBar = memo(function ChatContextBar({
 	className = "",
 }: ChatContextBarProps) {
 	if (!items || items.length === 0) return null;
+	const { openPreview } = useImagePreview();
 
 	const handleItemClick = (item: ChatContextItem) => {
-		if (item.url) {
+		if (item.type === "image" && item.thumbnail) {
+			openPreview({
+				src: item.thumbnail,
+				title: item.title,
+				subtitle: item.subtitle,
+			});
+		} else if (item.url) {
 			window.open(item.url, "_blank", "noopener,noreferrer");
 		} else if (typeof item.folderId === "number" && onNavigateToFolder) {
 			onNavigateToFolder(item.folderId, item.category as Category);
@@ -44,14 +52,18 @@ export const ChatContextBar = memo(function ChatContextBar({
 		>
 			<div className="flex items-center gap-1.5 flex-nowrap shrink-0">
 				{items.map((item) => {
+					const isImage = item.type === "image" && Boolean(item.thumbnail);
 					const isClickable =
 						Boolean(item.url) ||
-						(typeof item.folderId === "number" && Boolean(onNavigateToFolder));
+						(typeof item.folderId === "number" && Boolean(onNavigateToFolder)) ||
+						isImage;
 					const tooltipText = item.url
 						? `${item.title} · 点击在新标签页打开`
 						: typeof item.folderId === "number"
 							? `${item.title} · 点击在工作台中定位文件夹`
-							: item.title;
+							: isImage
+								? `${item.title} · 点击预览图片`
+								: item.title;
 
 					return (
 						<div

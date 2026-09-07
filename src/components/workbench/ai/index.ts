@@ -2,6 +2,7 @@
 export * from "./shared/AiMarkdownRenderer";
 export * from "./shared/EmbeddingStatusWidget";
 export * from "./shared/ItemFolderAssignPopover";
+export * from "./shared/ImagePreviewModal";
 
 // Chat Module
 export * from "./chat/ChatPromptSuggestions";
