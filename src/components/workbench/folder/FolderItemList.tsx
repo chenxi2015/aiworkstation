@@ -137,11 +137,14 @@ export const FolderItemList = memo(function FolderItemList({
 		const tagMap = new Map<string, number>();
 		for (const item of folder.items) {
 			if (Array.isArray(item.tags)) {
-				for (const tag of item.tags) {
-					const trimmed = typeof tag === "string" ? tag.trim() : "";
-					if (trimmed) {
-						tagMap.set(trimmed, (tagMap.get(trimmed) || 0) + 1);
-					}
+				// Deduplicate per item to ensure 1 item counts at most once per tag
+				const uniqueItemTags = new Set(
+					item.tags
+						.map((t) => (typeof t === "string" ? t.trim() : ""))
+						.filter(Boolean),
+				);
+				for (const tag of uniqueItemTags) {
+					tagMap.set(tag, (tagMap.get(tag) || 0) + 1);
 				}
 			}
 		}
@@ -200,7 +203,7 @@ export const FolderItemList = memo(function FolderItemList({
 	return (
 		<div className="flex-1 min-h-0 flex flex-col overflow-hidden">
 			{/* Header & Filter Controls (Fixed at top) */}
-			<div className="shrink-0 px-3 pt-1 pb-2 space-y-2">
+			<div className="shrink-0 px-3 pt-1 pb-2.5 space-y-2">
 				<div className="flex items-center justify-between gap-2">
 					<div className="flex items-center gap-1.5 text-xs font-semibold text-foreground tracking-tight">
 						<span>归集内容</span>
@@ -304,7 +307,7 @@ export const FolderItemList = memo(function FolderItemList({
 			</div>
 
 			{/* Scrollable Bookmark List Area */}
-			<ScrollShadow className="flex-1 min-h-0 px-3 pb-3 overflow-y-auto">
+			<ScrollShadow className="flex-1 min-h-0 px-3 pt-2 pb-3 overflow-y-auto">
 				{/* Item List or Empty States */}
 				{folder.items.length === 0 ? (
 					<EmptyState className="text-xs text-muted py-6 text-center rounded-2xl bg-surface-secondary/20">
@@ -317,7 +320,7 @@ export const FolderItemList = memo(function FolderItemList({
 					</EmptyState>
 				) : viewMode === "list" ? (
 					/* Compact List Mode */
-					<div className="space-y-1">
+					<div className="space-y-1 pt-0.5">
 						{visibleItems.map((item, index) => {
 							const itemDomKey = String(
 								item.id ?? item.url ?? `${item.name}-${index}`,

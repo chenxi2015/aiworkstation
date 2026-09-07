@@ -289,7 +289,7 @@ export const WorkbenchItemCard = memo(function WorkbenchItemCard({
 				{/* Item Tags */}
 				{item.tags && item.tags.length > 0 && (
 					<div className="flex items-center gap-1 flex-wrap pl-8 mt-auto">
-						{item.tags.map((tag) => (
+						{Array.from(new Set(item.tags.map((t) => t.trim()).filter(Boolean))).map((tag) => (
 							<span
 								key={tag}
 								className="inline-flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 rounded-md bg-surface-secondary text-muted border border-border/60"
