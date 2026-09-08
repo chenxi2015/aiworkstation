@@ -81,7 +81,12 @@ export const searchWorkbenchItems = createServerFn({ method: "POST" })
 export const getEmbeddingCoverageStats = createServerFn({
 	method: "GET",
 }).handler(async (): Promise<EmbeddingStats> => {
-	return workbenchDb.getEmbeddingStats();
+	try {
+		return workbenchDb.getEmbeddingStats();
+	} catch (err) {
+		console.warn("[search] Failed to get embedding stats:", err);
+		return { total: 0, embedded: 0, percentage: 0 };
+	}
 });
 
 /**

@@ -30,18 +30,23 @@ export const getWorkbenchData = createServerFn({ method: "GET" }).handler(
 		unclassified: WorkbenchItem[];
 		activeCategory?: string;
 	}> => {
-		const folders = workbenchDb.getAllFolders();
-		const unclassified = workbenchDb.getUnclassifiedItems();
-		let activeCategory: string | undefined;
 		try {
-			const cookieCat = getCookie("aiworkstation_active_category");
-			if (cookieCat) {
-				activeCategory = decodeURIComponent(cookieCat);
+			const folders = workbenchDb.getAllFolders();
+			const unclassified = workbenchDb.getUnclassifiedItems();
+			let activeCategory: string | undefined;
+			try {
+				const cookieCat = getCookie("aiworkstation_active_category");
+				if (cookieCat) {
+					activeCategory = decodeURIComponent(cookieCat);
+				}
+			} catch {
+				// Ignore if outside server runtime context
 			}
-		} catch {
-			// Ignore if outside server runtime context
+			return { folders, unclassified, activeCategory };
+		} catch (err) {
+			console.warn("[getWorkbenchData] Database access error:", err);
+			return { folders: [], unclassified: [] };
 		}
-		return { folders, unclassified, activeCategory };
 	},
 );
 
@@ -319,11 +324,12 @@ export const deleteItemsBatch = createServerFn({ method: "POST" })
  */
 export const getWorkbenchSettings = createServerFn({ method: "GET" }).handler(
 	async (): Promise<WorkbenchSettings | null> => {
-		const raw = workbenchDb.getSetting("workbench_settings");
-		if (!raw) return null;
 		try {
+			const raw = workbenchDb.getSetting("workbench_settings");
+			if (!raw) return null;
 			return JSON.parse(raw);
-		} catch {
+		} catch (err) {
+			console.warn("[getWorkbenchSettings] Database access error:", err);
 			return null;
 		}
 	},

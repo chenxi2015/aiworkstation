@@ -4,7 +4,7 @@ import { memo } from "react";
 import type { EmbeddingStats } from "../../types";
 
 export interface EmbeddingStatusWidgetProps {
-	stats: EmbeddingStats;
+	stats?: EmbeddingStats | null;
 	isIndexing: boolean;
 	onBuildIndex: () => void;
 	compact?: boolean;
@@ -21,7 +21,12 @@ export const EmbeddingStatusWidget = memo(function EmbeddingStatusWidget({
 	compact = true,
 	className = "",
 }: EmbeddingStatusWidgetProps) {
-	const isFull = stats.percentage >= 100;
+	// Guard against undefined or uninitialized stats
+	const safeStats = stats || { total: 0, embedded: 0, percentage: 0 };
+	const percentage = typeof safeStats.percentage === "number" ? safeStats.percentage : 0;
+	const isFull = percentage >= 100;
+	const embedded = safeStats.embedded ?? 0;
+	const total = safeStats.total ?? 0;
 
 	return (
 		<div
@@ -33,10 +38,10 @@ export const EmbeddingStatusWidget = memo(function EmbeddingStatusWidget({
 					{compact ? "向量索引" : "RAG 向量索引覆盖率"}:
 				</span>
 				<span className="font-semibold text-foreground">
-					{stats.percentage}%
+					{percentage}%
 				</span>
 				<span className="text-[10px] text-muted/80">
-					({stats.embedded}/{stats.total})
+					({embedded}/{total})
 				</span>
 			</div>
 
@@ -46,7 +51,7 @@ export const EmbeddingStatusWidget = memo(function EmbeddingStatusWidget({
 					className={`h-full transition-all duration-300 ${
 						isFull ? "bg-emerald-500" : "bg-accent"
 					}`}
-					style={{ width: `${Math.min(100, Math.max(0, stats.percentage))}%` }}
+					style={{ width: `${Math.min(100, Math.max(0, percentage))}%` }}
 				/>
 			</div>
 

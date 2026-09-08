@@ -85,11 +85,18 @@ export function useEmbeddingStats(autoFetch = true): UseEmbeddingStatsReturn {
 	const fetchStats = useCallback(async () => {
 		try {
 			const data = await WorkbenchStorageService.getEmbeddingStats();
-			setStats(data);
-			return data;
+			const safeData: EmbeddingStats = {
+				total: data?.total ?? 0,
+				embedded: data?.embedded ?? 0,
+				percentage: data?.percentage ?? 0,
+			};
+			setStats(safeData);
+			return safeData;
 		} catch (err) {
 			console.error("[useEmbeddingStats] Failed to fetch stats:", err);
-			return { total: 0, embedded: 0, percentage: 0 };
+			const fallback: EmbeddingStats = { total: 0, embedded: 0, percentage: 0 };
+			setStats(fallback);
+			return fallback;
 		}
 	}, []);
 

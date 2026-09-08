@@ -38,7 +38,8 @@ export async function searchItems(params: {
  */
 export async function getEmbeddingStats(): Promise<EmbeddingStats> {
 	try {
-		return await getEmbeddingCoverageStats();
+		const res = await getEmbeddingCoverageStats();
+		return res ?? { total: 0, embedded: 0, percentage: 0 };
 	} catch (err) {
 		console.warn("[searchClient] getEmbeddingCoverageStats error:", err);
 		return { total: 0, embedded: 0, percentage: 0 };
