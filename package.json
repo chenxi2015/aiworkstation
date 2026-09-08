@@ -6,9 +6,11 @@
     "#/*": "./src/*"
   },
   "scripts": {
-    "dev": "VITE_CONFIG_NATIVE_IGNORE_WARNING=true vite dev --port 3888",
+    "dev": "vite dev --port 3888",
     "generate-routes": "tsr generate",
     "build": "vite build",
+    "build:node": "DEPLOY_TARGET=node vite build",
+    "start:node": "node .output/server/index.mjs",
     "preview": "vite preview",
     "format": "biome format",
     "lint": "biome lint",
@@ -71,6 +73,7 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^6.0.1",
+    "nitro": "npm:nitro-nightly@3.0.1-20260907-125141-8baa894b",
     "typescript": "^6.0.2",
     "vite": "^8.0.0",
     "wrangler": "^4.70.0"

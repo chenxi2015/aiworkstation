@@ -10,7 +10,7 @@ import {
 	type EmbeddingConfig,
 	generateBatchEmbeddings,
 	generateQueryEmbedding,
-} from "./embedding/client";
+} from "./embedding/client.ts";
 import {
 	computeFacets,
 	computeKeywordScore,

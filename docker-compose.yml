@@ -1,0 +1,35 @@
+services:
+  workbench:
+    build: .
+    image: aiworkstation:latest
+    container_name: aiworkstation
+    ports:
+      # 只绑定宿主机回环地址（PROJECT.md 决策#6）：
+      # 浏览器插件访问 localhost:3888 即被转发进容器，本机以外不可达
+      - "127.0.0.1:3888:3888"
+    env_file:
+      # 生产 Node 服务器不会自动读取 .env，必须在这里注入
+      # （DEEPSEEK_API_KEY / ANTHROPIC_API_KEY 等）
+      - .env
+    environment:
+      # Mac/Linux: 留空即自动用宿主机 $HOME（路径在容器内外保持一致）
+      # Windows:   在 .env 里设 CONTAINER_HOME=/home/user
+      HOME: ${CONTAINER_HOME:-${HOME}}
+    volumes:
+      # SQLite 数据库 + 爬取页面快照 + 备份，持久化到项目目录
+      - ./.aiworkstation:/app/.aiworkstation
+      # 视频下载任务落宿主机 Downloads 目录
+      # Mac/Linux: 留空，自动同路径挂载（容器内外路径一致）
+      # Windows:   在 .env 里设 HOST_DOWNLOADS=C:\Users\you\Downloads
+      #                          CONTAINER_HOME=/home/user
+      - ${HOST_DOWNLOADS:-${HOME}/Downloads}:${CONTAINER_HOME:-${HOME}}/Downloads
+      # —— 可选：监控/操作更多本地资源 ————————————————
+      # 监控宿主机上的其他容器（Docker API）
+      # - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Linux 宿主机：读取真实主机 CPU/内存/磁盘指标
+      # （macOS 上 Docker Desktop 只能看到 Linux VM 的指标，挂载意义有限）
+      # - /proc:/host/proc:ro
+      # - /sys:/host/sys:ro
+      # 让工作台能访问其他本地目录（按需改路径，建议只读）
+      # - ${HOME}/Documents:${HOME}/Documents:ro
+    restart: unless-stopped

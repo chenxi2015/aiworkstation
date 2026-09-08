@@ -1,0 +1,15 @@
+.git
+node_modules
+dist
+.output
+.aiworkstation
+.wrangler
+.tanstack
+scratch
+extensions
+*.log
+.env
+.env.local
+.DS_Store
+Dockerfile
+docker-compose.yml
