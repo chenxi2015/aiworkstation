@@ -94,7 +94,7 @@ src/server/ai/tools/   # ReAct Agent 的 10 个书签/文件夹/统计与批量�
 src/server/maintenance.ts # 死链巡检等后台维护任务
 vite.config.ts         # 插件 HTTP API（/api/collect）以 Vite dev middleware 形式挂在这里
 extensions/aicollector/ # Chrome 插件（WXT 框架）：background / content / sidepanel 等 entrypoints
-~/.aiworkstation/      # 运行时数据目录：workbench.db、assets/
+./.aiworkstation/      # 运行时数据目录（项目根下，process.cwd()/.aiworkstation）：workbench.db、pages/ 爬取全文、backups/ 备份
 ```
 
 ## 开发命令

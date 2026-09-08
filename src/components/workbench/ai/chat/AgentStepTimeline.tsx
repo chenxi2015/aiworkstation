@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { memo, useMemo, useState } from "react";
 import type { AgentStep } from "../../../../types/agent.ts";
+import { formatDurationMs } from "../../../../lib/utils.ts";
 import { AiMarkdownRenderer } from "../shared/AiMarkdownRenderer.tsx";
 
 export interface AgentStepTimelineProps {
@@ -304,9 +305,9 @@ export const AgentStepTimeline = memo(function AgentStepTimeline({
 			return "思考完成，正在生成回答...";
 		}
 		if (searchKeywordsCount > 0) {
-			return `检索 ${searchKeywordsCount} 次数据库，执行 ${steps.length} 步思考推演 · 耗时 ${totalDurationMs}ms`;
+			return `检索 ${searchKeywordsCount} 次数据库，执行 ${steps.length} 步思考推演 · 耗时 ${formatDurationMs(totalDurationMs)}`;
 		}
-		return `已完成 ${steps.length} 步思考与工具执行 · 耗时 ${totalDurationMs}ms`;
+		return `已完成 ${steps.length} 步思考与工具执行 · 耗时 ${formatDurationMs(totalDurationMs)}`;
 	}, [
 		isStreaming,
 		runningAction,
@@ -405,7 +406,7 @@ export const AgentStepTimeline = memo(function AgentStepTimeline({
 										<div className="flex items-center gap-1.5 text-neutral-400 shrink-0 ml-2">
 											{step.durationMs != null && (
 												<span className="text-[10px] text-neutral-400 font-mono">
-													{step.durationMs}ms
+													{formatDurationMs(step.durationMs)}
 												</span>
 											)}
 											<span className="text-[10px] text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 flex items-center gap-0.5">

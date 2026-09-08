@@ -67,11 +67,22 @@ export const PageTdkCard: React.FC<PageTdkCardProps> = ({
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Keywords</span>
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {currentTdk.keywords.split(/[,，]/).slice(0, 5).map((kw, i) => (
-                    <Chip key={i} size="sm" variant="secondary" className="text-[11px] h-5">
-                      {kw.trim()}
-                    </Chip>
-                  ))}
+                  {currentTdk.keywords
+                    .split(/[,，]/)
+                    .map((kw) => kw.trim())
+                    .filter(Boolean)
+                    .slice(0, 5)
+                    .map((kw, i) => (
+                      <Chip
+                        key={i}
+                        size="sm"
+                        variant="secondary"
+                        className="text-[11px] h-5 max-w-full"
+                        title={kw}
+                      >
+                        <Chip.Label className="truncate min-w-0">{kw}</Chip.Label>
+                      </Chip>
+                    ))}
                 </div>
               </div>
             )}

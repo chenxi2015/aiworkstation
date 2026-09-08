@@ -1,5 +1,6 @@
 import {
 	Input,
+	InputGroup,
 	Label,
 	ListBox,
 	ListBoxItem,
@@ -10,7 +11,7 @@ import {
 	TextField,
 	toast,
 } from "@heroui/react";
-import { Brain, Loader2, PenLine, RefreshCw, Sparkles } from "lucide-react";
+import { Brain, Eye, EyeOff, Loader2, PenLine, RefreshCw, Sparkles } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
 import {
@@ -61,6 +62,8 @@ export function ModelSettingsTab({
 	const [isCustomLlmModel, setIsCustomLlmModel] = useState(false);
 	const [loadingEmbeddingModels, setLoadingEmbeddingModels] = useState(false);
 	const [isCustomEmbeddingModel, setIsCustomEmbeddingModel] = useState(false);
+	const [showApiKey, setShowApiKey] = useState(false);
+	const [showEmbeddingApiKey, setShowEmbeddingApiKey] = useState(false);
 
 	const handleLlmProviderChange = (id: string) => {
 		onChange("llmProvider", id);
@@ -225,11 +228,26 @@ export function ModelSettingsTab({
 						<Label>
 							API Key <span className="text-danger">*</span>
 						</Label>
-						<Input
-							type="password"
-							placeholder="sk-..."
-							variant="secondary"
-						/>
+						<InputGroup fullWidth variant="secondary">
+							<InputGroup.Input
+								type={showApiKey ? "text" : "password"}
+								placeholder="sk-..."
+							/>
+							<InputGroup.Suffix>
+								<button
+									type="button"
+									onClick={() => setShowApiKey((v) => !v)}
+									className="cursor-pointer hover:opacity-80 transition-opacity"
+									title={showApiKey ? "隐藏" : "显示"}
+								>
+									{showApiKey ? (
+										<EyeOff className="size-4 text-muted" />
+									) : (
+										<Eye className="size-4 text-muted" />
+									)}
+								</button>
+							</InputGroup.Suffix>
+						</InputGroup>
 					</TextField>
 				</div>
 
@@ -394,11 +412,26 @@ export function ModelSettingsTab({
 						className="min-w-0"
 					>
 						<Label>Embedding API Key</Label>
-						<Input
-							type="password"
-							placeholder="sk-..."
-							variant="secondary"
-						/>
+						<InputGroup fullWidth variant="secondary">
+							<InputGroup.Input
+								type={showEmbeddingApiKey ? "text" : "password"}
+								placeholder="sk-..."
+							/>
+							<InputGroup.Suffix>
+								<button
+									type="button"
+									onClick={() => setShowEmbeddingApiKey((v) => !v)}
+									className="cursor-pointer hover:opacity-80 transition-opacity"
+									title={showEmbeddingApiKey ? "隐藏" : "显示"}
+								>
+									{showEmbeddingApiKey ? (
+										<EyeOff className="size-4 text-muted" />
+									) : (
+										<Eye className="size-4 text-muted" />
+									)}
+								</button>
+							</InputGroup.Suffix>
+						</InputGroup>
 					</TextField>
 				</div>
 

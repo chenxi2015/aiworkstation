@@ -104,7 +104,7 @@ export * from "./updateFolderTool.ts";
 /**
  * Generic execution wrapper that logs metrics and dispatches lifecycle hooks
  */
-async function wrapExecution<TArgs>(
+export async function wrapExecution<TArgs>(
 	toolName: string,
 	args: TArgs,
 	executor: () => ToolExecutionResult | Promise<ToolExecutionResult>,

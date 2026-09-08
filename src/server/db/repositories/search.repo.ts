@@ -92,7 +92,9 @@ export class SearchRepository {
         f.name as folder_name,
         f.category
       FROM bookmarks b
-      LEFT JOIN folder_items fi ON b.id = fi.item_id
+      LEFT JOIN folder_items fi ON fi.id = (
+        SELECT MIN(fi2.id) FROM folder_items fi2 WHERE fi2.item_id = b.id
+      )
       LEFT JOIN folders f ON fi.folder_id = f.id
     `,
 			)

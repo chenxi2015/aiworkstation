@@ -6,7 +6,9 @@ import type {
 	AgentStreamEvent,
 } from "./agentTypes.ts";
 import { createBookmarkServerTools } from "./bookmarkTools.ts";
+import { createFsServerTools } from "./fs/index.ts";
 import { prepareRagAgentContext, resolveLlmConfig } from "./ragContext.ts";
+import type { BookmarkToolHooks } from "./tools/types.ts";
 
 export type StreamEventEmitter = (event: AgentStreamEvent) => void;
 
@@ -75,7 +77,7 @@ export async function runAgentStream(
 	const completedStepSummaries: string[] = [];
 
 	// 2. Instantiate tools with execution hooks emitting real-time steps
-	const tools = createBookmarkServerTools({
+	const toolHooks: BookmarkToolHooks = {
 		onMutated: () => {
 			hasDbMutated = true;
 		},
@@ -112,7 +114,11 @@ export async function runAgentStream(
 			activeSteps.delete(toolName);
 			emit({ type: "step_end", step });
 		},
-	});
+	};
+	const tools = [
+		...createBookmarkServerTools(toolHooks),
+		...createFsServerTools(toolHooks),
+	];
 
 	// 3. Create adapter
 	const adapter = openaiCompatibleText(model, {

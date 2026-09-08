@@ -532,7 +532,7 @@ export function SearchTabContent({
 
 								return (
 									<SearchResultItemRow
-										key={itemKey}
+										key={`${itemKey}#${idx}`}
 										item={item}
 										isSelected={isSelected}
 										isChecked={isChecked}
