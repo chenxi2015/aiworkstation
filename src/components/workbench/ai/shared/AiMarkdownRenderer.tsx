@@ -15,6 +15,16 @@ const URL_REGEX = /(https?:\/\/[^\s<>)\]}]+)/g;
 const ABSOLUTE_PATH_REGEX =
 	/^\/(?:Users|home|Volumes|var|tmp|private|opt|mnt)\/[^\n]+\.[a-zA-Z0-9]{1,10}$/;
 
+/** AI sometimes URL-encodes Chinese chars in the path; decode for display & open. */
+function safeDecodePath(text: string): string {
+	if (!text.includes("%")) return text;
+	try {
+		return decodeURIComponent(text);
+	} catch {
+		return text;
+	}
+}
+
 /**
  * Opens a local file via the workbench server (`open` on macOS).
  * Server validates the path is under allowed roots (.aiworkstation, ~/Downloads).
@@ -450,6 +460,15 @@ export const AiMarkdownRenderer = memo(function AiMarkdownRenderer({
 					}: ExtraProps<"code">) => {
 						const text = typeof children === "string" ? children.trim() : "";
 
+						// 0. Detect if the inline code is an absolute local file path
+						// (crawled pages落盘文件等) -> clickable chip that opens via OS
+						if (text) {
+							const decoded = safeDecodePath(text);
+							if (ABSOLUTE_PATH_REGEX.test(decoded)) {
+								return <LocalFileChip filePath={decoded} />;
+							}
+						}
+
 						// 1. Detect if the inline code is actually an HTTP/HTTPS URL
 						if (isValidHttpUrl(text)) {
 							return (
@@ -578,22 +597,6 @@ export const AiMarkdownRenderer = memo(function AiMarkdownRenderer({
 								<span>{children}</span>
 								<Link.Icon />
 							</Link>
-						);
-					},
-					code: ({ children, className, ...props }: ExtraProps<"code">) => {
-						// Inline code (no language class) holding an absolute local path
-						// becomes a clickable chip that opens the file via the OS.
-						if (
-							!className &&
-							typeof children === "string" &&
-							ABSOLUTE_PATH_REGEX.test(children.trim())
-						) {
-							return <LocalFileChip filePath={children.trim()} />;
-						}
-						return (
-							<code className={className} {...props}>
-								{children}
-							</code>
 						);
 					},
 					img: ({ src, alt, className, ...props }: ExtraProps<"img">) => {
