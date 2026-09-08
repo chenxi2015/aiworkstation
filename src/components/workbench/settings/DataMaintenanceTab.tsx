@@ -15,6 +15,7 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import type { BackupFileInfo } from "../../../services/api/maintenanceClient";
 import { WorkbenchStorageService } from "../../../services/workbenchStorage";
+import { ConfirmDialog } from "../ConfirmDialog";
 
 dayjs.extend(relativeTime);
 dayjs.locale("zh-cn");
@@ -55,6 +56,8 @@ export function DataMaintenanceTab({
 		null,
 	);
 	const [confirmRestoreItem, setConfirmRestoreItem] =
+		useState<BackupFileInfo | null>(null);
+	const [confirmDeleteItem, setConfirmDeleteItem] =
 		useState<BackupFileInfo | null>(null);
 	const [deletingFilename, setDeletingFilename] = useState<string | null>(null);
 
@@ -114,6 +117,9 @@ export function DataMaintenanceTab({
 			await WorkbenchStorageService.deleteBackup(filename);
 			toast.success("备份已删除");
 			setBackups((prev) => prev.filter((b) => b.filename !== filename));
+			if (confirmRestoreItem?.filename === filename) {
+				setConfirmRestoreItem(null);
+			}
 		} catch (err) {
 			toast.danger(
 				`删除失败: ${err instanceof Error ? err.message : String(err)}`,
@@ -298,7 +304,7 @@ export function DataMaintenanceTab({
 											size="sm"
 											className="rounded-full w-7 h-7 p-0 flex items-center justify-center text-muted hover:text-danger cursor-pointer"
 											isDisabled={isRestoring || isDeleting}
-											onPress={() => handleDeleteBackup(item.filename)}
+											onPress={() => setConfirmDeleteItem(item)}
 										>
 											{isDeleting ? (
 												<Loader2 className="w-3 h-3 animate-spin" />
@@ -313,6 +319,32 @@ export function DataMaintenanceTab({
 					)}
 				</div>
 			</div>
+
+			{/* Backup deletion confirmation */}
+			<ConfirmDialog
+				isOpen={!!confirmDeleteItem}
+				onOpenChange={(open) => {
+					if (!open) setConfirmDeleteItem(null);
+				}}
+				title="删除备份快照"
+				description={
+					confirmDeleteItem ? (
+						<span>
+							确定要删除快照备份{" "}
+							<strong className="font-semibold text-foreground">
+								{parseBackupLabel(confirmDeleteItem.filename)}
+							</strong>{" "}
+							吗？此操作将永久移除该备份文件，无法撤销。
+						</span>
+					) : undefined
+				}
+				confirmLabel="确认删除"
+				onConfirm={async () => {
+					if (confirmDeleteItem) {
+						await handleDeleteBackup(confirmDeleteItem.filename);
+					}
+				}}
+			/>
 		</div>
 	);
 }

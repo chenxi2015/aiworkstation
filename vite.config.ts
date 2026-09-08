@@ -8,7 +8,7 @@ import { extensionApiPlugin } from "./src/server/api/extensionApiPlugin.ts";
 
 process.env.VITE_CONFIG_NATIVE_IGNORE_WARNING = "true";
 
-const config = defineConfig({
+const config = defineConfig(({ command }) => ({
 	server: {
 		port: 3888,
 	},
@@ -16,11 +16,14 @@ const config = defineConfig({
 	plugins: [
 		extensionApiPlugin(),
 		devtools(),
-		cloudflare({ viteEnvironment: { name: "ssr" } }),
+		// Only enable Cloudflare worker runner during build to allow native SQLite in local dev
+		...(command === "build"
+			? [cloudflare({ viteEnvironment: { name: "ssr" } })]
+			: []),
 		tailwindcss(),
 		tanstackStart(),
 		viteReact(),
 	],
-});
+}));
 
 export default config;
