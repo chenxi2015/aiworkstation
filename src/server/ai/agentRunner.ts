@@ -1,4 +1,4 @@
-import { chat, EventType } from "@tanstack/ai";
+import { chat, EventType, maxIterations } from "@tanstack/ai";
 import { openaiCompatibleText } from "@tanstack/ai-openai/compatible";
 import type {
 	AgentChatParams,
@@ -72,6 +72,7 @@ export async function runAgentStream(
 	let hasDbMutated = false;
 	let stepCounter = 0;
 	const activeSteps = new Map<string, AgentStep>();
+	const completedStepSummaries: string[] = [];
 
 	// 2. Instantiate tools with execution hooks emitting real-time steps
 	const tools = createBookmarkServerTools({
@@ -96,6 +97,9 @@ export async function runAgentStream(
 		},
 		onToolEnd: (toolName, summary, ok, durationMs) => {
 			const existing = activeSteps.get(toolName);
+			if (ok && summary) {
+				completedStepSummaries.push(`【${toolName}】\n${summary}`);
+			}
 			const step: AgentStep = {
 				id: existing?.id || `step_${Date.now()}_${toolName}`,
 				toolName,
@@ -171,6 +175,10 @@ export async function runAgentStream(
 			messages,
 			tools,
 			stream: true,
+			// Default is maxIterations(5): multi-step scraping (骨架分析 + 分段
+			// 提取) easily burns 5 turns before the model gets to answer, leaving
+			// an empty reply. Give the loop more headroom.
+			agentLoopStrategy: maxIterations(10),
 		});
 
 		for await (const chunk of stream as AsyncIterable<
@@ -205,6 +213,39 @@ export async function runAgentStream(
 				timestamp: new Date().toLocaleTimeString(),
 			});
 			return;
+		}
+
+		// Loop budget can be exhausted right after a tool call, before the model
+		// produces any text. When tools did gather material, force one tool-free
+		// synthesis turn so the user never gets an empty "生成失败" fallback.
+		if (!accumulatedAnswer.trim() && completedStepSummaries.length > 0) {
+			const synthStream = await chat({
+				adapter,
+				systemPrompts: [prepared.systemPrompt],
+				messages: [
+					...messages,
+					{
+						role: "user",
+						content: `（系统接续）你之前已通过工具调用收集到以下资料：\n\n${completedStepSummaries.join("\n\n")}\n\n请直接基于以上资料回答用户最初的问题。如果资料不完整，先给出已有部分，并简要说明缺什么。不要重复调用工具，不要回复"无法获取"。`,
+					},
+				],
+				stream: true,
+			});
+			for await (const chunk of synthStream as AsyncIterable<
+				Record<string, unknown>
+			>) {
+				if (signal?.aborted) break;
+				if (
+					chunk.type === EventType.TEXT_MESSAGE_CONTENT ||
+					chunk.type === EventType.TEXT_MESSAGE_CHUNK
+				) {
+					const delta = (chunk.delta || chunk.content || "") as string;
+					if (delta) {
+						accumulatedAnswer += delta;
+						emit({ type: "text_chunk", delta });
+					}
+				}
+			}
 		}
 
 		emit({

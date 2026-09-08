@@ -196,7 +196,7 @@ export async function prepareRagAgentContext(params: {
 
 	const hasUrlInContext = contextItems.some((item) => Boolean(item.url));
 	const webpageToolGuidance = hasUrlInContext
-		? "\n\n★ 重要指引：用户在当前上下文中提供了具体的网址链接。如果用户的提问涉及深度分析该网页、总结文章、提取要点或了解项目详情，请主动调用 `read_webpage_content` 工具抓取该网址的真实正文，然后向用户输出有深度、有条理的分析报告！"
+		? "\n\n★ 重要指引：用户在当前上下文中提供了具体的网址链接。如果用户的提问涉及深度分析该网页、总结文章、提取要点或了解项目详情，请【默认首选】调用 `crawl_webpage_via_extension` 工具（浏览器插件静默爬虫，携带真实登录态 Cookie，可穿透 SPA 渲染与反爬限制，返回整洁 Markdown 正文；插件离线时会自动降级，无需顾虑）抓取该网址的真实正文，然后向用户输出有深度、有条理的分析报告！仅当该工具明确返回失败时，才退而使用 `read_webpage_content` 轻量通道。"
 		: "";
 
 	const hasImageInContext = contextItems.some(

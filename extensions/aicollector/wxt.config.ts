@@ -24,6 +24,7 @@ export default defineConfig({
       'scripting',
       'storage',
       'tabs',
+      'alarms',
       'downloads',
       'webRequest',
     ],

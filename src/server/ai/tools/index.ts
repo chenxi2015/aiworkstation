@@ -4,6 +4,11 @@ import {
 	executeAddTagsToBookmarks,
 } from "./addTagsToBookmarksTool.ts";
 import {
+	crawlWebpageViaExtensionInputSchema,
+	crawlWebpageViaExtensionToolDef,
+	executeCrawlWebpageViaExtension,
+} from "./crawlWebpageViaExtensionTool.ts";
+import {
 	createFolderInputSchema,
 	createFolderToolDef,
 	executeCreateFolder,
@@ -77,6 +82,7 @@ import {
 } from "./updateFolderTool.ts";
 
 export * from "./addTagsToBookmarksTool.ts";
+export * from "./crawlWebpageViaExtensionTool.ts";
 export * from "./createFolderTool.ts";
 export * from "./createTagsTool.ts";
 export * from "./deleteFolderTool.ts";
@@ -213,6 +219,14 @@ export function createBookmarkServerTools(hooks?: BookmarkToolHooks) {
 				hooks,
 			),
 		),
+		crawlWebpageViaExtensionToolDef.server((args) =>
+			wrapExecution(
+				"crawl_webpage_via_extension",
+				args,
+				() => executeCrawlWebpageViaExtension(args),
+				hooks,
+			),
+		),
 		createTagsToolDef.server((args) =>
 			wrapExecution("create_tags", args, () => executeCreateTags(args), hooks),
 		),
@@ -316,6 +330,11 @@ export async function executeBookmarkToolCall(
 		case "read_webpage_content":
 			result = await executeReadWebpage(
 				readWebpageInputSchema.parse(parsedArgs),
+			);
+			break;
+		case "crawl_webpage_via_extension":
+			result = await executeCrawlWebpageViaExtension(
+				crawlWebpageViaExtensionInputSchema.parse(parsedArgs),
 			);
 			break;
 		default:

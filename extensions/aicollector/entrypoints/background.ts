@@ -1,5 +1,6 @@
 import type { PageTDK, SniffedStream, SyncLogItem } from '../src/types';
 import { DEFAULT_WORKBENCH_URL, WORKBENCH_STORAGE_KEY } from '../src/services/workbench';
+import { startCrawlerLoop } from '../src/services/crawlerClient';
 
 async function getWorkbenchBaseUrl(): Promise<string> {
   try {
@@ -673,5 +674,12 @@ export default defineBackground(() => {
     }
   } catch (err) {
     console.warn('[AI Collector] Failed to initialize webRequest sniffer:', err);
+  }
+
+  // 7. Silent crawler channel: long-poll workbench server for crawl jobs
+  try {
+    startCrawlerLoop();
+  } catch (err) {
+    console.warn('[AI Collector] Failed to start crawler loop:', err);
   }
 });

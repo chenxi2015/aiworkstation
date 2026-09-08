@@ -1,8 +1,8 @@
 import { code } from "@streamdown/code";
 import { mermaid } from "@streamdown/mermaid";
 import "streamdown/styles.css";
-import { Link } from "@heroui/react";
-import { Folder as FolderIcon } from "lucide-react";
+import { Link, toast } from "@heroui/react";
+import { FileText as FileTextIcon, Folder as FolderIcon } from "lucide-react";
 import type { ComponentPropsWithoutRef, ElementType, ReactNode } from "react";
 import { memo, useMemo } from "react";
 import { type BundledTheme, Streamdown } from "streamdown";
@@ -11,6 +11,55 @@ import { useImagePreview } from "./ImagePreviewModal";
 
 const URL_REGEX = /(https?:\/\/[^\s<>)\]}]+)/g;
 
+/** Absolute paths from real filesystem roots (inline-code fallback detection) */
+const ABSOLUTE_PATH_REGEX =
+	/^\/(?:Users|home|Volumes|var|tmp|private|opt|mnt)\/[^\n]+\.[a-zA-Z0-9]{1,10}$/;
+
+/**
+ * Opens a local file via the workbench server (`open` on macOS).
+ * Server validates the path is under allowed roots (.aiworkstation, ~/Downloads).
+ */
+async function openLocalFile(filePath: string): Promise<void> {
+	try {
+		const res = await fetch("/api/open-file", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ path: filePath }),
+		});
+		const data = (await res.json()) as { success?: boolean; error?: string };
+		if (!res.ok || !data.success) {
+			throw new Error(data.error || `HTTP ${res.status}`);
+		}
+		toast.success("已用系统默认程序打开文件");
+	} catch (err) {
+		const msg = err instanceof Error ? err.message : String(err);
+		toast.danger(`打开文件失败：${msg}`);
+	}
+}
+
+function LocalFileChip({
+	filePath,
+	label,
+}: {
+	filePath: string;
+	label?: ReactNode;
+}) {
+	return (
+		<button
+			type="button"
+			onClick={(e) => {
+				e.stopPropagation();
+				openLocalFile(filePath);
+			}}
+			className="inline-flex items-center gap-1 px-2 py-0.5 mx-0.5 text-[11.5px] font-medium rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 hover:border-emerald-500/50 transition-all cursor-pointer align-middle max-w-full"
+			title={`用系统默认程序打开：${filePath}`}
+		>
+			<FileTextIcon className="w-3 h-3 shrink-0" />
+			<span className="truncate">{label || filePath}</span>
+		</button>
+	);
+}
+
 /**
  * Normalizes backtick URLs (`https://...`) into standard markdown links [url](url)
  * so they are consistently recognized by markdown parser.
@@ -18,6 +67,18 @@ const URL_REGEX = /(https?:\/\/[^\s<>)\]}]+)/g;
 function normalizeMarkdownUrls(markdown: string): string {
 	if (!markdown) return "";
 	return markdown.replace(/`\s*(https?:\/\/[^\s`]+)\s*`/g, "[$1]($1)");
+}
+
+/**
+ * Converts localfile:// links (which markdown sanitizers strip anyway) into
+ * backtick-wrapped absolute paths, so the inline-code renderer can turn them
+ * into clickable "open with system" chips.
+ */
+function normalizeLocalFileLinks(markdown: string): string {
+	if (!markdown) return "";
+	return markdown
+		.replace(/\[[^\]]*\]\(localfile:\/\/([^)]+)\)/g, (_m, p) => `\`${p}\``)
+		.replace(/(?<![`\w])localfile:\/\/(\/[^\s)`]+)/g, (_m, p) => `\`${p}\``);
 }
 
 /**
@@ -249,7 +310,11 @@ export const AiMarkdownRenderer = memo(function AiMarkdownRenderer({
 }: AiMarkdownRendererProps) {
 	const { openPreview } = useImagePreview();
 	const processedContent = useMemo(
-		() => normalizeMarkdownFolders(normalizeMarkdownUrls(content), folders),
+		() =>
+			normalizeMarkdownFolders(
+				normalizeLocalFileLinks(normalizeMarkdownUrls(content)),
+				folders,
+			),
 		[content, folders],
 	);
 
@@ -513,6 +578,22 @@ export const AiMarkdownRenderer = memo(function AiMarkdownRenderer({
 								<span>{children}</span>
 								<Link.Icon />
 							</Link>
+						);
+					},
+					code: ({ children, className, ...props }: ExtraProps<"code">) => {
+						// Inline code (no language class) holding an absolute local path
+						// becomes a clickable chip that opens the file via the OS.
+						if (
+							!className &&
+							typeof children === "string" &&
+							ABSOLUTE_PATH_REGEX.test(children.trim())
+						) {
+							return <LocalFileChip filePath={children.trim()} />;
+						}
+						return (
+							<code className={className} {...props}>
+								{children}
+							</code>
 						);
 					},
 					img: ({ src, alt, className, ...props }: ExtraProps<"img">) => {

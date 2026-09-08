@@ -41,6 +41,16 @@ const routes: RouteDefinition[] = [
 		},
 	},
 	{
+		path: "/api/crawler",
+		exact: false,
+		handler: async (req, res, pathname) => {
+			const { handleCrawlerRequest } = await import(
+				"./handlers/crawlerHandler.ts"
+			);
+			return handleCrawlerRequest(req, res, pathname);
+		},
+	},
+	{
 		path: "/api/video-tasks",
 		exact: false,
 		handler: async (req, res, pathname) => {
@@ -48,6 +58,16 @@ const routes: RouteDefinition[] = [
 				"./handlers/videoTasksHandler.ts"
 			);
 			return handleVideoTasksRequest(req, res, pathname);
+		},
+	},
+	{
+		path: "/api/open-file",
+		exact: true,
+		handler: async (req, res) => {
+			const { handleOpenFileRequest } = await import(
+				"./handlers/openFileHandler.ts"
+			);
+			return handleOpenFileRequest(req, res);
 		},
 	},
 ];

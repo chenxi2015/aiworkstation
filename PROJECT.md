@@ -55,6 +55,10 @@
 | AI 自动归类到文件夹 | 服务端 chat() + outputSchema 结构化分类，低置信度留"未分类" | P0 ✅ 已实现（DeepSeek 批量分类 + AIClassifyModal） |
 | side panel 内嵌工作台 | iframe localhost:3888 | P0 ✅ 已实现（WXT sidepanel） |
 | 浏览器原生收藏（Ctrl+D）拦截 | chrome.bookmarks.onCreated 转发 | P1 |
+| 插件后台静默爬虫通道 | 工作台指令下发 → background 开静默 Tab → 提纯 Markdown → 自动关闭 | P1 ✅ 已实现 |
+| 选区录制与规则模板（Recipe） | 插件可视化点选提取 → 沉淀为选择器规则库 → 自动化引擎按规则精准爬取 | P1 |
+| 跨标签页上下文感知与聚合 | 遍历当前窗口多个 Tab 正文 → 回传工作台由 AI 一键横向对比调研 | P1 |
+| 浏览器原子操作驱动（Click/Type/Scroll） | AI 驱动插件执行点击展开、滚动翻页、表单填写，实现动态网页交互 | P2 |
 | 推特推文内嵌"AI 回复/二创"按钮 | content script 注入，内容回传工作台处理 | P1 |
 | 推特热帖自动收集 | 时间线 DOM 监听，互动数超阈值自动入库 | P1 |
 | 发布到公众号/小红书 | content script 操作网页版编辑器填充 | P2 |
@@ -133,7 +137,7 @@ extensions/aicollector/ # Chrome 插件（WXT 框架）：background / content /
 
 > **核心策略**：不引入重量级 Agent 框架。TanStack AI 的 `chat()` 天然支持 agent loop（多轮 Tool Calling），只需扩展 Tool 集 + 增强 System Prompt 的规划引导，即可自然演化为多步 Agent。
 
-### 六大 Agent 方向
+### 七大 Agent 方向
 
 1. **🏠 知识管家 Agent（后台自治）**
    - 新书签入库自动触发 AI 分类归档
@@ -160,6 +164,12 @@ extensions/aicollector/ # Chrome 插件（WXT 框架）：background / content /
    - 基于收藏资源构建知识图谱，分析难度和依赖关系
    - 自动规划学习路径，发现知识盲区
 
+7. **🦾 浏览器协同 Agent（Browser Co-Pilot / 智能爬虫与操作体）**
+   - **高杠杆架构**：以最小代价盘活现有 `aicollector` 扩展作为真实物理视角的“手”，TanStack AI 客户端/服务端作为“脑”。
+   - **0 成本与原生穿透**：无视反爬与 SPA 客户端渲染，直接复用宿主真实指纹与已登录 Cookies（知乎/掘金/微信/内网），无需高昂 API 或重量级 Python/Playwright 环境，以不到 10% 的系统复杂度兼备 `browser-use` 85%+ 的核心实用价值。
+   - **选区规则模板化（Recipe）**：插件可视化点选录制选择器 ➔ 存入 SQLite 规则库 ➔ 以后自动化引擎按规则精准定向爬取固定板块（如文章正文、特定表格、评论区），极大降低 Token 消耗并消灭网页噪音。
+   - **原子动作流转**：支持 `click`、`type`、`scroll`、`extract` 原子指令组合，实现自动翻页加载、点击展开全文、表单自动填写与跨端草稿分发。
+
 ### Tool 架构与扩展清单
 
 现有 **10 个 Tool**（`src/server/ai/tools/`）是 Agent 行动的手脚，采用**多态批量（Polymorphic Batching）**与**意图级复合事务**设计：
@@ -176,6 +186,8 @@ extensions/aicollector/ # Chrome 插件（WXT 框架）：background / content /
 | `reorder_folders` | 文件夹视觉排序 | 传入有序 ID 数组，直接保存排列 | ✅ 已实现 |
 | `update_folder` | 更新文件夹属性与描述 | 修改单个或特定文件夹元信息 | ✅ 已实现 |
 | `remove_bookmarks_from_folder` | 从文件夹移出书签 | 移回未分类或清空目录 | ✅ 已实现 |
+| `crawl_webpage_via_extension` | 调度 Chrome 插件静默抓取网页 | 突破 SPA/反爬/需登录限制，支持指定 CSS 选择器定向提纯 Markdown | ✅ 已实现 |
+| `execute_browser_action` | 驱动浏览器插件执行原子交互序列 | 支持模拟点击、滚动翻页、表单填写等自动化操作流 | P2 |
 | `find_duplicates` | 基于 URL 和语义的重复检测 | 扫描知识库中潜在冗余条目 | P1 |
 | `batch_classify` | 批量智能分类（复用 AIClassifier） | 自动化大批量未分类数据清洗 | P1 |
 | `delete_bookmark` | 删除书签 | 单条或按条件批量清理失效/无用书签 | P1 |
@@ -206,18 +218,20 @@ extensions/aicollector/ # Chrome 插件（WXT 框架）：background / content /
    - **阶段一（✅ 已完成）**：全局快捷搜索（Cmd+K）+ SQLite 向量持久化 + TS 高效余弦相似度引擎 + 混合检索 + 索引构建流水线
    - **阶段二（✅ 已完成）**：RAG 智能问答侧栏（Chat with Bookmarks）+ 文件夹一键专题综述提炼 + ReAct Tool Calling（4 Tools）
    - **阶段三（✅ 已完成）**：浏览器原生书签导入同步（BookmarkSyncModal）+ 死链巡检（DeadLinksModal + maintenance 后台扫描）+ ReAct Tool 扩展至 8 个
-3. **M3 创作与二创矩阵**：
+3. **M3 智能爬虫与 Browser Co-Pilot（🚧 进行中）**：
+   - **阶段一（✅ 已完成）**：实现工作台 ➔ `aicollector` 的静默爬虫通信通道（内存 Job 队列 + 插件长轮询 `/api/crawler`），后台秒级开合 Tab 提纯 Markdown，突破 SPA 渲染与登录态屏障，接入 `crawl_webpage_via_extension` Tool（插件离线自动降级原生 fetch）
+   - **阶段二（选区规则 Recipe）**：插件可视化点选 ➔ 生成并持久化选择器模板规则库 ➔ AI 对话按规则定向爬取指定板块
+   - **阶段三（浏览器原子动作）**：扩展 `click`/`scroll`/`type` 指令集，支持翻页连续抓取与多标签页协同调研
+4. **M4 创作与二创矩阵**：
    - 写作时自动关联并引用收藏库中的工具/素材
    - 推文/小红书/视频脚本二创与草稿生成
    - 指令通道回灌至网页编辑器并保留人工确认发布
-4. **M4 打磨与分发矩阵**：
+5. **M5 打磨与分发矩阵**：
    - Chrome side panel 深度联动
    - 个人专属视觉导航页（Showcase）一键导出
    - 数据备份迁移与 skills 深度集成
-5. **M5 AI Agent 智能体演进**（L2 → L3 → L4）：
+6. **M6 AI Agent 智能体深度自治**（L3 → L4 → L5）：
    - **搜索增强**：Facet 聚合过滤 + 搜索 Scope 限定 + 搜索结果高亮 + 搜索历史热搜
-   - **Tool 集扩展**：`get_stats` / `find_duplicates` / `batch_classify` / `delete_bookmark` / `check_url_health`
-   - **多步 Agent**：复杂意图自动拆解为多步 Tool 链执行（Plan → Execute → Verify）
    - **后台自治**：新书签入库自动归档 + 定期知识库巡检 + 知识资产周报
-   - **联网研究**：`web_search` + `extract_page_info` 联网补充，深度调研生成对比报告
+   - **联网研究**：`web_search` + 插件深度抓取联动，生成行业对比研报
    - **跨源协同**：Connector Plugin 架构，联邦检索 Notion / Raindrop 等外部知识源

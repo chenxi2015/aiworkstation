@@ -18,7 +18,14 @@ export type ReadWebpageInput = z.infer<typeof readWebpageInputSchema>;
 /**
  * Clean raw HTML content into readable plain text / lightweight markdown
  */
-function cleanHtmlContent(rawHtml: string): { title: string; text: string } {
+const MAX_TEXT_LENGTH = 4000;
+
+function cleanHtmlContent(rawHtml: string): {
+	title: string;
+	text: string;
+	totalLength: number;
+	truncated: boolean;
+} {
 	// 1. Extract title
 	const titleMatch = rawHtml.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
 	const title = titleMatch ? titleMatch[1].trim() : "未知网页";
@@ -59,11 +66,14 @@ function cleanHtmlContent(rawHtml: string): { title: string; text: string } {
 		.map((line) => line.trim())
 		.filter((line) => line.length > 0);
 
-	const cleanedText = lines.join("\n").slice(0, 4000);
+	const fullText = lines.join("\n");
+	const cleanedText = fullText.slice(0, MAX_TEXT_LENGTH);
 
 	return {
 		title,
 		text: cleanedText,
+		totalLength: fullText.length,
+		truncated: fullText.length > MAX_TEXT_LENGTH,
 	};
 }
 
@@ -111,7 +121,7 @@ export async function executeReadWebpage(
 		}
 
 		const html = await response.text();
-		const { title, text } = cleanHtmlContent(html);
+		const { title, text, totalLength, truncated } = cleanHtmlContent(html);
 
 		if (!text) {
 			return {
@@ -123,7 +133,11 @@ export async function executeReadWebpage(
 			};
 		}
 
-		const summary = `成功抓取并解析网页《${title}》（URL: ${rawUrl}）的正文内容如下（已精简提取）：\n\n${text}`;
+		const truncationNote = truncated
+			? `\n\n[系统提示] 抓取已成功。网页文本共约 ${totalLength} 字符，上方展示前 ${text.length} 字符（单次返回上限）。这属于正常的完整抓取结果，禁止用同一 URL 重复调用本工具重试；如需更完整正文，请改用 crawl_webpage_via_extension 并配合 selector 参数精准定位。`
+			: `\n\n[系统提示] 抓取已成功，上方即为全部正文（共 ${text.length} 字符），内容完整，无需再次调用本工具。`;
+
+		const summary = `成功抓取并解析网页《${title}》（URL: ${rawUrl}）的正文内容如下（已精简提取）：\n\n${text}${truncationNote}`;
 
 		return {
 			toolName: "read_webpage_content",
@@ -150,6 +164,6 @@ export async function executeReadWebpage(
 export const readWebpageToolDef = toolDefinition({
 	name: "read_webpage_content",
 	description:
-		"抓取并提取指定网页链接的真实标题与正文文本。当用户在上下文中引用了书签/链接并要求分析网页、阅读文章、爬取内容或深入解读项目时，必须调用此工具获取最新网页正文后再行作答。",
+		"轻量级原生 fetch 网页抓取（不携带登录态，易被 SPA 动态渲染与反爬拦截导致正文为空）。仅在 crawl_webpage_via_extension 插件爬虫明确返回失败时，作为兜底排查手段使用；常规网页正文抓取请优先使用 crawl_webpage_via_extension。重要：只要返回内容开头标注「成功抓取」，无论是否标注「已截断」，都视为抓取成功，禁止对同一 URL 重复调用抓取类工具，直接基于已有内容回答用户。",
 	inputSchema: readWebpageInputSchema,
 });

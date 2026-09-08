@@ -16,6 +16,7 @@ import {
 	memo,
 	type RefObject,
 	useCallback,
+	useEffect,
 	useMemo,
 	useState,
 } from "react";
@@ -54,6 +55,9 @@ export interface ChatInputAreaProps {
 		targetItemId?: string | number,
 	) => void;
 }
+
+/** Max height (px) the textarea grows to before scrolling internally */
+const MAX_TEXTAREA_HEIGHT = 200;
 
 /**
  * Modern AI chat input area with context injection (dnd-kit & native drops),
@@ -99,6 +103,18 @@ export const ChatInputArea = memo(function ChatInputArea({
 
 	const canSend =
 		(input.trim().length > 0 || contextItems.length > 0) && !isLoading;
+
+	// Auto-grow textarea with content up to a max height, then scroll internally
+	// biome-ignore lint/correctness/useExhaustiveDependencies: input drives re-measurement on every content change
+	useEffect(() => {
+		const el = inputRef.current;
+		if (!el) return;
+		el.style.height = "auto";
+		const nextHeight = Math.min(el.scrollHeight, MAX_TEXTAREA_HEIGHT);
+		el.style.height = `${nextHeight}px`;
+		el.style.overflowY =
+			el.scrollHeight > MAX_TEXTAREA_HEIGHT ? "auto" : "hidden";
+	}, [input, inputRef]);
 
 	// Handle native file drop (e.g. dragging images/files from desktop)
 	const handleNativeDrop = useCallback(
@@ -386,7 +402,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 							? "对上述引用的上下文提问，或按 Enter 直接分析..."
 							: "问任何问题，输入 @ 引用书签/文件夹，或拖拽注入上下文..."
 					}
-					className="w-full bg-transparent border-none text-xs text-foreground placeholder:text-muted/60 focus:outline-none resize-none leading-relaxed min-h-[44px] max-h-[140px] px-1 py-0.5"
+					className="w-full bg-transparent border-none text-xs text-foreground placeholder:text-muted/60 focus:outline-none resize-none leading-relaxed min-h-[44px] px-1 py-0.5"
 				/>
 
 				{/* Card Bottom Bar: Left scope switch, Right Send/Stop Button */}

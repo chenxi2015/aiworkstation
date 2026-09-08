@@ -24,6 +24,7 @@ import type { ChatItem } from "../../../../hooks/ai/useAiChat";
 import type { Category, Folder, SearchResultItem } from "../../types";
 import { AiMarkdownRenderer } from "../shared/AiMarkdownRenderer";
 import { useImagePreview } from "../shared/ImagePreviewModal";
+import { UrlLinkifiedText } from "../shared/UrlLinkifiedText";
 import { AgentStepTimeline } from "./AgentStepTimeline";
 import { ChatReferenceCard } from "./ChatReferenceCard";
 
@@ -179,7 +180,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
 					</div>
 
 					<div className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">
-						{msg.content}
+						<UrlLinkifiedText text={msg.content} />
 					</div>
 
 					{currentReferences.length > 0 && (
@@ -400,7 +401,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
 						{/* Clean neutral rounded pill (Reference Fig. 1 & 2 style) */}
 						<div className="bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-2xl px-4 py-2 text-sm leading-relaxed font-normal shadow-2xs">
 							<div className="whitespace-pre-wrap leading-relaxed">
-								{msg.content}
+								<UrlLinkifiedText text={msg.content} />
 							</div>
 						</div>
 
