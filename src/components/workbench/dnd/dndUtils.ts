@@ -76,8 +76,11 @@ export interface DropIndicator {
  */
 export const MERGE_DWELL_MS = 450;
 
-/** 目标卡片被排序挤开后，拖拽卡片与其保持该重叠比例即视为仍在悬停 */
-export const MERGE_KEEP_COVER_RATIO = 0.15;
+/**
+ * 目标卡片被排序预览挤开后，只要指针没有移出该半径，就视为仍在原目标上悬停
+ *（以命中目标那一刻的指针位置为锚点，不再依赖目标卡片的实时位置）
+ */
+export const MERGE_HOLD_RADIUS_PX = 32;
 
 /** Move an item from one index to another (dnd-kit sortable commit 用) */
 export function arrayMove<T>(list: T[], from: number, to: number): T[] {

@@ -10,6 +10,8 @@ import {
 	type ReactNode,
 	useCallback,
 	useContext,
+	useEffect,
+	useRef,
 	useState,
 } from "react";
 import type { Folder, WorkbenchItem } from "../types";
@@ -21,7 +23,8 @@ import {
 	folderDropId,
 	type ItemDragData,
 	itemDragId,
-	MERGE_COVER_RATIO,
+	MERGE_DWELL_MS,
+	MERGE_HOLD_RADIUS_PX,
 	parseDropId,
 	type WorkbenchDragData,
 } from "./dndUtils";
@@ -68,26 +71,6 @@ function hitTestFolderCard(point: {
 		: null;
 }
 
-interface RectLike {
-	left: number;
-	top: number;
-	width: number;
-	height: number;
-}
-
-/** 两个矩形的交集面积 */
-function intersectionArea(a: RectLike, b: RectLike): number {
-	const w = Math.max(
-		0,
-		Math.min(a.left + a.width, b.left + b.width) - Math.max(a.left, b.left),
-	);
-	const h = Math.max(
-		0,
-		Math.min(a.top + a.height, b.top + b.height) - Math.max(a.top, b.top),
-	);
-	return w * h;
-}
-
 // ================= Provider =================
 
 export interface WorkbenchDndProviderProps {
@@ -118,68 +101,125 @@ export function WorkbenchDndProvider({
 		overId: null,
 		mode: null,
 	});
+	// 已确认进入合并态的目标文件夹（指示框已亮起，松手即合并）
+	const mergeTargetRef = useRef<number | null>(null);
+	// 悬停计时：命中目标那一刻锚定指针位置，目标被排序预览挤开也不影响计时
+	const dwellRef = useRef<{
+		folderId: number | null;
+		x: number;
+		y: number;
+		timer: number | null;
+	}>({ folderId: null, x: 0, y: 0, timer: null });
 
-	/**
-	 * 当前拖拽是否命中某个文件夹卡片的「合并区」，命中返回该卡片的 droppable id。
-	 * 书签拖到卡片上整卡都是放入目标；文件夹拖到文件夹按覆盖面积判定：
-	 * 拖拽卡片盖住目标卡片超过 MERGE_COVER_RATIO 才算合并，其余交给排序位移。
-	 */
-	const resolveIntoTarget = useCallback(
-		(operation: DragMoveEvent["operation"]): string | null => {
-			const { source } = operation;
-			const data = source?.data as WorkbenchDragData | undefined;
-			if (!data) return null;
-			if (data.kind === "item") {
-				// 书签不是 sortable，target 不会被插件劫持，直接读即可
-				const target = operation.target;
-				if (!target) return null;
-				const parsed = parseDropId(target.id);
-				if (!parsed || parsed.type !== "folder") return null;
-				return data.sourceFolderId === parsed.folderId
-					? null
-					: String(target.id);
-			}
-			// 文件夹拖拽：shape.current 是拖拽卡片的实时位置，
-			// 用其中心点命中目标卡片，再按覆盖面积比例判定合并
-			const draggedRect = operation.shape?.current.boundingRectangle;
-			if (!draggedRect) return null;
-			const hit = hitTestFolderCard({
-				x: draggedRect.left + draggedRect.width / 2,
-				y: draggedRect.top + draggedRect.height / 2,
-			});
-			if (!hit || hit.folderId === data.folder.id) return null;
-			const cover =
-				intersectionArea(draggedRect, hit.rect) /
-				(hit.rect.width * hit.rect.height);
-			return cover >= MERGE_COVER_RATIO ? folderDropId(hit.folderId) : null;
-		},
-		[],
-	);
+	const clearDwell = useCallback(() => {
+		if (dwellRef.current.timer !== null) {
+			window.clearTimeout(dwellRef.current.timer);
+		}
+		dwellRef.current.folderId = null;
+		dwellRef.current.timer = null;
+		mergeTargetRef.current = null;
+	}, []);
+
+	useEffect(() => clearDwell, [clearDwell]);
 
 	const handleDragMove = useCallback(
 		(event: DragMoveEvent) => {
-			const overId = resolveIntoTarget(event.operation);
-			setIndicator((prev) =>
-				prev.overId === overId
-					? prev
-					: { overId, mode: overId ? "into" : null },
-			);
+			const { operation } = event;
+			const data = operation.source?.data as WorkbenchDragData | undefined;
+			if (!data) return;
+
+			if (data.kind === "item") {
+				// 书签不是 sortable，target 不会被插件劫持，直接读即可
+				let overId: string | null = null;
+				const target = operation.target;
+				if (target) {
+					const parsed = parseDropId(target.id);
+					if (
+						parsed?.type === "folder" &&
+						parsed.folderId !== data.sourceFolderId
+					) {
+						overId = String(target.id);
+					}
+				}
+				setIndicator((prev) =>
+					prev.overId === overId
+						? prev
+						: { overId, mode: overId ? "into" : null },
+				);
+				return;
+			}
+
+			// 文件夹拖拽：dwell 式合并。指针命中卡片后开始计时，停留
+			// MERGE_DWELL_MS 进入合并态；目标被排序预览挤开时，
+			// 只要指针没有明显移动（仍在锚点半径内）就继续计时。
+			const folderId = data.folder.id;
+			const position = operation.position.current;
+			const hit = hitTestFolderCard(position);
+			const hitId = hit && hit.folderId !== folderId ? hit.folderId : null;
+			const dwell = dwellRef.current;
+			const anchoredId = mergeTargetRef.current ?? dwell.folderId;
+
+			if (anchoredId !== null) {
+				const dx = position.x - dwell.x;
+				const dy = position.y - dwell.y;
+				const held =
+					dx * dx + dy * dy <= MERGE_HOLD_RADIUS_PX * MERGE_HOLD_RADIUS_PX;
+				if (hitId === anchoredId) {
+					// 指针仍在这张卡片上：重新锚定，允许在卡片范围内随意移动
+					dwell.x = position.x;
+					dwell.y = position.y;
+					return;
+				}
+				// 目标被排序预览挤开：以原锚点判断，指针没明显移动就继续计时。
+				// 注意这里不能重新锚定，否则慢速拖走会无限续命
+				if (held) return;
+				// 指针移开：取消计时与合并态
+				clearDwell();
+				setIndicator((prev) =>
+					prev.overId === null ? prev : { overId: null, mode: null },
+				);
+			}
+
+			if (hitId === null) return;
+			dwell.folderId = hitId;
+			dwell.x = position.x;
+			dwell.y = position.y;
+			dwell.timer = window.setTimeout(() => {
+				dwellRef.current.folderId = null;
+				dwellRef.current.timer = null;
+				mergeTargetRef.current = hitId;
+				setIndicator({ overId: folderDropId(hitId), mode: "into" });
+			}, MERGE_DWELL_MS);
 		},
-		[resolveIntoTarget],
+		[clearDwell],
 	);
 
 	const resetDrag = useCallback(() => {
+		clearDwell();
 		setIndicator((prev) =>
 			prev.overId === null ? prev : { overId: null, mode: null },
 		);
-	}, []);
+	}, [clearDwell]);
 
 	const handleDragEnd = useCallback(
 		(event: DragEndEvent) => {
 			const { source, target } = event.operation;
 			const data = source?.data as WorkbenchDragData | undefined;
+			// 合并目标要在 resetDrag 清空前取出来
+			const mergeTargetId =
+				data?.kind === "folder" ? mergeTargetRef.current : null;
 			resetDrag();
 			if (event.canceled || !data) return;
+
+			if (
+				data.kind === "folder" &&
+				mergeTargetId !== null &&
+				mergeTargetId !== data.folder.id
+			) {
+				// 合并进文件夹：不再提交排序，乐观排序动过的 DOM 由状态重渲染对齐
+				onMoveFolder(data.folder.id, mergeTargetId);
+				return;
+			}
 
 			// sortable 的乐观排序在拖拽过程中已移动 DOM，这里统一提交顺序，
 			// 保证 DOM 与状态一致（书签拖拽不是 sortable，自动跳过）
@@ -215,16 +255,6 @@ export function WorkbenchDndProvider({
 			}
 
 			const folderId = data.folder.id;
-			// 合并判定用指针命中：sortable 插件会把 operation.target 重置为拖拽源，
-			// 这里直接看指针落在哪张卡片的中间区域
-			const intoId = resolveIntoTarget(event.operation);
-			if (intoId) {
-				const parsedInto = parseDropId(intoId);
-				if (parsedInto?.type === "folder" && parsedInto.folderId !== folderId) {
-					onMoveFolder(folderId, parsedInto.folderId);
-					return;
-				}
-			}
 			if (parsed.type === "category") {
 				if (parsed.category !== "未分类") {
 					onMoveFolderToCategory?.(folderId, parsed.category);
@@ -244,7 +274,6 @@ export function WorkbenchDndProvider({
 			onMoveItemToFolder,
 			onReorderFolders,
 			resetDrag,
-			resolveIntoTarget,
 		],
 	);
 
