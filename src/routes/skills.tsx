@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ModulePlaceholderPage } from "../components/modules/ModulePlaceholderPage";
+import { SkillsApp } from "../components/skills/SkillsApp";
 import { workbenchLoader } from "./-workbenchLoader";
 
 export const Route = createFileRoute("/skills")({
@@ -10,8 +10,7 @@ export const Route = createFileRoute("/skills")({
 function SkillsPage() {
 	const { unclassified, settings } = Route.useLoaderData();
 	return (
-		<ModulePlaceholderPage
-			moduleCode="skills"
+		<SkillsApp
 			unclassifiedCount={unclassified.length}
 			navLayout={settings.navLayout}
 		/>

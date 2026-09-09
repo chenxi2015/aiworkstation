@@ -26,10 +26,6 @@ const MODULE_PLANS: Record<string, string[]> = {
 		"将文件夹分类设为 ecommerce 即可把资源挂靠到本模块",
 		"选品与运营工作流（规划中）",
 	],
-	skills: [
-		"扫描本地散落的 skills 目录（~/.codex/skills、~/.agents/skills 等）",
-		"统一查看、启用与归档，后续数据落入 SQLite（规划中）",
-	],
 };
 
 /**

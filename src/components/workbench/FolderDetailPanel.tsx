@@ -161,7 +161,7 @@ export const FolderDetailPanel = memo(function FolderDetailPanel({
 
 				{/* Subfolder list */}
 				{childFolders.length > 0 && onSelectFolder && (
-					<div className="my-2 space-y-1 max-h-28 overflow-y-auto">
+					<div className="my-2 space-y-1 max-h-60 overflow-y-auto">
 						<div className="flex items-center gap-1.5 px-0.5 pb-1 text-xs font-semibold text-foreground tracking-tight">
 							<span>子文件夹</span>
 							<span className="text-[10px] text-muted font-mono bg-surface-secondary px-1.5 py-0.2 rounded-md">
