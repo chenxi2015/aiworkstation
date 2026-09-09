@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import type {
 	Category,
 	Folder,
+	FolderViewPrefs,
 	WorkbenchItem,
 	WorkbenchSettings,
 } from "../components/workbench/types";
@@ -42,6 +43,10 @@ export interface UseWorkbenchDataReturn {
 	setSettings: (settings: WorkbenchSettings) => void;
 	handleCategoryChange: (cat: Category) => void;
 	handleSaveFolder: (data: SaveFolderPayload) => Promise<void>;
+	handleSaveFolderViewPrefs: (
+		folderId: number,
+		prefs: FolderViewPrefs,
+	) => Promise<void>;
 	handleDeleteFolder: (id: number) => Promise<void>;
 	handleAddLink: (
 		folderId: number,
@@ -169,6 +174,7 @@ export function useWorkbenchData(
 	// 3. Folder operations
 	const {
 		handleSaveFolder,
+		handleSaveFolderViewPrefs,
 		handleDeleteFolder,
 		handleMoveFolder,
 		handleMoveFolderToCategory,
@@ -221,6 +227,7 @@ export function useWorkbenchData(
 		setSettings,
 		handleCategoryChange,
 		handleSaveFolder,
+		handleSaveFolderViewPrefs,
 		handleDeleteFolder,
 		handleAddLink,
 		handleDeleteItemFromFolder,

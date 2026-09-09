@@ -1,5 +1,5 @@
 import { Button, toast } from "@heroui/react";
-import { Pencil, RefreshCw } from "lucide-react";
+import { LayoutGrid, List, Pencil, RefreshCw } from "lucide-react";
 import {
 	lazy,
 	Suspense,
@@ -20,6 +20,7 @@ import {
 	UNCLASSIFIED_CATEGORY,
 } from "../../modules/registry";
 import { ExtensionBridgeService } from "../../services/extensionBridge";
+import { WorkbenchStorageService } from "../../services/workbenchStorage";
 import { useAiPanel } from "../shell/AppShell";
 import { ConfirmDialog } from "./ConfirmDialog";
 import type { WorkbenchDragData } from "./dnd/WorkbenchDnd";
@@ -29,7 +30,12 @@ import { CategoryFilterBar } from "./layout/CategoryFilterBar";
 import { CategoryView } from "./layout/CategoryView";
 import { UnclassifiedView } from "./layout/UnclassifiedView";
 import { WorkbenchHeader } from "./layout/WorkbenchHeader";
-import type { Folder, WorkbenchItem, WorkbenchSettings } from "./types";
+import type {
+	Folder,
+	FolderGridView,
+	WorkbenchItem,
+	WorkbenchSettings,
+} from "./types";
 
 // Lazy-load feature modals for smaller initial bundle and faster hydration
 const FolderModal = lazy(() =>
@@ -117,6 +123,7 @@ export function WorkbenchApp({
 		setSelectedFolderId,
 		handleCategoryChange,
 		handleSaveFolder,
+		handleSaveFolderViewPrefs,
 		handleDeleteFolder,
 		handleAddLink,
 		handleDeleteItemFromFolder,
@@ -212,6 +219,18 @@ export function WorkbenchApp({
 			setIsRefreshing(false);
 		}
 	}, [isRefreshing, reloadFromDb]);
+
+	// 文件夹区网格/列表视图切换（全局偏好，持久化到 workbench_settings）
+	const folderGridView: FolderGridView = settings.folderGridView ?? "grid";
+	const handleFolderGridViewChange = useCallback(
+		(mode: FolderGridView) => {
+			if (mode === folderGridView) return;
+			const next: WorkbenchSettings = { ...settings, folderGridView: mode };
+			setSettings(next);
+			WorkbenchStorageService.saveSettings(next);
+		},
+		[folderGridView, settings, setSettings],
+	);
 
 	// Category rename modal state
 	const [isRenameCategoryOpen, setIsRenameCategoryOpen] = useState(false);
@@ -466,14 +485,18 @@ export function WorkbenchApp({
 								setItemPendingDelete({ item, folderId })
 							}
 							onMoveItem={handleMoveItem}
+							onSaveViewPrefs={(prefs) =>
+								selectedFolder &&
+								handleSaveFolderViewPrefs(selectedFolder.id, prefs)
+							}
 							onAskAIAboutFolder={handleAskAIAboutFolder}
 							onAttachToChat={handleAttachBookmarkToChat}
 						/>
 
 						{/* 2. Main Column: 文件夹列表与卡片区 (Category Folders Grid) */}
-						<main className="flex-1 p-6 lg:p-7 min-w-0 flex flex-col overflow-y-auto h-full">
+						<main className="flex-1 min-w-0 flex flex-col h-full overflow-hidden">
 							{/* Workspace Title */}
-							<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+							<div className="shrink-0 px-6 lg:px-7 pt-6 lg:pt-7 pb-5 border-b border-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
 								<div>
 									<div className="flex items-center gap-2">
 										<h1 className="text-2xl font-bold tracking-tight text-foreground">
@@ -505,8 +528,38 @@ export function WorkbenchApp({
 									</p>
 								</div>
 
-								{/* Action buttons: Refresh folder list */}
+								{/* Action buttons: view toggle + refresh folder list */}
 								<div className="flex items-center gap-2 shrink-0">
+									<div className="flex items-center rounded-full border border-border/70 bg-surface-secondary/60 p-0.5">
+										<button
+											type="button"
+											onClick={() => handleFolderGridViewChange("grid")}
+											className={`w-7 h-6 rounded-full flex items-center justify-center cursor-pointer transition-colors ${
+												folderGridView === "grid"
+													? "bg-surface text-foreground shadow-2xs"
+													: "text-muted/70 hover:text-foreground"
+											}`}
+											title="网格视图"
+											aria-label="网格视图"
+											aria-pressed={folderGridView === "grid"}
+										>
+											<LayoutGrid className="w-3.5 h-3.5" />
+										</button>
+										<button
+											type="button"
+											onClick={() => handleFolderGridViewChange("list")}
+											className={`w-7 h-6 rounded-full flex items-center justify-center cursor-pointer transition-colors ${
+												folderGridView === "list"
+													? "bg-surface text-foreground shadow-2xs"
+													: "text-muted/70 hover:text-foreground"
+											}`}
+											title="列表视图"
+											aria-label="列表视图"
+											aria-pressed={folderGridView === "list"}
+										>
+											<List className="w-3.5 h-3.5" />
+										</button>
+									</div>
 									<Button
 										variant="secondary"
 										size="sm"
@@ -524,24 +577,27 @@ export function WorkbenchApp({
 								</div>
 							</div>
 
-							{/* Folders Grid View */}
-							<CategoryView
-								folders={gridFolders}
-								allFolders={folders}
-								selectedFolderId={selectedFolder?.id ?? null}
-								categoryName={activeCategory}
-								folderPath={folderPath}
-								childFolderCounts={childFolderCounts}
-								onSelectFolder={handleSelectFolder}
-								onCreateFolder={openCreateFolderModal}
-								onEnterFolder={handleEnterFolder}
-								onNavigateBreadcrumb={handleNavigateToContainer}
-								onEditFolder={openEditFolderModal}
-								onDeleteFolder={handleDeleteFolderFromCard}
-								onMoveFolder={handleMoveFolder}
-								onCreateLink={openAddLinkModal}
-								onAskAIAboutFolder={handleAskAISummarizeFolder}
-							/>
+							{/* Folders Grid View（独立滚动，标题栏固定） */}
+							<div className="flex-1 min-h-0 overflow-y-auto px-6 lg:px-7 pt-5 pb-6 flex flex-col">
+								<CategoryView
+									folders={gridFolders}
+									allFolders={folders}
+									selectedFolderId={selectedFolder?.id ?? null}
+									viewMode={folderGridView}
+									categoryName={activeCategory}
+									folderPath={folderPath}
+									childFolderCounts={childFolderCounts}
+									onSelectFolder={handleSelectFolder}
+									onCreateFolder={openCreateFolderModal}
+									onEnterFolder={handleEnterFolder}
+									onNavigateBreadcrumb={handleNavigateToContainer}
+									onEditFolder={openEditFolderModal}
+									onDeleteFolder={handleDeleteFolderFromCard}
+									onMoveFolder={handleMoveFolder}
+									onCreateLink={openAddLinkModal}
+									onAskAIAboutFolder={handleAskAISummarizeFolder}
+								/>
+							</div>
 						</main>
 					</>
 				)}

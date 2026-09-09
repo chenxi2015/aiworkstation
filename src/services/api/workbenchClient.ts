@@ -2,6 +2,7 @@ import type {
 	AIClassificationResult,
 	BookmarkTDKItem,
 	Folder,
+	FolderViewPrefs,
 	WorkbenchItem,
 } from "../../components/workbench/types";
 import {
@@ -18,6 +19,7 @@ import {
 	renameCategory,
 	reorderFolders,
 	saveFolder,
+	saveFolderViewPrefs,
 } from "../../server/functions/workbench";
 
 /**
@@ -51,6 +53,16 @@ export async function saveFolderToDb(folderData: {
 	parentId?: number | null;
 }): Promise<Folder[]> {
 	return await saveFolder({ data: folderData });
+}
+
+/**
+ * Persist a folder's view preferences (card/list, sort, density) to SQLite
+ */
+export async function saveFolderViewPrefsToDb(
+	folderId: number,
+	prefs: FolderViewPrefs,
+): Promise<Folder[]> {
+	return await saveFolderViewPrefs({ data: { folderId, prefs } });
 }
 
 /**

@@ -1,6 +1,10 @@
 import { toast } from "@heroui/react";
 import { useCallback } from "react";
-import type { Category, Folder } from "../../components/workbench/types";
+import type {
+	Category,
+	Folder,
+	FolderViewPrefs,
+} from "../../components/workbench/types";
 import { WorkbenchStorageService } from "../../services/workbenchStorage";
 import { saveActiveCategory } from "./useWorkbenchStorageSync";
 
@@ -88,6 +92,28 @@ export function useWorkbenchFolderActions({
 			toast.success("已保存文件夹至 SQLite 数据库");
 		},
 		[setFolders, setActiveCategory, setSelectedFolderId],
+	);
+
+	// Persist per-folder view prefs (card/list, sort, density) with optimistic update
+	const handleSaveFolderViewPrefs = useCallback(
+		async (folderId: number, prefs: FolderViewPrefs) => {
+			const previous = folders;
+			setFolders((prev) =>
+				prev.map((f) => (f.id === folderId ? { ...f, viewPrefs: prefs } : f)),
+			);
+			try {
+				const updated = await WorkbenchStorageService.saveFolderViewPrefsToDb(
+					folderId,
+					prefs,
+				);
+				setFolders(updated);
+			} catch (err) {
+				setFolders(previous);
+				toast.danger("视图偏好保存失败，已回滚");
+				console.warn("[handleSaveFolderViewPrefs] error:", err);
+			}
+		},
+		[folders, setFolders],
 	);
 
 	// Delete folder
@@ -241,6 +267,7 @@ export function useWorkbenchFolderActions({
 
 	return {
 		handleSaveFolder,
+		handleSaveFolderViewPrefs,
 		handleDeleteFolder,
 		handleMoveFolder,
 		handleMoveFolderToCategory,

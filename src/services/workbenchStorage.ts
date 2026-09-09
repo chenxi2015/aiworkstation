@@ -56,6 +56,7 @@ import {
 	renameCategoryInDb,
 	reorderFoldersInDb,
 	saveFolderToDb,
+	saveFolderViewPrefsToDb,
 } from "./api/workbenchClient";
 import type { EmbeddingConfig } from "./embedding/client";
 import type { ChatSession } from "./storage/chatStorage";
@@ -84,6 +85,7 @@ export class WorkbenchStorageService {
 	// ================= Workspace Data RPC =================
 	static fetchAllFromDb = fetchAllFromDb;
 	static saveFolderToDb = saveFolderToDb;
+	static saveFolderViewPrefsToDb = saveFolderViewPrefsToDb;
 	static deleteFolderFromDb = deleteFolderFromDb;
 	static moveFolderInDb = moveFolderInDb;
 	static reorderFoldersInDb = reorderFoldersInDb;

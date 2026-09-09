@@ -14,6 +14,9 @@ export type JsonValue =
 /** 文件夹内容的展现形式（持久化在 folders.view_prefs） */
 export type FolderViewMode = "card" | "list" | "gallery" | "table";
 
+/** 工作台文件夹区的整体展示方式（持久化在 settings.folderGridView） */
+export type FolderGridView = "grid" | "list";
+
 /** 文件夹视图偏好：每个文件夹记住自己的展现形式与排序 */
 export interface FolderViewPrefs {
 	mode?: FolderViewMode;
@@ -123,6 +126,8 @@ export interface WorkbenchSettings {
 	setupComplete?: boolean;
 	// 顶部模块导航的自定义布局（顺序/显隐），未设置时按注册表默认顺序
 	navLayout?: NavLayoutEntry[];
+	// 工作台文件夹区的展示方式：网格卡片 / 列表行（全局偏好，非 per-folder view_prefs）
+	folderGridView?: FolderGridView;
 }
 
 export type SearchMode = "hybrid" | "semantic" | "keyword";

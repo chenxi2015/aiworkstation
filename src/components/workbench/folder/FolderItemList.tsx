@@ -10,10 +10,21 @@ import { memo, useEffect, useMemo, useState } from "react";
 import { DraggableItem } from "../dnd/WorkbenchDnd";
 import { ItemFavicon } from "../ItemFavicon";
 import { WorkbenchItemCard } from "../item/WorkbenchItemCard";
-import type { Folder, WorkbenchItem } from "../types";
+import type { Folder, FolderViewPrefs, WorkbenchItem } from "../types";
 
 const INITIAL_CHUNK_SIZE = 30;
 const INCREMENTAL_CHUNK_SIZE = 30;
+
+/** 内部渲染只有 list / grid 两种；card、gallery、table 目前都落到 grid */
+type InternalViewMode = "list" | "grid";
+
+function toInternalMode(prefs?: FolderViewPrefs): InternalViewMode {
+	return prefs?.mode && prefs.mode !== "list" ? "grid" : "list";
+}
+
+function toPersistedMode(mode: InternalViewMode): FolderViewPrefs["mode"] {
+	return mode === "list" ? "list" : "card";
+}
 
 export interface FolderItemListProps {
 	folder: Folder;
@@ -27,6 +38,7 @@ export interface FolderItemListProps {
 		targetFolderId: number,
 	) => void;
 	onAttachToChat?: (item: WorkbenchItem) => void;
+	onSaveViewPrefs?: (prefs: FolderViewPrefs) => void;
 	selectedTagFilter?: string;
 	onSelectTagFilter?: (tag: string) => void;
 }
@@ -43,12 +55,15 @@ export const FolderItemList = memo(function FolderItemList({
 	onDeleteItem,
 	onMoveItem,
 	onAttachToChat,
+	onSaveViewPrefs,
 	selectedTagFilter: controlledTagFilter,
 	onSelectTagFilter: controlledOnSelectTagFilter,
 }: FolderItemListProps) {
 	const [localSearchQuery, setLocalSearchQuery] = useState("");
 	const [localTagFilter, setLocalTagFilter] = useState("all");
-	const [viewMode, setViewMode] = useState<"list" | "grid">("list");
+	const [viewMode, setViewMode] = useState<InternalViewMode>(() =>
+		toInternalMode(folder.viewPrefs),
+	);
 	const [visibleCount, setVisibleCount] = useState(INITIAL_CHUNK_SIZE);
 	const [activeHighlightId, setActiveHighlightId] = useState<
 		string | number | null
@@ -68,6 +83,20 @@ export const FolderItemList = memo(function FolderItemList({
 		setLocalSearchQuery("");
 		setLocalTagFilter("all");
 	}, [folder.id]);
+
+	// 视图模式跟随文件夹持久化偏好（切换文件夹或偏好被外部更新时同步）
+	// biome-ignore lint/correctness/useExhaustiveDependencies: 仅随文件夹与视图偏好同步内部渲染模式
+	useEffect(() => {
+		setViewMode(toInternalMode(folder.viewPrefs));
+	}, [folder.id, folder.viewPrefs]);
+
+	// 切换视图并持久化到 folders.view_prefs
+	const handleViewModeChange = (mode: InternalViewMode) => {
+		setViewMode(mode);
+		if (onSaveViewPrefs && toPersistedMode(mode) !== folder.viewPrefs?.mode) {
+			onSaveViewPrefs({ ...folder.viewPrefs, mode: toPersistedMode(mode) });
+		}
+	};
 
 	// Scroll and pulse highlight when highlightItemId changes
 	useEffect(() => {
@@ -148,9 +177,13 @@ export const FolderItemList = memo(function FolderItemList({
 				}
 			}
 		}
-		return Array.from(tagMap.entries())
-			.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-			.map(([name, count]) => ({ name, count }));
+		return (
+			Array.from(tagMap.entries())
+				// 同计数时按码点排序：localeCompare 在 Node(SSR) 与浏览器(ICU) 下对中文排序不一致，
+				// 会导致标签筛选条 hydration mismatch
+				.sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+				.map(([name, count]) => ({ name, count }))
+		);
 	}, [folder.items]);
 
 	// Fallback to "all" if selected tag is no longer available in the current folder
@@ -216,7 +249,7 @@ export const FolderItemList = memo(function FolderItemList({
 					<div className="flex items-center bg-surface-secondary/70 p-0.5 rounded-lg border border-border/50">
 						<button
 							type="button"
-							onClick={() => setViewMode("list")}
+							onClick={() => handleViewModeChange("list")}
 							className={`p-1 rounded-md transition-colors cursor-pointer ${
 								viewMode === "list"
 									? "bg-surface text-foreground shadow-2xs font-medium"
@@ -228,7 +261,7 @@ export const FolderItemList = memo(function FolderItemList({
 						</button>
 						<button
 							type="button"
-							onClick={() => setViewMode("grid")}
+							onClick={() => handleViewModeChange("grid")}
 							className={`p-1 rounded-md transition-colors cursor-pointer ${
 								viewMode === "grid"
 									? "bg-surface text-foreground shadow-2xs font-medium"

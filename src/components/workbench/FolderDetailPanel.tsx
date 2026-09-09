@@ -10,7 +10,7 @@ import { memo, useEffect, useState } from "react";
 import { folderRowDropId } from "./dnd/dndUtils";
 import { FolderHeader } from "./folder/FolderHeader";
 import { FolderItemList } from "./folder/FolderItemList";
-import type { Folder, WorkbenchItem } from "./types";
+import type { Folder, FolderViewPrefs, WorkbenchItem } from "./types";
 
 export interface FolderDetailPanelProps {
 	folder: Folder | null;
@@ -29,6 +29,7 @@ export interface FolderDetailPanelProps {
 	) => void;
 	onAskAIAboutFolder?: (prompt: string) => void;
 	onAttachToChat?: (item: WorkbenchItem) => void;
+	onSaveViewPrefs?: (prefs: FolderViewPrefs) => void;
 }
 
 interface SubfolderRowProps {
@@ -84,6 +85,7 @@ export const FolderDetailPanel = memo(function FolderDetailPanel({
 	onMoveItem,
 	onAskAIAboutFolder,
 	onAttachToChat,
+	onSaveViewPrefs,
 }: FolderDetailPanelProps) {
 	const [tagFilter, setTagFilter] = useState("all");
 
@@ -188,6 +190,7 @@ export const FolderDetailPanel = memo(function FolderDetailPanel({
 				onDeleteItem={onDeleteItem}
 				onMoveItem={onMoveItem}
 				onAttachToChat={onAttachToChat}
+				onSaveViewPrefs={onSaveViewPrefs}
 				selectedTagFilter={tagFilter}
 				onSelectTagFilter={setTagFilter}
 			/>
