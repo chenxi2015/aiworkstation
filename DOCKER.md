@@ -15,26 +15,26 @@ open http://localhost:3888
 
 ```bash
 # macOS / Linux
-docker build -t aiworkstation .
+docker build -t gengxin20/aiworkstation:latest .
 docker run -d --name aiworkstation \
   -p 127.0.0.1:3888:3888 \
   --env-file .env \
   -v "$PWD/.aiworkstation:/app/.aiworkstation" \
   -v "$HOME/Downloads:$HOME/Downloads" \
   -e "HOME=$HOME" \
-  aiworkstation
+  gengxin20/aiworkstation:latest
 ```
 
 ```powershell
 # Windows PowerShell
-docker build -t aiworkstation .
+docker build -t gengxin20/aiworkstation:latest .
 docker run -d --name aiworkstation `
   -p 127.0.0.1:3888:3888 `
   --env-file .env `
   -v "${PWD}\.aiworkstation:/app/.aiworkstation" `
   -v "C:\Users\$env:USERNAME\Downloads:/home/user/Downloads" `
   -e "HOME=/home/user" `
-  aiworkstation
+  gengxin20/aiworkstation:latest
 ```
 
 ## Windows 使用说明
