@@ -15,10 +15,7 @@
     "format": "biome format",
     "lint": "biome lint",
     "check": "biome check",
-    "deploy": "pnpm run build && wrangler deploy",
-    "docker:build": "docker build -t gengxin20/aiworkstation:latest .",
-    "docker:push": "docker push gengxin20/aiworkstation:latest",
-    "docker:release": "pnpm run docker:build && pnpm run docker:push"
+    "deploy": "pnpm run build && wrangler deploy"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
