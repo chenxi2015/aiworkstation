@@ -11,13 +11,34 @@
 
 ## 核心产品形态
 
-参考草图：顶部是工作分类 tab（首页、自媒体、作品、创作、工具、chrome 插件、未分类、添加），
-主体是文件夹网格，右侧滑出文件夹详情面板（创建时间、包含内容、编辑入口）。
-
 - **文件夹 = 某项工作的归集**：里面可以混放收藏的网站、推文、工具链接、素材文件、本地目录引用
 - **未分类**：所有新采集内容的缓冲池，由"一键整理"（AI 分类）或人工拖拽归入文件夹
 - **一键整理能力**：调用本地 skills + 在线 AI，把未分类内容批量归类
 - **数据库**：本地 SQLite 单文件，支持备份迁移（数据属于用户，不上云）
+
+## 导航与模块约定（已定案 2026-09，勿随意推翻）
+
+**导航是能力地图，分类是数据维度，两者分离。** 顶部导航是固定的功能模块集合，由代码里的
+模块注册表定义（`src/modules/registry.ts`），不再从书签分类动态生成。
+
+- **模块注册表（约定大于配置）**：每个模块有稳定 code、label、route。新增模块 = 注册表加一行 + 建一个 route 文件
+
+  | code | label | route | 定位 |
+  |---|---|---|---|
+  | `workbench` | 工作台 | `/workbench`（`/` 重定向至此） | 首页，后续进化为可自定义组合的仪表盘 |
+  | `bookmarks` | 书签 | `/bookmarks` | 全部书签库 + 未分类缓冲池，分类在此作为筛选维度 |
+  | `creator` | 自媒体 | `/creator` | 采集 → 二创 → 审稿 → 发布工作流 |
+  | `learn` | 学习 | `/learn` | 学习资源聚合 |
+  | `editor` | 创作 | `/editor` | 文本预览 / Markdown 操作台 |
+  | `ecommerce` | 电商 | `/ecommerce` | 电商资源归集 |
+  | `skills` | Skills | `/skills` | 本地散落 skills 目录的集合管理（后续落库） |
+
+- **category 关联约定**：`folders.category` 存模块 **code**（如 `learn`），通过注册表解析展示名；
+  历史中文分类名通过注册表 `aliases` 免迁移兼容；不在注册表内的 category 值视为书签模块下的自定义分组
+- **未分类不上导航**：它是书签模块内的固定筛选（缓冲池），导航上仅以徽章计数提示
+- **导航可自定义**：顺序/显隐存 `settings.navLayout`（key=`workbench_settings` 的 JSON 内），
+  渲染 = 注册表 merge 用户布局，未配置的模块按默认顺序追加
+- **DnD 约定**：拖文件夹到模块 tab = 把 category 改为该模块 code；拖到分类筛选 chip = 改为该分组
 
 ## 总体架构（已定案，勿随意推翻）
 
@@ -88,6 +109,7 @@
 
 ```
 src/routes/            # 工作台 UI（文件夹网格、详情侧栏、未分类、设置）
+src/modules/           # 模块注册表（导航 code/label/route 单一事实源，见「导航与模块约定」）
 src/server/functions/  # server functions：workbench / search(embedding) / rag / models
 src/server/db/         # better-sqlite3 + 原生 SQL schema 与迁移
 src/server/ai/tools/   # ReAct Agent 的 10 个书签/文件夹/统计与批量归集 Tool

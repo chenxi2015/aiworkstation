@@ -1,19 +1,22 @@
-import { Button, toast } from "@heroui/react";
+import { Button, Input, Label, TextField, toast } from "@heroui/react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import "dayjs/locale/zh-cn";
 import {
 	AlertTriangle,
 	Database,
+	FolderOpen,
 	History,
-	Link2Off,
 	Loader2,
 	Plus,
 	RotateCcw,
 	Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import type { BackupFileInfo } from "../../../services/api/maintenanceClient";
+import type {
+	BackupFileInfo,
+	StorageInfo,
+} from "../../../services/api/maintenanceClient";
 import { WorkbenchStorageService } from "../../../services/workbenchStorage";
 import { ConfirmDialog } from "../ConfirmDialog";
 
@@ -21,9 +24,9 @@ dayjs.extend(relativeTime);
 dayjs.locale("zh-cn");
 
 interface DataMaintenanceTabProps {
-	onClose: () => void;
-	onOpenDeadLinks?: () => void;
 	onDataRestored?: () => void;
+	downloadsDir: string;
+	onDownloadsDirChange: (value: string) => void;
 }
 
 function formatBytes(bytes: number): string {
@@ -45,13 +48,15 @@ function parseBackupLabel(filename: string): string {
 }
 
 export function DataMaintenanceTab({
-	onClose,
-	onOpenDeadLinks,
 	onDataRestored,
+	downloadsDir,
+	onDownloadsDirChange,
 }: DataMaintenanceTabProps) {
 	const [backups, setBackups] = useState<BackupFileInfo[]>([]);
 	const [isLoadingBackups, setIsLoadingBackups] = useState(false);
 	const [isCreatingBackup, setIsCreatingBackup] = useState(false);
+	const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null);
+	const [isOpeningFolder, setIsOpeningFolder] = useState(false);
 	const [restoringFilename, setRestoringFilename] = useState<string | null>(
 		null,
 	);
@@ -77,6 +82,37 @@ export function DataMaintenanceTab({
 		loadBackups();
 	}, [loadBackups]);
 
+	useEffect(() => {
+		WorkbenchStorageService.fetchStorageInfo()
+			.then(setStorageInfo)
+			.catch((err) =>
+				console.error("[DataMaintenance] Failed to load storage info:", err),
+			);
+	}, []);
+
+	const handleOpenDbFolder = async () => {
+		if (!storageInfo?.dbDir) return;
+		setIsOpeningFolder(true);
+		try {
+			const res = await fetch("/api/open-file", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ path: storageInfo.dbDir }),
+			});
+			const data = (await res.json()) as { success?: boolean; error?: string };
+			if (!res.ok || !data.success) {
+				throw new Error(data.error || `HTTP ${res.status}`);
+			}
+			toast.success("已打开数据库所在文件夹");
+		} catch (err) {
+			toast.danger(
+				`打开文件夹失败: ${err instanceof Error ? err.message : String(err)}`,
+			);
+		} finally {
+			setIsOpeningFolder(false);
+		}
+	};
+
 	const handleCreateBackup = async () => {
 		setIsCreatingBackup(true);
 		try {
@@ -96,9 +132,7 @@ export function DataMaintenanceTab({
 		setRestoringFilename(item.filename);
 		try {
 			await WorkbenchStorageService.restoreBackup(item.filename);
-			toast.success(
-				"恢复成功！当前版本已自动备份为最新快照，您可以随时切回。",
-			);
+			toast.success("恢复成功！当前版本已自动备份为最新快照，您可以随时切回。");
 			setConfirmRestoreItem(null);
 			await loadBackups();
 			onDataRestored?.();
@@ -131,33 +165,59 @@ export function DataMaintenanceTab({
 
 	return (
 		<div className="flex flex-col gap-6 pt-3">
-			{/* Section 1: Dead Links */}
+			{/* Section 1: Storage Location */}
 			<div className="flex flex-col gap-3">
 				<div className="flex items-center gap-2 pb-1 border-b border-border">
-					<Link2Off className="w-4 h-4 text-accent shrink-0" />
+					<Database className="w-4 h-4 text-accent shrink-0" />
 					<span className="font-semibold text-foreground text-xs">
-						失效链接清理 (Dead Links)
+						存储位置 (Storage)
 					</span>
 				</div>
-				<div className="flex items-center justify-between gap-4">
-					<p className="text-[11px] text-muted leading-relaxed flex-1">
-						检测所有收藏链接的可访问性，找出已经过期、404
-						或域名失效的网址并批量清理。服务端异步并发检测，被反爬拦截的链接不会误删。
-					</p>
+
+				{/* SQLite database directory */}
+				<div className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-surface/60 border border-border">
+					<div className="flex flex-col min-w-0">
+						<span className="text-[11px] font-medium text-foreground">
+							SQLite 数据库目录
+						</span>
+						<code className="text-[10px] text-muted truncate">
+							{storageInfo?.dbPath ?? "正在读取..."}
+						</code>
+					</div>
 					<Button
 						type="button"
 						variant="secondary"
 						size="sm"
-						className="rounded-full flex items-center gap-1.5 cursor-pointer shrink-0"
-						onPress={() => {
-							onClose();
-							onOpenDeadLinks?.();
-						}}
+						className="rounded-full flex items-center gap-1.5 cursor-pointer shrink-0 h-7 text-[11px]"
+						isDisabled={!storageInfo?.dbDir || isOpeningFolder}
+						onPress={handleOpenDbFolder}
 					>
-						<Link2Off className="w-3.5 h-3.5" />
-						<span>清理失效链接</span>
+						{isOpeningFolder ? (
+							<Loader2 className="w-3 h-3 animate-spin" />
+						) : (
+							<FolderOpen className="w-3 h-3 text-accent" />
+						)}
+						<span>打开文件夹</span>
 					</Button>
 				</div>
+
+				{/* Downloads directory (stored in SQLite workbench_settings) */}
+				<TextField
+					value={downloadsDir}
+					onChange={onDownloadsDirChange}
+					className="w-full"
+				>
+					<Label>文件下载目录 (downloadsDir)</Label>
+					<Input
+						placeholder="留空则使用系统默认下载目录 ~/Downloads"
+						variant="secondary"
+					/>
+				</TextField>
+				<p className="text-[11px] text-muted leading-relaxed -mt-1.5">
+					视频等下载文件将保存到该目录（Windows Docker
+					用户建议填写本机路径）。该配置已随其他设置存入
+					SQLite，修改后点击底部「保存配置」生效。
+				</p>
 			</div>
 
 			{/* Section 2: Backup & Restore */}
@@ -204,7 +264,8 @@ export function DataMaintenanceTab({
 								</strong>{" "}
 								吗？
 								<div className="text-[11px] opacity-90 mt-0.5">
-									系统在恢复前会<strong>自动对当前实时数据库进行完整备份</strong>
+									系统在恢复前会
+									<strong>自动对当前实时数据库进行完整备份</strong>
 									，恢复后您可以随时再次切回当前状态。
 								</div>
 							</div>
@@ -348,4 +409,3 @@ export function DataMaintenanceTab({
 		</div>
 	);
 }
-

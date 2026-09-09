@@ -11,6 +11,13 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AboutRouteImport } from './routes/about'
+import { Route as BookmarksRouteImport } from './routes/bookmarks'
+import { Route as CreatorRouteImport } from './routes/creator'
+import { Route as EcommerceRouteImport } from './routes/ecommerce'
+import { Route as EditorRouteImport } from './routes/editor'
+import { Route as LearnRouteImport } from './routes/learn'
+import { Route as SkillsRouteImport } from './routes/skills'
+import { Route as WorkbenchRouteImport } from './routes/workbench'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -22,31 +29,122 @@ const AboutRoute = AboutRouteImport.update({
   path: '/about',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BookmarksRoute = BookmarksRouteImport.update({
+  id: '/bookmarks',
+  path: '/bookmarks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CreatorRoute = CreatorRouteImport.update({
+  id: '/creator',
+  path: '/creator',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EcommerceRoute = EcommerceRouteImport.update({
+  id: '/ecommerce',
+  path: '/ecommerce',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EditorRoute = EditorRouteImport.update({
+  id: '/editor',
+  path: '/editor',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LearnRoute = LearnRouteImport.update({
+  id: '/learn',
+  path: '/learn',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SkillsRoute = SkillsRouteImport.update({
+  id: '/skills',
+  path: '/skills',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WorkbenchRoute = WorkbenchRouteImport.update({
+  id: '/workbench',
+  path: '/workbench',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/bookmarks': typeof BookmarksRoute
+  '/creator': typeof CreatorRoute
+  '/ecommerce': typeof EcommerceRoute
+  '/editor': typeof EditorRoute
+  '/learn': typeof LearnRoute
+  '/skills': typeof SkillsRoute
+  '/workbench': typeof WorkbenchRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/bookmarks': typeof BookmarksRoute
+  '/creator': typeof CreatorRoute
+  '/ecommerce': typeof EcommerceRoute
+  '/editor': typeof EditorRoute
+  '/learn': typeof LearnRoute
+  '/skills': typeof SkillsRoute
+  '/workbench': typeof WorkbenchRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/bookmarks': typeof BookmarksRoute
+  '/creator': typeof CreatorRoute
+  '/ecommerce': typeof EcommerceRoute
+  '/editor': typeof EditorRoute
+  '/learn': typeof LearnRoute
+  '/skills': typeof SkillsRoute
+  '/workbench': typeof WorkbenchRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/about'
+  fullPaths:
+    | '/'
+    | '/about'
+    | '/bookmarks'
+    | '/creator'
+    | '/ecommerce'
+    | '/editor'
+    | '/learn'
+    | '/skills'
+    | '/workbench'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/about'
-  id: '__root__' | '/' | '/about'
+  to:
+    | '/'
+    | '/about'
+    | '/bookmarks'
+    | '/creator'
+    | '/ecommerce'
+    | '/editor'
+    | '/learn'
+    | '/skills'
+    | '/workbench'
+  id:
+    | '__root__'
+    | '/'
+    | '/about'
+    | '/bookmarks'
+    | '/creator'
+    | '/ecommerce'
+    | '/editor'
+    | '/learn'
+    | '/skills'
+    | '/workbench'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
+  BookmarksRoute: typeof BookmarksRoute
+  CreatorRoute: typeof CreatorRoute
+  EcommerceRoute: typeof EcommerceRoute
+  EditorRoute: typeof EditorRoute
+  LearnRoute: typeof LearnRoute
+  SkillsRoute: typeof SkillsRoute
+  WorkbenchRoute: typeof WorkbenchRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -65,12 +163,68 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AboutRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/bookmarks': {
+      id: '/bookmarks'
+      path: '/bookmarks'
+      fullPath: '/bookmarks'
+      preLoaderRoute: typeof BookmarksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/creator': {
+      id: '/creator'
+      path: '/creator'
+      fullPath: '/creator'
+      preLoaderRoute: typeof CreatorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ecommerce': {
+      id: '/ecommerce'
+      path: '/ecommerce'
+      fullPath: '/ecommerce'
+      preLoaderRoute: typeof EcommerceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/editor': {
+      id: '/editor'
+      path: '/editor'
+      fullPath: '/editor'
+      preLoaderRoute: typeof EditorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/learn': {
+      id: '/learn'
+      path: '/learn'
+      fullPath: '/learn'
+      preLoaderRoute: typeof LearnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/skills': {
+      id: '/skills'
+      path: '/skills'
+      fullPath: '/skills'
+      preLoaderRoute: typeof SkillsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/workbench': {
+      id: '/workbench'
+      path: '/workbench'
+      fullPath: '/workbench'
+      preLoaderRoute: typeof WorkbenchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
+  BookmarksRoute: BookmarksRoute,
+  CreatorRoute: CreatorRoute,
+  EcommerceRoute: EcommerceRoute,
+  EditorRoute: EditorRoute,
+  LearnRoute: LearnRoute,
+  SkillsRoute: SkillsRoute,
+  WorkbenchRoute: WorkbenchRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

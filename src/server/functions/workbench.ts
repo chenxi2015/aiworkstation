@@ -1,3 +1,4 @@
+import path from "node:path";
 import { createServerFn } from "@tanstack/react-start";
 import { getCookie } from "@tanstack/react-start/server";
 import type {
@@ -7,6 +8,7 @@ import type {
 	WorkbenchItem,
 	WorkbenchSettings,
 } from "../../components/workbench/types";
+import { DB_DIR, DB_PATH } from "../db/connection.ts";
 import { workbenchDb } from "../db/sqlite.ts";
 import {
 	type BackupFileInfo,
@@ -344,6 +346,24 @@ export const saveWorkbenchSettings = createServerFn({ method: "POST" })
 		workbenchDb.setSetting("workbench_settings", JSON.stringify(settings));
 		return { success: true };
 	});
+
+/**
+ * Server Function: Expose local storage locations (SQLite db dir, backups dir)
+ * so the settings UI can display them and offer "open in file manager".
+ */
+export const getStorageInfoFn = createServerFn({ method: "GET" }).handler(
+	async (): Promise<{
+		dbDir: string;
+		dbPath: string;
+		backupDir: string;
+	}> => {
+		return {
+			dbDir: DB_DIR,
+			dbPath: DB_PATH,
+			backupDir: path.join(DB_DIR, "backups"),
+		};
+	},
+);
 
 /**
  * Server Function: Get list of all database backups

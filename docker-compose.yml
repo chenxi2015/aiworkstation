@@ -1,7 +1,7 @@
 services:
   workbench:
     build: .
-    image: aiworkstation:latest
+    image: gengxin20/aiworkstation:latest
     container_name: aiworkstation
     ports:
       # 只绑定宿主机回环地址（PROJECT.md 决策#6）：

@@ -1,3 +1,5 @@
+import type { NavLayoutEntry } from "../../modules/registry";
+
 export type ItemType = "tool" | "link" | "doc" | "skill" | "note";
 
 export interface PageTDK {
@@ -83,6 +85,12 @@ export interface WorkbenchSettings {
 	embeddingModel?: string;
 	// Embedding provider preset id (siliconflow / openai / custom)
 	embeddingProvider?: string;
+	// Custom downloads directory (needed for Windows users under Docker)
+	downloadsDir?: string;
+	// Whether the first-time setup wizard has been completed
+	setupComplete?: boolean;
+	// 顶部模块导航的自定义布局（顺序/显隐），未设置时按注册表默认顺序
+	navLayout?: NavLayoutEntry[];
 }
 
 export type SearchMode = "hybrid" | "semantic" | "keyword";

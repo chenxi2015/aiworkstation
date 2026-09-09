@@ -4,6 +4,7 @@ import { createDecipheriv } from 'node:crypto';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { remuxTsToMp4, muxDualTracksToMp4 } from './nativeFfmpeg.ts';
+import { workbenchDb } from '../db/sqlite.ts';
 
 export interface ServerVideoTask {
   id: string;
@@ -561,8 +562,15 @@ export class VideoDownloadManager {
       const combinedVideoPath = join(tempDir, 'combined_video.ts');
       await concatFilesOnDisk(videoFiles, combinedVideoPath);
 
-      // Determine final destination path (System Downloads directory)
-      const userDownloadsDir = join(homedir(), 'Downloads');
+      // Determine final destination path (custom downloadsDir > system Downloads)
+      let userDownloadsDir: string;
+      try {
+        const raw = workbenchDb.getSetting('workbench_settings');
+        const parsed = raw ? JSON.parse(raw) : null;
+        userDownloadsDir = parsed?.downloadsDir?.trim() || join(homedir(), 'Downloads');
+      } catch {
+        userDownloadsDir = join(homedir(), 'Downloads');
+      }
       const filenameBase = sanitizeFilename(task.pageTitle);
       const outputMp4Path = join(userDownloadsDir, `${filenameBase}.mp4`);
       task.filename = `${filenameBase}.mp4`;

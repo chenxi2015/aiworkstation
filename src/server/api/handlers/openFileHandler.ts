@@ -4,16 +4,26 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { DB_DIR } from "../../db/connection.ts";
+import { workbenchDb } from "../../db/sqlite.ts";
 import { readJsonBody, sendJson } from "../utils.ts";
 
 /**
- * Only files under these roots can be opened via this endpoint:
- * the workbench data dir (crawled pages, backups) and the user's Downloads
- * (video download tasks). Anything else is rejected.
+ * Build the list of allowed roots dynamically:
+ * always includes DB_DIR and system Downloads;
+ * also includes the user-configured downloadsDir (for Windows Docker users).
  */
-const ALLOWED_ROOTS = [DB_DIR, path.join(os.homedir(), "Downloads")].map((p) =>
-	path.resolve(p),
-);
+function getAllowedRoots(): string[] {
+	const roots = [DB_DIR, path.join(os.homedir(), "Downloads")];
+	try {
+		const raw = workbenchDb.getSetting("workbench_settings");
+		const parsed = raw ? JSON.parse(raw) : null;
+		const custom = parsed?.downloadsDir?.trim();
+		if (custom) roots.push(custom);
+	} catch {
+		// ignore db read error
+	}
+	return roots.map((p) => path.resolve(p));
+}
 
 function resolveOpenCommand(): { cmd: string; args: (p: string) => string[] } {
 	switch (process.platform) {
@@ -48,7 +58,7 @@ export async function handleOpenFileRequest(
 			return;
 		}
 		const resolved = path.resolve(raw);
-		const allowed = ALLOWED_ROOTS.some(
+		const allowed = getAllowedRoots().some(
 			(root) => resolved === root || resolved.startsWith(`${root}${path.sep}`),
 		);
 		if (!allowed) {

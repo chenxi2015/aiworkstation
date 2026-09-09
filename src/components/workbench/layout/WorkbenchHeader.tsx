@@ -9,11 +9,11 @@ import {
 	Settings,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import type { NavLayoutEntry } from "../../../modules/registry";
 import { useAIClassifyTask } from "../../../services/aiClassifyTaskStore";
 import ThemeToggle from "../../ThemeToggle";
 import { WorkbenchLogoIcon } from "../Icons";
-import type { Category, Folder } from "../types";
-import { CategoryTabs } from "./CategoryTabs";
+import { ModuleTabs } from "./ModuleTabs";
 
 const HINT_AUTO_HIDE_MS = 4500;
 const HOVER_DELAY_MS = 250;
@@ -26,28 +26,22 @@ const TASK_TIP_TEXT: Record<string, string> = {
 };
 
 export interface WorkbenchHeaderProps {
-	categories: string[];
-	activeCategory: Category;
 	unclassifiedCount: number;
-	folders: Folder[];
-	onSelectCategory: (category: Category) => void;
+	navLayout?: NavLayoutEntry[];
 	onOpenSearch?: () => void;
 	onOpenExtension?: () => void;
-	onOpenSync: () => void;
-	onOpenCreateFolder: () => void;
-	onOpenSettings: () => void;
-	onOpenAIClassifyTask: () => void;
+	onOpenSync?: () => void;
+	onOpenCreateFolder?: () => void;
+	onOpenSettings?: () => void;
+	onOpenAIClassifyTask?: () => void;
 }
 
 /**
  * Top sticky navigation header for the AI Workbench
  */
 export function WorkbenchHeader({
-	categories,
-	activeCategory,
 	unclassifiedCount,
-	folders,
-	onSelectCategory,
+	navLayout,
 	onOpenSearch,
 	onOpenExtension,
 	onOpenSync,
@@ -93,7 +87,7 @@ export function WorkbenchHeader({
 	const handleOpenTask = () => {
 		setHintVisible(false);
 		setHoverVisible(false);
-		onOpenAIClassifyTask();
+		onOpenAIClassifyTask?.();
 	};
 
 	const tipText = TASK_TIP_TEXT[aiClassifyTask.status];
@@ -116,19 +110,13 @@ export function WorkbenchHeader({
 				</div>
 			</div>
 
-			{/* Center: Category Tabs */}
-			<CategoryTabs
-				categories={categories}
-				activeCategory={activeCategory}
-				unclassifiedCount={unclassifiedCount}
-				folders={folders}
-				onSelectCategory={onSelectCategory}
-			/>
+			{/* Center: Fixed Module Navigation */}
+			<ModuleTabs unclassifiedCount={unclassifiedCount} navLayout={navLayout} />
 
 			{/* Right: Actions */}
 			<div className="flex items-center gap-2 shrink-0">
 				{/* Background AI Classification Task Indicator */}
-				{aiClassifyTask.status !== "idle" && (
+				{onOpenAIClassifyTask && aiClassifyTask.status !== "idle" && (
 					// biome-ignore lint/a11y/noStaticElementInteractions: hover wrapper only drives tooltip visibility
 					<div
 						className="relative"
@@ -181,48 +169,56 @@ export function WorkbenchHeader({
 				)}
 
 				{/* Open AI Collector Extension Button */}
-				<Button
-					variant="secondary"
-					size="sm"
-					className="rounded-full flex items-center gap-1.5 px-3 shadow-2xs cursor-pointer"
-					onPress={onOpenExtension || onOpenSearch}
-				>
-					<Chrome className="w-3.5 h-3.5 text-accent" />
-					<span>打开插件</span>
-				</Button>
+				{(onOpenExtension || onOpenSearch) && (
+					<Button
+						variant="secondary"
+						size="sm"
+						className="rounded-full flex items-center gap-1.5 px-3 shadow-2xs cursor-pointer"
+						onPress={onOpenExtension || onOpenSearch}
+					>
+						<Chrome className="w-3.5 h-3.5 text-accent" />
+						<span>打开插件</span>
+					</Button>
+				)}
 
 				{/* Import/Sync Bookmarks Button */}
-				<Button
-					variant="secondary"
-					size="sm"
-					className="rounded-full flex items-center gap-1.5 cursor-pointer"
-					onPress={onOpenSync}
-				>
-					<FolderDown className="w-3.5 h-3.5" />
-					<span>导入书签</span>
-				</Button>
+				{onOpenSync && (
+					<Button
+						variant="secondary"
+						size="sm"
+						className="rounded-full flex items-center gap-1.5 cursor-pointer"
+						onPress={onOpenSync}
+					>
+						<FolderDown className="w-3.5 h-3.5" />
+						<span>导入书签</span>
+					</Button>
+				)}
 
 				{/* New Folder Button */}
-				<Button
-					variant="ghost"
-					size="sm"
-					className="rounded-full flex items-center gap-1.5 cursor-pointer text-foreground/80 hover:text-foreground"
-					onPress={onOpenCreateFolder}
-				>
-					<FolderPlus className="w-3.5 h-3.5" />
-					<span>新建文件夹</span>
-				</Button>
+				{onOpenCreateFolder && (
+					<Button
+						variant="ghost"
+						size="sm"
+						className="rounded-full flex items-center gap-1.5 cursor-pointer text-foreground/80 hover:text-foreground"
+						onPress={onOpenCreateFolder}
+					>
+						<FolderPlus className="w-3.5 h-3.5" />
+						<span>新建文件夹</span>
+					</Button>
+				)}
 
 				{/* Settings */}
-				<Button
-					variant="ghost"
-					size="sm"
-					className="rounded-full h-8 w-8 p-0 cursor-pointer text-muted hover:text-foreground"
-					onPress={onOpenSettings}
-					aria-label="设置"
-				>
-					<Settings className="w-4 h-4" />
-				</Button>
+				{onOpenSettings && (
+					<Button
+						variant="ghost"
+						size="sm"
+						className="rounded-full h-8 w-8 p-0 cursor-pointer text-muted hover:text-foreground"
+						onPress={onOpenSettings}
+						aria-label="设置"
+					>
+						<Settings className="w-4 h-4" />
+					</Button>
+				)}
 
 				<ThemeToggle />
 			</div>

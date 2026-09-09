@@ -8,12 +8,26 @@ import {
 	getBackupsListFn,
 	getDeadLinkScanStatusFn,
 	getLastDeadLinkScanFn,
+	getStorageInfoFn,
 	restoreBackupFn,
 	startDeadLinkScanFn,
 } from "../../server/functions/workbench";
 import type { BackupFileInfo, DeadLinkScanJob } from "../../server/maintenance";
 
 export type { BackupFileInfo, DeadLinkScanJob };
+
+export interface StorageInfo {
+	dbDir: string;
+	dbPath: string;
+	backupDir: string;
+}
+
+/**
+ * Fetch local storage locations (SQLite db dir / backups dir) from the server
+ */
+export async function fetchStorageInfo(): Promise<StorageInfo> {
+	return await getStorageInfoFn();
+}
 
 /**
  * Clear ALL workbench data in SQLite (creates a timestamped backup first).
@@ -113,4 +127,3 @@ export async function deleteBackup(
 ): Promise<{ success: boolean }> {
 	return await deleteBackupFn({ data: filename });
 }
-

@@ -1,24 +1,24 @@
 import { Button, Modal, Tabs, Tooltip, toast } from "@heroui/react";
-import { Link2Off, RotateCcw, Save, ShieldAlert, Sparkles } from "lucide-react";
+import { Database, RotateCcw, Save, ShieldAlert, Sparkles } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import {
 	DEFAULT_SETTINGS,
 	WorkbenchStorageService,
 } from "../../services/workbenchStorage";
-import type { WorkbenchSettings } from "./types";
-import { DangerZoneTab } from "./settings/DangerZoneTab";
-import { DataMaintenanceTab } from "./settings/DataMaintenanceTab";
-import {
-	ModelSettingsTab,
-	type ModelSettingsFormData,
-} from "./settings/ModelSettingsTab";
 import {
 	EMBEDDING_PROVIDERS,
 	FALLBACK_EMBEDDING_MODELS,
 	FALLBACK_LLM_MODELS,
-	LLM_PROVIDERS,
 	inferProviderId,
+	LLM_PROVIDERS,
 } from "./settings/constants";
+import { DangerZoneTab } from "./settings/DangerZoneTab";
+import { DataMaintenanceTab } from "./settings/DataMaintenanceTab";
+import {
+	type ModelSettingsFormData,
+	ModelSettingsTab,
+} from "./settings/ModelSettingsTab";
+import type { WorkbenchSettings } from "./types";
 
 interface SettingsModalProps {
 	isOpen: boolean;
@@ -51,6 +51,7 @@ export function SettingsModal({
 	const [activeTab, setActiveTab] = useState("model");
 	const [formData, setFormData] =
 		useState<ModelSettingsFormData>(INITIAL_FORM_DATA);
+	const [downloadsDir, setDownloadsDir] = useState("");
 	const [llmModelList, setLlmModelList] = useState<string[]>(
 		LLM_PROVIDERS[0].models,
 	);
@@ -92,6 +93,7 @@ export function SettingsModal({
 			embeddingBaseUrl: currentEmbBaseUrl,
 			embeddingModel: currentEmbModel,
 		});
+		setDownloadsDir(settings.downloadsDir ?? "");
 
 		// Populate model lists
 		const llmPreset =
@@ -126,13 +128,14 @@ export function SettingsModal({
 
 	const handleSubmit = (e: FormEvent) => {
 		e.preventDefault();
+		const existing = WorkbenchStorageService.getSettings();
 		const finalApiKey = formData.apiKey.trim() || DEFAULT_SETTINGS.apiKey || "";
 		const finalBaseUrl =
 			formData.baseUrl.trim() || DEFAULT_SETTINGS.baseUrl || "";
-		const finalModel =
-			formData.model.trim() || DEFAULT_SETTINGS.model || "";
+		const finalModel = formData.model.trim() || DEFAULT_SETTINGS.model || "";
 
 		const updated: WorkbenchSettings = {
+			...existing,
 			apiKey: finalApiKey,
 			baseUrl: finalBaseUrl,
 			model: finalModel,
@@ -151,6 +154,7 @@ export function SettingsModal({
 			embeddingModel:
 				formData.embeddingModel.trim() || DEFAULT_SETTINGS.embeddingModel,
 			embeddingProvider: formData.embeddingProvider,
+			downloadsDir: downloadsDir.trim() || undefined,
 		};
 
 		WorkbenchStorageService.saveSettings(updated);
@@ -204,7 +208,7 @@ export function SettingsModal({
 										id="data"
 										className="flex-1 flex items-center justify-center gap-1.5"
 									>
-										<Link2Off className="w-3.5 h-3.5" />
+										<Database className="w-3.5 h-3.5" />
 										<span>数据维护</span>
 										<Tabs.Indicator />
 									</Tabs.Tab>
@@ -238,9 +242,9 @@ export function SettingsModal({
 								<Tabs.Panel id="data" className="outline-none">
 									{activeTab === "data" && (
 										<DataMaintenanceTab
-											onClose={onClose}
-											onOpenDeadLinks={onOpenDeadLinks}
 											onDataRestored={onDataCleared}
+											downloadsDir={downloadsDir}
+											onDownloadsDirChange={setDownloadsDir}
 										/>
 									)}
 								</Tabs.Panel>
@@ -251,6 +255,7 @@ export function SettingsModal({
 										<DangerZoneTab
 											onClose={onClose}
 											onDataCleared={onDataCleared}
+											onOpenDeadLinks={onOpenDeadLinks}
 										/>
 									)}
 								</Tabs.Panel>

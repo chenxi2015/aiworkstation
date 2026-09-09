@@ -48,7 +48,8 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 
 function RootDocument({ children }: { children: React.ReactNode }) {
 	const pathname = useRouterState({ select: (s) => s.location.pathname });
-	const isHome = pathname === "/";
+	// 模板示例 Header/Footer 仅保留在 about 演示页；应用路由使用自己的模块导航
+	const showTemplateChrome = pathname === "/about";
 	const { queryClient } = Route.useRouteContext();
 
 	return (
@@ -62,9 +63,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 				className="font-sans antialiased [overflow-wrap:anywhere] selection:bg-accent-soft selection:text-accent-soft-foreground"
 			>
 				<QueryClientProvider client={queryClient}>
-					{!isHome && <Header />}
+					{showTemplateChrome && <Header />}
 					{children}
-					{!isHome && <Footer />}
+					{showTemplateChrome && <Footer />}
 					<TanStackDevtools
 						config={{
 							position: "bottom-right",

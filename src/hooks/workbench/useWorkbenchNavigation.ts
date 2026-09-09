@@ -4,6 +4,7 @@ import type {
 	Folder,
 	WorkbenchItem,
 } from "../../components/workbench/types";
+import { ALL_CATEGORY, matchesCategory } from "../../modules/registry";
 import {
 	getStoredActiveCategory,
 	saveActiveCategory,
@@ -48,7 +49,10 @@ export function useWorkbenchNavigation({
 				initCat = "未分类";
 			}
 			if (initCat === "未分类") return null;
-			const firstInCat = initialFolders.find((f) => f.category === initCat);
+			if (initCat === ALL_CATEGORY) return initialFolders[0]?.id ?? null;
+			const firstInCat = initialFolders.find((f) =>
+				matchesCategory(f.category, initCat),
+			);
 			return firstInCat ? firstInCat.id : (initialFolders[0]?.id ?? null);
 		},
 	);
@@ -75,9 +79,10 @@ export function useWorkbenchNavigation({
 		return Array.from(cats);
 	}, [folders]);
 
-	// All folders in the active category (any nesting depth)
+	// All folders in the active category (any nesting depth); 全部 = no filter
 	const categoryFolders = useMemo(() => {
-		return folders.filter((f) => f.category === activeCategory);
+		if (activeCategory === ALL_CATEGORY) return folders;
+		return folders.filter((f) => matchesCategory(f.category, activeCategory));
 	}, [folders, activeCategory]);
 
 	// Filter folders by active category and search query
@@ -183,9 +188,14 @@ export function useWorkbenchNavigation({
 			if (cat === "未分类") {
 				setSelectedFolderId(null);
 			} else {
-				const firstInCat = folders.find(
-					(f) => f.category === cat && (f.parentId ?? null) === null,
-				);
+				const firstInCat =
+					cat === ALL_CATEGORY
+						? folders.find((f) => (f.parentId ?? null) === null)
+						: folders.find(
+								(f) =>
+									matchesCategory(f.category, cat) &&
+									(f.parentId ?? null) === null,
+							);
 				setSelectedFolderId(firstInCat ? firstInCat.id : null);
 			}
 		},

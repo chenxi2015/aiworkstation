@@ -23,9 +23,11 @@ import {
 	deleteItemsBatchInDb,
 	fetchAvailableModels,
 	fetchBackupsList,
+	fetchStorageInfo,
 	getDeadLinkScanStatus,
 	getLastDeadLinkScan,
 	restoreBackup,
+	type StorageInfo,
 	startDeadLinkScan,
 } from "./api/maintenanceClient";
 import {
@@ -71,6 +73,7 @@ export type {
 	DeadLinkScanJob,
 	FolderDossierResult,
 	RAGChatResult,
+	StorageInfo,
 };
 
 /**
@@ -181,6 +184,7 @@ export class WorkbenchStorageService {
 		baseUrl: string;
 		apiKey?: string;
 	}): Promise<string[]> => fetchAvailableModels(params);
+	static fetchStorageInfo = (): Promise<StorageInfo> => fetchStorageInfo();
 
 	// ================= Backup & Restore RPC =================
 	static fetchBackupsList = (): Promise<BackupFileInfo[]> => fetchBackupsList();
