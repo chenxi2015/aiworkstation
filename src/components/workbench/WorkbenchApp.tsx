@@ -20,13 +20,9 @@ import {
 	UNCLASSIFIED_CATEGORY,
 } from "../../modules/registry";
 import { ExtensionBridgeService } from "../../services/extensionBridge";
-import type { ChatWithBookmarksPanelRef } from "./ai/chat/ChatWithBookmarksPanel";
-import { ChatWithBookmarksPanel } from "./ai/chat/ChatWithBookmarksPanel";
+import { useAiPanel } from "../shell/AppShell";
 import { ConfirmDialog } from "./ConfirmDialog";
-import {
-	WorkbenchDndProvider,
-	type WorkbenchDragData,
-} from "./dnd/WorkbenchDnd";
+import type { WorkbenchDragData } from "./dnd/WorkbenchDnd";
 import { FolderDetailPanel } from "./FolderDetailPanel";
 import { RenameCategoryModal } from "./folder/RenameCategoryModal";
 import { CategoryFilterBar } from "./layout/CategoryFilterBar";
@@ -99,7 +95,8 @@ export function WorkbenchApp({
 	fixedCategory,
 	showCategoryFilter = false,
 }: WorkbenchAppProps) {
-	const chatPanelRef = useRef<ChatWithBookmarksPanelRef>(null);
+	// 全局常驻 AI 面板（由 AppShell 提供，跨模块导航共享单例）
+	const aiPanel = useAiPanel();
 
 	// 1. Data, Sync and CRUD Business Logic (Hydrated with Route Loader Data)
 	const {
@@ -179,9 +176,12 @@ export function WorkbenchApp({
 	);
 
 	// Direct prompt dispatch to chat assistant in a new session
-	const handleAskAIAboutFolder = useCallback((prompt: string) => {
-		chatPanelRef.current?.sendPrompt(prompt, { newChat: true });
-	}, []);
+	const handleAskAIAboutFolder = useCallback(
+		(prompt: string) => {
+			aiPanel.sendPrompt(prompt, { newChat: true });
+		},
+		[aiPanel],
+	);
 
 	// Ask AI to summarize & review a specific folder from its card menu
 	const handleAskAISummarizeFolder = useCallback(
@@ -253,7 +253,7 @@ export function WorkbenchApp({
 	// 3. Switch to Fast Search in Right Panel on Cmd+K
 	useGlobalShortcuts({
 		onToggleSearch: () => {
-			chatPanelRef.current?.openSearchTab();
+			aiPanel.openSearchTab();
 		},
 	});
 
@@ -277,23 +277,26 @@ export function WorkbenchApp({
 	}, [setIsSyncModalOpen]);
 
 	// Attach single bookmark item to AI chat context
-	const handleAttachBookmarkToChat = useCallback((item: WorkbenchItem) => {
-		let host = "";
-		if (item.url) {
-			try {
-				host = new URL(item.url).hostname;
-			} catch {}
-		}
+	const handleAttachBookmarkToChat = useCallback(
+		(item: WorkbenchItem) => {
+			let host = "";
+			if (item.url) {
+				try {
+					host = new URL(item.url).hostname;
+				} catch {}
+			}
 
-		chatPanelRef.current?.addContextItem({
-			id: `bookmark_${item.id ?? Date.now()}`,
-			type: "bookmark",
-			title: item.name,
-			subtitle: host || undefined,
-			url: item.url,
-			icon: item.favicon,
-		});
-	}, []);
+			aiPanel.addContextItem({
+				id: `bookmark_${item.id ?? Date.now()}`,
+				type: "bookmark",
+				title: item.name,
+				subtitle: host || undefined,
+				url: item.url,
+				icon: item.favicon,
+			});
+		},
+		[aiPanel],
+	);
 
 	// Attach dropped bookmark or folder to AI chat context
 	const handleAttachToChat = useCallback(
@@ -303,7 +306,7 @@ export function WorkbenchApp({
 			} else if (data.kind === "folder") {
 				const folder = data.folder;
 				const count = folder.items?.length ?? 0;
-				chatPanelRef.current?.addContextItem({
+				aiPanel.addContextItem({
 					id: `folder_${folder.id}`,
 					type: "folder",
 					title: folder.name,
@@ -313,8 +316,71 @@ export function WorkbenchApp({
 				});
 			}
 		},
-		[handleAttachBookmarkToChat],
+		[handleAttachBookmarkToChat, aiPanel],
 	);
+
+	// ===== 全局 AI 面板桥接：同步浏览上下文 / 最新数据 / 页面级回调 =====
+
+	// 浏览上下文（当前选中的文件夹与分类），面板据此切换 全局/文件夹 作用域
+	useEffect(() => {
+		aiPanel.setScope({
+			selectedFolder: isUnclassified ? null : selectedFolder,
+			activeCategory,
+		});
+		return () => aiPanel.setScope({ selectedFolder: null });
+	}, [aiPanel, isUnclassified, selectedFolder, activeCategory]);
+
+	// 最新数据同步给面板；离开本页后面板回落到根 loader 数据
+	useEffect(() => {
+		aiPanel.setPageData({ folders, categories: dynamicCategories, settings });
+		return () => aiPanel.setPageData(null);
+	}, [aiPanel, folders, dynamicCategories, settings]);
+
+	// 页面级回调：数据变更刷新 + 搜索结果页面内定位
+	useEffect(() => {
+		aiPanel.registerDataChangedHandler(reloadFromDb);
+		aiPanel.registerNavigateHandler(handleNavigateFromSearch);
+		return () => {
+			aiPanel.registerDataChangedHandler(null);
+			aiPanel.registerNavigateHandler(null);
+		};
+	}, [aiPanel, reloadFromDb, handleNavigateFromSearch]);
+
+	// 拖拽处理器注册到全局 DnD 上下文（DndContext 在 AppShell，AI 面板在页面之外）
+	useEffect(() => {
+		aiPanel.registerDndHandlers({
+			gridFolderIds: gridFolders.map((f) => f.id),
+			onMoveItemToFolder: handleMoveItem,
+			onMoveFolder: handleMoveFolder,
+			onMoveFolderToCategory: handleMoveFolderToCategory,
+			onReorderFolders: handleReorderFolders,
+			onAttachToChat: handleAttachToChat,
+		});
+		return () => aiPanel.registerDndHandlers(null);
+	}, [
+		aiPanel,
+		gridFolders,
+		handleMoveItem,
+		handleMoveFolder,
+		handleMoveFolderToCategory,
+		handleReorderFolders,
+		handleAttachToChat,
+	]);
+
+	// 消费跨页面跳转请求：在其他模块页点击 AI 搜索结果跳到本页后定位目标
+	const pendingNavHandledRef = useRef(false);
+	useEffect(() => {
+		if (pendingNavHandledRef.current) return;
+		pendingNavHandledRef.current = true;
+		const pending = aiPanel.consumePendingNavigation();
+		if (pending) {
+			handleNavigateFromSearch(
+				pending.folderId,
+				pending.category,
+				pending.targetItemId ?? undefined,
+			);
+		}
+	}, [aiPanel, handleNavigateFromSearch]);
 
 	// Title for the current browsing context (category codes resolve to module labels)
 	const displayTitle = currentFolder
@@ -324,330 +390,306 @@ export function WorkbenchApp({
 			: resolveCategoryLabel(activeCategory);
 
 	return (
-		<WorkbenchDndProvider
-			gridFolderIds={gridFolders.map((f) => f.id)}
-			onMoveItemToFolder={handleMoveItem}
-			onMoveFolder={handleMoveFolder}
-			onMoveFolderToCategory={handleMoveFolderToCategory}
-			onReorderFolders={handleReorderFolders}
-			onAttachToChat={handleAttachToChat}
-		>
-			<div className="h-screen bg-surface dark:bg-background text-foreground flex flex-col overflow-hidden selection:bg-accent-soft selection:text-accent-soft-foreground">
-				{/* Topbar Navigation Header — Unified Search Triggers Right Panel */}
-				<WorkbenchHeader
+		<div className="h-screen bg-surface dark:bg-background text-foreground flex flex-col overflow-hidden selection:bg-accent-soft selection:text-accent-soft-foreground">
+			{/* Topbar Navigation Header — Unified Search Triggers Right Panel */}
+			<WorkbenchHeader
+				unclassifiedCount={unclassified.length}
+				navLayout={settings.navLayout as NavLayoutEntry[] | undefined}
+				onOpenExtension={handleOpenExtension}
+				onOpenSearch={() => aiPanel.openSearchTab()}
+				onOpenSync={handleOpenSync}
+				onOpenCreateFolder={openCreateFolderModal}
+				onOpenSettings={() => setIsSettingsModalOpen(true)}
+				onOpenAIClassifyTask={() => setIsAIClassifyModalOpen(true)}
+			/>
+
+			{/* 书签模块：分类筛选条（数据维度，非导航） */}
+			{showCategoryFilter && (
+				<CategoryFilterBar
+					categories={dynamicCategories}
+					activeCategory={activeCategory}
 					unclassifiedCount={unclassified.length}
-					navLayout={settings.navLayout as NavLayoutEntry[] | undefined}
-					onOpenExtension={handleOpenExtension}
-					onOpenSearch={() => chatPanelRef.current?.openSearchTab()}
-					onOpenSync={handleOpenSync}
-					onOpenCreateFolder={openCreateFolderModal}
-					onOpenSettings={() => setIsSettingsModalOpen(true)}
-					onOpenAIClassifyTask={() => setIsAIClassifyModalOpen(true)}
+					folders={folders}
+					onSelectCategory={handleCategoryChange}
 				/>
+			)}
 
-				{/* 书签模块：分类筛选条（数据维度，非导航） */}
-				{showCategoryFilter && (
-					<CategoryFilterBar
-						categories={dynamicCategories}
-						activeCategory={activeCategory}
-						unclassifiedCount={unclassified.length}
-						folders={folders}
-						onSelectCategory={handleCategoryChange}
-					/>
-				)}
+			{/* Main Workspace Layout (Left: Folder Details | Center: Grid | Right: Resident AI Search Hub) */}
+			<div className="flex-1 flex w-full min-h-0 overflow-hidden">
+				{isUnclassified ? (
+					/* Unclassified Inbox Buffer */
+					<main className="flex-1 p-6 lg:p-8 min-w-0 flex flex-col overflow-y-auto h-full">
+						{/* Workspace Title */}
+						<div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-4 mb-6">
+							<div>
+								<div className="flex items-center gap-2">
+									<h1 className="text-2xl font-bold tracking-tight text-foreground">
+										{UNCLASSIFIED_CATEGORY}
+									</h1>
+									<span className="text-xs font-medium text-muted">
+										{unclassified.length} 条待整理书签
+									</span>
+								</div>
+								<p className="text-xs text-muted mt-1 leading-relaxed max-w-3xl">
+									从 Chrome 扩展同步的未分类书签缓冲池。点击下方「启动 DeepSeek
+									一键智能分类」，将深度分析并自动生成主题文件夹入库。
+								</p>
+							</div>
+						</div>
 
-				{/* Main Workspace Layout (Left: Folder Details | Center: Grid | Right: Resident AI Search Hub) */}
-				<div className="flex-1 flex w-full min-h-0 overflow-hidden">
-					{isUnclassified ? (
-						/* Unclassified Inbox Buffer */
-						<main className="flex-1 p-6 lg:p-8 min-w-0 flex flex-col overflow-y-auto h-full">
+						<UnclassifiedView
+							unclassified={filteredUnclassified}
+							folders={folders}
+							onOpenAIClassify={() => setIsAIClassifyModalOpen(true)}
+							onClearUnclassified={handleClearUnclassified}
+							onDeleteItem={(item) =>
+								setItemPendingDelete({ item, folderId: null })
+							}
+							onMoveItem={(item, targetFolderId) =>
+								handleMoveItem(item, null, targetFolderId)
+							}
+						/>
+					</main>
+				) : (
+					<>
+						{/* 1. Left Column: 文件夹详情与快捷看板 (Folder Details & Bookmarks) */}
+						<FolderDetailPanel
+							folder={selectedFolder}
+							categoryFolders={filteredFolders}
+							allFolders={folders}
+							highlightItemId={highlightItemId}
+							onHighlightClear={clearHighlightItem}
+							onSelectFolder={handleSelectFolder}
+							onCreateFolder={openCreateFolderModal}
+							onEdit={openEditFolderModal}
+							onDeleteItem={(item, folderId) =>
+								setItemPendingDelete({ item, folderId })
+							}
+							onMoveItem={handleMoveItem}
+							onAskAIAboutFolder={handleAskAIAboutFolder}
+							onAttachToChat={handleAttachBookmarkToChat}
+						/>
+
+						{/* 2. Main Column: 文件夹列表与卡片区 (Category Folders Grid) */}
+						<main className="flex-1 p-6 lg:p-7 min-w-0 flex flex-col overflow-y-auto h-full">
 							{/* Workspace Title */}
-							<div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-4 mb-6">
+							<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
 								<div>
 									<div className="flex items-center gap-2">
 										<h1 className="text-2xl font-bold tracking-tight text-foreground">
-											{UNCLASSIFIED_CATEGORY}
+											{displayTitle}
 										</h1>
 										<span className="text-xs font-medium text-muted">
-											{unclassified.length} 条待整理书签
+											{gridFolders.length} 个
+											{currentFolder ? "子文件夹" : "文件夹"}
 										</span>
+										{canEditTitle && (
+											<Button
+												variant="ghost"
+												size="sm"
+												className="rounded-full h-7 w-7 p-0 min-w-0 cursor-pointer text-muted hover:text-foreground hover:bg-surface-secondary/80 transition-colors"
+												onPress={handleEditTitle}
+												aria-label={
+													currentFolder ? "编辑当前文件夹" : "编辑分类名称"
+												}
+											>
+												<Pencil className="w-3.5 h-3.5" />
+											</Button>
+										)}
 									</div>
-									<p className="text-xs text-muted mt-1 leading-relaxed max-w-3xl">
-										从 Chrome 扩展同步的未分类书签缓冲池。点击下方「启动
-										DeepSeek
-										一键智能分类」，将深度分析并自动生成主题文件夹入库。
+									<p className="text-xs text-muted mt-1 leading-relaxed max-w-2xl">
+										{currentFolder
+											? currentFolder.desc?.trim() ||
+												`当前位于「${currentFolder.name}」文件夹，可在此浏览子文件夹与归集书签。`
+											: "点击文件夹卡片可在左侧查看书签与快捷看板，支持自由拖拽排序与移动归类；右侧随时进行 AI 搜索与知识问答。"}
 									</p>
+								</div>
+
+								{/* Action buttons: Refresh folder list */}
+								<div className="flex items-center gap-2 shrink-0">
+									<Button
+										variant="secondary"
+										size="sm"
+										className="rounded-full flex items-center gap-1.5 cursor-pointer text-xs"
+										isDisabled={isRefreshing}
+										onPress={handleRefresh}
+									>
+										<RefreshCw
+											className={`w-3.5 h-3.5 ${
+												isRefreshing ? "animate-spin text-accent" : "text-muted"
+											}`}
+										/>
+										<span>刷新列表</span>
+									</Button>
 								</div>
 							</div>
 
-							<UnclassifiedView
-								unclassified={filteredUnclassified}
-								folders={folders}
-								onOpenAIClassify={() => setIsAIClassifyModalOpen(true)}
-								onClearUnclassified={handleClearUnclassified}
-								onDeleteItem={(item) =>
-									setItemPendingDelete({ item, folderId: null })
-								}
-								onMoveItem={(item, targetFolderId) =>
-									handleMoveItem(item, null, targetFolderId)
-								}
-							/>
-						</main>
-					) : (
-						<>
-							{/* 1. Left Column: 文件夹详情与快捷看板 (Folder Details & Bookmarks) */}
-							<FolderDetailPanel
-								folder={selectedFolder}
-								categoryFolders={filteredFolders}
+							{/* Folders Grid View */}
+							<CategoryView
+								folders={gridFolders}
 								allFolders={folders}
-								highlightItemId={highlightItemId}
-								onHighlightClear={clearHighlightItem}
+								selectedFolderId={selectedFolder?.id ?? null}
+								categoryName={activeCategory}
+								folderPath={folderPath}
+								childFolderCounts={childFolderCounts}
 								onSelectFolder={handleSelectFolder}
 								onCreateFolder={openCreateFolderModal}
-								onEdit={openEditFolderModal}
-								onDeleteItem={(item, folderId) =>
-									setItemPendingDelete({ item, folderId })
-								}
-								onMoveItem={handleMoveItem}
-								onAskAIAboutFolder={handleAskAIAboutFolder}
-								onAttachToChat={handleAttachBookmarkToChat}
+								onEnterFolder={handleEnterFolder}
+								onNavigateBreadcrumb={handleNavigateToContainer}
+								onEditFolder={openEditFolderModal}
+								onDeleteFolder={handleDeleteFolderFromCard}
+								onMoveFolder={handleMoveFolder}
+								onCreateLink={openAddLinkModal}
+								onAskAIAboutFolder={handleAskAISummarizeFolder}
 							/>
+						</main>
+					</>
+				)}
+			</div>
 
-							{/* 2. Main Column: 文件夹列表与卡片区 (Category Folders Grid) */}
-							<main className="flex-1 p-6 lg:p-7 min-w-0 flex flex-col overflow-y-auto h-full">
-								{/* Workspace Title */}
-								<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-									<div>
-										<div className="flex items-center gap-2">
-											<h1 className="text-2xl font-bold tracking-tight text-foreground">
-												{displayTitle}
-											</h1>
-											<span className="text-xs font-medium text-muted">
-												{gridFolders.length} 个
-												{currentFolder ? "子文件夹" : "文件夹"}
-											</span>
-											{canEditTitle && (
-												<Button
-													variant="ghost"
-													size="sm"
-													className="rounded-full h-7 w-7 p-0 min-w-0 cursor-pointer text-muted hover:text-foreground hover:bg-surface-secondary/80 transition-colors"
-													onPress={handleEditTitle}
-													aria-label={
-														currentFolder ? "编辑当前文件夹" : "编辑分类名称"
-													}
-												>
-													<Pencil className="w-3.5 h-3.5" />
-												</Button>
-											)}
-										</div>
-										<p className="text-xs text-muted mt-1 leading-relaxed max-w-2xl">
-											{currentFolder
-												? currentFolder.desc?.trim() ||
-													`当前位于「${currentFolder.name}」文件夹，可在此浏览子文件夹与归集书签。`
-												: "点击文件夹卡片可在左侧查看书签与快捷看板，支持自由拖拽排序与移动归类；右侧随时进行 AI 搜索与知识问答。"}
-										</p>
-									</div>
-
-									{/* Action buttons: Refresh folder list */}
-									<div className="flex items-center gap-2 shrink-0">
-										<Button
-											variant="secondary"
-											size="sm"
-											className="rounded-full flex items-center gap-1.5 cursor-pointer text-xs"
-											isDisabled={isRefreshing}
-											onPress={handleRefresh}
-										>
-											<RefreshCw
-												className={`w-3.5 h-3.5 ${
-													isRefreshing
-														? "animate-spin text-accent"
-														: "text-muted"
-												}`}
-											/>
-											<span>刷新列表</span>
-										</Button>
-									</div>
-								</div>
-
-								{/* Folders Grid View */}
-								<CategoryView
-									folders={gridFolders}
-									allFolders={folders}
-									selectedFolderId={selectedFolder?.id ?? null}
-									categoryName={activeCategory}
-									folderPath={folderPath}
-									childFolderCounts={childFolderCounts}
-									onSelectFolder={handleSelectFolder}
-									onCreateFolder={openCreateFolderModal}
-									onEnterFolder={handleEnterFolder}
-									onNavigateBreadcrumb={handleNavigateToContainer}
-									onEditFolder={openEditFolderModal}
-									onDeleteFolder={handleDeleteFolderFromCard}
-									onMoveFolder={handleMoveFolder}
-									onCreateLink={openAddLinkModal}
-									onAskAIAboutFolder={handleAskAISummarizeFolder}
-								/>
-							</main>
-						</>
-					)}
-
-					{/* 3. Right Column: Resident AI Search & Knowledge Q&A Central Hub (Permanent Singleton) */}
-					<ChatWithBookmarksPanel
-						ref={chatPanelRef}
-						selectedFolder={isUnclassified ? null : selectedFolder}
-						activeCategory={activeCategory}
+			{/* Lazy-Loaded Feature Modals */}
+			<Suspense fallback={null}>
+				{folderModalState.isOpen && (
+					<FolderModal
+						isOpen={folderModalState.isOpen}
+						folder={folderModalState.folder}
 						folders={folders}
 						categories={dynamicCategories}
+						defaultCategory={
+							isUnclassified || activeCategory === ALL_CATEGORY
+								? "工作台"
+								: activeCategory
+						}
+						defaultParentId={folderModalState.defaultParentId}
+						onClose={closeFolderModal}
+						onSave={async (data) => {
+							await handleSaveFolder(data);
+							closeFolderModal();
+						}}
+						onDelete={async (id) => {
+							await handleDeleteFolder(id);
+							closeFolderModal();
+						}}
+					/>
+				)}
+
+				{/* Category rename modal */}
+				{isRenameCategoryOpen && (
+					<RenameCategoryModal
+						isOpen={isRenameCategoryOpen}
+						category={activeCategory}
+						allCategories={dynamicCategories}
+						onClose={() => setIsRenameCategoryOpen(false)}
+						onRename={handleRenameCategory}
+					/>
+				)}
+
+				{addLinkFolder && (
+					<AddLinkModal
+						isOpen={!!addLinkFolder}
+						folder={addLinkFolder}
+						onClose={closeAddLinkModal}
+						onSave={async (data) => {
+							await handleAddLink(addLinkFolder.id, data);
+							closeAddLinkModal();
+						}}
+					/>
+				)}
+
+				{isAIClassifyModalOpen && (
+					<AIClassifyModal
+						isOpen={isAIClassifyModalOpen}
+						itemsToClassify={unclassified}
+						folders={folders}
 						settings={settings}
-						onNavigateToFolder={handleNavigateFromSearch}
+						onClose={() => setIsAIClassifyModalOpen(false)}
+						onClassificationComplete={handleClassificationComplete}
+						onOpenSettings={() => {
+							setIsAIClassifyModalOpen(false);
+							setIsSettingsModalOpen(true);
+						}}
+					/>
+				)}
+
+				{isSyncModalOpen && (
+					<BookmarkSyncModal
+						isOpen={isSyncModalOpen}
+						onClose={() => setIsSyncModalOpen(false)}
+						onBookmarksImported={(newItems) =>
+							handleBookmarksImported(newItems, () =>
+								setIsAIClassifyModalOpen(true),
+							)
+						}
+					/>
+				)}
+
+				{isSettingsModalOpen && (
+					<SettingsModal
+						isOpen={isSettingsModalOpen}
+						onClose={() => setIsSettingsModalOpen(false)}
+						onSettingsUpdated={setSettings}
+						onOpenDeadLinks={() => setIsDeadLinksModalOpen(true)}
+						onDataCleared={reloadFromDb}
+					/>
+				)}
+
+				{isDeadLinksModalOpen && (
+					<DeadLinksModal
+						isOpen={isDeadLinksModalOpen}
+						onClose={() => setIsDeadLinksModalOpen(false)}
 						onDataChanged={reloadFromDb}
 					/>
-				</div>
+				)}
 
-				{/* Lazy-Loaded Feature Modals */}
-				<Suspense fallback={null}>
-					{folderModalState.isOpen && (
-						<FolderModal
-							isOpen={folderModalState.isOpen}
-							folder={folderModalState.folder}
-							folders={folders}
-							categories={dynamicCategories}
-							defaultCategory={
-								isUnclassified || activeCategory === ALL_CATEGORY
-									? "工作台"
-									: activeCategory
-							}
-							defaultParentId={folderModalState.defaultParentId}
-							onClose={closeFolderModal}
-							onSave={async (data) => {
-								await handleSaveFolder(data);
-								closeFolderModal();
-							}}
-							onDelete={async (id) => {
-								await handleDeleteFolder(id);
-								closeFolderModal();
-							}}
-						/>
-					)}
-
-					{/* Category rename modal */}
-					{isRenameCategoryOpen && (
-						<RenameCategoryModal
-							isOpen={isRenameCategoryOpen}
-							category={activeCategory}
-							allCategories={dynamicCategories}
-							onClose={() => setIsRenameCategoryOpen(false)}
-							onRename={handleRenameCategory}
-						/>
-					)}
-
-					{addLinkFolder && (
-						<AddLinkModal
-							isOpen={!!addLinkFolder}
-							folder={addLinkFolder}
-							onClose={closeAddLinkModal}
-							onSave={async (data) => {
-								await handleAddLink(addLinkFolder.id, data);
-								closeAddLinkModal();
-							}}
-						/>
-					)}
-
-					{isAIClassifyModalOpen && (
-						<AIClassifyModal
-							isOpen={isAIClassifyModalOpen}
-							itemsToClassify={unclassified}
-							folders={folders}
-							settings={settings}
-							onClose={() => setIsAIClassifyModalOpen(false)}
-							onClassificationComplete={handleClassificationComplete}
-							onOpenSettings={() => {
-								setIsAIClassifyModalOpen(false);
-								setIsSettingsModalOpen(true);
-							}}
-						/>
-					)}
-
-					{isSyncModalOpen && (
-						<BookmarkSyncModal
-							isOpen={isSyncModalOpen}
-							onClose={() => setIsSyncModalOpen(false)}
-							onBookmarksImported={(newItems) =>
-								handleBookmarksImported(newItems, () =>
-									setIsAIClassifyModalOpen(true),
-								)
-							}
-						/>
-					)}
-
-					{isSettingsModalOpen && (
-						<SettingsModal
-							isOpen={isSettingsModalOpen}
-							onClose={() => setIsSettingsModalOpen(false)}
-							onSettingsUpdated={setSettings}
-							onOpenDeadLinks={() => setIsDeadLinksModalOpen(true)}
-							onDataCleared={reloadFromDb}
-						/>
-					)}
-
-					{isDeadLinksModalOpen && (
-						<DeadLinksModal
-							isOpen={isDeadLinksModalOpen}
-							onClose={() => setIsDeadLinksModalOpen(false)}
-							onDataChanged={reloadFromDb}
-						/>
-					)}
-
-					{/* First-time setup wizard: shown when setup has not been completed */}
-					<SetupWizard
-						isOpen={!settings.setupComplete}
-						existingSettings={settings}
-						onComplete={setSettings}
-					/>
-				</Suspense>
-
-				{/* Folder deletion confirmation */}
-				<ConfirmDialog
-					isOpen={!!folderPendingDelete}
-					onOpenChange={(open) => !open && setFolderPendingDelete(null)}
-					title="删除文件夹"
-					description={
-						folderPendingDelete
-							? `确定删除文件夹「${folderPendingDelete.name}」吗？此操作不可撤销。`
-							: undefined
-					}
-					confirmLabel="删除文件夹"
-					onConfirm={async () => {
-						if (folderPendingDelete) {
-							await handleDeleteFolder(folderPendingDelete.id);
-						}
-					}}
+				{/* First-time setup wizard: shown when setup has not been completed */}
+				<SetupWizard
+					isOpen={!settings.setupComplete}
+					existingSettings={settings}
+					onComplete={setSettings}
 				/>
+			</Suspense>
 
-				{/* Bookmark item deletion confirmation */}
-				<ConfirmDialog
-					isOpen={!!itemPendingDelete}
-					onOpenChange={(open) => !open && setItemPendingDelete(null)}
-					title="删除书签"
-					description={
-						itemPendingDelete
-							? `确定删除「${itemPendingDelete.item.name}」吗？此操作不可撤销。`
-							: undefined
+			{/* Folder deletion confirmation */}
+			<ConfirmDialog
+				isOpen={!!folderPendingDelete}
+				onOpenChange={(open) => !open && setFolderPendingDelete(null)}
+				title="删除文件夹"
+				description={
+					folderPendingDelete
+						? `确定删除文件夹「${folderPendingDelete.name}」吗？此操作不可撤销。`
+						: undefined
+				}
+				confirmLabel="删除文件夹"
+				onConfirm={async () => {
+					if (folderPendingDelete) {
+						await handleDeleteFolder(folderPendingDelete.id);
 					}
-					confirmLabel="删除"
-					onConfirm={async () => {
-						if (!itemPendingDelete) return;
-						if (itemPendingDelete.folderId === null) {
-							await handleDeleteUnclassifiedItem(itemPendingDelete.item);
-						} else {
-							await handleDeleteItemFromFolder(
-								itemPendingDelete.item,
-								itemPendingDelete.folderId,
-							);
-						}
-					}}
-				/>
-			</div>
-		</WorkbenchDndProvider>
+				}}
+			/>
+
+			{/* Bookmark item deletion confirmation */}
+			<ConfirmDialog
+				isOpen={!!itemPendingDelete}
+				onOpenChange={(open) => !open && setItemPendingDelete(null)}
+				title="删除书签"
+				description={
+					itemPendingDelete
+						? `确定删除「${itemPendingDelete.item.name}」吗？此操作不可撤销。`
+						: undefined
+				}
+				confirmLabel="删除"
+				onConfirm={async () => {
+					if (!itemPendingDelete) return;
+					if (itemPendingDelete.folderId === null) {
+						await handleDeleteUnclassifiedItem(itemPendingDelete.item);
+					} else {
+						await handleDeleteItemFromFolder(
+							itemPendingDelete.item,
+							itemPendingDelete.folderId,
+						);
+					}
+				}}
+			/>
+		</div>
 	);
 }

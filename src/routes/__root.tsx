@@ -12,8 +12,10 @@ import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import Footer from "../components/Footer";
 import Header from "../components/Header";
 import NotFound from "../components/NotFound";
+import { AppShell } from "../components/shell/AppShell";
 import TanStackQueryDevtools from "../integrations/tanstack-query/devtools";
 import appCss from "../styles.css?url";
+import { workbenchLoader } from "./-workbenchLoader";
 
 interface MyRouterContext {
 	queryClient: QueryClient;
@@ -22,6 +24,8 @@ interface MyRouterContext {
 const THEME_INIT_SCRIPT = `(function(){try{var stored=window.localStorage.getItem('theme');var mode=(stored==='light'||stored==='dark')?stored:'light';var root=document.documentElement;root.classList.remove('light','dark');root.classList.add(mode);root.setAttribute('data-theme',mode);root.style.colorScheme=mode;}catch(e){}})();`;
 
 export const Route = createRootRouteWithContext<MyRouterContext>()({
+	// 根级加载文件夹/设置：喂给全局常驻 AI 面板（右侧边栏）
+	loader: workbenchLoader,
 	head: () => ({
 		meta: [
 			{
@@ -51,6 +55,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 	// 模板示例 Header/Footer 仅保留在 about 演示页；应用路由使用自己的模块导航
 	const showTemplateChrome = pathname === "/about";
 	const { queryClient } = Route.useRouteContext();
+	const { folders, settings } = Route.useLoaderData();
 
 	return (
 		<html lang="zh-CN" suppressHydrationWarning>
@@ -63,9 +68,17 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 				className="font-sans antialiased [overflow-wrap:anywhere] selection:bg-accent-soft selection:text-accent-soft-foreground"
 			>
 				<QueryClientProvider client={queryClient}>
-					{showTemplateChrome && <Header />}
-					{children}
-					{showTemplateChrome && <Footer />}
+					{showTemplateChrome ? (
+						<>
+							<Header />
+							{children}
+							<Footer />
+						</>
+					) : (
+						<AppShell folders={folders} settings={settings}>
+							{children}
+						</AppShell>
+					)}
 					<TanStackDevtools
 						config={{
 							position: "bottom-right",
