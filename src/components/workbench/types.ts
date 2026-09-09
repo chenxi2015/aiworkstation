@@ -2,6 +2,34 @@ import type { NavLayoutEntry } from "../../modules/registry";
 
 export type ItemType = "tool" | "link" | "doc" | "skill" | "note";
 
+/** JSON 可序列化值（server function 跨边界载荷的约束类型） */
+export type JsonValue =
+	| string
+	| number
+	| boolean
+	| null
+	| JsonValue[]
+	| { [key: string]: JsonValue };
+
+/** 文件夹内容的展现形式（持久化在 folders.view_prefs） */
+export type FolderViewMode = "card" | "list" | "gallery" | "table";
+
+/** 文件夹视图偏好：每个文件夹记住自己的展现形式与排序 */
+export interface FolderViewPrefs {
+	mode?: FolderViewMode;
+	/** 排序维度，如 updated / created / name / manual */
+	sort?: string;
+	/** 展示密度 */
+	density?: "comfortable" | "compact";
+}
+
+/** note 类型条目的载荷（存 bookmarks.payload JSON） */
+export interface NotePayload {
+	content: string;
+	/** 内容格式，默认 markdown */
+	format?: "markdown" | "plain";
+}
+
 export interface PageTDK {
 	title: string;
 	description?: string;
@@ -33,6 +61,8 @@ export interface WorkbenchItem {
 	keywords?: string;
 	summary?: string;
 	tags?: string[];
+	/** 类型载荷：note 存 NotePayload，image/video/file 存路径与元信息 */
+	payload?: Record<string, JsonValue>;
 	folderId?: number | null;
 	folderName?: string;
 	category?: string;
@@ -64,6 +94,8 @@ export interface Folder {
 	createdAt: string;
 	desc?: string;
 	color?: string;
+	/** 视图偏好（card/list/gallery/table），未设置时由页面默认值兜底 */
+	viewPrefs?: FolderViewPrefs;
 	dossierMarkdown?: string;
 	dossierUpdatedAt?: string;
 	items: WorkbenchItem[];

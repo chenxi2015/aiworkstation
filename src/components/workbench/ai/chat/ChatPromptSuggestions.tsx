@@ -6,6 +6,8 @@ export interface ChatPromptSuggestionsProps {
 	selectedFolder?: Folder | null;
 	scopeMode?: "global" | "folder";
 	onSelectPrompt: (prompt: string) => void;
+	/** 当前模块的推荐提问（见 modules/ai-contributions.ts），未提供时用内置默认 */
+	globalPrompts?: string[];
 }
 
 const DEFAULT_GLOBAL_PROMPTS = [
@@ -22,6 +24,7 @@ export const ChatPromptSuggestions = memo(function ChatPromptSuggestions({
 	selectedFolder,
 	scopeMode = "global",
 	onSelectPrompt,
+	globalPrompts,
 }: ChatPromptSuggestionsProps) {
 	const isFolderScope = scopeMode === "folder" && Boolean(selectedFolder);
 
@@ -34,8 +37,10 @@ export const ChatPromptSuggestions = memo(function ChatPromptSuggestions({
 				"检索所有分类下与当前文件夹相关的扩展资源",
 			];
 		}
-		return DEFAULT_GLOBAL_PROMPTS;
-	}, [isFolderScope, selectedFolder]);
+		return globalPrompts && globalPrompts.length > 0
+			? globalPrompts
+			: DEFAULT_GLOBAL_PROMPTS;
+	}, [isFolderScope, selectedFolder, globalPrompts]);
 
 	return (
 		<div className="flex flex-col gap-2 mt-4 w-full">

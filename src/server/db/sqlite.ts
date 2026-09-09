@@ -2,6 +2,8 @@ import type {
 	AIClassificationResult,
 	BookmarkTDKItem,
 	Folder,
+	FolderViewPrefs,
+	NotePayload,
 	WorkbenchItem,
 } from "../../components/workbench/types.ts";
 import { getDb } from "./connection.ts";
@@ -105,6 +107,21 @@ export class WorkbenchDatabase {
 
 	renameCategory(oldCategory: string, newCategory: string): number {
 		return this.folderRepo.renameCategory(oldCategory, newCategory);
+	}
+
+	updateFolderViewPrefs(id: number, prefs: FolderViewPrefs): void {
+		this.folderRepo.updateFolderViewPrefs(id, prefs);
+	}
+
+	saveNote(params: {
+		id?: string;
+		title: string;
+		content: string;
+		format?: NotePayload["format"];
+		tags?: string[];
+		folderId?: number | null;
+	}): string {
+		return this.bookmarkRepo.saveNote(params);
 	}
 
 	// ================= Bookmark Operations =================

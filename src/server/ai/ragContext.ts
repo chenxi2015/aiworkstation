@@ -2,6 +2,7 @@ import type {
 	SearchResultItem,
 	WorkbenchSettings,
 } from "../../components/workbench/types.ts";
+import { getAiContribution } from "../../modules/ai-contributions.ts";
 import {
 	type EmbeddingConfig,
 	EmbeddingService,
@@ -86,6 +87,8 @@ export async function prepareRagAgentContext(params: {
 	folderName?: string;
 	embeddingConfig?: EmbeddingConfig;
 	contextItems?: ChatContextItem[];
+	/** 当前模块 code（见 modules/ai-contributions.ts），决定注入的模块视角提示 */
+	module?: string;
 }): Promise<PreparedRagContext> {
 	const {
 		question,
@@ -93,6 +96,7 @@ export async function prepareRagAgentContext(params: {
 		folderName,
 		embeddingConfig = {},
 		contextItems = [],
+		module,
 	} = params;
 	const q = question?.trim();
 
@@ -194,6 +198,10 @@ export async function prepareRagAgentContext(params: {
 			? `\n- 【当前问答限定范围】: 用户已启用【限定文件夹范围】模式，指定聚焦在文件夹「${folderName}」(ID: ${folderId})。除非用户在提问中明确要求跨文件夹或搜索全局，否则所有回答、盘点与分析请严格限制在该文件夹下的书签和资产；若调用 query_bookmarks 工具，请务必传入 folderName: "${folderName}" 或 folderId: ${folderId}。`
 			: "\n- 【当前问答范围】: 全局知识库（涵盖所有文件夹及未分类书签）。";
 
+	// 模块视角提示：由侧边栏随导航注入，检索与工具仍保持全局可用
+	const contribution = getAiContribution(module);
+	const moduleScopePrompt = `\n- 【当前模块视角】: ${contribution.systemPromptHint}`;
+
 	const hasUrlInContext = contextItems.some((item) => Boolean(item.url));
 	const webpageToolGuidance = hasUrlInContext
 		? "\n\n★ 重要指引：用户在当前上下文中提供了具体的网址链接。如果用户的提问涉及深度分析该网页、总结文章、提取要点或了解项目详情，请【默认首选】调用 `crawl_webpage_via_extension` 工具（浏览器插件静默爬虫，携带真实登录态 Cookie，可穿透 SPA 渲染与反爬限制，返回整洁 Markdown 正文；插件离线时会自动降级，无需顾虑）抓取该网址的真实正文，然后向用户输出有深度、有条理的分析报告！仅当该工具明确返回失败时，才退而使用 `read_webpage_content` 轻量通道。"
@@ -240,7 +248,7 @@ export async function prepareRagAgentContext(params: {
 【当前运行环境与时间】:
 - 当前服务器本地日期: ${dateStr} (${dayOfWeek})
 - 当前服务器本地时间: ${timeStr}
-${folderScopePrompt}${explicitContextPrompt}
+${moduleScopePrompt}${folderScopePrompt}${explicitContextPrompt}
 
 【交互风格与智囊人格（Pi-Style Persona）】:
 1. **主动而有深度**：面对用户的宽泛想法或架构诉求（如“分类太细了/怎么整理/帮我规划”），绝不生硬地抛回问题，也不机械地一次性把数据全部篡改；而是先探查现状，给出深思熟虑的方案，并主动引导推进。

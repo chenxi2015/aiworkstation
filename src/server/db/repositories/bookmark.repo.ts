@@ -2,9 +2,26 @@ import type {
 	AIClassificationResult,
 	BookmarkTDKItem,
 	ItemType,
+	JsonValue,
+	NotePayload,
 	WorkbenchItem,
 } from "../../../components/workbench/types.ts";
 import type { SqliteDatabase } from "../types.ts";
+
+function parsePayload(
+	raw: string | null | undefined,
+): Record<string, JsonValue> | undefined {
+	if (!raw) return undefined;
+	try {
+		const parsed = JSON.parse(raw);
+		if (parsed && typeof parsed === "object") {
+			return parsed as Record<string, JsonValue>;
+		}
+	} catch {
+		// Ignore malformed JSON in legacy data
+	}
+	return undefined;
+}
 
 /**
  * Repository handling Bookmark CRUD, batch sync, classification and relation binding
@@ -46,12 +63,90 @@ export class BookmarkRepository {
 				keywords: b.keywords,
 				summary: b.summary || b.title,
 				tags,
+				payload: parsePayload(b.payload),
 				folderName: b.parent_title,
 				reason: b.reason,
 				createdAt: b.created_at,
 				source: b.source,
 			};
 		});
+	}
+
+	/**
+	 * Create or update a note item (item_type = 'note').
+	 * Notes use a synthetic `note://` URL to satisfy the UNIQUE url constraint.
+	 * When folderId is provided the note is bound to that folder (many-to-many).
+	 */
+	saveNote(params: {
+		id?: string;
+		title: string;
+		content: string;
+		format?: NotePayload["format"];
+		tags?: string[];
+		folderId?: number | null;
+	}): string {
+		const today = new Date().toISOString().split("T")[0];
+		const payload: NotePayload = {
+			content: params.content,
+			format: params.format ?? "markdown",
+		};
+		const summary =
+			params.content.replace(/\s+/g, " ").trim().slice(0, 120) || params.title;
+		const tags = JSON.stringify(params.tags ?? []);
+
+		const transaction = this.db.transaction((): string => {
+			let noteId = params.id;
+			if (noteId) {
+				const res = this.db
+					.prepare(
+						`UPDATE bookmarks SET
+							title = ?, summary = ?, payload = ?, tags = ?, updated_at = ?
+						WHERE id = ? AND item_type = 'note'`,
+					)
+					.run(
+						params.title,
+						summary,
+						JSON.stringify(payload),
+						tags,
+						today,
+						noteId,
+					);
+				if (res.changes === 0) {
+					throw new Error("笔记不存在或类型不匹配");
+				}
+			} else {
+				noteId = `note_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+				this.db
+					.prepare(
+						`INSERT INTO bookmarks (
+							id, url, title, summary, item_type, tags, payload, source,
+							date_added, created_at, updated_at
+						) VALUES (?, ?, ?, ?, 'note', ?, ?, 'manual', ?, ?, ?)`,
+					)
+					.run(
+						noteId,
+						`note://${noteId}`,
+						params.title,
+						summary,
+						tags,
+						JSON.stringify(payload),
+						Date.now(),
+						today,
+						today,
+					);
+			}
+
+			if (params.folderId != null) {
+				this.db
+					.prepare(
+						"INSERT OR IGNORE INTO folder_items (folder_id, item_id, created_at) VALUES (?, ?, ?)",
+					)
+					.run(params.folderId, noteId, today);
+			}
+			return noteId;
+		});
+
+		return transaction();
 	}
 
 	/**

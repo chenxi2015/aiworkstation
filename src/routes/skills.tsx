@@ -1,9 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SkillsApp } from "../components/skills/SkillsApp";
+import { ModuleSkeleton } from "../components/workbench/skeletons";
 import { workbenchLoader } from "./-workbenchLoader";
 
 export const Route = createFileRoute("/skills")({
 	loader: workbenchLoader,
+	pendingComponent: ModuleSkeleton,
+	pendingMs: 0,
 	component: SkillsPage,
 });
 

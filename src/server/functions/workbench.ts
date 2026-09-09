@@ -5,6 +5,7 @@ import type {
 	AIClassificationResult,
 	BookmarkTDKItem,
 	Folder,
+	FolderViewPrefs,
 	WorkbenchItem,
 	WorkbenchSettings,
 } from "../../components/workbench/types";
@@ -103,6 +104,47 @@ export const deleteFolder = createServerFn({ method: "POST" })
 		workbenchDb.deleteFolder(id);
 		return workbenchDb.getAllFolders();
 	});
+
+/**
+ * Server Function: Persist a folder's view preferences (card/list/gallery/table, sort, density)
+ */
+export const saveFolderViewPrefs = createServerFn({ method: "POST" })
+	.validator((data: { folderId: number; prefs: FolderViewPrefs }) => data)
+	.handler(async ({ data }): Promise<Folder[]> => {
+		workbenchDb.updateFolderViewPrefs(data.folderId, data.prefs ?? {});
+		return workbenchDb.getAllFolders();
+	});
+
+/**
+ * Server Function: Create or update a note item (item_type = 'note')
+ */
+export const saveNote = createServerFn({ method: "POST" })
+	.validator(
+		(data: {
+			id?: string;
+			title: string;
+			content: string;
+			format?: "markdown" | "plain";
+			tags?: string[];
+			folderId?: number | null;
+		}) => data,
+	)
+	.handler(
+		async ({
+			data,
+		}): Promise<{
+			noteId: string;
+			folders: Folder[];
+			unclassified: WorkbenchItem[];
+		}> => {
+			const noteId = workbenchDb.saveNote(data);
+			return {
+				noteId,
+				folders: workbenchDb.getAllFolders(),
+				unclassified: workbenchDb.getUnclassifiedItems(),
+			};
+		},
+	);
 
 /**
  * Server Function: Apply DeepSeek AI classification results to SQLite

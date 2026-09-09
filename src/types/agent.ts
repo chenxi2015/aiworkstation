@@ -45,4 +45,6 @@ export interface AgentChatParams {
 	folderId?: number | null;
 	folderName?: string;
 	contextItems?: ChatContextItem[];
+	/** 当前所在模块 code（见 modules/ai-contributions.ts），用于服务端按模块视角组装 system prompt */
+	module?: string;
 }

@@ -1,9 +1,39 @@
 import type {
 	Folder,
+	FolderViewPrefs,
 	ItemType,
+	JsonValue,
 	WorkbenchItem,
 } from "../../../components/workbench/types.ts";
 import type { SqliteDatabase } from "../types.ts";
+
+function parseViewPrefs(
+	raw: string | null | undefined,
+): FolderViewPrefs | undefined {
+	if (!raw) return undefined;
+	try {
+		const parsed = JSON.parse(raw);
+		if (parsed && typeof parsed === "object") return parsed as FolderViewPrefs;
+	} catch {
+		// Ignore malformed JSON in legacy data
+	}
+	return undefined;
+}
+
+function parseItemPayload(
+	raw: string | null | undefined,
+): Record<string, JsonValue> | undefined {
+	if (!raw) return undefined;
+	try {
+		const parsed = JSON.parse(raw);
+		if (parsed && typeof parsed === "object") {
+			return parsed as Record<string, JsonValue>;
+		}
+	} catch {
+		// Ignore malformed JSON in legacy data
+	}
+	return undefined;
+}
 
 /**
  * Repository handling Folder CRUD and folder item associations
@@ -50,6 +80,7 @@ export class FolderRepository {
 					keywords: b.keywords,
 					summary: b.summary || b.title,
 					tags,
+					payload: parseItemPayload(b.payload),
 					folderId: f.id,
 					folderName: f.name,
 					category: f.category,
@@ -66,6 +97,7 @@ export class FolderRepository {
 				parentId: f.parent_id ?? null,
 				desc: f.description || "",
 				color: f.color || undefined,
+				viewPrefs: parseViewPrefs(f.view_prefs),
 				createdAt: f.created_at,
 				items,
 			});
@@ -131,6 +163,16 @@ export class FolderRepository {
 				"UPDATE folders SET name = ?, category = ?, description = ?, color = ?, updated_at = ? WHERE id = ?",
 			)
 			.run(name, category, desc, color || "", today, id);
+	}
+
+	/**
+	 * Persist per-folder view preferences (card/list/gallery/table, sort, density)
+	 */
+	updateFolderViewPrefs(id: number, prefs: FolderViewPrefs): void {
+		const today = new Date().toISOString().split("T")[0];
+		this.db
+			.prepare("UPDATE folders SET view_prefs = ?, updated_at = ? WHERE id = ?")
+			.run(JSON.stringify(prefs ?? {}), today, id);
 	}
 
 	/**

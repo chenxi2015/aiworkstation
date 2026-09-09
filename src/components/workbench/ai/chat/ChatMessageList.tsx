@@ -33,6 +33,8 @@ export interface ChatMessageListProps {
 	) => void;
 	onSelectPrompt: (prompt: string) => void;
 	folders?: Folder[];
+	/** 当前模块的推荐提问（见 modules/ai-contributions.ts） */
+	modulePrompts?: string[];
 	onNavigateToFolder?: (
 		folderId: number | null,
 		category?: Category,
@@ -62,6 +64,7 @@ export function ChatMessageList({
 	onOpenAssignMultiple,
 	onSelectPrompt,
 	folders,
+	modulePrompts,
 	onNavigateToFolder,
 }: ChatMessageListProps) {
 	const [isSelectMode, setIsSelectMode] = useState(false);
@@ -226,6 +229,7 @@ export function ChatMessageList({
 							selectedFolder={selectedFolder}
 							scopeMode={scopeMode}
 							onSelectPrompt={onSelectPrompt}
+							globalPrompts={modulePrompts}
 						/>
 					</div>
 				)}

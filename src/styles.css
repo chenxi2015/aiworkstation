@@ -526,9 +526,14 @@ pre code {
 
 [data-streamdown="table-cell"],
 [data-streamdown="table-body"] td {
-  padding: 5px 8px !important;
-  font-size: 11.5px !important;
-  color: var(--foreground) !important;
-  border-bottom: 1px solid var(--border) !important;
-  line-height: 1.45 !important;
+	padding: 5px 8px !important;
+	font-size: 11.5px !important;
+	color: var(--foreground) !important;
+	border-bottom: 1px solid var(--border) !important;
+	line-height: 1.45 !important;
+}
+
+/* 流式 SSR：真实 AI 面板到达后隐藏右侧边栏骨架占位 */
+.app-shell:has([data-ai-panel]) [data-ai-panel-skeleton] {
+	display: none;
 }

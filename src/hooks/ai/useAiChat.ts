@@ -205,6 +205,7 @@ export function useAiChat(options?: UseAiChatOptions) {
 				folderName?: string;
 				baseMessages?: ChatItem[];
 				contextItems?: ChatContextItem[];
+				module?: string;
 			},
 		) => {
 			const rawText = (userPrompt || input).trim();
@@ -312,6 +313,7 @@ export function useAiChat(options?: UseAiChatOptions) {
 						folderName: sendOptions?.folderName,
 						contextItems:
 							activeAttachments.length > 0 ? activeAttachments : undefined,
+						module: sendOptions?.module,
 					},
 					{
 						onStepStart: (step) => {

@@ -27,6 +27,7 @@ export async function runAgentStream(
 		llmConfig = {},
 		folderId,
 		folderName,
+		module,
 	} = params;
 
 	const q = question?.trim();
@@ -45,6 +46,7 @@ export async function runAgentStream(
 		folderName,
 		embeddingConfig,
 		contextItems: params.contextItems,
+		module,
 	});
 
 	if (prepared.emptyFallbackMessage) {

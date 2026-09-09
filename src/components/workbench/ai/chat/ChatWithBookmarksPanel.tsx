@@ -9,6 +9,7 @@ import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { type ChatItem, useAiChat } from "../../../../hooks/ai/useAiChat";
 import { useEmbeddingStats } from "../../../../hooks/ai/useEmbeddingStats";
 import { useItemFolderAssign } from "../../../../hooks/ai/useItemFolderAssign";
+import { getAiContribution } from "../../../../modules/ai-contributions";
 import type { ChatContextItem } from "../../../../types/chatContext";
 import type {
 	Category,
@@ -19,8 +20,8 @@ import type {
 import { CATEGORIES } from "../../types";
 import { SearchTabContent } from "../search/SearchTabContent";
 import { EmbeddingStatusWidget } from "../shared/EmbeddingStatusWidget";
-import { ItemFolderAssignPopover } from "../shared/ItemFolderAssignPopover";
 import { ImagePreviewProvider } from "../shared/ImagePreviewModal";
+import { ItemFolderAssignPopover } from "../shared/ItemFolderAssignPopover";
 import { ChatHistoryDrawer } from "./ChatHistoryDrawer";
 import { ChatInputArea } from "./ChatInputArea";
 import { ChatMessageList } from "./ChatMessageList";
@@ -50,6 +51,8 @@ export interface ChatWithBookmarksPanelRef {
 export interface ChatWithBookmarksPanelProps {
 	selectedFolder?: Folder | null;
 	activeCategory?: Category;
+	/** 当前所在模块 code（由 AppShell 随路由注入），决定 AI 的模块视角与推荐提问 */
+	activeModule?: string;
 	folders?: Folder[];
 	categories?: string[];
 	settings?: WorkbenchSettings;
@@ -72,6 +75,7 @@ export const ChatWithBookmarksPanel = forwardRef<
 	{
 		selectedFolder,
 		activeCategory,
+		activeModule,
 		folders = [],
 		categories = CATEGORIES as unknown as string[],
 		settings,
@@ -140,6 +144,7 @@ export const ChatWithBookmarksPanel = forwardRef<
 			folderName?: string;
 			baseMessages?: ChatItem[];
 			contextItems?: ChatContextItem[];
+			module?: string;
 		},
 	) => {
 		const folderScope =
@@ -149,9 +154,13 @@ export const ChatWithBookmarksPanel = forwardRef<
 
 		sendPrompt(prompt, {
 			...folderScope,
+			module: activeModule,
 			...options,
 		});
 	};
+
+	// 当前模块的 AI 贡献包：切换导航时更新推荐提问与（服务端）模块视角
+	const moduleContribution = getAiContribution(activeModule);
 
 	// Expose methods for parent components
 	useImperativeHandle(ref, () => ({
@@ -203,222 +212,224 @@ export const ChatWithBookmarksPanel = forwardRef<
 	return (
 		<ImagePreviewProvider>
 			<aside
+				data-ai-panel
 				className={`w-[380px] xl:w-[440px] 2xl:w-[480px] shrink-0 bg-surface/95 backdrop-blur-md border-l border-border flex flex-col h-full shadow-xs relative ${className}`}
 			>
-			{/* Top Header: Title & Embedding Status Widget */}
-			<div className="p-3 border-b border-border/80 bg-surface-secondary/30 shrink-0 flex flex-col gap-2">
-				<div className="flex items-center justify-between">
-					<div className="flex items-center gap-2">
-						<div className="w-6 h-6 rounded-lg bg-accent text-accent-foreground flex items-center justify-center text-xs shadow-xs font-bold">
-							<Sparkles className="w-3.5 h-3.5" />
+				{/* Top Header: Title & Embedding Status Widget */}
+				<div className="p-3 border-b border-border/80 bg-surface-secondary/30 shrink-0 flex flex-col gap-2">
+					<div className="flex items-center justify-between">
+						<div className="flex items-center gap-2">
+							<div className="w-6 h-6 rounded-lg bg-accent text-accent-foreground flex items-center justify-center text-xs shadow-xs font-bold">
+								<Sparkles className="w-3.5 h-3.5" />
+							</div>
+							<h3 className="font-bold text-xs text-foreground tracking-tight">
+								AI 知识中心与检索
+							</h3>
 						</div>
-						<h3 className="font-bold text-xs text-foreground tracking-tight">
-							AI 知识中心与检索
-						</h3>
+
+						{/* Scope Switcher: defaults to Global */}
+						{selectedFolder ? (
+							<div className="inline-flex items-center p-0.5 rounded-lg bg-surface-secondary border border-border/80 text-[10px] shadow-2xs">
+								<button
+									type="button"
+									onClick={() => setScopeMode("global")}
+									className={`px-2 py-0.5 rounded-md transition-all font-medium flex items-center gap-1 cursor-pointer ${
+										scopeMode === "global"
+											? "bg-surface text-accent shadow-xs font-semibold border border-border/60"
+											: "text-muted hover:text-foreground"
+									}`}
+									title="全库所有书签与资产"
+								>
+									<Globe className="w-2.5 h-2.5 shrink-0" />
+									<span>全局</span>
+								</button>
+								<button
+									type="button"
+									onClick={() => setScopeMode("folder")}
+									className={`px-2 py-0.5 rounded-md transition-all font-medium flex items-center gap-1 cursor-pointer max-w-[120px] truncate ${
+										scopeMode === "folder"
+											? "bg-surface text-accent shadow-xs font-semibold border border-border/60"
+											: "text-muted hover:text-foreground"
+									}`}
+									title={`限定在此文件夹: ${selectedFolder.name}`}
+								>
+									<FolderIcon className="w-2.5 h-2.5 shrink-0" />
+									<span className="truncate">{selectedFolder.name}</span>
+								</button>
+							</div>
+						) : (
+							<span className="inline-flex items-center gap-1 text-[10px] text-muted bg-surface-secondary/60 px-2 py-0.5 rounded-md border border-border/50">
+								<Globe className="w-2.5 h-2.5 text-muted" />
+								全局资产
+							</span>
+						)}
 					</div>
 
-					{/* Scope Switcher: defaults to Global */}
-					{selectedFolder ? (
-						<div className="inline-flex items-center p-0.5 rounded-lg bg-surface-secondary border border-border/80 text-[10px] shadow-2xs">
-							<button
-								type="button"
-								onClick={() => setScopeMode("global")}
-								className={`px-2 py-0.5 rounded-md transition-all font-medium flex items-center gap-1 cursor-pointer ${
-									scopeMode === "global"
-										? "bg-surface text-accent shadow-xs font-semibold border border-border/60"
-										: "text-muted hover:text-foreground"
-								}`}
-								title="全库所有书签与资产"
-							>
-								<Globe className="w-2.5 h-2.5 shrink-0" />
-								<span>全局</span>
-							</button>
-							<button
-								type="button"
-								onClick={() => setScopeMode("folder")}
-								className={`px-2 py-0.5 rounded-md transition-all font-medium flex items-center gap-1 cursor-pointer max-w-[120px] truncate ${
-									scopeMode === "folder"
-										? "bg-surface text-accent shadow-xs font-semibold border border-border/60"
-										: "text-muted hover:text-foreground"
-								}`}
-								title={`限定在此文件夹: ${selectedFolder.name}`}
-							>
-								<FolderIcon className="w-2.5 h-2.5 shrink-0" />
-								<span className="truncate">{selectedFolder.name}</span>
-							</button>
-						</div>
-					) : (
-						<span className="inline-flex items-center gap-1 text-[10px] text-muted bg-surface-secondary/60 px-2 py-0.5 rounded-md border border-border/50">
-							<Globe className="w-2.5 h-2.5 text-muted" />
-							全局资产
-						</span>
-					)}
+					{/* Shared Vector Embedding Status Widget */}
+					<EmbeddingStatusWidget
+						stats={stats}
+						isIndexing={isIndexing}
+						onBuildIndex={buildIndex}
+						compact={true}
+					/>
+
+					{/* Segmented Tab Switcher */}
+					<div className="flex items-center p-0.5 bg-surface-secondary/80 rounded-xl border border-border/60 mt-0.5">
+						<button
+							type="button"
+							onClick={() => setActiveTab("search")}
+							className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+								activeTab === "search"
+									? "bg-surface text-accent shadow-xs border border-border/80 font-semibold"
+									: "text-muted hover:text-foreground"
+							}`}
+						>
+							<Search className="w-3.5 h-3.5" />
+							<span>极速检索</span>
+						</button>
+						<button
+							type="button"
+							onClick={() => setActiveTab("chat")}
+							className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+								activeTab === "chat"
+									? "bg-surface text-accent shadow-xs border border-border/80 font-semibold"
+									: "text-muted hover:text-foreground"
+							}`}
+						>
+							<Bot className="w-3.5 h-3.5" />
+							<span>AI 问答</span>
+						</button>
+					</div>
 				</div>
 
-				{/* Shared Vector Embedding Status Widget */}
-				<EmbeddingStatusWidget
-					stats={stats}
-					isIndexing={isIndexing}
-					onBuildIndex={buildIndex}
-					compact={true}
-				/>
-
-				{/* Segmented Tab Switcher */}
-				<div className="flex items-center p-0.5 bg-surface-secondary/80 rounded-xl border border-border/60 mt-0.5">
-					<button
-						type="button"
-						onClick={() => setActiveTab("search")}
-						className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-							activeTab === "search"
-								? "bg-surface text-accent shadow-xs border border-border/80 font-semibold"
-								: "text-muted hover:text-foreground"
-						}`}
-					>
-						<Search className="w-3.5 h-3.5" />
-						<span>极速检索</span>
-					</button>
-					<button
-						type="button"
-						onClick={() => setActiveTab("chat")}
-						className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-							activeTab === "chat"
-								? "bg-surface text-accent shadow-xs border border-border/80 font-semibold"
-								: "text-muted hover:text-foreground"
-						}`}
-					>
-						<Bot className="w-3.5 h-3.5" />
-						<span>AI 问答</span>
-					</button>
-				</div>
-			</div>
-
-			{/* Tab Body: keep both tabs mounted and toggle visibility so that
+				{/* Tab Body: keep both tabs mounted and toggle visibility so that
 				switching tabs never resets search state or chat scroll position */}
-			<div
-				className={
-					activeTab === "search" ? "flex-1 min-h-0 flex flex-col" : "hidden"
-				}
-			>
-				<SearchTabContent
-					folders={folders}
-					categories={categories}
-					selectedFolder={selectedFolder}
-					activeCategory={activeCategory}
-					scopeMode={scopeMode}
-					onNavigateToFolder={onNavigateToFolder}
-					onTransferToAiChat={(query) => {
-						setActiveTab("chat");
-						handleSendPrompt(
-							`请根据我的书签库，深入分析与「${query}」相关的核心工具与最佳使用方案。`,
-						);
-					}}
-					onDataChanged={onDataChanged}
-				/>
-			</div>
-			<div
-				className={
-					activeTab === "chat" ? "flex-1 min-h-0 flex flex-col" : "hidden"
-				}
-			>
-				{/* Message History & Cards */}
-				<ChatMessageList
-					messages={messages}
-					isLoading={isLoading}
-					currentSessionId={currentSessionId}
-					selectedFolder={selectedFolder}
-					scopeMode={scopeMode}
-					selectedRefKeys={folderAssign.selectedItemKeys}
-					messagesEndRef={messagesEndRef}
-					onEditAndResend={editAndResendMessage}
-					onEditOnly={editMessage}
-					onResend={resendMessage}
-					onDelete={deleteMessage}
-					onDeleteMessages={deleteMessages}
-					onToggleRefCheck={folderAssign.toggleSelectItem}
-					onToggleSelectGroup={folderAssign.toggleSelectGroup}
-					onOpenAssignSingle={folderAssign.openAssignSingle}
-					onOpenAssignMultiple={folderAssign.openAssignMultiple}
-					onSelectPrompt={(p) => handleSendPrompt(p)}
-					folders={folders}
-					onNavigateToFolder={onNavigateToFolder}
-				/>
+				<div
+					className={
+						activeTab === "search" ? "flex-1 min-h-0 flex flex-col" : "hidden"
+					}
+				>
+					<SearchTabContent
+						folders={folders}
+						categories={categories}
+						selectedFolder={selectedFolder}
+						activeCategory={activeCategory}
+						scopeMode={scopeMode}
+						onNavigateToFolder={onNavigateToFolder}
+						onTransferToAiChat={(query) => {
+							setActiveTab("chat");
+							handleSendPrompt(
+								`请根据我的书签库，深入分析与「${query}」相关的核心工具与最佳使用方案。`,
+							);
+						}}
+						onDataChanged={onDataChanged}
+					/>
+				</div>
+				<div
+					className={
+						activeTab === "chat" ? "flex-1 min-h-0 flex flex-col" : "hidden"
+					}
+				>
+					{/* Message History & Cards */}
+					<ChatMessageList
+						messages={messages}
+						isLoading={isLoading}
+						currentSessionId={currentSessionId}
+						selectedFolder={selectedFolder}
+						scopeMode={scopeMode}
+						selectedRefKeys={folderAssign.selectedItemKeys}
+						messagesEndRef={messagesEndRef}
+						onEditAndResend={editAndResendMessage}
+						onEditOnly={editMessage}
+						onResend={resendMessage}
+						onDelete={deleteMessage}
+						onDeleteMessages={deleteMessages}
+						onToggleRefCheck={folderAssign.toggleSelectItem}
+						onToggleSelectGroup={folderAssign.toggleSelectGroup}
+						onOpenAssignSingle={folderAssign.openAssignSingle}
+						onOpenAssignMultiple={folderAssign.openAssignMultiple}
+						modulePrompts={moduleContribution.promptSuggestions}
+						onSelectPrompt={(p) => handleSendPrompt(p)}
+						folders={folders}
+						onNavigateToFolder={onNavigateToFolder}
+					/>
 
-				{/* Shared In-Place Folder Assignment Drawer */}
-				<ItemFolderAssignPopover
-					assigningItems={folderAssign.assigningItems}
-					folders={folders}
-					categories={categories}
-					isCreateMode={folderAssign.isCreateMode}
-					newFolderName={folderAssign.newFolderName}
-					newFolderCategory={folderAssign.newFolderCategory}
-					folderFilterQuery={folderAssign.folderFilterQuery}
-					isProcessingMove={folderAssign.isProcessingMove}
-					onToggleCreateMode={() =>
-						folderAssign.setIsCreateMode(!folderAssign.isCreateMode)
-					}
-					onChangeNewFolderName={folderAssign.setNewFolderName}
-					onChangeNewFolderCategory={folderAssign.setNewFolderCategory}
-					onChangeFilterQuery={folderAssign.setFolderFilterQuery}
-					onClose={folderAssign.closeAssign}
-					onMoveToExistingFolder={(targetFolder: Folder) =>
-						folderAssign.moveToExistingFolder(
-							targetFolder,
-							(moved: SearchResultItem[]) => {
-								updateMessageReferences(moved, targetFolder);
-							},
-						)
-					}
-					onCreateFolderAndMove={() =>
-						folderAssign.createFolderAndMove(
-							(newFolder: Folder, moved: SearchResultItem[]) => {
-								updateMessageReferences(moved, newFolder);
-							},
-						)
-					}
-					variant="drawer"
-				/>
+					{/* Shared In-Place Folder Assignment Drawer */}
+					<ItemFolderAssignPopover
+						assigningItems={folderAssign.assigningItems}
+						folders={folders}
+						categories={categories}
+						isCreateMode={folderAssign.isCreateMode}
+						newFolderName={folderAssign.newFolderName}
+						newFolderCategory={folderAssign.newFolderCategory}
+						folderFilterQuery={folderAssign.folderFilterQuery}
+						isProcessingMove={folderAssign.isProcessingMove}
+						onToggleCreateMode={() =>
+							folderAssign.setIsCreateMode(!folderAssign.isCreateMode)
+						}
+						onChangeNewFolderName={folderAssign.setNewFolderName}
+						onChangeNewFolderCategory={folderAssign.setNewFolderCategory}
+						onChangeFilterQuery={folderAssign.setFolderFilterQuery}
+						onClose={folderAssign.closeAssign}
+						onMoveToExistingFolder={(targetFolder: Folder) =>
+							folderAssign.moveToExistingFolder(
+								targetFolder,
+								(moved: SearchResultItem[]) => {
+									updateMessageReferences(moved, targetFolder);
+								},
+							)
+						}
+						onCreateFolderAndMove={() =>
+							folderAssign.createFolderAndMove(
+								(newFolder: Folder, moved: SearchResultItem[]) => {
+									updateMessageReferences(moved, newFolder);
+								},
+							)
+						}
+						variant="drawer"
+					/>
 
-				{/* History Sessions Slide-over Drawer */}
-				<ChatHistoryDrawer
-					isOpen={isHistoryOpen}
-					sessions={sessions}
-					currentSessionId={currentSessionId}
-					onClose={() => setIsHistoryOpen(false)}
-					onSelectSession={loadSession}
-					onNewChat={createNewChat}
-					onDeleteSession={deleteSession}
-					onClearAllSessions={clearAllSessions}
-					onExportAll={exportAllSessionsToJson}
-					onExportSession={exportSessionToJson}
-				/>
+					{/* History Sessions Slide-over Drawer */}
+					<ChatHistoryDrawer
+						isOpen={isHistoryOpen}
+						sessions={sessions}
+						currentSessionId={currentSessionId}
+						onClose={() => setIsHistoryOpen(false)}
+						onSelectSession={loadSession}
+						onNewChat={createNewChat}
+						onDeleteSession={deleteSession}
+						onClearAllSessions={clearAllSessions}
+						onExportAll={exportAllSessionsToJson}
+						onExportSession={exportSessionToJson}
+					/>
 
-				{/* Bottom Input Area with Top Action Bar */}
-				<ChatInputArea
-					input={input}
-					isLoading={isLoading}
-					hasMessages={messages.length > 0}
-					inputRef={inputRef}
-					onChangeInput={setInput}
-					onSend={() => handleSendPrompt()}
-					onStop={stopChat}
-					onOpenHistory={() => setIsHistoryOpen(true)}
-					onNewChat={createNewChat}
-					onClearHistory={clearHistory}
-					model={settings?.model}
-					scopeMode={scopeMode}
-					selectedFolder={selectedFolder}
-					onToggleScope={() =>
-						setScopeMode((prev) => (prev === "global" ? "folder" : "global"))
-					}
-					contextItems={contextItems}
-					folders={folders}
-					onRemoveContextItem={removeContextItem}
-					onClearContextItems={clearContextItems}
-					onAttachContextItem={addContextItem}
-					onNavigateToFolder={onNavigateToFolder}
-				/>
-			</div>
-		</aside>
-	</ImagePreviewProvider>
-);
+					{/* Bottom Input Area with Top Action Bar */}
+					<ChatInputArea
+						input={input}
+						isLoading={isLoading}
+						hasMessages={messages.length > 0}
+						inputRef={inputRef}
+						onChangeInput={setInput}
+						onSend={() => handleSendPrompt()}
+						onStop={stopChat}
+						onOpenHistory={() => setIsHistoryOpen(true)}
+						onNewChat={createNewChat}
+						onClearHistory={clearHistory}
+						model={settings?.model}
+						scopeMode={scopeMode}
+						selectedFolder={selectedFolder}
+						onToggleScope={() =>
+							setScopeMode((prev) => (prev === "global" ? "folder" : "global"))
+						}
+						contextItems={contextItems}
+						folders={folders}
+						onRemoveContextItem={removeContextItem}
+						onClearContextItems={clearContextItems}
+						onAttachContextItem={addContextItem}
+						onNavigateToFolder={onNavigateToFolder}
+					/>
+				</div>
+			</aside>
+		</ImagePreviewProvider>
+	);
 });

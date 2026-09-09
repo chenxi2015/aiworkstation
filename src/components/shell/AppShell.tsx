@@ -1,4 +1,4 @@
-import { useRouter } from "@tanstack/react-router";
+import { useRouter, useRouterState } from "@tanstack/react-router";
 import {
 	createContext,
 	type ReactNode,
@@ -8,6 +8,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { getModuleByRoute } from "../../modules/registry";
 import type { ChatContextItem } from "../../types/chatContext";
 import {
 	ChatWithBookmarksPanel,
@@ -17,6 +18,7 @@ import {
 	WorkbenchDndProvider,
 	type WorkbenchDragData,
 } from "../workbench/dnd/WorkbenchDnd";
+import { AiPanelSkeleton } from "../workbench/skeletons/AiPanelSkeleton";
 import type {
 	Category,
 	Folder,
@@ -118,6 +120,10 @@ export function AppShell({
 	const router = useRouter();
 	const panelRef = useRef<ChatWithBookmarksPanelRef>(null);
 
+	// 当前导航模块：随路由推导，注入侧边 AI 面板（模块视角提示 + 模块推荐提问）
+	const pathname = useRouterState({ select: (s) => s.location.pathname });
+	const activeModule = getModuleByRoute(pathname)?.code;
+
 	const [scope, setScope] = useState<AiPanelScope>({ selectedFolder: null });
 	const [pageData, setPageData] = useState<AiPanelPageData | null>(null);
 	const [dndHandlers, setDndHandlers] = useState<WorkbenchDndHandlers | null>(
@@ -206,14 +212,21 @@ export function AppShell({
 				}
 				onAttachToChat={(data) => dndHandlers?.onAttachToChat?.(data)}
 			>
-				<div className="h-screen flex overflow-hidden">
+				<div className="app-shell h-screen flex overflow-hidden">
+					{/* 流式 SSR 占位：面板骨架在 DOM 中先于真实面板下发（order 靠右显示），
+					真实面板到达后由 CSS :has 自动隐藏，避免刷新时右侧边栏区域空白跳动 */}
+					<AiPanelSkeleton />
 					{/* Left Region: 当前路由页面（含各自的顶栏与内容） */}
-					<div className="flex-1 flex flex-col min-w-0 min-h-0">{children}</div>
+					<div className="order-1 flex-1 flex flex-col min-w-0 min-h-0">
+						{children}
+					</div>
 					{/* Right: 常驻 AI 搜索与知识问答中枢（全局单例，占满视口高度） */}
 					<ChatWithBookmarksPanel
 						ref={panelRef}
+						className="order-2"
 						selectedFolder={scope.selectedFolder}
 						activeCategory={scope.activeCategory}
+						activeModule={activeModule}
 						folders={folders}
 						categories={categories}
 						settings={settings}

@@ -14,6 +14,7 @@ export function initSchema(db: SqliteDatabase): void {
       description TEXT DEFAULT '',
       color TEXT DEFAULT '',
       icon TEXT DEFAULT '',
+      view_prefs TEXT DEFAULT '',
       sort_order INTEGER DEFAULT 0,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
@@ -29,6 +30,7 @@ export function initSchema(db: SqliteDatabase): void {
       summary TEXT DEFAULT '',
       item_type TEXT NOT NULL DEFAULT 'link',
       tags TEXT DEFAULT '[]',
+      payload TEXT DEFAULT '',
       favicon TEXT DEFAULT '',
       parent_title TEXT DEFAULT '',
       folder_path TEXT DEFAULT '',
@@ -123,6 +125,12 @@ export function initSchema(db: SqliteDatabase): void {
 		}
 		if (!folderColNames.has("parent_id")) {
 			db.exec("ALTER TABLE folders ADD COLUMN parent_id INTEGER DEFAULT NULL");
+		}
+		if (!folderColNames.has("view_prefs")) {
+			db.exec("ALTER TABLE folders ADD COLUMN view_prefs TEXT DEFAULT ''");
+		}
+		if (!bookmarkColNames.has("payload")) {
+			db.exec("ALTER TABLE bookmarks ADD COLUMN payload TEXT DEFAULT ''");
 		}
 
 		// Graceful backfill migration: populate tags and bookmark_tags from existing bookmarks.tags if table is empty
