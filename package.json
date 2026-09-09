@@ -15,12 +15,12 @@
     "format": "biome format",
     "lint": "biome lint",
     "check": "biome check",
-    "deploy": "pnpm run build && wrangler deploy"
+    "deploy": "pnpm run build && wrangler deploy",
+    "zip:extension": "pnpm -C extensions/aicollector zip",
+    "zip:extension:firefox": "pnpm -C extensions/aicollector zip:firefox"
   },
   "dependencies": {
-    "@dnd-kit/core": "^6.3.1",
-    "@dnd-kit/modifiers": "^9.0.0",
-    "@dnd-kit/utilities": "^3.2.2",
+    "@dnd-kit/react": "^0.5.0",
     "@faker-js/faker": "^10.3.0",
     "@heroui/react": "^3.2.4",
     "@heroui/styles": "^3.2.4",

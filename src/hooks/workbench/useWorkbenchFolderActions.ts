@@ -131,7 +131,7 @@ export function useWorkbenchFolderActions({
 
 	// Move folder into another folder (or to top-level), with cycle detection
 	const handleMoveFolder = useCallback(
-		async (folderId: number, targetParentId: number | null) => {
+		(folderId: number, targetParentId: number | null) => {
 			if (targetParentId !== null) {
 				if (hasDescendantCycle(folderId, targetParentId, folders)) {
 					toast.danger("无法将文件夹移动到其自身或子文件夹中");
@@ -146,31 +146,29 @@ export function useWorkbenchFolderActions({
 					f.id === folderId ? { ...f, parentId: targetParentId } : f,
 				),
 			);
-			try {
-				const updated = await WorkbenchStorageService.moveFolderInDb(
-					folderId,
-					targetParentId,
-				);
-				setFolders(updated);
-				const moved = previous.find((f) => f.id === folderId);
-				toast.success(
-					targetParentId === null
-						? `已将「${moved?.name ?? "文件夹"}」移到顶层`
-						: `已移动文件夹「${moved?.name ?? ""}」`,
-				);
-			} catch (err) {
-				setFolders(previous);
-				toast.danger(
-					err instanceof Error ? err.message : "移动文件夹失败，请重试",
-				);
-			}
+			const moved = previous.find((f) => f.id === folderId);
+			// 异步落库：乐观更新已生效，失败时回滚
+			WorkbenchStorageService.moveFolderInDb(folderId, targetParentId)
+				.then(() => {
+					toast.success(
+						targetParentId === null
+							? `已将「${moved?.name ?? "文件夹"}」移到顶层`
+							: `已移动文件夹「${moved?.name ?? ""}」`,
+					);
+				})
+				.catch((err) => {
+					setFolders(previous);
+					toast.danger(
+						err instanceof Error ? err.message : "移动文件夹失败，请重试",
+					);
+				});
 		},
 		[folders, setFolders],
 	);
 
 	// Move folder to top level of a navigation category
 	const handleMoveFolderToCategory = useCallback(
-		async (folderId: number, targetCategory: string) => {
+		(folderId: number, targetCategory: string) => {
 			const targetFolder = folders.find((f) => f.id === folderId);
 			if (!targetFolder) return;
 			if (
@@ -196,28 +194,26 @@ export function useWorkbenchFolderActions({
 				}),
 			);
 
-			try {
-				const updated = await WorkbenchStorageService.moveFolderToCategoryInDb(
-					folderId,
-					targetCategory,
-				);
-				setFolders(updated);
-				toast.success(
-					`已将「${targetFolder.name}」移动到「${targetCategory}」分类`,
-				);
-			} catch (err) {
-				setFolders(previous);
-				toast.danger(
-					err instanceof Error ? err.message : "移动文件夹分类失败，请重试",
-				);
-			}
+			// 异步落库：乐观更新已生效，失败时回滚
+			WorkbenchStorageService.moveFolderToCategoryInDb(folderId, targetCategory)
+				.then(() => {
+					toast.success(
+						`已将「${targetFolder.name}」移动到「${targetCategory}」分类`,
+					);
+				})
+				.catch((err) => {
+					setFolders(previous);
+					toast.danger(
+						err instanceof Error ? err.message : "移动文件夹分类失败，请重试",
+					);
+				});
 		},
 		[folders, setFolders],
 	);
 
 	// Persist sibling folder order (optimistic, rolls back on failure)
 	const handleReorderFolders = useCallback(
-		async (orderedIds: number[]) => {
+		(orderedIds: number[]) => {
 			const previous = folders;
 			const queue = [...orderedIds];
 			const inScope = new Set(orderedIds);
@@ -230,14 +226,11 @@ export function useWorkbenchFolderActions({
 					return nextId !== undefined ? (byId.get(nextId) ?? f) : f;
 				}),
 			);
-			try {
-				const updated =
-					await WorkbenchStorageService.reorderFoldersInDb(orderedIds);
-				setFolders(updated);
-			} catch {
+			// 异步落库：乐观顺序已与服务端一致，无需再用响应覆盖本地状态
+			WorkbenchStorageService.reorderFoldersInDb(orderedIds).catch(() => {
 				setFolders(previous);
 				toast.danger("文件夹排序保存失败，请重试");
-			}
+			});
 		},
 		[folders, setFolders],
 	);

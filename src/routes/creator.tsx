@@ -6,17 +6,18 @@ import { workbenchLoader } from "./-workbenchLoader";
 export const Route = createFileRoute("/creator")({
 	loader: workbenchLoader,
 	pendingComponent: ModuleSkeleton,
-	pendingMs: 0,
+	pendingMs: 200,
 	component: CreatorPage,
 });
 
 function CreatorPage() {
-	const { unclassified, settings } = Route.useLoaderData();
+	const { unclassified, settings, folders } = Route.useLoaderData();
 	return (
 		<ModulePlaceholderPage
 			moduleCode="creator"
 			unclassifiedCount={unclassified.length}
 			navLayout={settings.navLayout}
+			folders={folders}
 		/>
 	);
 }

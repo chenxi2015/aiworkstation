@@ -18,7 +18,6 @@ open http://localhost:3888
 docker build -t gengxin20/aiworkstation:latest .
 docker run -d --name aiworkstation \
   -p 127.0.0.1:3888:3888 \
-  --env-file .env \
   -v "$PWD/.aiworkstation:/app/.aiworkstation" \
   -v "$HOME/Downloads:$HOME/Downloads" \
   -e "HOME=$HOME" \
@@ -30,7 +29,6 @@ docker run -d --name aiworkstation \
 docker build -t gengxin20/aiworkstation:latest .
 docker run -d --name aiworkstation `
   -p 127.0.0.1:3888:3888 `
-  --env-file .env `
   -v "${PWD}\.aiworkstation:/app/.aiworkstation" `
   -v "C:\Users\$env:USERNAME\Downloads:/home/user/Downloads" `
   -e "HOME=/home/user" `
@@ -95,8 +93,6 @@ pnpm start:node      # node .output/server/index.mjs（监听 3888）
 - **`/api/open-file` 无法唤起宿主机 GUI 程序**：容器是 Linux 环境，没有
   macOS 的 `open` 命令，点击 `localfile://` 链接不会弹出访达/预览。
   文件本身仍在宿主机挂载目录里，可手动打开。需要此能力请在宿主机直接运行。
-- **环境变量**：生产 Node 服务器不会自动加载 `.env`，必须通过 compose 的
-  `env_file`（或 `docker run --env-file`）注入 `DEEPSEEK_API_KEY` 等密钥。
 - **不要容器与宿主机 dev server 同时占用 3888**：先停掉 `pnpm dev` 再
   `docker compose up`。
 - **Windows：数据库里记录的路径与宿主机路径不同**：容器内 `HOME=/home/user`，

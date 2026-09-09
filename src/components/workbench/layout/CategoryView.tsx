@@ -1,7 +1,7 @@
 import { Button, EmptyState } from "@heroui/react";
 import { FolderPlus } from "lucide-react";
 import { memo, useEffect } from "react";
-import { FolderCardSlot, FolderGridDropZone } from "../dnd/WorkbenchDnd";
+import { FolderCardSlot } from "../dnd/WorkbenchDnd";
 import { FolderCard } from "../FolderCard";
 import { FolderListRow } from "../FolderListRow";
 import { FolderBreadcrumb } from "../folder/FolderBreadcrumb";
@@ -90,19 +90,17 @@ export const CategoryView = memo(function CategoryView({
 			return (
 				<div className="flex-1 flex flex-col">
 					{breadcrumb}
-					<FolderGridDropZone>
-						<EmptyState className="py-16 flex flex-col items-center justify-center text-center border border-dashed border-border rounded-3xl bg-surface p-8">
-							<div className="w-14 h-14 rounded-2xl bg-surface-secondary flex items-center justify-center text-muted mb-3.5 opacity-50">
-								<FolderIcon className="w-7 h-7" />
-							</div>
-							<p className="text-xs text-muted mb-2 font-medium text-foreground">
-								该文件夹暂无子文件夹
-							</p>
-							<p className="text-xs text-muted max-w-sm">
-								将其他文件夹卡片拖到目标文件夹上即可建立嵌套分组。
-							</p>
-						</EmptyState>
-					</FolderGridDropZone>
+					<EmptyState className="py-16 flex flex-col items-center justify-center text-center border border-dashed border-border rounded-3xl bg-surface p-8">
+						<div className="w-14 h-14 rounded-2xl bg-surface-secondary flex items-center justify-center text-muted mb-3.5 opacity-50">
+							<FolderIcon className="w-7 h-7" />
+						</div>
+						<p className="text-xs text-muted mb-2 font-medium text-foreground">
+							该文件夹暂无子文件夹
+						</p>
+						<p className="text-xs text-muted max-w-sm">
+							将其他文件夹卡片拖到目标文件夹上即可建立嵌套分组。
+						</p>
+					</EmptyState>
 				</div>
 			);
 		}
@@ -137,87 +135,69 @@ export const CategoryView = memo(function CategoryView({
 	return (
 		<div className="flex-1 flex flex-col">
 			{breadcrumb}
-			<FolderGridDropZone>
-				{viewMode === "list" ? (
-					<div className="flex flex-col gap-1.5">
-						{folders.map((folder) => (
-							<div
-								key={folder.id}
-								data-folder-id={folder.id}
-								className="min-w-0 w-full"
-							>
-								<FolderCardSlot folder={folder}>
-									<FolderListRow
-										folder={folder}
-										isSelected={folder.id === selectedFolderId}
-										childFolderCount={childFolderCounts[folder.id] ?? 0}
-										onClick={() => onSelectFolder(folder.id)}
-										onEnter={
-											onEnterFolder ? () => onEnterFolder(folder.id) : undefined
-										}
-										onEdit={
-											onEditFolder ? () => onEditFolder(folder) : undefined
-										}
-										onCreateFolder={onCreateFolder}
-										onCreateLink={
-											onCreateLink ? () => onCreateLink(folder) : undefined
-										}
-										onDelete={
-											onDeleteFolder ? () => onDeleteFolder(folder) : undefined
-										}
-										onAskAI={
-											onAskAIAboutFolder
-												? () => onAskAIAboutFolder(folder)
-												: undefined
-										}
-										allFolders={allFolders || folders}
-										onMoveFolder={onMoveFolder}
-									/>
-								</FolderCardSlot>
-							</div>
-						))}
-					</div>
-				) : (
-					<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5">
-						{folders.map((folder) => (
-							<div
-								key={folder.id}
-								data-folder-id={folder.id}
-								className="min-w-0 w-full"
-							>
-								<FolderCardSlot folder={folder}>
-									<FolderCard
-										folder={folder}
-										isSelected={folder.id === selectedFolderId}
-										childFolderCount={childFolderCounts[folder.id] ?? 0}
-										onClick={() => onSelectFolder(folder.id)}
-										onEnter={
-											onEnterFolder ? () => onEnterFolder(folder.id) : undefined
-										}
-										onEdit={
-											onEditFolder ? () => onEditFolder(folder) : undefined
-										}
-										onCreateFolder={onCreateFolder}
-										onCreateLink={
-											onCreateLink ? () => onCreateLink(folder) : undefined
-										}
-										onDelete={
-											onDeleteFolder ? () => onDeleteFolder(folder) : undefined
-										}
-										onAskAI={
-											onAskAIAboutFolder
-												? () => onAskAIAboutFolder(folder)
-												: undefined
-										}
-										allFolders={allFolders || folders}
-										onMoveFolder={onMoveFolder}
-									/>
-								</FolderCardSlot>
-							</div>
-						))}
-					</div>
-				)}
-			</FolderGridDropZone>
+			{viewMode === "list" ? (
+				<div className="flex flex-col gap-1.5">
+					{folders.map((folder, index) => (
+						<FolderCardSlot key={folder.id} folder={folder} index={index}>
+							<FolderListRow
+								folder={folder}
+								isSelected={folder.id === selectedFolderId}
+								childFolderCount={childFolderCounts[folder.id] ?? 0}
+								onClick={() => onSelectFolder(folder.id)}
+								onEnter={
+									onEnterFolder ? () => onEnterFolder(folder.id) : undefined
+								}
+								onEdit={onEditFolder ? () => onEditFolder(folder) : undefined}
+								onCreateFolder={onCreateFolder}
+								onCreateLink={
+									onCreateLink ? () => onCreateLink(folder) : undefined
+								}
+								onDelete={
+									onDeleteFolder ? () => onDeleteFolder(folder) : undefined
+								}
+								onAskAI={
+									onAskAIAboutFolder
+										? () => onAskAIAboutFolder(folder)
+										: undefined
+								}
+								allFolders={allFolders || folders}
+								onMoveFolder={onMoveFolder}
+							/>
+						</FolderCardSlot>
+					))}
+				</div>
+			) : (
+				<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5">
+					{folders.map((folder, index) => (
+						<FolderCardSlot key={folder.id} folder={folder} index={index}>
+							<FolderCard
+								folder={folder}
+								isSelected={folder.id === selectedFolderId}
+								childFolderCount={childFolderCounts[folder.id] ?? 0}
+								onClick={() => onSelectFolder(folder.id)}
+								onEnter={
+									onEnterFolder ? () => onEnterFolder(folder.id) : undefined
+								}
+								onEdit={onEditFolder ? () => onEditFolder(folder) : undefined}
+								onCreateFolder={onCreateFolder}
+								onCreateLink={
+									onCreateLink ? () => onCreateLink(folder) : undefined
+								}
+								onDelete={
+									onDeleteFolder ? () => onDeleteFolder(folder) : undefined
+								}
+								onAskAI={
+									onAskAIAboutFolder
+										? () => onAskAIAboutFolder(folder)
+										: undefined
+								}
+								allFolders={allFolders || folders}
+								onMoveFolder={onMoveFolder}
+							/>
+						</FolderCardSlot>
+					))}
+				</div>
+			)}
 		</div>
 	);
 });

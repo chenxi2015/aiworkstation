@@ -10,7 +10,7 @@ import {
  * Hook for managing app color theme mode (light, dark, auto)
  */
 export function useTheme() {
-  const [themeMode, setThemeMode] = useState<ThemeMode>('dark');
+  const [themeMode, setThemeMode] = useState<ThemeMode>('auto');
 
   useEffect(() => {
     getSavedThemeMode().then((mode) => {

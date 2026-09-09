@@ -1,4 +1,4 @@
-import { useDroppable } from "@dnd-kit/core";
+import { useDroppable } from "@dnd-kit/react";
 import { Button, Tooltip } from "@heroui/react";
 import {
 	ArrowUp,
@@ -90,7 +90,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 	const displayModel = model || currentSettings?.model || "AI";
 
 	// Dnd-kit droppable area for items and folders
-	const { isOver, setNodeRef } = useDroppable({
+	const { isDropTarget, ref } = useDroppable({
 		id: CHAT_INPUT_DROP_ID,
 	});
 
@@ -185,7 +185,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 		[onAttachContextItem],
 	);
 
-	const isDropTargetActive = isOver || isNativeDragOver;
+	const isDropTargetActive = isDropTarget || isNativeDragOver;
 
 	// Compute active mention candidates to allow keyboard Enter selection
 	const activeCandidates = useMemo(() => {
@@ -288,7 +288,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 
 			{/* Main Input Card: Droppable Zone with Context Bar, Textarea, and Action Bar */}
 			<section
-				ref={setNodeRef}
+				ref={ref}
 				aria-label="AI 对话输入与上下文拖放区域"
 				onDragOver={(e) => {
 					e.preventDefault();

@@ -23,6 +23,8 @@ interface FolderActionsMenuProps {
 	onMoveFolder?: (folderId: number, targetParentId: number | null) => void;
 	/** Optional override for the ellipsis trigger styling */
 	triggerClassName?: string;
+	/** Optional extra classes for the outer wrapper (e.g. ml-auto to pin to the end of a flex row) */
+	wrapperClassName?: string;
 }
 
 /**
@@ -40,6 +42,7 @@ export const FolderActionsMenu = memo(function FolderActionsMenu({
 	allFolders,
 	onMoveFolder,
 	triggerClassName,
+	wrapperClassName,
 }: FolderActionsMenuProps) {
 	const hasActions =
 		onEdit ||
@@ -53,7 +56,7 @@ export const FolderActionsMenu = memo(function FolderActionsMenu({
 	return (
 		// biome-ignore lint/a11y/noStaticElementInteractions: wrapper only stops card-level click/keyboard selection
 		<span
-			className="shrink-0"
+			className={wrapperClassName ? `shrink-0 ${wrapperClassName}` : "shrink-0"}
 			onClick={(e) => e.stopPropagation()}
 			onKeyDown={(e) => e.stopPropagation()}
 			onDoubleClick={(e) => e.stopPropagation()}

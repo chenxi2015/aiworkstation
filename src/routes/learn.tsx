@@ -6,17 +6,18 @@ import { workbenchLoader } from "./-workbenchLoader";
 export const Route = createFileRoute("/learn")({
 	loader: workbenchLoader,
 	pendingComponent: ModuleSkeleton,
-	pendingMs: 0,
+	pendingMs: 200,
 	component: LearnPage,
 });
 
 function LearnPage() {
-	const { unclassified, settings } = Route.useLoaderData();
+	const { unclassified, settings, folders } = Route.useLoaderData();
 	return (
 		<ModulePlaceholderPage
 			moduleCode="learn"
 			unclassifiedCount={unclassified.length}
 			navLayout={settings.navLayout}
+			folders={folders}
 		/>
 	);
 }

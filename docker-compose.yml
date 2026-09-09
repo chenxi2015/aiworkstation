@@ -7,10 +7,6 @@ services:
       # 只绑定宿主机回环地址（PROJECT.md 决策#6）：
       # 浏览器插件访问 localhost:3888 即被转发进容器，本机以外不可达
       - "127.0.0.1:3888:3888"
-    env_file:
-      # 生产 Node 服务器不会自动读取 .env，必须在这里注入
-      # （DEEPSEEK_API_KEY / ANTHROPIC_API_KEY 等）
-      - .env
     environment:
       # Mac/Linux: 留空即自动用宿主机 $HOME（路径在容器内外保持一致）
       # Windows:   在 .env 里设 CONTAINER_HOME=/home/user

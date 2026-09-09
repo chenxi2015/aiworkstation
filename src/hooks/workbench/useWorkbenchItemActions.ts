@@ -53,24 +53,50 @@ export function useWorkbenchItemActions({
 
 	// Move item between folders (or from unclassified pool)
 	const handleMoveItem = useCallback(
-		async (
+		(
 			item: WorkbenchItem,
 			sourceFolderId: number | null,
 			targetFolderId: number,
 		) => {
-			const { folders: updatedFolders, unclassified: updatedUnclassified } =
-				await WorkbenchStorageService.moveItemInDb(
-					item.id || "",
-					sourceFolderId,
-					targetFolderId,
-				);
-			setFolders(updatedFolders);
-			setUnclassified(updatedUnclassified);
-			toast.success(
-				sourceFolderId === null
-					? `已将「${item.name}」放入目标文件夹`
-					: `已将「${item.name}」移动到目标文件夹`,
-			);
+			// 乐观更新：先从源位置移除，再追加到目标文件夹
+			let previousFolders: Folder[] | null = null;
+			let previousUnclassified: WorkbenchItem[] | null = null;
+			if (sourceFolderId === null) {
+				setUnclassified((prev) => {
+					previousUnclassified = prev;
+					return prev.filter((i) => i.id !== item.id);
+				});
+			}
+			setFolders((prev) => {
+				previousFolders = prev;
+				return prev.map((f) => {
+					if (sourceFolderId !== null && f.id === sourceFolderId) {
+						return { ...f, items: f.items.filter((i) => i.id !== item.id) };
+					}
+					if (f.id === targetFolderId) {
+						return { ...f, items: [...f.items, item] };
+					}
+					return f;
+				});
+			});
+			// 异步落库：失败时回滚
+			WorkbenchStorageService.moveItemInDb(
+				item.id || "",
+				sourceFolderId,
+				targetFolderId,
+			)
+				.then(() => {
+					toast.success(
+						sourceFolderId === null
+							? `已将「${item.name}」放入目标文件夹`
+							: `已将「${item.name}」移动到目标文件夹`,
+					);
+				})
+				.catch(() => {
+					if (previousFolders) setFolders(previousFolders);
+					if (previousUnclassified) setUnclassified(previousUnclassified);
+					toast.danger("移动书签失败，请重试");
+				});
 		},
 		[setFolders, setUnclassified],
 	);

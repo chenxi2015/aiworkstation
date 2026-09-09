@@ -342,6 +342,45 @@ export default defineBackground(() => {
       .catch((err: unknown) => console.warn('Failed to set panel behavior:', err));
   }
 
+  // 1.5 Inject content scripts into tabs that were already open when the
+  // extension was installed / reloaded. Chrome only auto-injects manifest
+  // content scripts on NEW navigations, so without this the web app's
+  // PING/dataset detection cannot see the extension until a manual refresh.
+  const injectContentScriptsIntoOpenTabs = async () => {
+    if (!chrome.scripting?.executeScript) return;
+    const files = (chrome.runtime.getManifest().content_scripts ?? []).flatMap(
+      (cs) => cs.js ?? [],
+    );
+    if (files.length === 0) return;
+    const tabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] });
+    await Promise.all(
+      tabs.map(async (tab) => {
+        if (tab.id == null) return;
+        try {
+          await chrome.scripting.executeScript({
+            target: { tabId: tab.id, allFrames: true },
+            files,
+          });
+        } catch {
+          // Ignore tabs that cannot be injected (chrome://, Web Store, etc.)
+        }
+      }),
+    );
+  };
+
+  chrome.runtime.onInstalled.addListener(() => {
+    injectContentScriptsIntoOpenTabs().catch((err: unknown) =>
+      console.warn('Failed to inject content scripts into open tabs:', err),
+    );
+  });
+
+  // Also run once per service worker startup: covers extension reloads from
+  // chrome://extensions (which do not fire onInstalled). The content script
+  // has a double-injection guard, so repeated runs are safe.
+  injectContentScriptsIntoOpenTabs().catch((err: unknown) =>
+    console.warn('Failed to inject content scripts into open tabs:', err),
+  );
+
   // 2. Monitor bookmark creation
   chrome.bookmarks.onCreated.addListener(async (id: string, bookmark: chrome.bookmarks.BookmarkTreeNode) => {
     if (!bookmark.url) return; // Skip folder creation

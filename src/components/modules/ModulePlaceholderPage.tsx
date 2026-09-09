@@ -1,10 +1,13 @@
 import { getModuleByCode, type NavLayoutEntry } from "../../modules/registry";
+import { useWorkbenchQuickActions } from "../workbench/layout/useWorkbenchQuickActions";
 import { WorkbenchHeader } from "../workbench/layout/WorkbenchHeader";
+import type { Folder } from "../workbench/types";
 
 export interface ModulePlaceholderPageProps {
 	moduleCode: string;
 	unclassifiedCount: number;
 	navLayout?: NavLayoutEntry[];
+	folders: Folder[];
 }
 
 /** 各模块的规划功能要点（占位页展示） */
@@ -36,8 +39,10 @@ export function ModulePlaceholderPage({
 	moduleCode,
 	unclassifiedCount,
 	navLayout,
+	folders,
 }: ModulePlaceholderPageProps) {
 	const module = getModuleByCode(moduleCode);
+	const { actionProps, modals } = useWorkbenchQuickActions({ folders });
 	if (!module) return null;
 	const Icon = module.icon;
 	const plans = MODULE_PLANS[moduleCode] ?? [];
@@ -47,6 +52,7 @@ export function ModulePlaceholderPage({
 			<WorkbenchHeader
 				unclassifiedCount={unclassifiedCount}
 				navLayout={navLayout}
+				{...actionProps}
 			/>
 			<main className="flex-1 flex items-center justify-center p-8 overflow-y-auto">
 				<div className="max-w-md w-full rounded-2xl border border-border bg-surface-secondary/40 p-8 text-center shadow-xs">
@@ -77,6 +83,7 @@ export function ModulePlaceholderPage({
 					</p>
 				</div>
 			</main>
+			{modals}
 		</div>
 	);
 }

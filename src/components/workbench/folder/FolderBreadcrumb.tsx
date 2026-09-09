@@ -1,4 +1,4 @@
-import { useDroppable } from "@dnd-kit/core";
+import { useDroppable } from "@dnd-kit/react";
 import { ChevronRight, LayoutGrid } from "lucide-react";
 import { memo } from "react";
 import { crumbDropId, ROOT_CRUMB_DROP_ID } from "../dnd/dndUtils";
@@ -19,11 +19,11 @@ interface CrumbProps {
 }
 
 function Crumb({ dropId, label, isCurrent, isRoot, onNavigate }: CrumbProps) {
-	const { setNodeRef, isOver } = useDroppable({ id: dropId });
+	const { ref, isDropTarget } = useDroppable({ id: dropId });
 
 	return (
 		<button
-			ref={setNodeRef}
+			ref={ref}
 			type="button"
 			onClick={onNavigate}
 			disabled={isCurrent}
@@ -31,7 +31,7 @@ function Crumb({ dropId, label, isCurrent, isRoot, onNavigate }: CrumbProps) {
 				isCurrent
 					? "font-semibold text-foreground cursor-default"
 					: "text-muted hover:text-foreground hover:bg-surface-secondary cursor-pointer"
-			} ${isOver ? "bg-accent-soft text-accent ring-1 ring-accent/50" : ""}`}
+			} ${isDropTarget ? "bg-accent-soft text-accent ring-1 ring-accent/50" : ""}`}
 			title={label}
 		>
 			{isRoot && <LayoutGrid className="w-3 h-3 shrink-0" />}

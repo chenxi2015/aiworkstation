@@ -1,4 +1,4 @@
-import { useDroppable } from "@dnd-kit/core";
+import { useDroppable } from "@dnd-kit/react";
 import { Button, EmptyState } from "@heroui/react";
 import {
 	ChevronRight,
@@ -39,17 +39,17 @@ interface SubfolderRowProps {
 
 /** Subfolder row inside the detail panel: click to drill in, also a drop target */
 function SubfolderRow({ folder, onSelect }: SubfolderRowProps) {
-	const { setNodeRef, isOver } = useDroppable({
+	const { ref, isDropTarget } = useDroppable({
 		id: folderRowDropId(folder.id),
 	});
 
 	return (
 		<button
-			ref={setNodeRef}
+			ref={ref}
 			type="button"
 			onClick={() => onSelect(folder.id)}
 			className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl border text-left transition-all cursor-pointer group/row ${
-				isOver
+				isDropTarget
 					? "bg-accent-soft border-accent/50 ring-1 ring-accent/40"
 					: "border-transparent hover:bg-surface-secondary/70 hover:border-border/60"
 			}`}

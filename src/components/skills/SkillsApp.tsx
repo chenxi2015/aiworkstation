@@ -2,7 +2,9 @@ import { Blocks, FolderOpen, RefreshCw, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { NavLayoutEntry } from "../../modules/registry";
 import { fetchSkillsOverview } from "../../services/api/skillsClient";
+import { useWorkbenchQuickActions } from "../workbench/layout/useWorkbenchQuickActions";
 import { WorkbenchHeader } from "../workbench/layout/WorkbenchHeader";
+import type { Folder } from "../workbench/types";
 import { SkillCard } from "./SkillCard";
 import { SkillDetailPanel } from "./SkillDetailPanel";
 import type { SkillInfo, SkillsOverview } from "./types";
@@ -10,6 +12,7 @@ import type { SkillInfo, SkillsOverview } from "./types";
 export interface SkillsAppProps {
 	unclassifiedCount: number;
 	navLayout?: NavLayoutEntry[];
+	folders: Folder[];
 }
 
 const ALL_ROOTS = "__all__";
@@ -19,7 +22,12 @@ const SKELETON_KEYS = ["sk-1", "sk-2", "sk-3", "sk-4", "sk-5", "sk-6"];
 /**
  * Skills 模块主页：扫描本机散落的 skills 目录，统一查看与检索
  */
-export function SkillsApp({ unclassifiedCount, navLayout }: SkillsAppProps) {
+export function SkillsApp({
+	unclassifiedCount,
+	navLayout,
+	folders,
+}: SkillsAppProps) {
+	const { actionProps, modals } = useWorkbenchQuickActions({ folders });
 	const [overview, setOverview] = useState<SkillsOverview | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [refreshing, setRefreshing] = useState(false);
@@ -59,6 +67,7 @@ export function SkillsApp({ unclassifiedCount, navLayout }: SkillsAppProps) {
 			<WorkbenchHeader
 				unclassifiedCount={unclassifiedCount}
 				navLayout={navLayout}
+				{...actionProps}
 			/>
 			<main className="flex-1 overflow-y-auto">
 				<div className="max-w-6xl mx-auto px-6 py-6">
@@ -177,6 +186,7 @@ export function SkillsApp({ unclassifiedCount, navLayout }: SkillsAppProps) {
 			{selected && (
 				<SkillDetailPanel skill={selected} onClose={() => setSelected(null)} />
 			)}
+			{modals}
 		</div>
 	);
 }

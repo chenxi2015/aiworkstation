@@ -69,6 +69,16 @@ const routes: RouteDefinition[] = [
 			return handleOpenFileRequest(req, res);
 		},
 	},
+	{
+		path: "/api/extension/download",
+		exact: true,
+		handler: async (req, res) => {
+			const { handleExtensionDownloadRequest } = await import(
+				"./handlers/extensionDownloadHandler.ts"
+			);
+			return handleExtensionDownloadRequest(req, res);
+		},
+	},
 ];
 
 function matchRoute(pathname: string, route: RouteDefinition): boolean {

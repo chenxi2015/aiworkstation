@@ -1,4 +1,3 @@
-import { type CollisionDetection, pointerWithin } from "@dnd-kit/core";
 import type { Folder, WorkbenchItem } from "../types";
 
 // ================= Drag payload & drop target ids =================
@@ -16,7 +15,6 @@ export type FolderDragData = {
 
 export type WorkbenchDragData = ItemDragData | FolderDragData;
 
-export const GRID_DROP_ID = "folder-grid";
 export const ROOT_CRUMB_DROP_ID = "crumb:root";
 export const CHAT_INPUT_DROP_ID = "chat-input-dropzone";
 
@@ -29,16 +27,6 @@ export const itemDragId = (
 	sourceFolderId: number | null,
 ) => `item:${sourceFolderId ?? "pool"}:${String(itemId)}`;
 
-/**
- * pointerWithin returns every droppable under the cursor, including the grid
- * background behind cards. Prefer specific targets (cards / breadcrumbs / chat input).
- */
-export const preferSpecificTargets: CollisionDetection = (args) => {
-	const collisions = pointerWithin(args);
-	const specific = collisions.filter((c) => String(c.id) !== GRID_DROP_ID);
-	return specific.length > 0 ? specific : collisions;
-};
-
 /** Parse a droppable id back into a structured target */
 export function parseDropId(
 	id: string | number,
@@ -47,12 +35,10 @@ export function parseDropId(
 	| { type: "crumb"; folderId: number }
 	| { type: "crumb-root" }
 	| { type: "category"; category: string }
-	| { type: "grid" }
 	| { type: "chat-input" }
 	| null {
 	const raw = String(id);
 	if (raw === CHAT_INPUT_DROP_ID) return { type: "chat-input" };
-	if (raw === GRID_DROP_ID) return { type: "grid" };
 	if (raw === ROOT_CRUMB_DROP_ID) return { type: "crumb-root" };
 	if (raw.startsWith("category:")) {
 		const category = raw.slice(9);
@@ -75,13 +61,28 @@ export function parseDropId(
 
 // ================= Drop indicator types =================
 
-export type DropMode = "into" | "before" | "after";
+/** 排序位移动画交给 @dnd-kit/react 的 sortable，这里只需标记「合并进文件夹」 */
+export type DropMode = "into";
 
 export interface DropIndicator {
 	overId: string | null;
 	mode: DropMode | null;
 }
 
-/** Central zone ratio of a folder card that means "drop INTO" instead of reorder */
-export const INTO_ZONE_MIN = 0.3;
-export const INTO_ZONE_MAX = 0.7;
+/**
+ * 文件夹拖到文件夹上的合并触发方式：在目标卡片上悬停停留该时长即进入合并态
+ *（iOS 主屏幕建文件夹的同款交互）。用停留时间而不是面积/位置阈值，
+ * 是因为排序预览会把目标卡片挤开，任何几何阈值都会陷入「追逐目标」的死循环。
+ */
+export const MERGE_DWELL_MS = 450;
+
+/** 目标卡片被排序挤开后，拖拽卡片与其保持该重叠比例即视为仍在悬停 */
+export const MERGE_KEEP_COVER_RATIO = 0.15;
+
+/** Move an item from one index to another (dnd-kit sortable commit 用) */
+export function arrayMove<T>(list: T[], from: number, to: number): T[] {
+	const next = list.slice();
+	const [moved] = next.splice(from, 1);
+	next.splice(to, 0, moved);
+	return next;
+}

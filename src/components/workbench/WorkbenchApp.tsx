@@ -58,6 +58,11 @@ const BookmarkSyncModal = lazy(() =>
 		default: m.BookmarkSyncModal,
 	})),
 );
+const ExtensionIntroModal = lazy(() =>
+	import("./ExtensionIntroModal").then((m) => ({
+		default: m.ExtensionIntroModal,
+	})),
+);
 const SettingsModal = lazy(() =>
 	import("./SettingsModal").then((m) => ({
 		default: m.SettingsModal,
@@ -173,6 +178,9 @@ export function WorkbenchApp({
 		isDeadLinksModalOpen,
 		setIsDeadLinksModalOpen,
 	} = useWorkbenchModals();
+
+	// Intro / download modal shown when AI Collector extension is missing
+	const [isIntroModalOpen, setIsIntroModalOpen] = useState(false);
 
 	// Direct and instant folder selection without unnecessary re-render triggers
 	const handleSelectFolder = useCallback(
@@ -291,9 +299,9 @@ export function WorkbenchApp({
 				return;
 			}
 		}
-		// If extension is not installed or open failed, prompt via guide modal
-		setIsSyncModalOpen(true);
-	}, [setIsSyncModalOpen]);
+		// If extension is not installed or open failed, prompt via intro / download modal
+		setIsIntroModalOpen(true);
+	}, []);
 
 	// Attach single bookmark item to AI chat context
 	const handleAttachBookmarkToChat = useCallback(
@@ -416,7 +424,7 @@ export function WorkbenchApp({
 				navLayout={settings.navLayout as NavLayoutEntry[] | undefined}
 				onOpenExtension={handleOpenExtension}
 				onOpenSearch={() => aiPanel.openSearchTab()}
-				onOpenSync={handleOpenSync}
+				onOpenSync={fixedCategory ? undefined : handleOpenSync}
 				onOpenCreateFolder={openCreateFolderModal}
 				onOpenSettings={() => setIsSettingsModalOpen(true)}
 				onOpenAIClassifyTask={() => setIsAIClassifyModalOpen(true)}
@@ -676,6 +684,13 @@ export function WorkbenchApp({
 								setIsAIClassifyModalOpen(true),
 							)
 						}
+					/>
+				)}
+
+				{isIntroModalOpen && (
+					<ExtensionIntroModal
+						isOpen={isIntroModalOpen}
+						onClose={() => setIsIntroModalOpen(false)}
 					/>
 				)}
 

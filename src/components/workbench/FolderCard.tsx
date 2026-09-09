@@ -90,14 +90,6 @@ export const FolderCard = memo(function FolderCard({
 						: "hover:border-opacity-90"
 			}`}
 		>
-			{/* Reorder insertion indicators while drag-sorting folders */}
-			{dropMode === "before" && (
-				<span className="absolute -left-[7px] top-2 bottom-2 w-[3px] rounded-full bg-accent shadow-sm pointer-events-none" />
-			)}
-			{dropMode === "after" && (
-				<span className="absolute -right-[7px] top-2 bottom-2 w-[3px] rounded-full bg-accent shadow-sm pointer-events-none" />
-			)}
-
 			<Card.Header className="flex flex-row items-start justify-between p-0">
 				{/* Mobile-style app micro-grid cover displaying website favicons */}
 				<FolderAppGridCover folder={folder} size="sm" />
@@ -180,7 +172,8 @@ export const FolderCard = memo(function FolderCard({
 					onAskAI={onAskAI}
 					allFolders={allFolders}
 					onMoveFolder={onMoveFolder}
-					triggerClassName="ml-auto w-6 h-6 rounded-md flex items-center justify-center text-muted/70 hover:text-foreground hover:bg-foreground/[0.06] dark:hover:bg-white/[0.08] data-[pressed]:bg-foreground/[0.08] cursor-pointer transition-colors"
+					triggerClassName="w-6 h-6 rounded-md flex items-center justify-center text-muted/70 hover:text-foreground hover:bg-foreground/[0.06] dark:hover:bg-white/[0.08] data-[pressed]:bg-foreground/[0.08] cursor-pointer transition-colors"
+					wrapperClassName="ml-auto"
 				/>
 			</Card.Footer>
 		</Card>

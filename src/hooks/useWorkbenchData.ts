@@ -60,16 +60,13 @@ export interface UseWorkbenchDataReturn {
 		item: WorkbenchItem,
 		sourceFolderId: number | null,
 		targetFolderId: number,
-	) => Promise<void>;
-	handleMoveFolder: (
-		folderId: number,
-		targetParentId: number | null,
-	) => Promise<void>;
+	) => void;
+	handleMoveFolder: (folderId: number, targetParentId: number | null) => void;
 	handleMoveFolderToCategory: (
 		folderId: number,
 		targetCategory: string,
-	) => Promise<void>;
-	handleReorderFolders: (orderedIds: number[]) => Promise<void>;
+	) => void;
+	handleReorderFolders: (orderedIds: number[]) => void;
 	handleRenameCategory: (
 		oldCategory: string,
 		newCategory: string,

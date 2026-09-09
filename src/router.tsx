@@ -11,7 +11,10 @@ export function getRouter() {
 		context,
 		scrollRestoration: true,
 		defaultPreload: "intent",
-		defaultPreloadStaleTime: 0,
+		// 本地 SQLite 读写是毫秒级，30s 内复用 loader 数据避免每次 hover/导航都重查库；
+		// 数据变更统一走 router.invalidate() 强制刷新，不受 staleTime 影响
+		defaultStaleTime: 30_000,
+		defaultPreloadStaleTime: 30_000,
 		defaultNotFoundComponent: NotFound,
 	});
 

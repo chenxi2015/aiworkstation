@@ -89,14 +89,6 @@ export const FolderListRow = memo(function FolderListRow({
 			}}
 			className="group relative flex items-center gap-3 w-full rounded-xl border px-3 py-2 cursor-pointer transition-all duration-150 hover:bg-surface-secondary/60 hover:border-blue-400/50 active:scale-[0.995]"
 		>
-			{/* Reorder insertion indicators while drag-sorting folders */}
-			{dropMode === "before" && (
-				<span className="absolute left-2 right-2 -top-[5px] h-[3px] rounded-full bg-accent shadow-sm pointer-events-none" />
-			)}
-			{dropMode === "after" && (
-				<span className="absolute left-2 right-2 -bottom-[5px] h-[3px] rounded-full bg-accent shadow-sm pointer-events-none" />
-			)}
-
 			<FolderAppGridCover folder={folder} size="sm" />
 
 			<div className="min-w-0 flex-1">

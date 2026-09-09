@@ -37,7 +37,7 @@ export async function getSavedThemeMode(): Promise<ThemeMode> {
     return local;
   }
 
-  return 'dark'; // Default to dark mode or auto
+  return 'auto'; // Default to following the system theme
 }
 
 /**

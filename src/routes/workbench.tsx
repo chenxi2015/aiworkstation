@@ -5,7 +5,7 @@ import { workbenchLoader } from "./-workbenchLoader";
 export const Route = createFileRoute("/workbench")({
 	loader: workbenchLoader,
 	pendingComponent: WorkbenchSkeleton,
-	pendingMs: 0,
+	pendingMs: 200,
 	component: WorkbenchPage,
 });
 

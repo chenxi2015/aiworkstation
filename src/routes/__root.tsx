@@ -3,12 +3,14 @@ import { TanStackDevtools } from "@tanstack/react-devtools";
 import type { QueryClient } from "@tanstack/react-query";
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
+	ClientOnly,
 	createRootRouteWithContext,
 	HeadContent,
 	Scripts,
 	useRouterState,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
+import { Suspense } from "react";
 import Footer from "../components/Footer";
 import Header from "../components/Header";
 import NotFound from "../components/NotFound";
@@ -55,7 +57,6 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 	// 模板示例 Header/Footer 仅保留在 about 演示页；应用路由使用自己的模块导航
 	const showTemplateChrome = pathname === "/about";
 	const { queryClient } = Route.useRouteContext();
-	const { folders, settings } = Route.useLoaderData();
 
 	return (
 		<html lang="zh-CN" suppressHydrationWarning>
@@ -75,9 +76,12 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 							<Footer />
 						</>
 					) : (
-						<AppShell folders={folders} settings={settings}>
-							{children}
-						</AppShell>
+						// 全局 SPA 模式：服务端只输出文档壳，loader 数据在客户端就绪后再渲染 AppShell
+						<ClientOnly fallback={null}>
+							<Suspense fallback={null}>
+								<AppShellWithData>{children}</AppShellWithData>
+							</Suspense>
+						</ClientOnly>
 					)}
 					<TanStackDevtools
 						config={{
@@ -96,5 +100,16 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 				<Scripts />
 			</body>
 		</html>
+	);
+}
+
+function AppShellWithData({ children }: { children: React.ReactNode }) {
+	// SPA 模式下首帧 loader 尚未完成，useLoaderData 会短暂为 undefined，待数据就绪后重渲染
+	const data = Route.useLoaderData();
+	if (!data) return null;
+	return (
+		<AppShell folders={data.folders} settings={data.settings}>
+			{children}
+		</AppShell>
 	);
 }

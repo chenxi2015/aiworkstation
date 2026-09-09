@@ -8,6 +8,13 @@ export default defineContentScript({
   allFrames: true,
   runAt: 'document_start',
   main(ctx) {
+    // Guard against double injection: the background re-injects this script
+    // into already-open tabs after install / service worker restarts, and all
+    // injections share the same isolated world per frame.
+    const win = window as unknown as { __aicContentLoaded?: boolean };
+    if (win.__aicContentLoaded) return;
+    win.__aicContentLoaded = true;
+
     if (typeof chrome === 'undefined' || !chrome?.runtime?.onMessage) {
       return;
     }

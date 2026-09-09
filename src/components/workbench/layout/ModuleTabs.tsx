@@ -1,4 +1,4 @@
-import { useDroppable } from "@dnd-kit/core";
+import { useDroppable } from "@dnd-kit/react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { memo } from "react";
 import {
@@ -31,7 +31,7 @@ const ModuleTabItem = memo(function ModuleTabItem({
 	const Icon = module.icon;
 	// 书签模块是聚合视图，不接受「改分类」拖放
 	const droppable = module.code !== "bookmarks";
-	const { setNodeRef, isOver } = useDroppable({
+	const { ref, isDropTarget } = useDroppable({
 		id: categoryDropId(module.code),
 		disabled: !droppable,
 		data: { category: module.code },
@@ -42,9 +42,9 @@ const ModuleTabItem = memo(function ModuleTabItem({
 	return (
 		<Link
 			to={module.route}
-			ref={setNodeRef}
+			ref={ref}
 			className={`px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-150 flex items-center gap-1.5 cursor-pointer select-none ${
-				isOver
+				isDropTarget
 					? "bg-accent text-accent-foreground font-semibold shadow-md ring-2 ring-accent/80 scale-105"
 					: isActive
 						? "bg-accent-soft text-accent font-semibold shadow-xs"
@@ -56,7 +56,7 @@ const ModuleTabItem = memo(function ModuleTabItem({
 			{showBadge && (
 				<span
 					className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono transition-colors ${
-						isOver
+						isDropTarget
 							? "bg-accent-foreground/20 text-accent-foreground font-bold"
 							: "bg-danger/15 text-danger font-bold"
 					}`}

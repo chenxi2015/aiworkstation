@@ -1,4 +1,4 @@
-import { useDroppable } from "@dnd-kit/core";
+import { useDroppable } from "@dnd-kit/react";
 import { memo, useMemo } from "react";
 import {
 	ALL_CATEGORY,
@@ -38,7 +38,7 @@ const FilterChip = memo(function FilterChip({
 	droppable = true,
 	onSelect,
 }: FilterChipProps) {
-	const { setNodeRef, isOver } = useDroppable({
+	const { ref, isDropTarget } = useDroppable({
 		id: categoryDropId(value),
 		disabled: !droppable,
 		data: { category: value },
@@ -46,11 +46,11 @@ const FilterChip = memo(function FilterChip({
 
 	return (
 		<button
-			ref={setNodeRef}
+			ref={ref}
 			type="button"
 			onClick={onSelect}
 			className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-150 flex items-center gap-1.5 cursor-pointer select-none ${
-				isOver
+				isDropTarget
 					? "bg-accent text-accent-foreground font-semibold shadow-md ring-2 ring-accent/80 scale-105"
 					: isActive
 						? "bg-accent-soft text-accent font-semibold shadow-xs"
@@ -61,7 +61,7 @@ const FilterChip = memo(function FilterChip({
 			{count > 0 && (
 				<span
 					className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono transition-colors ${
-						isOver
+						isDropTarget
 							? "bg-accent-foreground/20 text-accent-foreground font-bold"
 							: isUnclassified
 								? "bg-danger/15 text-danger font-bold"
