@@ -14,6 +14,7 @@ import {
 	ChatSessionRepository,
 } from "./repositories/chatSession.repo.ts";
 import { CreatorRepository } from "./repositories/creator.repo.ts";
+import { DocumentRepository } from "./repositories/document.repo.ts";
 import { FolderRepository } from "./repositories/folder.repo.ts";
 import { SearchRepository } from "./repositories/search.repo.ts";
 import {
@@ -43,6 +44,7 @@ export class WorkbenchDatabase {
 	private chatSessionRepo!: ChatSessionRepository;
 	private tagRepo!: TagRepository;
 	private creatorRepo!: CreatorRepository;
+	private documentRepo!: DocumentRepository;
 
 	private initRepositories(): void {
 		const db = getDb();
@@ -52,6 +54,7 @@ export class WorkbenchDatabase {
 		this.chatSessionRepo = new ChatSessionRepository(db);
 		this.tagRepo = new TagRepository(db);
 		this.creatorRepo = new CreatorRepository(db);
+		this.documentRepo = new DocumentRepository(db);
 	}
 
 	constructor() {
@@ -362,6 +365,40 @@ export class WorkbenchDatabase {
 
 	listDrafts() {
 		return this.creatorRepo.listDrafts();
+	}
+
+	// ================= Editor (创作) Operations =================
+	listDocuments(includeArchived = false) {
+		return this.documentRepo.listDocuments(includeArchived);
+	}
+
+	getDocument(id: number) {
+		return this.documentRepo.getDocument(id);
+	}
+
+	createDocument(params: Parameters<DocumentRepository["createDocument"]>[0]) {
+		return this.documentRepo.createDocument(params);
+	}
+
+	updateDocument(
+		id: number,
+		patch: Parameters<DocumentRepository["updateDocument"]>[1],
+	) {
+		return this.documentRepo.updateDocument(id, patch);
+	}
+
+	deleteDocument(id: number) {
+		return this.documentRepo.deleteDocument(id);
+	}
+
+	createDocumentVersion(
+		params: Parameters<DocumentRepository["createVersion"]>[0],
+	) {
+		return this.documentRepo.createVersion(params);
+	}
+
+	listDocumentVersions(documentId: number) {
+		return this.documentRepo.listVersions(documentId);
 	}
 }
 

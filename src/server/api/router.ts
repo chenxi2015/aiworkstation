@@ -70,6 +70,16 @@ const routes: RouteDefinition[] = [
 		},
 	},
 	{
+		path: "/api/files",
+		exact: false,
+		handler: async (req, res, pathname) => {
+			const { handleFileServeRequest } = await import(
+				"./handlers/fileServeHandler.ts"
+			);
+			return handleFileServeRequest(req, res, pathname);
+		},
+	},
+	{
 		path: "/api/extension/download",
 		exact: true,
 		handler: async (req, res) => {

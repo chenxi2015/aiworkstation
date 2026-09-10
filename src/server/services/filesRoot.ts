@@ -11,6 +11,7 @@ import { workbenchDb } from "../db/sqlite.ts";
  * - 目录结构约定：
  *     <filesRootDir>/downloads/                 视频下载
  *     <filesRootDir>/creator/materials/<id>/    每个素材一个目录
+ *     <filesRootDir>/editor/documents/<id>/     每个创作文档的媒体目录
  * - DB 只存相对根目录的 rel_path，根目录整体可搬家。
  */
 
@@ -45,4 +46,9 @@ export function getVideoDownloadsDir(): string {
 /** 素材资产目录：<filesRootDir>/creator/materials/<materialId> */
 export function getMaterialAssetsDir(materialId: number): string {
 	return join(getFilesRootDir(), "creator", "materials", String(materialId));
+}
+
+/** 文档媒体目录：<filesRootDir>/editor/documents/<documentId> */
+export function getDocumentAssetsDir(documentId: number): string {
+	return join(getFilesRootDir(), "editor", "documents", String(documentId));
 }

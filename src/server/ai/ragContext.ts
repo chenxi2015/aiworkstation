@@ -2,7 +2,7 @@ import type {
 	SearchResultItem,
 	WorkbenchSettings,
 } from "../../components/workbench/types.ts";
-import { getAiContribution } from "../../modules/ai-contributions.ts";
+import { getAiContribution, getModulePersona } from "../../modules/ai-contributions.ts";
 import {
 	type EmbeddingConfig,
 	EmbeddingService,
@@ -198,9 +198,21 @@ export async function prepareRagAgentContext(params: {
 			? `\n- 【当前问答限定范围】: 用户已启用【限定文件夹范围】模式，指定聚焦在文件夹「${folderName}」(ID: ${folderId})。除非用户在提问中明确要求跨文件夹或搜索全局，否则所有回答、盘点与分析请严格限制在该文件夹下的书签和资产；若调用 query_bookmarks 工具，请务必传入 folderName: "${folderName}" 或 folderId: ${folderId}。`
 			: "\n- 【当前问答范围】: 全局知识库（涵盖所有文件夹及未分类书签）。";
 
-	// 模块视角提示：由侧边栏随导航注入，检索与工具仍保持全局可用
+	// Module persona: persona field takes priority over systemPromptHint
 	const contribution = getAiContribution(module);
-	const moduleScopePrompt = `\n- 【当前模块视角】: ${contribution.systemPromptHint}`;
+	const moduleScopePrompt = `\n- 【当前模块视角】: ${getModulePersona(contribution)}`;
+
+	// Document context: inject doc summary when editor module passes a 'document' context item
+	const documentItems = contextItems.filter((item) => item.type === "document");
+	const documentContextPrompt =
+		documentItems.length > 0
+			? `\n- 【当前编辑文档（Editor Bridge 注入，最优先参考）】:\n${documentItems
+					.map(
+						(item) =>
+							`  文档标题：${item.title}\n  字数：${item.subtitle ?? "-"}\n  内容摘要：${typeof item.data?.contentPreview === "string" ? item.data.contentPreview.slice(0, 800) : "(暂无预览)"}`,
+					)
+					.join("\n\n")}\n  💡 提示：如需读取完整正文，请调用 read_document 工具（无需传 documentId，会自动定位当前文档）。`
+			: "";
 
 	const hasUrlInContext = contextItems.some((item) => Boolean(item.url));
 	const webpageToolGuidance = hasUrlInContext
@@ -242,13 +254,16 @@ export async function prepareRagAgentContext(params: {
 					)}\n提示：用户在本次提问中显式拖入或引用了以上实体作为上下文，请在回答或调用工具时优先围绕这些目标进行深度剖析、总结或比对。${webpageToolGuidance}${imageGuidance}`
 			: "";
 
+	// Combine document context into explicit context prompt
+	const combinedContextPrompt = explicitContextPrompt + documentContextPrompt;
+
 	const systemPrompt = `你内置于用户本地个人 AI 工作台（AI Workstation），是用户的专属【私人知识智囊与外脑合伙人】（Personal Intelligence & Knowledge Partner）。
 你不仅拥有直接操作本地 SQLite 知识库的行动手脚，更具备主动洞察、结构化治理与启发式对话的智囊思维。你的目标是帮助用户激活沉睡收藏、理清数字资产、减轻认知负担。
 
 【当前运行环境与时间】:
 - 当前服务器本地日期: ${dateStr} (${dayOfWeek})
 - 当前服务器本地时间: ${timeStr}
-${moduleScopePrompt}${folderScopePrompt}${explicitContextPrompt}
+${moduleScopePrompt}${folderScopePrompt}${combinedContextPrompt}
 
 【交互风格与智囊人格（Pi-Style Persona）】:
 1. **主动而有深度**：面对用户的宽泛想法或架构诉求（如“分类太细了/怎么整理/帮我规划”），绝不生硬地抛回问题，也不机械地一次性把数据全部篡改；而是先探查现状，给出深思熟虑的方案，并主动引导推进。

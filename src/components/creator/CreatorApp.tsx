@@ -19,9 +19,9 @@ export interface CreatorAppProps {
 type CreatorTab = "workbench" | "materials" | "drafts";
 
 const TABS: Array<{ id: CreatorTab; label: string; icon: typeof PenSquare }> = [
-	{ id: "workbench", label: "二创工作台", icon: PenSquare },
 	{ id: "materials", label: "素材库", icon: Library },
-	{ id: "drafts", label: "草稿箱", icon: Inbox },
+	{ id: "workbench", label: "自媒体一键处理", icon: PenSquare },
+	{ id: "drafts", label: "进度台", icon: Inbox },
 ];
 
 /**
@@ -33,7 +33,7 @@ export function CreatorApp({
 	folders,
 }: CreatorAppProps) {
 	const { actionProps, modals } = useWorkbenchQuickActions({ folders });
-	const [activeTab, setActiveTab] = useState<CreatorTab>("workbench");
+	const [activeTab, setActiveTab] = useState<CreatorTab>("materials");
 	const [materials, setMaterials] = useState<Material[]>([]);
 	const [drafts, setDrafts] = useState<DraftWithMaterial[]>([]);
 	const [loading, setLoading] = useState(true);

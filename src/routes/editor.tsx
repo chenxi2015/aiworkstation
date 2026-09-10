@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ModulePlaceholderPage } from "../components/modules/ModulePlaceholderPage";
+import { EditorApp } from "../components/editor/EditorApp";
 import { ModuleSkeleton } from "../components/workbench/skeletons";
 import { workbenchLoader } from "./-workbenchLoader";
 
@@ -13,8 +13,7 @@ export const Route = createFileRoute("/editor")({
 function EditorPage() {
 	const { unclassified, settings, folders } = Route.useLoaderData();
 	return (
-		<ModulePlaceholderPage
-			moduleCode="editor"
+		<EditorApp
 			unclassifiedCount={unclassified.length}
 			navLayout={settings.navLayout}
 			folders={folders}

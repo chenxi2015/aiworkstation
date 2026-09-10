@@ -47,4 +47,6 @@ export interface AgentChatParams {
 	contextItems?: ChatContextItem[];
 	/** 当前所在模块 code（见 modules/ai-contributions.ts），用于服务端按模块视角组装 system prompt */
 	module?: string;
+	/** editor 模块：当前活跃文档 id（供 read_document 工具省略 documentId 时定位） */
+	activeDocumentId?: number;
 }

@@ -1,4 +1,4 @@
-import type { ChatContextType } from "../types/chatContext";
+import type { ChatContextType } from "../types/chatContext.ts";
 
 /**
  * AI Module Contributions — 侧边 AI 面板的「模块能力包」注册表。
@@ -13,12 +13,21 @@ import type { ChatContextType } from "../types/chatContext";
 export interface AiModuleContribution {
 	/** 对应 modules/registry.ts 的模块 code */
 	code: string;
-	/** 注入 system prompt 的模块视角提示（服务端使用） */
+	/**
+	 * 完整人格块：角色/目标/红线（替代单行 hint，服务端组装 system prompt）。
+	 * 优先于 systemPromptHint；兼容字段 systemPromptHint 仍保留作 alias。
+	 */
+	persona?: string;
+	/** @deprecated 使用 persona 字段，此字段保留作向后兼容 alias */
 	systemPromptHint: string;
+	/** 该模块可用的 Agent Tool 白名单（能力层全局注册，此处只做筛选） */
+	tools?: string[];
 	/** 聊天空态的快捷提问建议（客户端使用） */
 	promptSuggestions: string[];
 	/** 该模块下允许附加到对话的上下文类型 */
 	contextItemTypes: ChatContextType[];
+	/** 模块级快捷动作（如「把当前文档裂变为小红书文案」） */
+	entryActions?: Array<{ label: string; prompt: string }>;
 }
 
 /** 全局兜底贡献包：未匹配模块或非注册路由时使用 */
@@ -82,13 +91,41 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 	},
 	editor: {
 		code: "editor",
+		persona: `你是用户的「AI 写作搭档」，当前正在协助深度加工一篇文档。
+你的核心能力：理解文档上下文、提出结构改写建议、帮助扩写/缩写/换风格、从知识库检索可引用的素材。
+红线：对文档的任何改写必须经用户确认，AI 只给建议和草稿，写入操作（rewrite_document）需人工批准。`,
 		systemPromptHint:
-			"用户正在「创作」模块。偏向写作协同：基于收藏库引用素材、润色改写、生成 Markdown 结构与笔记内容。",
-		promptSuggestions: [
-			"帮我把当前文档补充大纲结构，并从收藏库找可引用的素材",
-			"润色这段文字，使其更适合公开发布",
+			"用户正在「创作」模块。偏向写作协同：理解当前文档上下文、AI 辅助改写（需人工确认）、检索素材引用、版本快照管理。",
+		tools: [
+			"read_document",
+			"list_documents",
+			"rewrite_document",
+			"query_bookmarks",
+			"read_webpage_content",
+			"crawl_webpage_via_extension",
+			"fs_read_file",
+			"fs_list_directory",
+			"fs_search_files",
+			"fs_search_content",
 		],
-		contextItemTypes: ["bookmark", "folder", "tag", "file"],
+		promptSuggestions: [
+			"帮我分析当前文档的结构，给出改进建议",
+			"润色这段文字，使其更适合公开发布",
+			"从我的收藏库找可以引用的素材",
+			"把这篇文章改写成更适合自媒体传播的风格",
+		],
+		contextItemTypes: ["bookmark", "folder", "tag", "file", "document"],
+		entryActions: [
+			{
+				label: "分析文档结构",
+				prompt: "帮我分析当前文档的结构，找出可优化的部分，给出详细改进建议",
+			},
+			{
+				label: "一键裂变为平台文案",
+				prompt:
+					"把当前文档的核心内容裂变为：1. 微信公众号文章摘要 2. 小红书种草文案 3. 推特推文，各保持平台风格",
+			},
+		],
 	},
 	ecommerce: {
 		code: "ecommerce",
@@ -118,4 +155,9 @@ export function getAiContribution(code?: string | null): AiModuleContribution {
 		return AI_MODULE_CONTRIBUTIONS[code];
 	}
 	return GLOBAL_AI_CONTRIBUTION;
+}
+
+/** 取模块人格提示（persona 优先，回落 systemPromptHint） */
+export function getModulePersona(contribution: AiModuleContribution): string {
+	return contribution.persona || contribution.systemPromptHint;
 }

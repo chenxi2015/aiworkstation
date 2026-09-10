@@ -38,6 +38,10 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 				content: "width=device-width, initial-scale=1",
 			},
 			{
+				name: "referrer",
+				content: "no-referrer",
+			},
+			{
 				title: "AI 工作台 - 本地优先的内容工作台",
 			},
 		],
@@ -61,6 +65,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 	return (
 		<html lang="zh-CN" suppressHydrationWarning>
 			<head>
+				{/* biome-ignore lint/security/noDangerouslySetInnerHtml: theme init script */}
 				<script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
 				<HeadContent />
 			</head>

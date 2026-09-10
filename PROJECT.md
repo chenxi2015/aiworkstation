@@ -29,7 +29,7 @@
   | `bookmarks` | 书签 | `/bookmarks` | 全部书签库 + 未分类缓冲池，分类在此作为筛选维度 |
   | `creator` | 自媒体 | `/creator` | 采集 → 二创 → 审稿 → 发布工作流 |
   | `learn` | 学习 | `/learn` | 学习资源聚合 |
-  | `editor` | 创作 | `/editor` | 文本预览 / Markdown 操作台 |
+  | `editor` | 创作 | `/editor` | AI 富文本创作台：单篇深度加工、划词 AI 改写、多格式导入导出 |
   | `ecommerce` | 电商 | `/ecommerce` | 电商资源归集 |
   | `skills` | Skills | `/skills` | 本地散落 skills 目录的集合管理（后续落库） |
 
@@ -106,6 +106,8 @@
 > 规划中未落地：`tweets` 表（推特工作流用，见上节）。
 > 自媒体（creator）模块的产品规划已定稿于 `docs/creator-plan.md`：`materials` / `drafts` / `assets` 表、
 > `downloadsDir` → `filesRootDir` 文件管理根目录升级、M4-α/β/γ 分期均以该文档为准。
+> 创作（editor）模块的产品规划已定稿于 `docs/editor-plan.md`：`documents` / `document_versions` 表、
+> TipTap 富文本内核、右侧 AI 面板模块人格（ai-contributions 能力包）升级、Editor-α/β/γ/δ 分期均以该文档为准。
 
 ## 目录约定
 

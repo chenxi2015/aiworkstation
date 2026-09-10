@@ -138,6 +138,29 @@ export function initSchema(db: SqliteDatabase): void {
       updated_at TEXT NOT NULL
     );
 
+    -- 12. Editor documents table（创作模块核心实体，docs/editor-plan.md 第五节）
+    CREATE TABLE IF NOT EXISTS documents (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL DEFAULT '',   -- TipTap JSON（富文本单一事实源）
+      content_text TEXT DEFAULT '',       -- 纯文本冗余：检索/字数统计用
+      style_preset TEXT DEFAULT '',       -- 行文风格 preset key（公文/自媒体/报告/自定义）
+      status TEXT NOT NULL DEFAULT 'editing',  -- editing | finalized | archived
+      created_at TEXT,
+      updated_at TEXT
+    );
+
+    -- 13. Editor document versions table（AI 回写前自动快照 + 手动存档）
+    CREATE TABLE IF NOT EXISTS document_versions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      document_id INTEGER NOT NULL REFERENCES documents(id),
+      content TEXT NOT NULL,              -- TipTap JSON 快照
+      version INTEGER NOT NULL,
+      origin TEXT NOT NULL,               -- 'human' | 'ai'
+      note TEXT,                          -- 快照说明
+      created_at TEXT
+    );
+
     -- Indexes for fast queries
     CREATE INDEX IF NOT EXISTS idx_folders_category ON folders(category);
     CREATE INDEX IF NOT EXISTS idx_folder_items_folder_id ON folder_items(folder_id);
@@ -151,6 +174,9 @@ export function initSchema(db: SqliteDatabase): void {
     CREATE INDEX IF NOT EXISTS idx_tags_name ON tags(name);
     CREATE INDEX IF NOT EXISTS idx_bookmark_tags_bookmark_id ON bookmark_tags(bookmark_id);
     CREATE INDEX IF NOT EXISTS idx_bookmark_tags_tag_id ON bookmark_tags(tag_id);
+    CREATE INDEX IF NOT EXISTS idx_documents_status ON documents(status);
+    CREATE INDEX IF NOT EXISTS idx_documents_updated_at ON documents(updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_document_versions_document_id ON document_versions(document_id);
   `);
 
 	// Graceful migration for existing SQLite DBs without embedding columns or color column

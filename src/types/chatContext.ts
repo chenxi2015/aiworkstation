@@ -1,7 +1,13 @@
 /**
  * Types representing contextual attachments injected into the AI chat input
  */
-export type ChatContextType = "bookmark" | "folder" | "tag" | "image" | "file";
+export type ChatContextType =
+	| "bookmark"
+	| "folder"
+	| "tag"
+	| "image"
+	| "file"
+	| "document";
 
 export interface ChatContextItem {
 	/** Unique identifier for keying in UI and state */

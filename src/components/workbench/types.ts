@@ -130,6 +130,8 @@ export interface WorkbenchSettings {
 	navLayout?: NavLayoutEntry[];
 	// 工作台文件夹区的展示方式：网格卡片 / 列表行（全局偏好，非 per-folder view_prefs）
 	folderGridView?: FolderGridView;
+	// 创作模块（editor）自定义行文风格预设
+	editorStylePresets?: import("../editor/types.ts").EditorStylePreset[];
 }
 
 export type SearchMode = "hybrid" | "semantic" | "keyword";

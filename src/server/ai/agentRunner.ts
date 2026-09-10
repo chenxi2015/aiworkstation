@@ -6,6 +6,7 @@ import type {
 	AgentStreamEvent,
 } from "./agentTypes.ts";
 import { createBookmarkServerTools } from "./bookmarkTools.ts";
+import { createEditorServerTools } from "./editorTools.ts";
 import { createFsServerTools } from "./fs/index.ts";
 import { prepareRagAgentContext, resolveLlmConfig } from "./ragContext.ts";
 import type { BookmarkToolHooks } from "./tools/types.ts";
@@ -28,6 +29,7 @@ export async function runAgentStream(
 		folderId,
 		folderName,
 		module,
+		activeDocumentId,
 	} = params;
 
 	const q = question?.trim();
@@ -120,6 +122,10 @@ export async function runAgentStream(
 	const tools = [
 		...createBookmarkServerTools(toolHooks),
 		...createFsServerTools(toolHooks),
+		// Inject editor-specific tools when user is in the editor module
+		...(module === "editor"
+			? createEditorServerTools(toolHooks, activeDocumentId)
+			: []),
 	];
 
 	// 3. Create adapter
