@@ -103,7 +103,9 @@
 - `folder_items`：folder_id ↔ item_id 多对多绑定表（含 sort_order）
 - `settings`：key/value（token、AI 配置、分类偏好）
 
-> 规划中未落地：`tweets`、`drafts` 表（推特工作流用，见上节）。
+> 规划中未落地：`tweets` 表（推特工作流用，见上节）。
+> 自媒体（creator）模块的产品规划已定稿于 `docs/creator-plan.md`：`materials` / `drafts` / `assets` 表、
+> `downloadsDir` → `filesRootDir` 文件管理根目录升级、M4-α/β/γ 分期均以该文档为准。
 
 ## 目录约定
 

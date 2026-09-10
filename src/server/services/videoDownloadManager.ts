@@ -1,10 +1,10 @@
 import { promises as fs, existsSync, mkdirSync, createWriteStream, createReadStream } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { createDecipheriv } from 'node:crypto';
-import { homedir, tmpdir } from 'node:os';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { remuxTsToMp4, muxDualTracksToMp4 } from './nativeFfmpeg.ts';
-import { workbenchDb } from '../db/sqlite.ts';
+import { getVideoDownloadsDir } from './filesRoot.ts';
 
 export interface ServerVideoTask {
   id: string;
@@ -397,12 +397,12 @@ export class VideoDownloadManager {
       if (task?.outputPath) {
         filePath = task.outputPath;
       } else if (task?.filename) {
-        filePath = join(homedir(), 'Downloads', task.filename);
+        filePath = join(getVideoDownloadsDir(), task.filename);
       }
     }
 
     if (!filePath && params.filename) {
-      filePath = join(homedir(), 'Downloads', params.filename);
+      filePath = join(getVideoDownloadsDir(), params.filename);
     }
 
     if (!filePath || !existsSync(filePath)) {
@@ -562,15 +562,9 @@ export class VideoDownloadManager {
       const combinedVideoPath = join(tempDir, 'combined_video.ts');
       await concatFilesOnDisk(videoFiles, combinedVideoPath);
 
-      // Determine final destination path (custom downloadsDir > system Downloads)
-      let userDownloadsDir: string;
-      try {
-        const raw = workbenchDb.getSetting('workbench_settings');
-        const parsed = raw ? JSON.parse(raw) : null;
-        userDownloadsDir = parsed?.downloadsDir?.trim() || join(homedir(), 'Downloads');
-      } catch {
-        userDownloadsDir = join(homedir(), 'Downloads');
-      }
+      // Determine final destination path (filesRootDir/downloads > system Downloads)
+      const userDownloadsDir = getVideoDownloadsDir();
+      mkdirSync(userDownloadsDir, { recursive: true });
       const filenameBase = sanitizeFilename(task.pageTitle);
       const outputMp4Path = join(userDownloadsDir, `${filenameBase}.mp4`);
       task.filename = `${filenameBase}.mp4`;

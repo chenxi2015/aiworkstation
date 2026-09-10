@@ -1,3 +1,4 @@
+import type { DraftStatus } from "../../components/creator/types.ts";
 import type {
 	AIClassificationResult,
 	BookmarkTDKItem,
@@ -12,6 +13,7 @@ import {
 	type ChatSessionRecord,
 	ChatSessionRepository,
 } from "./repositories/chatSession.repo.ts";
+import { CreatorRepository } from "./repositories/creator.repo.ts";
 import { FolderRepository } from "./repositories/folder.repo.ts";
 import { SearchRepository } from "./repositories/search.repo.ts";
 import {
@@ -40,6 +42,7 @@ export class WorkbenchDatabase {
 	private searchRepo!: SearchRepository;
 	private chatSessionRepo!: ChatSessionRepository;
 	private tagRepo!: TagRepository;
+	private creatorRepo!: CreatorRepository;
 
 	private initRepositories(): void {
 		const db = getDb();
@@ -48,6 +51,7 @@ export class WorkbenchDatabase {
 		this.searchRepo = new SearchRepository(db);
 		this.chatSessionRepo = new ChatSessionRepository(db);
 		this.tagRepo = new TagRepository(db);
+		this.creatorRepo = new CreatorRepository(db);
 	}
 
 	constructor() {
@@ -285,6 +289,79 @@ export class WorkbenchDatabase {
 		targetTag: string,
 	): RenameOrMergeTagsResult {
 		return this.tagRepo.renameOrMergeTags(sourceTags, targetTag);
+	}
+
+	// ================= Creator (自媒体) Operations =================
+	listMaterials(includeArchived = false) {
+		return this.creatorRepo.listMaterials(includeArchived);
+	}
+
+	getMaterial(id: number) {
+		return this.creatorRepo.getMaterial(id);
+	}
+
+	createMaterial(params: Parameters<CreatorRepository["createMaterial"]>[0]) {
+		return this.creatorRepo.createMaterial(params);
+	}
+
+	updateMaterial(
+		id: number,
+		patch: Parameters<CreatorRepository["updateMaterial"]>[1],
+	) {
+		return this.creatorRepo.updateMaterial(id, patch);
+	}
+
+	listMaterialFolders() {
+		return this.creatorRepo.listMaterialFolders();
+	}
+
+	createMaterialFolder(
+		params: Parameters<CreatorRepository["createMaterialFolder"]>[0],
+	) {
+		return this.creatorRepo.createMaterialFolder(params);
+	}
+
+	getMaterialFolder(id: number) {
+		return this.creatorRepo.getMaterialFolder(id);
+	}
+
+	updateMaterialFolder(
+		id: number,
+		patch: Parameters<CreatorRepository["updateMaterialFolder"]>[1],
+	) {
+		return this.creatorRepo.updateMaterialFolder(id, patch);
+	}
+
+	deleteMaterialFolder(id: number) {
+		return this.creatorRepo.deleteMaterialFolder(id);
+	}
+
+	addAsset(params: Parameters<CreatorRepository["addAsset"]>[0]) {
+		return this.creatorRepo.addAsset(params);
+	}
+
+	getDraft(id: number) {
+		return this.creatorRepo.getDraft(id);
+	}
+
+	createDraft(params: Parameters<CreatorRepository["createDraft"]>[0]) {
+		return this.creatorRepo.createDraft(params);
+	}
+
+	createDraftVersion(parentDraftId: number, content: string) {
+		return this.creatorRepo.createDraftVersion(parentDraftId, content);
+	}
+
+	updateDraftStatus(draftId: number, target: DraftStatus) {
+		return this.creatorRepo.updateDraftStatus(draftId, target);
+	}
+
+	exportDraft(draftId: number) {
+		return this.creatorRepo.exportDraft(draftId);
+	}
+
+	listDrafts() {
+		return this.creatorRepo.listDrafts();
 	}
 }
 

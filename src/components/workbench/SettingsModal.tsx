@@ -51,7 +51,7 @@ export function SettingsModal({
 	const [activeTab, setActiveTab] = useState("model");
 	const [formData, setFormData] =
 		useState<ModelSettingsFormData>(INITIAL_FORM_DATA);
-	const [downloadsDir, setDownloadsDir] = useState("");
+	const [filesRootDir, setFilesRootDir] = useState("");
 	const [llmModelList, setLlmModelList] = useState<string[]>(
 		LLM_PROVIDERS[0].models,
 	);
@@ -93,7 +93,8 @@ export function SettingsModal({
 			embeddingBaseUrl: currentEmbBaseUrl,
 			embeddingModel: currentEmbModel,
 		});
-		setDownloadsDir(settings.downloadsDir ?? "");
+		// downloadsDir 旧 key 作 alias 免迁移兼容
+		setFilesRootDir(settings.filesRootDir ?? settings.downloadsDir ?? "");
 
 		// Populate model lists
 		const llmPreset =
@@ -154,7 +155,8 @@ export function SettingsModal({
 			embeddingModel:
 				formData.embeddingModel.trim() || DEFAULT_SETTINGS.embeddingModel,
 			embeddingProvider: formData.embeddingProvider,
-			downloadsDir: downloadsDir.trim() || undefined,
+			filesRootDir: filesRootDir.trim() || undefined,
+			downloadsDir: undefined,
 		};
 
 		WorkbenchStorageService.saveSettings(updated);
@@ -243,8 +245,8 @@ export function SettingsModal({
 									{activeTab === "data" && (
 										<DataMaintenanceTab
 											onDataRestored={onDataCleared}
-											downloadsDir={downloadsDir}
-											onDownloadsDirChange={setDownloadsDir}
+											filesRootDir={filesRootDir}
+											onFilesRootDirChange={setFilesRootDir}
 										/>
 									)}
 								</Tabs.Panel>

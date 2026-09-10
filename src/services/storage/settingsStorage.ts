@@ -36,6 +36,22 @@ export interface EffectiveLLMConfig {
 }
 
 /**
+ * filesRootDir 免迁移兼容（downloadsDir → filesRootDir 设置升级）：
+ * 读取时旧 key 作 alias，写入只写新 key（见 docs/creator-plan.md 第三节）。
+ */
+function normalizeFilesRootDir<T extends Partial<WorkbenchSettings>>(
+	settings: T,
+): T {
+	if (!settings) return settings;
+	const normalized = { ...settings };
+	if (!normalized.filesRootDir && normalized.downloadsDir) {
+		normalized.filesRootDir = normalized.downloadsDir;
+	}
+	delete normalized.downloadsDir;
+	return normalized;
+}
+
+/**
  * Extracts normalized, provider-agnostic LLM configuration from settings
  */
 export function getEffectiveLLMConfig(
@@ -61,13 +77,13 @@ export function getSettings(): WorkbenchSettings {
 		const raw = window.localStorage.getItem(STORAGE_KEY_SETTINGS);
 		if (raw) {
 			const parsed = JSON.parse(raw);
-			return {
+			return normalizeFilesRootDir({
 				...DEFAULT_SETTINGS,
 				...parsed,
 				apiKey: parsed.apiKey || DEFAULT_SETTINGS.apiKey,
 				baseUrl: parsed.baseUrl || DEFAULT_SETTINGS.baseUrl,
 				model: parsed.model || DEFAULT_SETTINGS.model,
-			};
+			});
 		}
 	} catch (err) {
 		console.error("Failed to load settings from localStorage:", err);
@@ -82,13 +98,13 @@ export async function fetchSettingsFromDb(): Promise<WorkbenchSettings> {
 	try {
 		const dbSettings = await getWorkbenchSettings();
 		if (dbSettings) {
-			const merged: WorkbenchSettings = {
+			const merged: WorkbenchSettings = normalizeFilesRootDir({
 				...DEFAULT_SETTINGS,
 				...dbSettings,
 				apiKey: String(dbSettings.apiKey || "").trim(),
 				baseUrl: String(dbSettings.baseUrl || DEFAULT_LLM_BASE_URL).trim(),
 				model: String(dbSettings.model || DEFAULT_LLM_MODEL).trim(),
-			};
+			});
 
 			if (typeof window !== "undefined") {
 				window.localStorage.setItem(
@@ -110,15 +126,18 @@ export async function fetchSettingsFromDb(): Promise<WorkbenchSettings> {
 export function saveSettings(settings: WorkbenchSettings): void {
 	if (typeof window === "undefined") return;
 
-	const normalized: WorkbenchSettings = {
+	const normalized: WorkbenchSettings = normalizeFilesRootDir({
 		...settings,
 		apiKey: (settings.apiKey || "").trim(),
 		baseUrl: (settings.baseUrl || DEFAULT_LLM_BASE_URL).trim(),
 		model: (settings.model || DEFAULT_LLM_MODEL).trim(),
-	};
+	});
 
 	try {
-		window.localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(normalized));
+		window.localStorage.setItem(
+			STORAGE_KEY_SETTINGS,
+			JSON.stringify(normalized),
+		);
 	} catch (err) {
 		console.error("Failed to save settings to localStorage:", err);
 	}

@@ -1,4 +1,5 @@
 import { toast } from "@heroui/react";
+import { useRouter } from "@tanstack/react-router";
 import { useCallback } from "react";
 import type {
 	Category,
@@ -23,6 +24,10 @@ export function useWorkbenchItemActions({
 	setActiveCategory,
 	setSelectedFolderId,
 }: UseWorkbenchItemActionsProps) {
+	// loader 有 30s staleTime 缓存，变更落库后必须 invalidate，
+	// 否则切走再切回导航会拿到旧缓存（约定见 src/router.tsx）
+	const router = useRouter();
+
 	// Manually add a link into a folder
 	const handleAddLink = useCallback(
 		async (
@@ -34,9 +39,10 @@ export function useWorkbenchItemActions({
 				...data,
 			});
 			setFolders(updated);
+			void router.invalidate();
 			toast.success("已将链接保存至文件夹");
 		},
-		[setFolders],
+		[router, setFolders],
 	);
 
 	// Delete item from folder
@@ -46,9 +52,10 @@ export function useWorkbenchItemActions({
 				await WorkbenchStorageService.deleteItemInDb(item.id || "", folderId);
 			setFolders(updatedFolders);
 			setUnclassified(updatedUnclassified);
+			void router.invalidate();
 			toast.success(`已从文件夹中移除「${item.name}」`);
 		},
-		[setFolders, setUnclassified],
+		[router, setFolders, setUnclassified],
 	);
 
 	// Move item between folders (or from unclassified pool)
@@ -86,6 +93,7 @@ export function useWorkbenchItemActions({
 				targetFolderId,
 			)
 				.then(() => {
+					void router.invalidate();
 					toast.success(
 						sourceFolderId === null
 							? `已将「${item.name}」放入目标文件夹`
@@ -98,7 +106,7 @@ export function useWorkbenchItemActions({
 					toast.danger("移动书签失败，请重试");
 				});
 		},
-		[setFolders, setUnclassified],
+		[router, setFolders, setUnclassified],
 	);
 
 	// Delete item from unclassified pool
@@ -107,9 +115,10 @@ export function useWorkbenchItemActions({
 			const { unclassified: updatedUnclassified } =
 				await WorkbenchStorageService.deleteItemInDb(item.id || "", null);
 			setUnclassified(updatedUnclassified);
+			void router.invalidate();
 			toast.success(`已从未分类池中移除「${item.name}」`);
 		},
-		[setUnclassified],
+		[router, setUnclassified],
 	);
 
 	// Clear all items from unclassified pool
@@ -117,32 +126,41 @@ export function useWorkbenchItemActions({
 		const { deleted, unclassified: updatedUnclassified } =
 			await WorkbenchStorageService.clearUnclassifiedInDb();
 		setUnclassified(updatedUnclassified);
+		void router.invalidate();
 		toast.success(`已清空未分类池 (${deleted} 条书签)`);
-	}, [setUnclassified]);
+	}, [router, setUnclassified]);
 
 	// Handle AI classification completion
 	const handleClassificationComplete = useCallback(
 		(updatedFolders: Folder[], updatedUnclassified: WorkbenchItem[]) => {
 			setFolders(updatedFolders);
 			setUnclassified(updatedUnclassified);
+			void router.invalidate();
 			if (updatedFolders.length > 0) {
 				setActiveCategory(updatedFolders[0].category || "工作台");
 				setSelectedFolderId(updatedFolders[0].id);
 			}
 		},
-		[setFolders, setUnclassified, setActiveCategory, setSelectedFolderId],
+		[
+			router,
+			setFolders,
+			setUnclassified,
+			setActiveCategory,
+			setSelectedFolderId,
+		],
 	);
 
 	// Handle bookmark import completion
 	const handleBookmarksImported = useCallback(
 		(newUnclassified: WorkbenchItem[], onTriggerAI?: () => void) => {
 			setUnclassified(newUnclassified);
+			void router.invalidate();
 			setActiveCategory("未分类");
 			if (onTriggerAI) {
 				onTriggerAI();
 			}
 		},
-		[setUnclassified, setActiveCategory],
+		[router, setUnclassified, setActiveCategory],
 	);
 
 	return {

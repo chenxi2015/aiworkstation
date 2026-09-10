@@ -87,12 +87,67 @@ export function initSchema(db: SqliteDatabase): void {
       UNIQUE(bookmark_id, tag_id)
     );
 
+    -- 8. Creator materials table (manual entry or bookmark snapshot)
+    CREATE TABLE IF NOT EXISTS materials (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      source_type TEXT NOT NULL,          -- 'manual' | 'bookmark'
+      bookmark_id TEXT,                   -- source_type='bookmark' 时关联 bookmarks.id
+      folder_id INTEGER DEFAULT NULL,     -- 归属 material_folders.id；NULL = 未归档
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,              -- 文本素材正文/摘录（bookmark 来源为快照）；文件型素材存摘要说明，正文在 assets 文件里
+      note TEXT,                          -- 用户批注：这条素材想表达什么
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TEXT,
+      updated_at TEXT
+    );
+
+    -- 9. Creator drafts table (AI 二创产物 + 版本链)
+    CREATE TABLE IF NOT EXISTS drafts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      material_id INTEGER NOT NULL REFERENCES materials(id),
+      platform TEXT NOT NULL,             -- 'xhs' | 'twitter' | 'wechat' | 'script'（短视频脚本）
+      content TEXT NOT NULL,
+      version INTEGER NOT NULL DEFAULT 1,
+      parent_draft_id INTEGER,            -- 版本链：由哪条草稿改来
+      origin TEXT NOT NULL,               -- 'ai' | 'human'
+      status TEXT NOT NULL DEFAULT 'draft_ready',
+      created_at TEXT,
+      updated_at TEXT
+    );
+
+    -- 10. Creator assets table (大文件落文件系统，DB 只存关联)
+    CREATE TABLE IF NOT EXISTS assets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      material_id INTEGER NOT NULL REFERENCES materials(id),
+      rel_path TEXT NOT NULL,             -- 相对 filesRootDir 的路径（不存绝对路径！）
+      kind TEXT NOT NULL,                 -- 'video' | 'markdown' | 'image' | 'audio' | 'other'
+      filename TEXT NOT NULL,
+      mime TEXT,
+      size_bytes INTEGER,
+      created_at TEXT
+    );
+
+    -- 11. Creator material folders table (素材库文件夹：视频/文档/图片/书签的归集)
+    CREATE TABLE IF NOT EXISTS material_folders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      color TEXT DEFAULT '',
+      sort_order INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
     -- Indexes for fast queries
     CREATE INDEX IF NOT EXISTS idx_folders_category ON folders(category);
     CREATE INDEX IF NOT EXISTS idx_folder_items_folder_id ON folder_items(folder_id);
     CREATE INDEX IF NOT EXISTS idx_folder_items_item_id ON folder_items(item_id);
     CREATE INDEX IF NOT EXISTS idx_bookmarks_url ON bookmarks(url);
     CREATE INDEX IF NOT EXISTS idx_chat_sessions_updated_at ON chat_sessions(updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_materials_status ON materials(status);
+    CREATE INDEX IF NOT EXISTS idx_drafts_material_id ON drafts(material_id);
+    CREATE INDEX IF NOT EXISTS idx_drafts_status ON drafts(status);
+    CREATE INDEX IF NOT EXISTS idx_assets_material_id ON assets(material_id);
     CREATE INDEX IF NOT EXISTS idx_tags_name ON tags(name);
     CREATE INDEX IF NOT EXISTS idx_bookmark_tags_bookmark_id ON bookmark_tags(bookmark_id);
     CREATE INDEX IF NOT EXISTS idx_bookmark_tags_tag_id ON bookmark_tags(tag_id);
@@ -129,6 +184,19 @@ export function initSchema(db: SqliteDatabase): void {
 		if (!folderColNames.has("view_prefs")) {
 			db.exec("ALTER TABLE folders ADD COLUMN view_prefs TEXT DEFAULT ''");
 		}
+
+		const materialCols = db
+			.prepare("PRAGMA table_info(materials)")
+			.all() as Array<{ name: string }>;
+		if (!materialCols.some((c) => c.name === "folder_id")) {
+			db.exec(
+				"ALTER TABLE materials ADD COLUMN folder_id INTEGER DEFAULT NULL",
+			);
+		}
+		// 索引依赖 folder_id 列，必须放在列迁移之后（老库无该列时建索引会报错）
+		db.exec(
+			"CREATE INDEX IF NOT EXISTS idx_materials_folder_id ON materials(folder_id)",
+		);
 		if (!bookmarkColNames.has("payload")) {
 			db.exec("ALTER TABLE bookmarks ADD COLUMN payload TEXT DEFAULT ''");
 		}

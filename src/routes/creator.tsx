@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ModulePlaceholderPage } from "../components/modules/ModulePlaceholderPage";
+import { CreatorApp } from "../components/creator/CreatorApp";
 import { ModuleSkeleton } from "../components/workbench/skeletons";
 import { workbenchLoader } from "./-workbenchLoader";
 
@@ -13,8 +13,7 @@ export const Route = createFileRoute("/creator")({
 function CreatorPage() {
 	const { unclassified, settings, folders } = Route.useLoaderData();
 	return (
-		<ModulePlaceholderPage
-			moduleCode="creator"
+		<CreatorApp
 			unclassifiedCount={unclassified.length}
 			navLayout={settings.navLayout}
 			folders={folders}

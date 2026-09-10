@@ -371,7 +371,12 @@ export const getWorkbenchSettings = createServerFn({ method: "GET" }).handler(
 		try {
 			const raw = workbenchDb.getSetting("workbench_settings");
 			if (!raw) return null;
-			return JSON.parse(raw);
+			const parsed = JSON.parse(raw) as WorkbenchSettings;
+			// downloadsDir → filesRootDir 免迁移兼容：读取时旧 key 作 alias
+			if (!parsed.filesRootDir && parsed.downloadsDir) {
+				parsed.filesRootDir = parsed.downloadsDir;
+			}
+			return parsed;
 		} catch (err) {
 			console.warn("[getWorkbenchSettings] Database access error:", err);
 			return null;

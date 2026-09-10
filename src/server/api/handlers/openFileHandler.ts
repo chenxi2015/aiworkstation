@@ -4,24 +4,18 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { DB_DIR } from "../../db/connection.ts";
-import { workbenchDb } from "../../db/sqlite.ts";
+import { getConfiguredFilesRoot } from "../../services/filesRoot.ts";
 import { readJsonBody, sendJson } from "../utils.ts";
 
 /**
  * Build the list of allowed roots dynamically:
  * always includes DB_DIR and system Downloads;
- * also includes the user-configured downloadsDir (for Windows Docker users).
+ * also includes the user-configured filesRootDir（旧 key downloadsDir 作 alias 兼容）.
  */
 function getAllowedRoots(): string[] {
 	const roots = [DB_DIR, path.join(os.homedir(), "Downloads")];
-	try {
-		const raw = workbenchDb.getSetting("workbench_settings");
-		const parsed = raw ? JSON.parse(raw) : null;
-		const custom = parsed?.downloadsDir?.trim();
-		if (custom) roots.push(custom);
-	} catch {
-		// ignore db read error
-	}
+	const filesRoot = getConfiguredFilesRoot();
+	if (filesRoot) roots.push(filesRoot);
 	return roots.map((p) => path.resolve(p));
 }
 
@@ -64,7 +58,10 @@ export async function handleOpenFileRequest(
 		if (!allowed) {
 			sendJson(
 				res,
-				{ success: false, error: "仅允许打开工作台数据目录与下载目录内的文件" },
+				{
+					success: false,
+					error: "仅允许打开工作台数据目录与文件管理根目录内的文件",
+				},
 				403,
 			);
 			return;

@@ -25,8 +25,8 @@ dayjs.locale("zh-cn");
 
 interface DataMaintenanceTabProps {
 	onDataRestored?: () => void;
-	downloadsDir: string;
-	onDownloadsDirChange: (value: string) => void;
+	filesRootDir: string;
+	onFilesRootDirChange: (value: string) => void;
 }
 
 function formatBytes(bytes: number): string {
@@ -49,8 +49,8 @@ function parseBackupLabel(filename: string): string {
 
 export function DataMaintenanceTab({
 	onDataRestored,
-	downloadsDir,
-	onDownloadsDirChange,
+	filesRootDir,
+	onFilesRootDirChange,
 }: DataMaintenanceTabProps) {
 	const [backups, setBackups] = useState<BackupFileInfo[]>([]);
 	const [isLoadingBackups, setIsLoadingBackups] = useState(false);
@@ -201,20 +201,21 @@ export function DataMaintenanceTab({
 					</Button>
 				</div>
 
-				{/* Downloads directory (stored in SQLite workbench_settings) */}
+				{/* Files root directory (stored in SQLite workbench_settings) */}
 				<TextField
-					value={downloadsDir}
-					onChange={onDownloadsDirChange}
+					value={filesRootDir}
+					onChange={onFilesRootDirChange}
 					className="w-full"
 				>
-					<Label>文件下载目录 (downloadsDir)</Label>
+					<Label>文件管理根目录 (filesRootDir)</Label>
 					<Input
 						placeholder="留空则使用系统默认下载目录 ~/Downloads"
 						variant="secondary"
 					/>
 				</TextField>
 				<p className="text-[11px] text-muted leading-relaxed -mt-1.5">
-					视频等下载文件将保存到该目录（Windows Docker
+					视频下载将保存到该目录的 downloads/ 子目录，自媒体素材文件保存到
+					creator/materials/ 子目录（Windows Docker
 					用户建议填写本机路径）。该配置已随其他设置存入
 					SQLite，修改后点击底部「保存配置」生效。
 				</p>

@@ -120,7 +120,9 @@ export interface WorkbenchSettings {
 	embeddingModel?: string;
 	// Embedding provider preset id (siliconflow / openai / custom)
 	embeddingProvider?: string;
-	// Custom downloads directory (needed for Windows users under Docker)
+	// 文件管理根目录：视频下载、creator 素材文件等统一落在此目录下
+	filesRootDir?: string;
+	// 已废弃：旧版下载目录设置，读取时作为 filesRootDir 的 alias 免迁移兼容，写入只写 filesRootDir
 	downloadsDir?: string;
 	// Whether the first-time setup wizard has been completed
 	setupComplete?: boolean;

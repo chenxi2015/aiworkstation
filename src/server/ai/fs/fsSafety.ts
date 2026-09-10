@@ -93,6 +93,48 @@ export function looksBinary(buf: Buffer): boolean {
 	return false;
 }
 
+/**
+ * 写入根目录限定：校验目标路径必须落在指定根目录内（含路径穿越防护）。
+ * 用于 filesRootDir 场景 —— 素材文件等写入只允许发生在文件管理根目录之下。
+ */
+export function assertPathWithinRoot(targetAbs: string, rootAbs: string): void {
+	const root = realpathForCheck(resolve(rootAbs));
+	const real = realpathForCheck(resolve(targetAbs));
+	if (real !== root && !real.startsWith(`${root}/`)) {
+		throw new Error(`路径越界：${real} 不在允许的根目录 ${root} 之内`);
+	}
+}
+
+/**
+ * 对尚不存在的路径取「最近存在祖先的 realpath + 剩余段」，
+ * 保证与根目录在同一真实路径空间内比较（如 macOS /var → /private/var）。
+ */
+function realpathForCheck(p: string): string {
+	try {
+		return realpathSync(p);
+	} catch {
+		const parent = resolve(p, "..");
+		if (parent === p) return p;
+		return `${realpathForCheck(parent)}/${p.slice(parent.length + 1)}`;
+	}
+}
+
+/**
+ * 在根目录内解析相对路径：拒绝绝对路径与 .. 穿越，返回安全的绝对路径。
+ */
+export function resolveWithinRoot(rootAbs: string, relPath: string): string {
+	const rel = (relPath || "").trim();
+	if (!rel) {
+		throw new Error("相对路径不能为空");
+	}
+	if (resolve(rel) === rel || rel.startsWith("~")) {
+		throw new Error(`只允许根目录内的相对路径：${relPath}`);
+	}
+	const target = resolve(resolve(rootAbs), rel);
+	assertPathWithinRoot(target, rootAbs);
+	return target;
+}
+
 /** 格式化字节数为人类可读 */
 export function formatBytes(bytes: number): string {
 	if (bytes < 1024) return `${bytes} B`;

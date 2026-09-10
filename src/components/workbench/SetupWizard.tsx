@@ -27,11 +27,8 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { WorkbenchStorageService } from "../../services/workbenchStorage";
+import { EMBEDDING_PROVIDERS, LLM_PROVIDERS } from "./settings/constants";
 import type { WorkbenchSettings } from "./types";
-import {
-	EMBEDDING_PROVIDERS,
-	LLM_PROVIDERS,
-} from "./settings/constants";
 
 interface SetupWizardProps {
 	isOpen: boolean;
@@ -82,8 +79,8 @@ export function SetupWizard({
 	const [showEmbKey, setShowEmbKey] = useState(false);
 
 	// Step 2: Storage
-	const [downloadsDir, setDownloadsDir] = useState(
-		existingSettings.downloadsDir ?? "",
+	const [filesRootDir, setFilesRootDir] = useState(
+		existingSettings.filesRootDir ?? existingSettings.downloadsDir ?? "",
 	);
 
 	const [saving, setSaving] = useState(false);
@@ -113,9 +110,11 @@ export function SetupWizard({
 	};
 
 	const handleComplete = async () => {
-		// Downloads dir is required for Windows
-		if (isWindows && !downloadsDir.trim()) {
-			toast.warning("Windows 用户建议填写下载目录路径，否则视频文件将无法保存到本机");
+		// Files root dir is required for Windows
+		if (isWindows && !filesRootDir.trim()) {
+			toast.warning(
+				"Windows 用户建议填写文件管理根目录路径，否则视频文件将无法保存到本机",
+			);
 		}
 		setSaving(true);
 		try {
@@ -137,7 +136,8 @@ export function SetupWizard({
 				embeddingBaseUrl: embBaseUrl.trim(),
 				embeddingModel: embModel.trim(),
 				// Storage
-				downloadsDir: downloadsDir.trim() || undefined,
+				filesRootDir: filesRootDir.trim() || undefined,
+				downloadsDir: undefined,
 				setupComplete: true,
 			};
 			await WorkbenchStorageService.saveSettings(newSettings);
@@ -183,17 +183,11 @@ export function SetupWizard({
 												: "bg-muted/20 text-muted"
 									}`}
 								>
-									{i < step ? (
-										<CheckCircle2 className="w-3 h-3" />
-									) : (
-										i + 1
-									)}
+									{i < step ? <CheckCircle2 className="w-3 h-3" /> : i + 1}
 								</div>
 								<span
 									className={`text-[11px] transition-colors ${
-										i === step
-											? "text-foreground font-medium"
-											: "text-muted"
+										i === step ? "text-foreground font-medium" : "text-muted"
 									}`}
 								>
 									{label}
@@ -231,8 +225,8 @@ export function SetupWizard({
 						) : (
 							<StepStorage
 								isWindows={isWindows}
-								downloadsDir={downloadsDir}
-								onDownloadsDirChange={setDownloadsDir}
+								filesRootDir={filesRootDir}
+								onFilesRootDirChange={setFilesRootDir}
 							/>
 						)}
 					</Modal.Body>
@@ -373,7 +367,11 @@ function StepAI({
 						</Select>
 					</div>
 
-					<TextField value={apiKey} onChange={onApiKeyChange} className="min-w-0">
+					<TextField
+						value={apiKey}
+						onChange={onApiKeyChange}
+						className="min-w-0"
+					>
 						<Label>API Key</Label>
 						<InputGroup fullWidth variant="secondary">
 							<InputGroup.Input
@@ -398,7 +396,11 @@ function StepAI({
 				</div>
 
 				{isLlmCustom && (
-					<TextField value={baseUrl} onChange={onBaseUrlChange} className="w-full">
+					<TextField
+						value={baseUrl}
+						onChange={onBaseUrlChange}
+						className="w-full"
+					>
 						<Label>Base URL</Label>
 						<Input
 							placeholder="https://api.openai.com/v1"
@@ -445,7 +447,11 @@ function StepAI({
 						</Select>
 					</div>
 
-					<TextField value={embApiKey} onChange={onEmbApiKeyChange} className="min-w-0">
+					<TextField
+						value={embApiKey}
+						onChange={onEmbApiKeyChange}
+						className="min-w-0"
+					>
 						<Label>Embedding API Key</Label>
 						<InputGroup fullWidth variant="secondary">
 							<InputGroup.Input
@@ -493,23 +499,23 @@ function StepAI({
 
 interface StepStorageProps {
 	isWindows: boolean;
-	downloadsDir: string;
-	onDownloadsDirChange: (v: string) => void;
+	filesRootDir: string;
+	onFilesRootDirChange: (v: string) => void;
 }
 
 function StepStorage({
 	isWindows,
-	downloadsDir,
-	onDownloadsDirChange,
+	filesRootDir,
+	onFilesRootDirChange,
 }: StepStorageProps) {
 	return (
 		<div className="flex flex-col gap-5">
-			{/* ③ 下载目录 */}
+			{/* ③ 文件管理根目录 */}
 			<section className="flex flex-col gap-3">
 				<div className="flex items-center gap-2 pb-1 border-b border-border">
 					<FolderOpen className="w-3.5 h-3.5 text-accent shrink-0" />
 					<span className="text-xs font-semibold text-foreground">
-						③ 下载目录
+						③ 文件管理根目录
 					</span>
 					{isWindows ? (
 						<span className="ml-auto text-[10px] text-warning font-medium">
@@ -527,15 +533,16 @@ function StepStorage({
 						<div className="flex items-start gap-2 p-3 rounded-lg bg-warning/8 border border-warning/20">
 							<AlertTriangle className="w-3.5 h-3.5 text-warning mt-0.5 shrink-0" />
 							<p className="text-[11px] text-muted leading-relaxed">
-								工作台运行在 Docker 容器内，请填写你在 Windows 上的下载文件夹路径，工作台将把文件保存到此处。
+								工作台运行在 Docker 容器内，请填写你在 Windows
+								上的文件管理根目录路径，下载的视频与素材文件将保存到此处。
 							</p>
 						</div>
 						<TextField
-							value={downloadsDir}
-							onChange={onDownloadsDirChange}
+							value={filesRootDir}
+							onChange={onFilesRootDirChange}
 							className="w-full"
 						>
-							<Label>Windows 下载目录路径</Label>
+							<Label>Windows 文件管理根目录路径</Label>
 							<Input
 								placeholder={`C:\\Users\\你的用户名\\Downloads`}
 								variant="secondary"
@@ -551,7 +558,7 @@ function StepStorage({
 						<div>
 							<p className="text-xs font-medium text-foreground">已自动配置</p>
 							<p className="text-[11px] text-muted mt-0.5 leading-relaxed">
-								下载文件将自动保存到你电脑的{" "}
+								下载与素材文件将自动保存到你电脑的{" "}
 								<code className="text-accent bg-accent/10 px-1 rounded">
 									~/Downloads
 								</code>{" "}
@@ -592,7 +599,11 @@ function StepStorage({
 							<code className="text-accent bg-accent/10 px-1 rounded">
 								docker-compose.yml
 							</code>{" "}
-							所在文件夹的 <code className="text-accent bg-accent/10 px-1 rounded">.aiworkstation\</code> 子目录，数据不会因容器重启而丢失。
+							所在文件夹的{" "}
+							<code className="text-accent bg-accent/10 px-1 rounded">
+								.aiworkstation\
+							</code>{" "}
+							子目录，数据不会因容器重启而丢失。
 						</p>
 					)}
 				</div>

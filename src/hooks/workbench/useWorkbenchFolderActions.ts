@@ -1,4 +1,5 @@
 import { toast } from "@heroui/react";
+import { useRouter } from "@tanstack/react-router";
 import { useCallback } from "react";
 import type {
 	Category,
@@ -77,11 +78,16 @@ export function useWorkbenchFolderActions({
 	setSelectedFolderId,
 	setActiveCategory,
 }: UseWorkbenchFolderActionsProps) {
+	// loader 有 30s staleTime 缓存，变更落库后必须 invalidate，
+	// 否则切走再切回导航会拿到旧缓存（约定见 src/router.tsx）
+	const router = useRouter();
+
 	// Save or edit folder
 	const handleSaveFolder = useCallback(
 		async (data: SaveFolderPayload) => {
 			const updated = await WorkbenchStorageService.saveFolderToDb(data);
 			setFolders(updated);
+			void router.invalidate();
 			setActiveCategory(data.category as Category);
 			const createdOrEdited = data.id
 				? updated.find((f) => f.id === data.id)
@@ -91,7 +97,7 @@ export function useWorkbenchFolderActions({
 			}
 			toast.success("已保存文件夹至 SQLite 数据库");
 		},
-		[setFolders, setActiveCategory, setSelectedFolderId],
+		[router, setFolders, setActiveCategory, setSelectedFolderId],
 	);
 
 	// Persist per-folder view prefs (card/list, sort, density) with optimistic update
@@ -107,13 +113,14 @@ export function useWorkbenchFolderActions({
 					prefs,
 				);
 				setFolders(updated);
+				void router.invalidate();
 			} catch (err) {
 				setFolders(previous);
 				toast.danger("视图偏好保存失败，已回滚");
 				console.warn("[handleSaveFolderViewPrefs] error:", err);
 			}
 		},
-		[folders, setFolders],
+		[folders, router, setFolders],
 	);
 
 	// Delete folder
@@ -121,12 +128,13 @@ export function useWorkbenchFolderActions({
 		async (id: number) => {
 			const updated = await WorkbenchStorageService.deleteFolderFromDb(id);
 			setFolders(updated);
+			void router.invalidate();
 			if (selectedFolderId === id) {
 				setSelectedFolderId(updated[0]?.id || null);
 			}
 			toast.danger("文件夹已从 SQLite 中删除");
 		},
-		[selectedFolderId, setFolders, setSelectedFolderId],
+		[router, selectedFolderId, setFolders, setSelectedFolderId],
 	);
 
 	// Move folder into another folder (or to top-level), with cycle detection
@@ -150,6 +158,7 @@ export function useWorkbenchFolderActions({
 			// 异步落库：乐观更新已生效，失败时回滚
 			WorkbenchStorageService.moveFolderInDb(folderId, targetParentId)
 				.then(() => {
+					void router.invalidate();
 					toast.success(
 						targetParentId === null
 							? `已将「${moved?.name ?? "文件夹"}」移到顶层`
@@ -163,7 +172,7 @@ export function useWorkbenchFolderActions({
 					);
 				});
 		},
-		[folders, setFolders],
+		[folders, router, setFolders],
 	);
 
 	// Move folder to top level of a navigation category
@@ -197,6 +206,7 @@ export function useWorkbenchFolderActions({
 			// 异步落库：乐观更新已生效，失败时回滚
 			WorkbenchStorageService.moveFolderToCategoryInDb(folderId, targetCategory)
 				.then(() => {
+					void router.invalidate();
 					toast.success(
 						`已将「${targetFolder.name}」移动到「${targetCategory}」分类`,
 					);
@@ -208,7 +218,7 @@ export function useWorkbenchFolderActions({
 					);
 				});
 		},
-		[folders, setFolders],
+		[folders, router, setFolders],
 	);
 
 	// Persist sibling folder order (optimistic, rolls back on failure)
@@ -226,13 +236,18 @@ export function useWorkbenchFolderActions({
 					return nextId !== undefined ? (byId.get(nextId) ?? f) : f;
 				}),
 			);
-			// 异步落库：乐观顺序已与服务端一致，无需再用响应覆盖本地状态
-			WorkbenchStorageService.reorderFoldersInDb(orderedIds).catch(() => {
-				setFolders(previous);
-				toast.danger("文件夹排序保存失败，请重试");
-			});
+			// 异步落库：乐观顺序已与服务端一致，无需再用响应覆盖本地状态；
+			// 落库成功后失效路由缓存，保证切换导航再回来能拿到最新顺序
+			WorkbenchStorageService.reorderFoldersInDb(orderedIds)
+				.then(() => {
+					void router.invalidate();
+				})
+				.catch(() => {
+					setFolders(previous);
+					toast.danger("文件夹排序保存失败，请重试");
+				});
 		},
-		[folders, setFolders],
+		[folders, router, setFolders],
 	);
 
 	// Batch rename category
@@ -245,6 +260,7 @@ export function useWorkbenchFolderActions({
 						newCategory,
 					);
 				setFolders(updated);
+				void router.invalidate();
 				setActiveCategory(newCategory as Category);
 				saveActiveCategory(newCategory);
 				toast.success(
@@ -255,7 +271,7 @@ export function useWorkbenchFolderActions({
 				toast.danger("重命名分类失败，请重试");
 			}
 		},
-		[setFolders, setActiveCategory],
+		[router, setFolders, setActiveCategory],
 	);
 
 	return {
