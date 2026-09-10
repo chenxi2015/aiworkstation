@@ -364,7 +364,10 @@ function FilePanel({
 			</p>
 			<TextField value={sourcePath} onChange={setSourcePath}>
 				<Label>本地文件路径</Label>
-				<Input placeholder="~/Movies/demo.mp4 或绝对路径" variant="secondary" />
+				<Input
+					placeholder="完整绝对路径，例如 /Users/用户名/Movies/demo.mp4"
+					variant="secondary"
+				/>
 			</TextField>
 			<TextField value={title} onChange={setTitle}>
 				<Label>素材标题（可选，默认取文件名）</Label>

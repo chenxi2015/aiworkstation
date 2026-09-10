@@ -5,6 +5,8 @@ import dayjs from "dayjs";
 import {
 	Archive,
 	CheckCircle2,
+	ChevronDown,
+	Code,
 	Copy,
 	Download,
 	FilePlus2,
@@ -16,6 +18,7 @@ import {
 	Trash2,
 	Upload,
 } from "lucide-react";
+import { Dropdown, toast } from "@heroui/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { NavLayoutEntry } from "../../modules/registry";
 import { getWorkbenchSettings } from "../../server/functions/workbench";
@@ -385,8 +388,14 @@ ${currentHtml}
 </html>`;
 	}, [activeDoc, currentHtml]);
 
-	const copyText = useCallback(async (text: string) => {
-		await navigator.clipboard.writeText(text);
+	const copyText = useCallback(async (text: string, label = "内容") => {
+		try {
+			await navigator.clipboard.writeText(text);
+			toast.success(`已复制${label}到剪贴板`);
+		} catch (e) {
+			console.error("Failed to copy", e);
+			toast.danger("复制失败，请重试");
+		}
 	}, []);
 
 	const downloadFile = useCallback(
@@ -571,115 +580,213 @@ ${currentHtml}
 									{saveState === "idle" && "—"}
 								</span>
 								<div className="flex-1" />
-								<button
-									type="button"
-									onClick={() => void handleSnapshot()}
-									className="flex items-center gap-1 px-2.5 py-1 text-xs text-muted hover:text-foreground hover:bg-muted/10 rounded-md transition-colors cursor-pointer"
-								>
-									<Archive className="w-3.5 h-3.5" />
-									存快照
-								</button>
-								<button
-									type="button"
-									onClick={() =>
-										void handleStatusChange(
+								<div className="flex items-center gap-1">
+									<button
+										type="button"
+										onClick={() => void handleSnapshot()}
+										className="flex items-center gap-1 px-2.5 py-1 text-xs text-muted hover:text-foreground hover:bg-muted/10 rounded-md transition-colors cursor-pointer"
+									>
+										<Archive className="w-3.5 h-3.5" />
+										存快照
+									</button>
+									<button
+										type="button"
+										onClick={() =>
+											void handleStatusChange(
+												activeDoc.status === "finalized"
+													? "editing"
+													: "finalized",
+											)
+										}
+										className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-md transition-colors cursor-pointer ${
 											activeDoc.status === "finalized"
-												? "editing"
-												: "finalized",
-										)
-									}
-									className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-md transition-colors cursor-pointer ${
-										activeDoc.status === "finalized"
-											? "text-success hover:bg-success/10"
-											: "text-muted hover:text-foreground hover:bg-muted/10"
-									}`}
-								>
-									<CheckCircle2 className="w-3.5 h-3.5" />
-									{activeDoc.status === "finalized" ? "取消定稿" : "定稿"}
-								</button>
-								<div className="w-px h-5 bg-border mx-1" />
-								<button
-									type="button"
-									onClick={() =>
-										void copyText(contentText || activeDoc.contentText)
-									}
-									className="flex items-center gap-1 px-2.5 py-1 text-xs text-muted hover:text-foreground hover:bg-muted/10 rounded-md transition-colors cursor-pointer"
-								>
-									<Copy className="w-3.5 h-3.5" />
-									复制纯文本
-								</button>
-								<button
-									type="button"
-									onClick={() => void copyText(currentMarkdown)}
-									className="flex items-center gap-1 px-2.5 py-1 text-xs text-muted hover:text-foreground hover:bg-muted/10 rounded-md transition-colors cursor-pointer"
-								>
-									<Copy className="w-3.5 h-3.5" />
-									复制 Markdown
-								</button>
-								<button
-									type="button"
-									onClick={() =>
-										downloadFile(
-											`${activeDoc.title || "未命名文档"}.md`,
-											currentMarkdown,
-											"text/markdown",
-										)
-									}
-									className="flex items-center gap-1 px-2.5 py-1 text-xs text-muted hover:text-foreground hover:bg-muted/10 rounded-md transition-colors cursor-pointer"
-								>
-									<Download className="w-3.5 h-3.5" />
-									.md
-								</button>
-								<button
-									type="button"
-									onClick={() =>
-										downloadFile(
-											`${activeDoc.title || "未命名文档"}.html`,
-											buildHtmlDocument(),
-											"text/html",
-										)
-									}
-									className="flex items-center gap-1 px-2.5 py-1 text-xs text-muted hover:text-foreground hover:bg-muted/10 rounded-md transition-colors cursor-pointer"
-								>
-									<Download className="w-3.5 h-3.5" />
-									.html
-								</button>
-								<button
-									type="button"
-									onClick={() =>
-										void exportToWordDocx(
-											activeDoc.title,
-											currentHtml || activeDoc.contentText,
-										)
-									}
-									className="flex items-center gap-1 px-2.5 py-1 text-xs text-muted hover:text-foreground hover:bg-muted/10 rounded-md transition-colors cursor-pointer"
-									title="导出为标准 Word (.docx) 文档"
-								>
-									<Download className="w-3.5 h-3.5" />
-									.docx
-								</button>
-								<button
-									type="button"
-									onClick={() =>
-										exportToPdfPrint(
-											activeDoc.title,
-											currentHtml || activeDoc.contentText,
-										)
-									}
-									className="flex items-center gap-1 px-2.5 py-1 text-xs text-muted hover:text-foreground hover:bg-muted/10 rounded-md transition-colors cursor-pointer"
-									title="调起纯净排版浏览器打印，可直接另存为 PDF"
-								>
-									<Printer className="w-3.5 h-3.5" />
-									PDF / 打印
-								</button>
-								<div className="w-px h-5 bg-border mx-1" />
+												? "text-success hover:bg-success/10"
+												: "text-muted hover:text-foreground hover:bg-muted/10"
+										}`}
+									>
+										<CheckCircle2 className="w-3.5 h-3.5" />
+										{activeDoc.status === "finalized" ? "取消定稿" : "定稿"}
+									</button>
+								</div>
+
+								<div className="w-px h-4 bg-border mx-1" />
+
+								{/* 复制菜单 */}
+								<Dropdown>
+									<Dropdown.Trigger
+										aria-label="复制选项"
+										className="flex items-center gap-1 px-2.5 py-1 text-xs text-muted hover:text-foreground hover:bg-muted/10 data-[pressed]:bg-muted/15 rounded-md transition-colors cursor-pointer"
+									>
+										<Copy className="w-3.5 h-3.5" />
+										<span>复制</span>
+										<ChevronDown className="w-3 h-3 text-muted/60" />
+									</Dropdown.Trigger>
+									<Dropdown.Popover
+										placement="top end"
+										className="min-w-[160px] p-1 shadow-lg border border-border/80 rounded-xl bg-surface"
+									>
+										<Dropdown.Menu aria-label="复制内容选项">
+											<Dropdown.Item
+												id="copy-text"
+												textValue="复制纯文本"
+												onAction={() =>
+													void copyText(
+														contentText || activeDoc.contentText,
+														"纯文本",
+													)
+												}
+											>
+												<div className="flex items-center gap-2 w-full py-0.5">
+													<FileText className="w-3.5 h-3.5 text-muted shrink-0" />
+													<div className="flex flex-col">
+														<span className="text-xs font-medium">复制纯文本</span>
+														<span className="text-[10px] text-muted">
+															去除排版样式的纯文本
+														</span>
+													</div>
+												</div>
+											</Dropdown.Item>
+											<Dropdown.Item
+												id="copy-markdown"
+												textValue="复制 Markdown"
+												onAction={() => void copyText(currentMarkdown, "Markdown")}
+											>
+												<div className="flex items-center gap-2 w-full py-0.5">
+													<Copy className="w-3.5 h-3.5 text-muted shrink-0" />
+													<div className="flex flex-col">
+														<span className="text-xs font-medium">
+															复制 Markdown
+														</span>
+														<span className="text-[10px] text-muted">
+															保留标题、列表等语法
+														</span>
+													</div>
+												</div>
+											</Dropdown.Item>
+										</Dropdown.Menu>
+									</Dropdown.Popover>
+								</Dropdown>
+
+								{/* 导出菜单 */}
+								<Dropdown>
+									<Dropdown.Trigger
+										aria-label="导出文件"
+										className="flex items-center gap-1 px-2.5 py-1 text-xs text-muted hover:text-foreground hover:bg-muted/10 data-[pressed]:bg-muted/15 rounded-md transition-colors cursor-pointer"
+									>
+										<Download className="w-3.5 h-3.5" />
+										<span>导出</span>
+										<ChevronDown className="w-3 h-3 text-muted/60" />
+									</Dropdown.Trigger>
+									<Dropdown.Popover
+										placement="top end"
+										className="min-w-[180px] p-1 shadow-lg border border-border/80 rounded-xl bg-surface"
+									>
+										<Dropdown.Menu aria-label="导出文件格式选项">
+											<Dropdown.Item
+												id="export-docx"
+												textValue="Word 文档 (.docx)"
+												onAction={() =>
+													void exportToWordDocx(
+														activeDoc.title,
+														currentHtml || activeDoc.contentText,
+													)
+												}
+											>
+												<div className="flex items-center gap-2 w-full py-0.5">
+													<FileText className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+													<div className="flex flex-col">
+														<span className="text-xs font-medium">
+															Word 文档 (.docx)
+														</span>
+														<span className="text-[10px] text-muted">
+															标准排版与标题样式
+														</span>
+													</div>
+												</div>
+											</Dropdown.Item>
+											<Dropdown.Item
+												id="export-md"
+												textValue="Markdown (.md)"
+												onAction={() =>
+													downloadFile(
+														`${activeDoc.title || "未命名文档"}.md`,
+														currentMarkdown,
+														"text/markdown",
+													)
+												}
+											>
+												<div className="flex items-center gap-2 w-full py-0.5">
+													<Download className="w-3.5 h-3.5 text-muted shrink-0" />
+													<div className="flex flex-col">
+														<span className="text-xs font-medium">
+															Markdown (.md)
+														</span>
+														<span className="text-[10px] text-muted">
+															标准 MD 格式源文件
+														</span>
+													</div>
+												</div>
+											</Dropdown.Item>
+											<Dropdown.Item
+												id="export-html"
+												textValue="HTML 网页 (.html)"
+												onAction={() =>
+													downloadFile(
+														`${activeDoc.title || "未命名文档"}.html`,
+														buildHtmlDocument(),
+														"text/html",
+													)
+												}
+											>
+												<div className="flex items-center gap-2 w-full py-0.5">
+													<Code className="w-3.5 h-3.5 text-muted shrink-0" />
+													<div className="flex flex-col">
+														<span className="text-xs font-medium">
+															HTML 网页 (.html)
+														</span>
+														<span className="text-[10px] text-muted">
+															含内嵌样式的独立网页
+														</span>
+													</div>
+												</div>
+											</Dropdown.Item>
+											<Dropdown.Item
+												id="export-pdf"
+												textValue="PDF / 打印"
+												onAction={() =>
+													exportToPdfPrint(
+														activeDoc.title,
+														currentHtml || activeDoc.contentText,
+													)
+												}
+											>
+												<div className="flex items-center gap-2 w-full py-0.5">
+													<Printer className="w-3.5 h-3.5 text-muted shrink-0" />
+													<div className="flex flex-col">
+														<span className="text-xs font-medium">
+															PDF / 打印
+														</span>
+														<span className="text-[10px] text-muted">
+															唤起打印预览，可另存为 PDF
+														</span>
+													</div>
+												</div>
+											</Dropdown.Item>
+										</Dropdown.Menu>
+									</Dropdown.Popover>
+								</Dropdown>
+
+								<div className="w-px h-4 bg-border mx-1" />
+
+								{/* 分发/排版 */}
 								<button
 									type="button"
 									onClick={() => setIsDistributionModalOpen(true)}
 									className="flex items-center gap-1.5 px-3 py-1 text-xs text-accent font-medium bg-accent/10 hover:bg-accent/20 rounded-md transition-colors cursor-pointer"
 									title="一键生成移动端长图、小红书 3:4 多图卡片与多平台分发排版"
 								>
-									<Share2 className="w-3.5 h-3.5" />📱 贴图 / 分发
+									<Share2 className="w-3.5 h-3.5" />
+									<span>📱 贴图 / 分发</span>
 								</button>
 							</div>
 						</>

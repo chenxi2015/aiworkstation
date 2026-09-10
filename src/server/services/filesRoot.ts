@@ -15,6 +15,15 @@ import { workbenchDb } from "../db/sqlite.ts";
  * - DB 只存相对根目录的 rel_path，根目录整体可搬家。
  */
 
+/** Expand ~ prefix to user home directory */
+function expandHome(pathStr: string): string {
+	if (pathStr === "~") return homedir();
+	if (pathStr.startsWith("~/") || pathStr.startsWith("~\\")) {
+		return join(homedir(), pathStr.slice(2));
+	}
+	return pathStr;
+}
+
 /** 读取用户配置的根目录；未配置返回 null（调用方决定回退策略） */
 export function getConfiguredFilesRoot(): string | null {
 	try {
@@ -23,7 +32,7 @@ export function getConfiguredFilesRoot(): string | null {
 		const configured = String(
 			parsed?.filesRootDir ?? parsed?.downloadsDir ?? "",
 		).trim();
-		return configured ? resolve(configured) : null;
+		return configured ? resolve(expandHome(configured)) : null;
 	} catch {
 		return null;
 	}

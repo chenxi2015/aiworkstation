@@ -209,15 +209,22 @@ export function DataMaintenanceTab({
 				>
 					<Label>文件管理根目录 (filesRootDir)</Label>
 					<Input
-						placeholder="留空则使用系统默认下载目录 ~/Downloads"
+						placeholder="留空则使用系统默认下载目录，自定义请填写完整绝对路径"
 						variant="secondary"
 					/>
 				</TextField>
 				<p className="text-[11px] text-muted leading-relaxed -mt-1.5">
-					视频下载将保存到该目录的 downloads/ 子目录，自媒体素材文件保存到
-					creator/materials/ 子目录（Windows Docker
-					用户建议填写本机路径）。该配置已随其他设置存入
-					SQLite，修改后点击底部「保存配置」生效。
+					自定义请填写完整的本机绝对路径（例如 macOS/Linux:{" "}
+					<code className="text-foreground/80 font-mono">
+						/Users/用户名/Downloads
+					</code>
+					，Windows:{" "}
+					<code className="text-foreground/80 font-mono">
+						C:\Users\用户名\Downloads
+					</code>
+					）。留空则使用系统默认下载目录。视频将保存到
+					downloads/，自媒体素材保存到 creator/materials/，富文本媒体保存到
+					editor/documents/。
 				</p>
 			</div>
 

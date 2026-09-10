@@ -558,10 +558,7 @@ function StepStorage({
 						<div>
 							<p className="text-xs font-medium text-foreground">已自动配置</p>
 							<p className="text-[11px] text-muted mt-0.5 leading-relaxed">
-								下载与素材文件将自动保存到你电脑的{" "}
-								<code className="text-accent bg-accent/10 px-1 rounded">
-									~/Downloads
-								</code>{" "}
+								下载与素材文件将自动保存到系统默认的「下载」(Downloads)
 								目录，无需额外配置。
 							</p>
 						</div>
