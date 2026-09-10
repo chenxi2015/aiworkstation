@@ -7,6 +7,57 @@ export interface ParsedDocument {
 }
 
 /**
+ * Extract video URL from string if it represents a video link or markdown video tag
+ */
+export function extractVideoUrl(str: string): string | null {
+	const s = str.trim();
+	// 1. Markdown video syntax: 🎥 [演示视频](url), [▶ 视频](url), [视频](url), ![video](url)
+	const mdMatch = s.match(
+		/^(?:🎥\s*)?(?:\[(?:▶\s*|🎥\s*)?(?:.*?视频|video).*?\]|!\[(?:video|视频).*?\])\(((?:https?:\/\/|\/api\/files\/)[^\s)]+)\)$/i,
+	);
+	if (mdMatch) return mdMatch[1];
+
+	// 2. Native HTML <video src="..."> tag
+	const htmlMatch = s.match(
+		/<video[^>]+src=["']((?:https?:\/\/|\/api\/files\/)[^"']+)["']/i,
+	);
+	if (htmlMatch) return htmlMatch[1];
+
+	// 3. Standalone video URL (mp4, webm, ogg, mov, m4v, mkv, flv)
+	const urlMatch = s.match(
+		/^((?:https?:\/\/|\/api\/files\/)[^\s]+\.(?:mp4|webm|ogg|mov|m4v|mkv|flv)(?:\?[^\s]*)?(?:#[^\s]*)?)$/i,
+	);
+	if (urlMatch) return urlMatch[1];
+
+	return null;
+}
+
+/**
+ * Extract image URL from string if it represents an image link, data URL or markdown image tag
+ */
+export function extractImageUrl(str: string): string | null {
+	const s = str.trim();
+	// 1. Data URL
+	if (/^data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]+$/i.test(s)) {
+		return s;
+	}
+
+	// 2. Markdown image syntax: ![alt](url)
+	const mdMatch = s.match(
+		/^!\[.*?\]\(((?:https?:\/\/|\/api\/files\/)[^\s)]+)\)$/i,
+	);
+	if (mdMatch) return mdMatch[1];
+
+	// 3. Standalone image URL (png, jpg, jpeg, gif, webp, svg, bmp, avif)
+	const urlMatch = s.match(
+		/^((?:https?:\/\/|\/api\/files\/)[^\s]+\.(?:png|jpe?g|gif|webp|svg|bmp|avif)(?:\?[^\s]*)?(?:#[^\s]*)?)$/i,
+	);
+	if (urlMatch) return urlMatch[1];
+
+	return null;
+}
+
+/**
  * 简易且健壮的 Markdown → HTML 转换器（用于导入网页正文、Obsidian 笔记等）
  */
 export function markdownToHtml(md: string): string {
@@ -18,27 +69,6 @@ export function markdownToHtml(md: string): string {
 	let codeBlockLang = "";
 	let codeBlockContent: string[] = [];
 	let inList = false;
-
-	const extractVideoUrl = (str: string): string | null => {
-		const s = str.trim();
-		// 1. Markdown 视频语法: 🎥 [演示视频](url), [▶ 视频](url), [视频](url), ![video](url)
-		const mdMatch = s.match(
-			/^(?:🎥\s*)?(?:\[(?:▶\s*|🎥\s*)?(?:.*?视频|video).*?\]|!\[(?:video|视频).*?\])\((https?:\/\/[^\s)]+)\)$/i,
-		);
-		if (mdMatch) return mdMatch[1];
-
-		// 2. 原生 HTML <video src="..."> 标签
-		const htmlMatch = s.match(/<video[^>]+src=["'](https?:\/\/[^"']+)["']/i);
-		if (htmlMatch) return htmlMatch[1];
-
-		// 3. 单独一行的视频直链 (mp4, webm, ogg, mov, m4v)
-		const urlMatch = s.match(
-			/^(https?:\/\/[^\s]+\.(?:mp4|webm|ogg|mov|m4v)(?:\?[^\s]*)?)$/i,
-		);
-		if (urlMatch) return urlMatch[1];
-
-		return null;
-	};
 
 	const formatInline = (text: string): string => {
 		return text

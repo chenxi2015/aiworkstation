@@ -28,8 +28,66 @@ import {
 import { useEffect, useReducer, useRef, useState } from "react";
 import { uploadAssetRpc } from "../../services/api/editorClient";
 import { AiBubbleMenu } from "./AiBubbleMenu";
-import { markdownToHtml } from "./importers";
+import { extractImageUrl, extractVideoUrl, markdownToHtml } from "./importers";
 import { VideoNode } from "./videoNode";
+
+/**
+ * Convert file to Base64 data URL as fallback when server upload fails
+ */
+function fileToDataUrl(file: File): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onload = () => resolve(reader.result as string);
+		reader.onerror = reject;
+		reader.readAsDataURL(file);
+	});
+}
+
+/**
+ * Extract files from clipboard or drag dataTransfer
+ */
+function extractMediaFiles(
+	dataTransfer: DataTransfer | null | undefined,
+): File[] {
+	if (!dataTransfer) return [];
+	const files: File[] = [];
+
+	if (dataTransfer.files && dataTransfer.files.length > 0) {
+		for (let i = 0; i < dataTransfer.files.length; i++) {
+			const file = dataTransfer.files.item(i);
+			if (file) files.push(file);
+		}
+	} else if (dataTransfer.items && dataTransfer.items.length > 0) {
+		for (let i = 0; i < dataTransfer.items.length; i++) {
+			const item = dataTransfer.items[i];
+			if (item.kind === "file") {
+				const file = item.getAsFile();
+				if (file) files.push(file);
+			}
+		}
+	}
+	return files;
+}
+
+/**
+ * Update media node src attribute when async upload finishes
+ */
+function updateMediaSrc(editor: Editor, oldSrc: string, newSrc: string) {
+	let found = false;
+	editor.state.doc.descendants((node, pos) => {
+		if (found) return false;
+		if (
+			(node.type.name === "image" || node.type.name === "video") &&
+			node.attrs.src === oldSrc
+		) {
+			editor.view.dispatch(
+				editor.state.tr.setNodeAttribute(pos, "src", newSrc),
+			);
+			found = true;
+			return false;
+		}
+	});
+}
 
 /**
  * 常见 Markdown 语法特征模式集
@@ -143,6 +201,40 @@ export function RichTextEditor({
 
 	const editorRef = useRef<Editor | null>(null);
 
+	const uploadAndInsertMedia = async (file: File, kind: "image" | "video") => {
+		const currentEditor = editorRef.current;
+		if (!currentEditor) return;
+		setUploading(true);
+		const tempUrl = URL.createObjectURL(file);
+
+		// Immediately insert preview for instant UI feedback
+		if (kind === "image") {
+			currentEditor.chain().focus().setImage({ src: tempUrl }).run();
+		} else {
+			currentEditor
+				.chain()
+				.focus()
+				.insertContent({ type: "video", attrs: { src: tempUrl } })
+				.run();
+		}
+
+		try {
+			const { url } = await uploadAssetRpc(docId, file);
+			updateMediaSrc(currentEditor, tempUrl, url);
+		} catch (err) {
+			console.error("Failed to upload asset, falling back to base64:", err);
+			try {
+				const base64 = await fileToDataUrl(file);
+				updateMediaSrc(currentEditor, tempUrl, base64);
+			} catch {
+				window.alert(err instanceof Error ? err.message : String(err));
+			}
+		} finally {
+			URL.revokeObjectURL(tempUrl);
+			setUploading(false);
+		}
+	};
+
 	const editor = useEditor({
 		immediatelyRender: false,
 		extensions: [
@@ -160,16 +252,64 @@ export function RichTextEditor({
 		],
 		editorProps: {
 			handlePaste: (_view, event) => {
-				const text = event.clipboardData?.getData("text/plain");
-				const html = event.clipboardData?.getData("text/html");
+				// 1. Check for media files (pasted screenshots, copied images/videos)
+				const mediaFiles = extractMediaFiles(event.clipboardData).filter(
+					(f) => f.type.startsWith("image/") || f.type.startsWith("video/"),
+				);
+				if (mediaFiles.length > 0) {
+					event.preventDefault();
+					for (const file of mediaFiles) {
+						const kind = file.type.startsWith("image/") ? "image" : "video";
+						uploadAndInsertMedia(file, kind);
+					}
+					return true;
+				}
 
-				// 智能拦截 Markdown 并转换为语义化富文本排版
-				if (text && shouldTreatAsMarkdown(text, html)) {
-					const converted = markdownToHtml(text);
-					if (converted && editorRef.current) {
-						editorRef.current.commands.insertContent(converted);
+				// 2. Check for plain text URLs (video URL, image URL, or markdown)
+				const text = event.clipboardData?.getData("text/plain")?.trim();
+				if (text && editorRef.current) {
+					// 2.1 Video URL -> render directly as interactive video
+					const videoUrl = extractVideoUrl(text);
+					if (videoUrl) {
+						editorRef.current
+							.chain()
+							.focus()
+							.insertContent({ type: "video", attrs: { src: videoUrl } })
+							.run();
 						return true;
 					}
+
+					// 2.2 Image URL -> render directly as image
+					const imageUrl = extractImageUrl(text);
+					if (imageUrl) {
+						editorRef.current.chain().focus().setImage({ src: imageUrl }).run();
+						return true;
+					}
+
+					// 2.3 Markdown content -> convert to formatted rich text
+					const html = event.clipboardData?.getData("text/html");
+					if (shouldTreatAsMarkdown(text, html)) {
+						const converted = markdownToHtml(text);
+						if (converted) {
+							editorRef.current.commands.insertContent(converted);
+							return true;
+						}
+					}
+				}
+				return false;
+			},
+			handleDrop: (_view, event, _slice, moved) => {
+				if (moved) return false;
+				const mediaFiles = extractMediaFiles(event.dataTransfer).filter(
+					(f) => f.type.startsWith("image/") || f.type.startsWith("video/"),
+				);
+				if (mediaFiles.length > 0) {
+					event.preventDefault();
+					for (const file of mediaFiles) {
+						const kind = file.type.startsWith("image/") ? "image" : "video";
+						uploadAndInsertMedia(file, kind);
+					}
+					return true;
 				}
 				return false;
 			},
@@ -219,24 +359,8 @@ export function RichTextEditor({
 		editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
 	};
 
-	const handleUpload = async (file: File, kind: "image" | "video") => {
-		setUploading(true);
-		try {
-			const { url } = await uploadAssetRpc(docId, file);
-			if (kind === "image") {
-				editor.chain().focus().setImage({ src: url }).run();
-			} else {
-				editor
-					.chain()
-					.focus()
-					.insertContent({ type: "video", attrs: { src: url } })
-					.run();
-			}
-		} catch (err) {
-			window.alert(err instanceof Error ? err.message : String(err));
-		} finally {
-			setUploading(false);
-		}
+	const handleUpload = (file: File, kind: "image" | "video") => {
+		uploadAndInsertMedia(file, kind);
 	};
 
 	const togglePreview = () => {

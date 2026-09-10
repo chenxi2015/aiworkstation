@@ -11,6 +11,7 @@ import {
 	FileText,
 	Loader2,
 	Printer,
+	Share2,
 	Sliders,
 	Trash2,
 	Upload,
@@ -30,7 +31,9 @@ import { ConfirmDialog } from "../workbench/ConfirmDialog";
 import { useWorkbenchQuickActions } from "../workbench/layout/useWorkbenchQuickActions";
 import { WorkbenchHeader } from "../workbench/layout/WorkbenchHeader";
 import type { Folder } from "../workbench/types";
+import { DistributionModal } from "./DistributionModal";
 import { exportToPdfPrint, exportToWordDocx } from "./exporters";
+
 import { ImportModal } from "./ImportModal";
 import { tiptapJsonToMarkdown } from "./markdown";
 import { RichTextEditor } from "./RichTextEditor";
@@ -89,6 +92,7 @@ export function EditorApp({
 	const [deletingDoc, setDeletingDoc] = useState<EditorDocument | null>(null);
 	const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 	const [isStylePresetModalOpen, setIsStylePresetModalOpen] = useState(false);
+	const [isDistributionModalOpen, setIsDistributionModalOpen] = useState(false);
 	const [stylePresets, setStylePresets] = useState<EditorStylePreset[]>(
 		DEFAULT_STYLE_PRESETS,
 	);
@@ -668,6 +672,15 @@ ${currentHtml}
 									<Printer className="w-3.5 h-3.5" />
 									PDF / 打印
 								</button>
+								<div className="w-px h-5 bg-border mx-1" />
+								<button
+									type="button"
+									onClick={() => setIsDistributionModalOpen(true)}
+									className="flex items-center gap-1.5 px-3 py-1 text-xs text-accent font-medium bg-accent/10 hover:bg-accent/20 rounded-md transition-colors cursor-pointer"
+									title="一键生成移动端长图、小红书 3:4 多图卡片与多平台分发排版"
+								>
+									<Share2 className="w-3.5 h-3.5" />📱 贴图 / 分发
+								</button>
 							</div>
 						</>
 					)}
@@ -693,6 +706,16 @@ ${currentHtml}
 				onClose={() => setIsStylePresetModalOpen(false)}
 				onPresetsUpdated={(updated) => setStylePresets(updated)}
 			/>
+			{activeDoc && (
+				<DistributionModal
+					isOpen={isDistributionModalOpen}
+					onClose={() => setIsDistributionModalOpen(false)}
+					title={activeDoc.title}
+					contentHtml={currentHtml || activeDoc.contentText}
+					contentText={contentText || activeDoc.contentText}
+					markdown={currentMarkdown}
+				/>
+			)}
 		</div>
 	);
 }

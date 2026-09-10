@@ -90,3 +90,38 @@ export interface DocumentVersion {
 	note?: string | null;
 	createdAt?: string;
 }
+
+/** 卡片导出模式：单张长图 / 小红书 3:4 多图卡片 / 金句卡片 */
+export type CardExportMode = "long-image" | "redbook-slices" | "quote";
+
+/** 贴图视觉风格预设 */
+export type CardTheme =
+	| "minimal-light"
+	| "geek-dark"
+	| "vintage-paper"
+	| "redbook";
+
+export interface CardThemeConfig {
+	id: CardTheme;
+	name: string;
+	background: string;
+	textColor: string;
+	mutedColor: string;
+	accentColor: string;
+	cardBorder: string;
+	quoteBorder: string;
+	headerBg: string;
+}
+
+/** 跨平台分发目标平台 */
+export type PublishPlatform = "wechat" | "redbook" | "zhihu" | "twitter";
+
+export interface PublishPayload {
+	title: string;
+	contentHtml: string;
+	contentText: string;
+	platform: PublishPlatform;
+	tags?: string[];
+	coverImage?: string;
+	images?: string[];
+}

@@ -27,6 +27,7 @@ export const VideoNode = Node.create({
 				controls: "true",
 				preload: "metadata",
 				referrerpolicy: "no-referrer",
+				contenteditable: "false",
 			}),
 		];
 	},
