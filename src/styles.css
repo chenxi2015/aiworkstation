@@ -572,47 +572,91 @@ pre code {
 	outline: none !important;
 }
 
-/* ============ TipTap 表格（Table）样式 ============ */
+/* ============ TipTap 表格（Table）现代美观样式 ============ */
 .tiptap-editor table,
 .doc-content-body table {
-	border-collapse: collapse;
+	border-collapse: separate;
+	border-spacing: 0;
 	table-layout: fixed;
 	width: 100%;
-	margin: 1.25em 0;
-	overflow: hidden;
-	border-radius: 8px;
+	margin: 1.5em 0;
+	border-radius: 10px;
 	border: 1px solid var(--border);
+	overflow: hidden;
+	box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.03);
+	background-color: var(--surface, transparent);
+	transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .tiptap-editor th,
 .tiptap-editor td,
 .doc-content-body th,
 .doc-content-body td {
-	border: 1px solid var(--border);
-	padding: 8px 12px;
+	border-bottom: 1px solid var(--border);
+	border-right: 1px solid var(--border);
+	padding: 10px 14px;
 	vertical-align: top;
 	box-sizing: border-box;
 	position: relative;
-	min-width: 80px;
+	min-width: 90px;
 	font-size: 14px;
+	line-height: 1.5;
+	transition: background-color 0.15s ease;
 }
 
+/* 消除末行和末列的外边框，保证外圈圆角与 1px 边框完美契合 */
+.tiptap-editor tr:last-child th,
+.tiptap-editor tr:last-child td,
+.doc-content-body tr:last-child th,
+.doc-content-body tr:last-child td {
+	border-bottom: none;
+}
+
+.tiptap-editor tr th:last-child,
+.tiptap-editor tr td:last-child,
+.doc-content-body tr th:last-child,
+.doc-content-body tr td:last-child {
+	border-right: none;
+}
+
+/* 表头：现代清爽层次与轻量渐变底色 */
 .tiptap-editor th,
 .doc-content-body th {
 	font-weight: 600;
+	font-size: 13.5px;
 	text-align: left;
-	background-color: var(--surface-secondary, rgba(125, 125, 125, 0.08));
+	color: var(--foreground);
+	background-color: var(--surface-secondary, rgba(125, 125, 125, 0.06));
+	border-bottom: 2px solid var(--border);
+}
+
+/* 单元格内部排版与段落重置，消除额外内边距 */
+.tiptap-editor th > p,
+.tiptap-editor td > p,
+.doc-content-body th > p,
+.doc-content-body td > p {
+	margin: 0;
+	min-height: 1.4em;
+}
+
+/* 行悬停轻度高亮微交互反馈（非表头行） */
+.tiptap-editor tbody tr:hover td,
+.doc-content-body tbody tr:hover td {
+	background-color: rgba(125, 125, 125, 0.03);
+}
+
+/* 单元格选中态（TipTap 官方选区） */
+.tiptap-editor .selectedCell {
+	background-color: rgba(59, 130, 246, 0.08) !important;
 }
 
 .tiptap-editor .selectedCell:after {
 	z-index: 2;
 	position: absolute;
 	content: "";
-	left: 0;
-	right: 0;
-	top: 0;
-	bottom: 0;
-	background: rgba(59, 130, 246, 0.15);
+	inset: 0;
+	background: rgba(59, 130, 246, 0.1);
+	box-shadow: inset 0 0 0 1.5px rgba(59, 130, 246, 0.5);
 	pointer-events: none;
 }
 

@@ -6,13 +6,13 @@ import type {
 import {
 	createDocument,
 	deleteDocument,
+	downloadExternalAssetToDocument,
 	generateAiBarText,
 	listDocuments,
 	listDocumentVersions,
 	snapshotDocumentVersion,
 	updateDocument,
 	uploadDocumentAsset,
-	downloadExternalAssetToDocument,
 } from "../../server/functions/editor";
 
 export async function fetchDocuments(): Promise<EditorDocument[]> {
@@ -42,8 +42,11 @@ export async function updateDocumentRpc(params: {
 	await updateDocument({ data: params });
 }
 
-export async function deleteDocumentRpc(id: number): Promise<void> {
-	await deleteDocument({ data: { id } });
+export async function deleteDocumentRpc(
+	id: number,
+	deleteLocalAssets = false,
+): Promise<void> {
+	await deleteDocument({ data: { id, deleteLocalAssets } });
 }
 
 export async function fetchDocumentVersions(
@@ -80,8 +83,11 @@ export async function uploadAssetRpc(
 export async function downloadExternalAssetRpc(
 	documentId: number,
 	url: string,
+	referer?: string,
 ): Promise<{ url: string; filename: string }> {
-	return await downloadExternalAssetToDocument({ data: { documentId, url } });
+	return await downloadExternalAssetToDocument({
+		data: { documentId, url, referer },
+	});
 }
 
 import {

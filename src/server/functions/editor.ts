@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { extname, join } from "node:path";
 import { createServerFn } from "@tanstack/react-start";
 import type {
@@ -79,12 +79,28 @@ export const updateDocument = createServerFn({ method: "POST" })
 	});
 
 /**
- * Server Function: 删除文档（连同版本快照；媒体文件保留，由「清理孤儿文件」维护动作兜底）
+ * Server Function: 删除文档（连同版本快照；可选用 deleteLocalAssets 清理本地媒体资源）
  */
 export const deleteDocument = createServerFn({ method: "POST" })
-	.validator((data: { id: number }) => data)
+	.validator((data: { id: number; deleteLocalAssets?: boolean }) => data)
 	.handler(async ({ data }): Promise<void> => {
 		workbenchDb.deleteDocument(data.id);
+		if (data.deleteLocalAssets) {
+			try {
+				const filesRoot = getFilesRootDir();
+				const assetsDir = getDocumentAssetsDir(data.id);
+				assertPathWithinRoot(assetsDir, filesRoot);
+				assertWritablePath(assetsDir);
+				if (existsSync(assetsDir)) {
+					rmSync(assetsDir, { recursive: true, force: true });
+				}
+			} catch (err) {
+				console.warn(
+					`[deleteDocument] Failed to delete local assets for document ${data.id}:`,
+					err,
+				);
+			}
+		}
 	});
 
 /**
@@ -171,6 +187,143 @@ export const uploadDocumentAsset = createServerFn({ method: "POST" })
 		return { url: `/api/files/${relPath}`, filename: finalName };
 	});
 
+interface PlatformRefererRule {
+	matches: (hostname: string) => boolean;
+	referer: string;
+}
+
+/**
+ * Platform specific anti-hotlinking referer rules
+ */
+const PLATFORM_REFERER_RULES: PlatformRefererRule[] = [
+	// WeChat public platform & Tencent media
+	{
+		matches: (host) =>
+			host.endsWith("qpic.cn") ||
+			host.endsWith("qq.com") ||
+			host.endsWith("gtimg.com"),
+		referer: "https://mp.weixin.qq.com/",
+	},
+	// YouTube & Google Video / Thumbnail CDN
+	{
+		matches: (host) =>
+			host.endsWith("youtube.com") ||
+			host.endsWith("youtu.be") ||
+			host.endsWith("googlevideo.com") ||
+			host.endsWith("ytimg.com") ||
+			host.endsWith("ggpht.com"),
+		referer: "https://www.youtube.com/",
+	},
+	// Douyin & ByteDance CDN
+	{
+		matches: (host) =>
+			host.endsWith("douyin.com") ||
+			host.endsWith("iesdouyin.com") ||
+			host.endsWith("douyincdn.com") ||
+			host.endsWith("byteimg.com") ||
+			host.endsWith("volces.com"),
+		referer: "https://www.douyin.com/",
+	},
+	// TikTok
+	{
+		matches: (host) =>
+			host.endsWith("tiktok.com") ||
+			host.endsWith("tiktokcdn.com") ||
+			host.endsWith("ibytedtos.com"),
+		referer: "https://www.tiktok.com/",
+	},
+	// Kuaishou
+	{
+		matches: (host) =>
+			host.endsWith("kuaishou.com") ||
+			host.endsWith("yximgs.com") ||
+			host.endsWith("ksapisrv.com") ||
+			host.endsWith("gifshow.com"),
+		referer: "https://www.kuaishou.com/",
+	},
+	// Bilibili
+	{
+		matches: (host) =>
+			host.endsWith("hdslb.com") ||
+			host.endsWith("bilibili.com") ||
+			host.endsWith("biliapi.net"),
+		referer: "https://www.bilibili.com/",
+	},
+	// Xiaohongshu
+	{
+		matches: (host) =>
+			host.endsWith("xhscdn.com") || host.endsWith("xiaohongshu.com"),
+		referer: "https://www.xiaohongshu.com/",
+	},
+	// Weibo & Sina
+	{
+		matches: (host) =>
+			host.endsWith("sinaimg.cn") ||
+			host.endsWith("weibo.com") ||
+			host.endsWith("weibo.cn") ||
+			host.endsWith("sina.com.cn"),
+		referer: "https://weibo.com/",
+	},
+	// Zhihu
+	{
+		matches: (host) => host.endsWith("zhimg.com") || host.endsWith("zhihu.com"),
+		referer: "https://www.zhihu.com/",
+	},
+	// X / Twitter
+	{
+		matches: (host) =>
+			host.endsWith("twimg.com") ||
+			host.endsWith("twitter.com") ||
+			host.endsWith("x.com"),
+		referer: "https://x.com/",
+	},
+	// Xigua Video
+	{
+		matches: (host) =>
+			host.endsWith("ixigua.com") || host.endsWith("xigua.com"),
+		referer: "https://www.ixigua.com/",
+	},
+	// Toutiao
+	{
+		matches: (host) =>
+			host.endsWith("toutiao.com") || host.endsWith("toutiaoimg.com"),
+		referer: "https://www.toutiao.com/",
+	},
+];
+
+/**
+ * Smartly resolves the Referer header for external media downloading.
+ * Priority:
+ * 1. Explicitly provided custom referer
+ * 2. Well-known platform anti-leech rules (e.g. YouTube, Douyin, WeChat, Bilibili, etc.)
+ * 3. Default to the resource's own URL to satisfy origin/page-level anti-hotlinking
+ */
+export function resolveAssetReferer(
+	url: string,
+	customReferer?: string,
+): string {
+	if (customReferer && customReferer.trim()) {
+		return customReferer.trim();
+	}
+
+	try {
+		const urlObj = new URL(url);
+		const hostname = urlObj.hostname.toLowerCase();
+
+		const matchedRule = PLATFORM_REFERER_RULES.find((rule) =>
+			rule.matches(hostname),
+		);
+		if (matchedRule) {
+			return matchedRule.referer;
+		}
+
+		// Default to using the resource's own URL
+		return url;
+	} catch {
+		return url;
+	}
+}
+
 /**
  * Server Function: 下载外链图片/视频并转存到当前稿件本地目录
  * 服务端请求无 CORS 限制，并携带防盗链 Referer 头
@@ -178,30 +331,37 @@ export const uploadDocumentAsset = createServerFn({ method: "POST" })
 export const downloadExternalAssetToDocument = createServerFn({
 	method: "POST",
 })
-	.validator((data: { documentId: number; url: string }) => {
-		const { documentId, url } = data;
+	.validator((data: { documentId: number; url: string; referer?: string }) => {
+		const { documentId, url, referer } = data;
 		if (!documentId || !url) throw new Error("缺少 documentId 或 url");
-		return { documentId: Number(documentId), url: String(url).trim() };
+		return {
+			documentId: Number(documentId),
+			url: String(url).trim(),
+			referer: referer ? String(referer).trim() : undefined,
+		};
 	})
 	.handler(async ({ data }): Promise<{ url: string; filename: string }> => {
-		const { documentId, url } = data;
+		const { documentId, url, referer: customReferer } = data;
 		if (!workbenchDb.getDocument(documentId)) throw new Error("文档不存在");
 
 		const urlObj = new URL(url);
 		const headers: Record<string, string> = {
 			"User-Agent":
 				"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+			Referer: resolveAssetReferer(url, customReferer),
 		};
-		if (
-			urlObj.hostname.includes("qpic.cn") ||
-			urlObj.hostname.includes("qq.com")
-		) {
-			headers.Referer = "https://mp.weixin.qq.com/";
-		} else {
-			headers.Referer = `${urlObj.origin}/`;
+
+		let response = await fetch(url, { headers });
+		// Fallback retry without Referer if 403 Forbidden is returned
+		if (response.status === 403 && headers.Referer) {
+			const fallbackHeaders = { ...headers };
+			delete fallbackHeaders.Referer;
+			const fallbackRes = await fetch(url, { headers: fallbackHeaders });
+			if (fallbackRes.ok) {
+				response = fallbackRes;
+			}
 		}
 
-		const response = await fetch(url, { headers });
 		if (!response.ok) {
 			throw new Error(
 				`下载失败 (HTTP ${response.status} ${response.statusText})`,

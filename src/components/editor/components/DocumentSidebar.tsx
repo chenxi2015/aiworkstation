@@ -16,7 +16,7 @@ export interface DocumentSidebarProps {
 	activeId: number | null;
 	onSelect: (id: number) => void;
 	onCreate: () => void;
-	onDelete: (id: number) => Promise<void>;
+	onDelete: (id: number, deleteLocalAssets?: boolean) => Promise<void>;
 	onOpenImport: () => void;
 }
 
@@ -30,11 +30,13 @@ export function DocumentSidebar({
 	onOpenImport,
 }: DocumentSidebarProps) {
 	const [deletingDoc, setDeletingDoc] = useState<EditorDocument | null>(null);
+	const [deleteLocalAssets, setDeleteLocalAssets] = useState(false);
 
 	const handleConfirmDelete = async () => {
 		if (!deletingDoc) return;
-		await onDelete(deletingDoc.id);
+		await onDelete(deletingDoc.id, deleteLocalAssets);
 		setDeletingDoc(null);
+		setDeleteLocalAssets(false);
 	};
 
 	return (
@@ -104,6 +106,7 @@ export function DocumentSidebar({
 										className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-muted hover:text-danger transition-all cursor-pointer"
 										onClick={(e) => {
 											e.stopPropagation();
+											setDeleteLocalAssets(false);
 											setDeletingDoc(doc);
 										}}
 									>
@@ -136,12 +139,27 @@ export function DocumentSidebar({
 			<ConfirmDialog
 				isOpen={deletingDoc !== null}
 				onOpenChange={(open) => {
-					if (!open) setDeletingDoc(null);
+					if (!open) {
+						setDeletingDoc(null);
+						setDeleteLocalAssets(false);
+					}
 				}}
 				title="删除文档"
 				description={`确定删除「${deletingDoc?.title ?? ""}」吗？版本快照会一并删除，此操作不可撤销。`}
 				onConfirm={handleConfirmDelete}
-			/>
+			>
+				<label className="flex items-center gap-2 mt-3 p-2 rounded-lg bg-surface-secondary/50 border border-border/50 text-xs text-foreground cursor-pointer select-none hover:bg-surface-secondary transition-colors">
+					<input
+						type="checkbox"
+						checked={deleteLocalAssets}
+						onChange={(e) => setDeleteLocalAssets(e.target.checked)}
+						className="accent-accent w-3.5 h-3.5 rounded cursor-pointer shrink-0"
+					/>
+					<span className="text-muted text-[11px] leading-snug">
+						同时彻底删除本地下载的媒体资源（图片、视频等）
+					</span>
+				</label>
+			</ConfirmDialog>
 		</>
 	);
 }

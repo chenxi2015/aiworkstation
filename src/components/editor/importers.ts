@@ -58,6 +58,52 @@ export function extractImageUrl(str: string): string | null {
 	return null;
 }
 
+export interface ExtractedMediaItem {
+	kind: "image" | "video";
+	url: string;
+}
+
+/**
+ * Extract single media (image or video) item from a string line
+ */
+export function extractMediaFromLine(line: string): ExtractedMediaItem | null {
+	const trimmed = line.trim();
+	if (!trimmed) return null;
+
+	const videoUrl = extractVideoUrl(trimmed);
+	if (videoUrl) return { kind: "video", url: videoUrl };
+
+	const imageUrl = extractImageUrl(trimmed);
+	if (imageUrl) return { kind: "image", url: imageUrl };
+
+	return null;
+}
+
+/**
+ * If clipboard text contains multiple lines and every non-empty line represents a media URL/markdown,
+ * extract all of them so they can be parsed as multiple media blocks into the editor.
+ */
+export function extractMultipleMediaUrls(text: string): ExtractedMediaItem[] {
+	if (!text) return [];
+	const lines = text
+		.split(/\r?\n/)
+		.map((l) => l.trim())
+		.filter(Boolean);
+
+	if (lines.length <= 1) return [];
+
+	const items: ExtractedMediaItem[] = [];
+	for (const line of lines) {
+		const item = extractMediaFromLine(line);
+		if (!item) {
+			// If any line is normal non-media text, do not treat whole text as pure media list
+			return [];
+		}
+		items.push(item);
+	}
+	return items;
+}
+
 /**
  * Markdown → HTML（via marked，GFM 模式）
  * 视频链接单独用自定义 Renderer 渲染为 <video> 标签。

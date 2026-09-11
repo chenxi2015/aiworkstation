@@ -6,6 +6,7 @@ import TableHeader from "@tiptap/extension-table-header";
 import TableRow from "@tiptap/extension-table-row";
 import TaskItem from "@tiptap/extension-task-item";
 import TaskList from "@tiptap/extension-task-list";
+import TextAlign from "@tiptap/extension-text-align";
 import StarterKit from "@tiptap/starter-kit";
 import { renderToHTMLString } from "@tiptap/static-renderer/pm/html-string";
 import { useCallback, useMemo } from "react";
@@ -20,6 +21,10 @@ export const EXPORT_EXTENSIONS = [
 	StarterKit.configure({
 		heading: { levels: [1, 2, 3] },
 		codeBlock: false,
+	}),
+	TextAlign.configure({
+		types: ["heading", "paragraph", "image", "video"],
+		defaultAlignment: "left",
 	}),
 	CodeBlockWithHighlight,
 	Image.configure({
@@ -89,6 +94,9 @@ export function useDocumentExport({
 <style>
 body { max-width: 720px; margin: 40px auto; padding: 0 16px; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; line-height: 1.75; color: #1a1a1a; }
 img, video { max-width: 100%; border-radius: 8px; }
+img[style*="text-align: center"], video[style*="text-align: center"] { margin-left: auto; margin-right: auto; display: block; }
+img[style*="text-align: right"], video[style*="text-align: right"] { margin-left: auto; margin-right: 0; display: block; }
+img[style*="text-align: left"], video[style*="text-align: left"] { margin-left: 0; margin-right: auto; display: block; }
 blockquote { border-left: 3px solid #ddd; margin: 0; padding-left: 16px; color: #666; }
 code { background: #f3f3f3; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
 pre { background: #f6f8fa; padding: 16px; border-radius: 8px; overflow-x: auto; }

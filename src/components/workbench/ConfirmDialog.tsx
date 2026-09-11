@@ -6,6 +6,7 @@ interface ConfirmDialogProps {
 	onOpenChange: (open: boolean) => void;
 	title: string;
 	description?: ReactNode;
+	children?: ReactNode;
 	confirmLabel?: string;
 	cancelLabel?: string;
 	onConfirm: () => void | Promise<void>;
@@ -20,6 +21,7 @@ export function ConfirmDialog({
 	onOpenChange,
 	title,
 	description,
+	children,
 	confirmLabel = "删除",
 	cancelLabel = "取消",
 	onConfirm,
@@ -49,9 +51,15 @@ export function ConfirmDialog({
 						<AlertDialog.Icon status="danger" />
 						<AlertDialog.Heading>{title}</AlertDialog.Heading>
 					</AlertDialog.Header>
-					{description && (
+					{(description || children) && (
 						<AlertDialog.Body>
-							<p>{description}</p>
+							{description &&
+								(typeof description === "string" ? (
+									<p>{description}</p>
+								) : (
+									description
+								))}
+							{children}
 						</AlertDialog.Body>
 					)}
 					<AlertDialog.Footer>

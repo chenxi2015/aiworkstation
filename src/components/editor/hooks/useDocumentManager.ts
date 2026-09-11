@@ -31,7 +31,7 @@ export interface UseDocumentManagerReturn {
 	setStylePresets: React.Dispatch<React.SetStateAction<EditorStylePreset[]>>;
 	switchDocument: (nextId: number | null) => Promise<void>;
 	handleCreate: () => Promise<EditorDocument>;
-	handleDelete: (docId: number) => Promise<void>;
+	handleDelete: (docId: number, deleteLocalAssets?: boolean) => Promise<void>;
 	handleEditorChange: (contentJson: string, text: string) => void;
 	handleTitleChange: (title: string) => void;
 	handleStylePresetChange: (stylePreset: string) => void;
@@ -180,16 +180,19 @@ export function useDocumentManager(): UseDocumentManagerReturn {
 		[switchDocument],
 	);
 
-	const handleDelete = useCallback(async (docId: number) => {
-		await deleteDocumentRpc(docId);
-		setDocuments((prev) => {
-			const next = prev.filter((d) => d.id !== docId);
-			if (activeIdRef.current === docId) {
-				setActiveId(next[0]?.id ?? null);
-			}
-			return next;
-		});
-	}, []);
+	const handleDelete = useCallback(
+		async (docId: number, deleteLocalAssets = false) => {
+			await deleteDocumentRpc(docId, deleteLocalAssets);
+			setDocuments((prev) => {
+				const next = prev.filter((d) => d.id !== docId);
+				if (activeIdRef.current === docId) {
+					setActiveId(next[0]?.id ?? null);
+				}
+				return next;
+			});
+		},
+		[],
+	);
 
 	const handleEditorChange = useCallback(
 		(contentJson: string, text: string) => {
