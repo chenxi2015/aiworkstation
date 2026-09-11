@@ -104,6 +104,20 @@ export const deleteDocument = createServerFn({ method: "POST" })
 	});
 
 /**
+ * Server Function: 打开文档的本地存储目录（由系统文件管理器打开）
+ */
+export const openDocumentDirectory = createServerFn({ method: "POST" })
+	.validator((data: { id: number }) => data)
+	.handler(async ({ data }): Promise<{ success: boolean; path: string }> => {
+		const doc = workbenchDb.getDocument(data.id);
+		if (!doc) throw new Error("文档不存在");
+
+		const { openInOs } = await import("../services/systemOpener.ts");
+		const assetsDir = getDocumentAssetsDir(data.id);
+		return await openInOs(assetsDir, { ensureDir: true });
+	});
+
+/**
  * Server Function: 版本快照列表
  */
 export const listDocumentVersions = createServerFn({ method: "GET" })

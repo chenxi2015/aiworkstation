@@ -10,6 +10,7 @@ import {
 	generateAiBarText,
 	listDocuments,
 	listDocumentVersions,
+	openDocumentDirectory,
 	snapshotDocumentVersion,
 	updateDocument,
 	uploadDocumentAsset,
@@ -47,6 +48,12 @@ export async function deleteDocumentRpc(
 	deleteLocalAssets = false,
 ): Promise<void> {
 	await deleteDocument({ data: { id, deleteLocalAssets } });
+}
+
+export async function openDocumentDirectoryRpc(
+	id: number,
+): Promise<{ success: boolean; path: string }> {
+	return await openDocumentDirectory({ data: { id } });
 }
 
 export async function fetchDocumentVersions(

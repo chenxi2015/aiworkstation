@@ -1,6 +1,15 @@
+import { toast } from "@heroui/react";
 import dayjs from "dayjs";
-import { FilePlus2, FileText, Loader2, Trash2, Upload } from "lucide-react";
+import {
+	FilePlus2,
+	FileText,
+	FolderOpen,
+	Loader2,
+	Trash2,
+	Upload,
+} from "lucide-react";
 import { useState } from "react";
+import { openDocumentDirectoryRpc } from "../../../services/api/editorClient";
 import { ConfirmDialog } from "../../workbench/ConfirmDialog";
 import type { EditorDocument } from "../types";
 
@@ -31,6 +40,20 @@ export function DocumentSidebar({
 }: DocumentSidebarProps) {
 	const [deletingDoc, setDeletingDoc] = useState<EditorDocument | null>(null);
 	const [deleteLocalAssets, setDeleteLocalAssets] = useState(false);
+	const [openingDocId, setOpeningDocId] = useState<number | null>(null);
+
+	const handleOpenLocalFolder = async (e: React.MouseEvent, docId: number) => {
+		e.stopPropagation();
+		setOpeningDocId(docId);
+		try {
+			await openDocumentDirectoryRpc(docId);
+		} catch (err: unknown) {
+			const message = err instanceof Error ? err.message : String(err);
+			toast.danger(`打开本地文件夹失败: ${message}`);
+		} finally {
+			setOpeningDocId(null);
+		}
+	};
 
 	const handleConfirmDelete = async () => {
 		if (!deletingDoc) return;
@@ -97,21 +120,41 @@ export function DocumentSidebar({
 								}}
 							>
 								<div className="flex items-center gap-1.5">
+									<span className="text-[11px] font-mono font-medium text-muted/60 shrink-0 select-none">
+										#{doc.id}
+									</span>
 									<span className="text-xs font-medium truncate flex-1">
 										{doc.title}
 									</span>
-									<button
-										type="button"
-										aria-label="删除文档"
-										className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-muted hover:text-danger transition-all cursor-pointer"
-										onClick={(e) => {
-											e.stopPropagation();
-											setDeleteLocalAssets(false);
-											setDeletingDoc(doc);
-										}}
-									>
-										<Trash2 className="w-3 h-3" />
-									</button>
+									<div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+										<button
+											type="button"
+											title="打开本地文件夹"
+											aria-label="打开本地文件夹"
+											disabled={openingDocId === doc.id}
+											className="p-0.5 rounded text-muted hover:text-foreground hover:bg-muted/20 transition-colors cursor-pointer disabled:opacity-50"
+											onClick={(e) => handleOpenLocalFolder(e, doc.id)}
+										>
+											{openingDocId === doc.id ? (
+												<Loader2 className="w-3 h-3 animate-spin" />
+											) : (
+												<FolderOpen className="w-3 h-3" />
+											)}
+										</button>
+										<button
+											type="button"
+											title="删除文档"
+											aria-label="删除文档"
+											className="p-0.5 rounded text-muted hover:text-danger hover:bg-danger/10 transition-colors cursor-pointer"
+											onClick={(e) => {
+												e.stopPropagation();
+												setDeleteLocalAssets(false);
+												setDeletingDoc(doc);
+											}}
+										>
+											<Trash2 className="w-3 h-3" />
+										</button>
+									</div>
 								</div>
 								<div className="flex items-center gap-1.5 mt-1">
 									<span

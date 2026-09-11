@@ -1,10 +1,10 @@
 import { promises as fs, existsSync, mkdirSync, createWriteStream, createReadStream } from 'node:fs';
-import { spawn } from 'node:child_process';
 import { createDecipheriv } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { remuxTsToMp4, muxDualTracksToMp4 } from './nativeFfmpeg.ts';
 import { getVideoDownloadsDir } from './filesRoot.ts';
+import { openInOs } from './systemOpener.ts';
 
 export interface ServerVideoTask {
   id: string;
@@ -410,13 +410,7 @@ export class VideoDownloadManager {
     }
 
     try {
-      if (process.platform === 'darwin') {
-        spawn('open', ['-R', filePath], { detached: true, stdio: 'ignore' }).unref();
-      } else if (process.platform === 'win32') {
-        spawn('explorer.exe', ['/select,', filePath], { detached: true, stdio: 'ignore' }).unref();
-      } else {
-        spawn('xdg-open', [join(filePath, '..')], { detached: true, stdio: 'ignore' }).unref();
-      }
+      openInOs(filePath, { reveal: true, skipRootCheck: true }).catch(() => {});
       return true;
     } catch {
       return false;

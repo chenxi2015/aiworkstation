@@ -22,6 +22,11 @@ import {
 } from "./listDirectoryTool.ts";
 import { executeMove, moveInputSchema, moveToolDef } from "./moveTool.ts";
 import {
+	executeOpenInOs,
+	openInOsInputSchema,
+	openInOsToolDef,
+} from "./openInOsTool.ts";
+import {
 	executePatchFile,
 	patchFileInputSchema,
 	patchFileToolDef,
@@ -53,6 +58,7 @@ export * from "./fsSafety.ts";
 export * from "./getFileInfoTool.ts";
 export * from "./listDirectoryTool.ts";
 export * from "./moveTool.ts";
+export * from "./openInOsTool.ts";
 export * from "./patchFileTool.ts";
 export * from "./readFileTool.ts";
 export * from "./searchContentTool.ts";
@@ -120,6 +126,9 @@ export function createFsServerTools(hooks?: BookmarkToolHooks) {
 		deleteToolDef.server((args) =>
 			wrapExecution("fs_delete", args, () => executeDelete(args), hooks),
 		),
+		openInOsToolDef.server((args) =>
+			wrapExecution("fs_open_in_os", args, () => executeOpenInOs(args), hooks),
+		),
 	];
 }
 
@@ -175,6 +184,9 @@ export async function executeFsToolCall(
 			break;
 		case "fs_delete":
 			result = executeDelete(deleteInputSchema.parse(parsedArgs));
+			break;
+		case "fs_open_in_os":
+			result = await executeOpenInOs(openInOsInputSchema.parse(parsedArgs));
 			break;
 		default:
 			result = {
