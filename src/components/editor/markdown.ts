@@ -68,6 +68,22 @@ function renderBlock(node: JSONContent, indent: string): string {
 			const code = renderInlineGroup(node.content);
 			return `${indent}\`\`\`${lang}\n${code}\n${indent}\`\`\``;
 		}
+		case "table": {
+			// Render GFM table; first row = header, rest = body
+			const rows = node.content ?? [];
+			if (rows.length === 0) return "";
+			const renderRow = (row: JSONContent) =>
+				`| ${(row.content ?? []).map((cell) => renderInlineGroup(cell.content).replace(/\|/g, "\\|")).join(" | ")} |`;
+			const [headerRow, ...bodyRows] = rows;
+			const colCount = (headerRow?.content ?? []).length || 1;
+			const separator = `| ${Array(colCount).fill("---").join(" | ")} |`;
+			const parts = [
+				renderRow(headerRow!),
+				separator,
+				...bodyRows.map(renderRow),
+			];
+			return parts.join("\n");
+		}
 		case "horizontalRule":
 			return `${indent}---`;
 		case "image":

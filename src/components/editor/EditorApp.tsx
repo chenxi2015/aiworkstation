@@ -1,9 +1,11 @@
+import { Dropdown, toast } from "@heroui/react";
 import Image from "@tiptap/extension-image";
 import StarterKit from "@tiptap/starter-kit";
 import { renderToHTMLString } from "@tiptap/static-renderer/pm/html-string";
 import dayjs from "dayjs";
 import {
 	Archive,
+	ArrowDownToLine,
 	CheckCircle2,
 	ChevronDown,
 	Code,
@@ -13,12 +15,12 @@ import {
 	FileText,
 	Loader2,
 	Printer,
+	RefreshCw,
 	Share2,
 	Sliders,
 	Trash2,
 	Upload,
 } from "lucide-react";
-import { Dropdown, toast } from "@heroui/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { NavLayoutEntry } from "../../modules/registry";
 import { getWorkbenchSettings } from "../../server/functions/workbench";
@@ -30,6 +32,7 @@ import {
 	snapshotVersionRpc,
 	updateDocumentRpc,
 } from "../../services/api/editorClient";
+import { useAiPanel } from "../shell/AppShell";
 import { ConfirmDialog } from "../workbench/ConfirmDialog";
 import { useWorkbenchQuickActions } from "../workbench/layout/useWorkbenchQuickActions";
 import { WorkbenchHeader } from "../workbench/layout/WorkbenchHeader";
@@ -38,6 +41,7 @@ import { DistributionModal } from "./DistributionModal";
 import { exportToPdfPrint, exportToWordDocx } from "./exporters";
 
 import { ImportModal } from "./ImportModal";
+import { markdownToHtml } from "./importers";
 import { tiptapJsonToMarkdown } from "./markdown";
 import { RichTextEditor } from "./RichTextEditor";
 import { StylePresetModal } from "./StylePresetModal";
@@ -337,6 +341,91 @@ export function EditorApp({
 		},
 		[activeDoc?.stylePreset],
 	);
+
+	const { registerPageBridge, registerDataChangedHandler } = useAiPanel();
+
+	// 1. Register page capabilities to AI side panel (insert at cursor / replace selection)
+	useEffect(() => {
+		if (!activeDoc) {
+			registerPageBridge(null);
+			return;
+		}
+
+		registerPageBridge({
+			module: "editor",
+			activeDocumentId: activeDoc.id,
+			activeDocumentTitle: activeDoc.title,
+			actions: [
+				{
+					id: "insert_cursor",
+					label: "插入光标处",
+					icon: ArrowDownToLine,
+					variant: "accent",
+					tooltip: `将回答内容插入到当前文档光标位置（自动备份快照）`,
+					onAction: async (aiContent: string) => {
+						const editor = editorInstanceRef.current;
+						if (!editor) {
+							toast.warning("编辑器未准备好");
+							return;
+						}
+						// 1. Take a safe version snapshot before mutating document
+						await handleBeforeAiApply();
+						// 2. Convert markdown and insert into current cursor
+						const html = markdownToHtml(aiContent);
+						editor.commands.insertContent(html);
+						toast.success("已插入到文档，并自动保存版本快照");
+					},
+				},
+				{
+					id: "replace_selection",
+					label: "替换选区",
+					icon: RefreshCw,
+					tooltip: `用回答内容替换当前文档选中的文本（自动备份快照）`,
+					onAction: async (aiContent: string) => {
+						const editor = editorInstanceRef.current;
+						if (!editor) {
+							toast.warning("编辑器未准备好");
+							return;
+						}
+						await handleBeforeAiApply();
+						const html = markdownToHtml(aiContent);
+						editor.commands.insertContent(html);
+						toast.success("已替换选区，并自动保存版本快照");
+					},
+				},
+			],
+		});
+
+		return () => {
+			registerPageBridge(null);
+		};
+	}, [activeDoc, handleBeforeAiApply, registerPageBridge]);
+
+	// 2. Sync when AI tools execute backend mutations (e.g. rewrite_document)
+	useEffect(() => {
+		registerDataChangedHandler(async () => {
+			const id = activeIdRef.current;
+			if (!id) return;
+			const docs = await fetchDocuments();
+			setDocuments(docs);
+			const current = docs.find((d) => d.id === id);
+			if (current && editorInstanceRef.current) {
+				try {
+					editorInstanceRef.current.commands.setContent(
+						JSON.parse(current.content),
+					);
+				} catch {
+					editorInstanceRef.current.commands.setContent(
+						current.contentText || "",
+					);
+				}
+			}
+		});
+
+		return () => {
+			registerDataChangedHandler(null);
+		};
+	}, [registerDataChangedHandler]);
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: contentText triggers update
 	const currentMarkdown = useMemo(() => {
@@ -639,7 +728,9 @@ ${currentHtml}
 												<div className="flex items-center gap-2 w-full py-0.5">
 													<FileText className="w-3.5 h-3.5 text-muted shrink-0" />
 													<div className="flex flex-col">
-														<span className="text-xs font-medium">复制纯文本</span>
+														<span className="text-xs font-medium">
+															复制纯文本
+														</span>
 														<span className="text-[10px] text-muted">
 															去除排版样式的纯文本
 														</span>
@@ -649,7 +740,9 @@ ${currentHtml}
 											<Dropdown.Item
 												id="copy-markdown"
 												textValue="复制 Markdown"
-												onAction={() => void copyText(currentMarkdown, "Markdown")}
+												onAction={() =>
+													void copyText(currentMarkdown, "Markdown")
+												}
 											>
 												<div className="flex items-center gap-2 w-full py-0.5">
 													<Copy className="w-3.5 h-3.5 text-muted shrink-0" />

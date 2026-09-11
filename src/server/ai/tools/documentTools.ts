@@ -18,15 +18,32 @@ export type ReadDocumentInput = z.infer<typeof readDocumentInputSchema>;
 export function executeReadDocument(
 	args: ReadDocumentInput & { activeDocumentId?: number },
 ): ToolExecutionResult {
-	const id = args.documentId ?? args.activeDocumentId;
+	let id = args.documentId ?? args.activeDocumentId;
 	if (!id) {
-		return {
-			toolName: "read_document",
-			summary: "无法读取文档：未指定 documentId 且当前无活跃文档。",
-			items: [],
-			references: [],
-			isMutation: false,
-		};
+		const recentDocs = workbenchDb.listDocuments(false);
+		if (recentDocs.length === 1) {
+			id = recentDocs[0].id;
+		} else if (recentDocs.length > 1) {
+			const listStr = recentDocs
+				.slice(0, 5)
+				.map((d) => `• ID: ${d.id} - 《${d.title}》`)
+				.join("\n");
+			return {
+				toolName: "read_document",
+				summary: `未指定 documentId 且当前无明确活跃文档。数据库中现有的文档如下，可传入对应 documentId 读取：\n${listStr}`,
+				items: [],
+				references: [],
+				isMutation: false,
+			};
+		} else {
+			return {
+				toolName: "read_document",
+				summary: "无法读取文档：未指定 documentId 且当前创作库中暂无文档。",
+				items: [],
+				references: [],
+				isMutation: false,
+			};
+		}
 	}
 	const doc = workbenchDb.getDocument(id);
 	if (!doc) {
@@ -39,8 +56,7 @@ export function executeReadDocument(
 		};
 	}
 	const wordCount = doc.contentText?.length ?? 0;
-	const preview =
-		doc.contentText?.slice(0, 500) ?? "(空文档)";
+	const preview = doc.contentText?.slice(0, 500) ?? "(空文档)";
 	const previewSuffix = wordCount > 500 ? `\n…（共 ${wordCount} 字）` : "";
 
 	const summary = `## 文档「${doc.title}」\n- **状态**: ${doc.status}  **风格**: ${doc.stylePreset || "无"}\n- **字数**: ${wordCount} 字  **更新**: ${doc.updatedAt ?? "-"}\n\n### 内容预览\n${preview}${previewSuffix}`;
@@ -76,7 +92,9 @@ export const listDocumentsInputSchema = z.object({
 });
 export type ListDocumentsInput = z.infer<typeof listDocumentsInputSchema>;
 
-export function executeListDocuments(args: ListDocumentsInput): ToolExecutionResult {
+export function executeListDocuments(
+	args: ListDocumentsInput,
+): ToolExecutionResult {
 	const allDocs = workbenchDb.listDocuments(args.status === "archived");
 	const limit = args.limit ?? 20;
 
@@ -133,9 +151,7 @@ export const rewriteDocumentInputSchema = z.object({
 	documentId: z.number().describe("要改写的文档 id"),
 	instruction: z
 		.string()
-		.describe(
-			"改写指令（如：润色全文、压缩至 500 字、改成自媒体风格）",
-		),
+		.describe("改写指令（如：润色全文、压缩至 500 字、改成自媒体风格）"),
 	targetSection: z
 		.string()
 		.optional()

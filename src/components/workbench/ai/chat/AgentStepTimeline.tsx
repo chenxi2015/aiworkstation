@@ -73,7 +73,10 @@ function formatStepAction(step: AgentStep): StepActionMeta {
 					title: `批量创建 ${args.folders.length} 个文件夹`,
 				};
 			}
-			const name = args.name || args.folderName ? `「${String(args.name || args.folderName)}」` : "新文件夹";
+			const name =
+				args.name || args.folderName
+					? `「${String(args.name || args.folderName)}」`
+					: "新文件夹";
 			const cat = args.category ? `在「${String(args.category)}」下` : "";
 			return {
 				Icon: FolderPlus,
@@ -115,9 +118,12 @@ function formatStepAction(step: AgentStep): StepActionMeta {
 			const target = args.targetFolderName
 				? `至「${String(args.targetFolderName)}」`
 				: "";
-			const count = Array.isArray(args.bookmarkIds) || Array.isArray(args.itemIds) || Array.isArray(args.itemNamesOrUrls)
-				? `${((args.bookmarkIds || args.itemIds || args.itemNamesOrUrls) as unknown[]).length} 个`
-				: "";
+			const count =
+				Array.isArray(args.bookmarkIds) ||
+				Array.isArray(args.itemIds) ||
+				Array.isArray(args.itemNamesOrUrls)
+					? `${((args.bookmarkIds || args.itemIds || args.itemNamesOrUrls) as unknown[]).length} 个`
+					: "";
 			return {
 				Icon: FolderInput,
 				iconColor: "text-emerald-500 dark:text-emerald-400",
@@ -134,7 +140,8 @@ function formatStepAction(step: AgentStep): StepActionMeta {
 				return {
 					Icon: FolderTree,
 					iconColor: "text-violet-500 dark:text-violet-400",
-					title: `批量调整 ${args.folderNames.length} 个文件夹 ${target}`.trim(),
+					title:
+						`批量调整 ${args.folderNames.length} 个文件夹 ${target}`.trim(),
 				};
 			}
 			const name = args.folderName

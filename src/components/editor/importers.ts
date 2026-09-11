@@ -1,4 +1,5 @@
 import mammoth from "mammoth";
+import { marked, Renderer } from "marked";
 import * as XLSX from "xlsx";
 
 export interface ParsedDocument {
@@ -58,147 +59,33 @@ export function extractImageUrl(str: string): string | null {
 }
 
 /**
- * 简易且健壮的 Markdown → HTML 转换器（用于导入网页正文、Obsidian 笔记等）
+ * Markdown → HTML（via marked，GFM 模式）
+ * 视频链接单独用自定义 Renderer 渲染为 <video> 标签。
  */
 export function markdownToHtml(md: string): string {
 	if (!md) return "";
 
-	const lines = md.split("\n");
-	const htmlLines: string[] = [];
-	let inCodeBlock = false;
-	let codeBlockLang = "";
-	let codeBlockContent: string[] = [];
-	let inList = false;
+	const renderer = new Renderer();
 
-	const formatInline = (text: string): string => {
-		return text
-			.replace(/&/g, "&amp;")
-			.replace(/</g, "&lt;")
-			.replace(/>/g, "&gt;")
-			.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-			.replace(/\*(.*?)\*/g, "<em>$1</em>")
-			.replace(/~~(.*?)~~/g, "<del>$1</del>")
-			.replace(/`([^`]+)`/g, "<code>$1</code>")
-			.replace(
-				/(?:🎥\s*)?(?:\[(?:▶\s*|🎥\s*)?(?:.*?视频|video).*?\]|!\[(?:video|视频).*?\])\((https?:\/\/[^\s)]+)\)/gi,
-				'<div class="ast-video-card my-3"><video src="$1" controls preload="metadata" referrerpolicy="no-referrer"></video></div>',
-			)
-			.replace(
-				/!\[(.*?)\]\((.*?)\)/g,
-				'<img src="$2" alt="$1" referrerpolicy="no-referrer" />',
-			)
-			.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2">$1</a>');
+	// Intercept image rendering: video links → <video>, rest → <img>
+	renderer.image = ({ href, text }) => {
+		const videoUrl = extractVideoUrl(href ?? "");
+		if (videoUrl) {
+			return `<div class="ast-video-card my-3"><video src="${videoUrl}" controls preload="metadata" referrerpolicy="no-referrer"></video></div>`;
+		}
+		return `<img src="${href}" alt="${text}" referrerpolicy="no-referrer" />`;
 	};
 
-	for (let i = 0; i < lines.length; i++) {
-		const line = lines[i];
-
-		// 代码块处理
-		if (line.trim().startsWith("```")) {
-			if (!inCodeBlock) {
-				inCodeBlock = true;
-				codeBlockLang = line.trim().slice(3).trim();
-				codeBlockContent = [];
-			} else {
-				inCodeBlock = false;
-				const escaped = codeBlockContent
-					.join("\n")
-					.replace(/&/g, "&amp;")
-					.replace(/</g, "&lt;")
-					.replace(/>/g, "&gt;");
-				htmlLines.push(
-					`<pre><code class="language-${codeBlockLang}">${escaped}</code></pre>`,
-				);
-			}
-			continue;
-		}
-
-		if (inCodeBlock) {
-			codeBlockContent.push(line);
-			continue;
-		}
-
-		const trimmed = line.trim();
-		if (!trimmed) {
-			if (inList) {
-				htmlLines.push("</ul>");
-				inList = false;
-			}
-			continue;
-		}
-
-		// 视频处理（参考 DocViewerApp 与 AST 规范，支持多种视频语法及直链）
-		const videoUrl = extractVideoUrl(trimmed);
+	// Intercept link rendering: video links → <video>, rest → <a>
+	renderer.link = ({ href, text }) => {
+		const videoUrl = extractVideoUrl(href ?? "");
 		if (videoUrl) {
-			if (inList) {
-				htmlLines.push("</ul>");
-				inList = false;
-			}
-			htmlLines.push(
-				`<div class="ast-video-card my-3"><video src="${videoUrl}" controls preload="metadata" referrerpolicy="no-referrer"></video></div>`,
-			);
-			continue;
+			return `<div class="ast-video-card my-3"><video src="${videoUrl}" controls preload="metadata" referrerpolicy="no-referrer"></video></div>`;
 		}
+		return `<a href="${href}">${text}</a>`;
+	};
 
-		// 标题
-		const headingMatch = line.match(/^(#{1,6})\s+(.*)$/);
-		if (headingMatch) {
-			if (inList) {
-				htmlLines.push("</ul>");
-				inList = false;
-			}
-			const level = headingMatch[1].length;
-			htmlLines.push(`<h${level}>${formatInline(headingMatch[2])}</h${level}>`);
-			continue;
-		}
-
-		// 引用
-		if (trimmed.startsWith(">")) {
-			if (inList) {
-				htmlLines.push("</ul>");
-				inList = false;
-			}
-			const quoteContent = trimmed.replace(/^>\s*/, "");
-			htmlLines.push(
-				`<blockquote><p>${formatInline(quoteContent)}</p></blockquote>`,
-			);
-			continue;
-		}
-
-		// 列表项
-		if (/^[-*+]\s+/.test(trimmed)) {
-			if (!inList) {
-				htmlLines.push("<ul>");
-				inList = true;
-			}
-			const itemText = trimmed.replace(/^[-*+]\s+/, "");
-			htmlLines.push(`<li>${formatInline(itemText)}</li>`);
-			continue;
-		}
-
-		// 分割线
-		if (/^(\*\*\*|---|___)$/.test(trimmed)) {
-			if (inList) {
-				htmlLines.push("</ul>");
-				inList = false;
-			}
-			htmlLines.push("<hr />");
-			continue;
-		}
-
-		// 常规段落
-		if (inList) {
-			htmlLines.push("</ul>");
-			inList = false;
-		}
-		htmlLines.push(`<p>${formatInline(trimmed)}</p>`);
-	}
-
-	if (inList) {
-		htmlLines.push("</ul>");
-	}
-
-	return htmlLines.join("\n");
+	return marked(md, { renderer, gfm: true, breaks: false }) as string;
 }
 
 /**

@@ -206,6 +206,7 @@ export function useAiChat(options?: UseAiChatOptions) {
 				baseMessages?: ChatItem[];
 				contextItems?: ChatContextItem[];
 				module?: string;
+				activeDocumentId?: number | null;
 			},
 		) => {
 			const rawText = (userPrompt || input).trim();
@@ -314,6 +315,10 @@ export function useAiChat(options?: UseAiChatOptions) {
 						contextItems:
 							activeAttachments.length > 0 ? activeAttachments : undefined,
 						module: sendOptions?.module,
+						activeDocumentId:
+							sendOptions?.activeDocumentId != null
+								? sendOptions.activeDocumentId
+								: undefined,
 					},
 					{
 						onStepStart: (step) => {

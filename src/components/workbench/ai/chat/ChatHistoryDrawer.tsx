@@ -41,7 +41,9 @@ export function ChatHistoryDrawer({
 	onExportSession,
 }: ChatHistoryDrawerProps) {
 	const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
-	const [sessionToDelete, setSessionToDelete] = useState<ChatSession | null>(null);
+	const [sessionToDelete, setSessionToDelete] = useState<ChatSession | null>(
+		null,
+	);
 	const [searchQuery, setSearchQuery] = useState("");
 
 	const filteredSessions = useMemo(() => {

@@ -1,5 +1,9 @@
 import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
+import { Table } from "@tiptap/extension-table";
+import TableCell from "@tiptap/extension-table-cell";
+import TableHeader from "@tiptap/extension-table-header";
+import TableRow from "@tiptap/extension-table-row";
 import { type Editor, EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import {
@@ -102,6 +106,8 @@ const MARKDOWN_PATTERNS: readonly RegExp[] = [
 	/~~[^~]+?~~/,
 	/`[^`]+`/,
 	/\[.+?\]\(.+?\)/,
+	// GFM table: line starting and ending with |
+	/^\|.+\|/m,
 ];
 
 /**
@@ -248,6 +254,10 @@ export function RichTextEditor({
 				},
 			}),
 			VideoNode,
+			Table.configure({ resizable: false }),
+			TableRow,
+			TableHeader,
+			TableCell,
 			Placeholder.configure({ placeholder: "开始创作…" }),
 		],
 		editorProps: {

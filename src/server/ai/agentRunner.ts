@@ -49,6 +49,7 @@ export async function runAgentStream(
 		embeddingConfig,
 		contextItems: params.contextItems,
 		module,
+		activeDocumentId,
 	});
 
 	if (prepared.emptyFallbackMessage) {

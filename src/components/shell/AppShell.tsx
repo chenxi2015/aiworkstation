@@ -4,12 +4,14 @@ import {
 	type ReactNode,
 	useCallback,
 	useContext,
+	useEffect,
 	useMemo,
 	useRef,
 	useState,
 } from "react";
 import { getModuleByRoute } from "../../modules/registry";
 import type { ChatContextItem } from "../../types/chatContext";
+import type { PageBridge } from "../../types/pageBridge";
 import {
 	ChatWithBookmarksPanel,
 	type ChatWithBookmarksPanelRef,
@@ -78,6 +80,8 @@ export interface AiPanelApi {
 	registerNavigateHandler: (fn: NavigateHandler | null) => void;
 	registerDndHandlers: (handlers: WorkbenchDndHandlers | null) => void;
 	consumePendingNavigation: () => PendingFolderNavigation | null;
+	pageBridge: PageBridge | null;
+	registerPageBridge: (bridge: PageBridge | null) => void;
 }
 
 const AiPanelContext = createContext<AiPanelApi | null>(null);
@@ -132,6 +136,15 @@ export function AppShell({
 	const dataChangedRef = useRef<(() => void) | null>(null);
 	const navigateRef = useRef<NavigateHandler | null>(null);
 	const pendingNavRef = useRef<PendingFolderNavigation | null>(null);
+
+	const [pageBridge, setPageBridge] = useState<PageBridge | null>(null);
+
+	// Clear active page bridge if navigation moved to a different module
+	useEffect(() => {
+		if (pageBridge && pageBridge.module !== activeModule) {
+			setPageBridge(null);
+		}
+	}, [activeModule, pageBridge]);
 
 	const folders = pageData?.folders ?? loaderFolders;
 	const settings = pageData?.settings ?? loaderSettings;
@@ -190,8 +203,10 @@ export function AppShell({
 				pendingNavRef.current = null;
 				return pending;
 			},
+			pageBridge,
+			registerPageBridge: setPageBridge,
 		}),
-		[],
+		[pageBridge],
 	);
 
 	return (
@@ -227,6 +242,7 @@ export function AppShell({
 						selectedFolder={scope.selectedFolder}
 						activeCategory={scope.activeCategory}
 						activeModule={activeModule}
+						pageBridge={pageBridge}
 						folders={folders}
 						categories={categories}
 						settings={settings}

@@ -55,7 +55,8 @@ export const ChatContextBar = memo(function ChatContextBar({
 					const isImage = item.type === "image" && Boolean(item.thumbnail);
 					const isClickable =
 						Boolean(item.url) ||
-						(typeof item.folderId === "number" && Boolean(onNavigateToFolder)) ||
+						(typeof item.folderId === "number" &&
+							Boolean(onNavigateToFolder)) ||
 						isImage;
 					const tooltipText = item.url
 						? `${item.title} · 点击在新标签页打开`

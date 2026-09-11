@@ -7,6 +7,7 @@ import {
 	useState,
 } from "react";
 import type { ChatItem } from "../../../../hooks/ai/useAiChat";
+import type { PageBridge } from "../../../../types/pageBridge";
 import type { Category, Folder, SearchResultItem } from "../../types";
 import { ChatMessageItem } from "./ChatMessageItem";
 import { ChatPromptSuggestions } from "./ChatPromptSuggestions";
@@ -14,6 +15,8 @@ import { ChatPromptSuggestions } from "./ChatPromptSuggestions";
 export interface ChatMessageListProps {
 	messages: ChatItem[];
 	isLoading: boolean;
+	/** 当前页面注册的能力桥（如创作模块的插入光标/替换选区等动作） */
+	pageBridge?: PageBridge | null;
 	currentSessionId?: string | null;
 	selectedFolder?: Folder | null;
 	scopeMode?: "global" | "folder";
@@ -48,6 +51,7 @@ export interface ChatMessageListProps {
 export function ChatMessageList({
 	messages,
 	isLoading,
+	pageBridge,
 	currentSessionId,
 	selectedFolder,
 	scopeMode = "global",
@@ -241,6 +245,7 @@ export function ChatMessageList({
 						msg={msg}
 						index={idx}
 						isLoading={isLoading}
+						pageBridge={pageBridge}
 						isSelectMode={isSelectMode}
 						isSelected={selectedIndices.has(idx)}
 						onToggleSelect={handleToggleSelect}

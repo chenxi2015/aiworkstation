@@ -1,5 +1,6 @@
 import {
 	Bot,
+	FileText,
 	Folder as FolderIcon,
 	Globe,
 	Search,
@@ -11,6 +12,7 @@ import { useEmbeddingStats } from "../../../../hooks/ai/useEmbeddingStats";
 import { useItemFolderAssign } from "../../../../hooks/ai/useItemFolderAssign";
 import { getAiContribution } from "../../../../modules/ai-contributions";
 import type { ChatContextItem } from "../../../../types/chatContext";
+import type { PageBridge } from "../../../../types/pageBridge";
 import type {
 	Category,
 	Folder,
@@ -53,6 +55,8 @@ export interface ChatWithBookmarksPanelProps {
 	activeCategory?: Category;
 	/** 当前所在模块 code（由 AppShell 随路由注入），决定 AI 的模块视角与推荐提问 */
 	activeModule?: string;
+	/** 当前活动页面注册的能力桥（如创作模块的插入光标/替换选区等动作） */
+	pageBridge?: PageBridge | null;
 	folders?: Folder[];
 	categories?: string[];
 	settings?: WorkbenchSettings;
@@ -76,6 +80,7 @@ export const ChatWithBookmarksPanel = forwardRef<
 		selectedFolder,
 		activeCategory,
 		activeModule,
+		pageBridge,
 		folders = [],
 		categories = CATEGORIES as unknown as string[],
 		settings,
@@ -145,6 +150,7 @@ export const ChatWithBookmarksPanel = forwardRef<
 			baseMessages?: ChatItem[];
 			contextItems?: ChatContextItem[];
 			module?: string;
+			activeDocumentId?: number | null;
 		},
 	) => {
 		const folderScope =
@@ -155,6 +161,10 @@ export const ChatWithBookmarksPanel = forwardRef<
 		sendPrompt(prompt, {
 			...folderScope,
 			module: activeModule,
+			activeDocumentId:
+				options?.activeDocumentId !== undefined
+					? options.activeDocumentId
+					: (pageBridge?.activeDocumentId ?? undefined),
 			...options,
 		});
 	};
@@ -257,6 +267,16 @@ export const ChatWithBookmarksPanel = forwardRef<
 									<span className="truncate">{selectedFolder.name}</span>
 								</button>
 							</div>
+						) : pageBridge?.activeDocumentTitle ? (
+							<span
+								className="inline-flex items-center gap-1 text-[10px] text-accent bg-accent/10 px-2 py-0.5 rounded-md border border-accent/30 max-w-[150px] truncate select-none shadow-2xs"
+								title={`当前活跃文档：${pageBridge.activeDocumentTitle}`}
+							>
+								<FileText className="w-2.5 h-2.5 text-accent shrink-0" />
+								<span className="truncate font-medium">
+									{pageBridge.activeDocumentTitle}
+								</span>
+							</span>
 						) : (
 							<span className="inline-flex items-center gap-1 text-[10px] text-muted bg-surface-secondary/60 px-2 py-0.5 rounded-md border border-border/50">
 								<Globe className="w-2.5 h-2.5 text-muted" />
@@ -334,6 +354,7 @@ export const ChatWithBookmarksPanel = forwardRef<
 					<ChatMessageList
 						messages={messages}
 						isLoading={isLoading}
+						pageBridge={pageBridge}
 						currentSessionId={currentSessionId}
 						selectedFolder={selectedFolder}
 						scopeMode={scopeMode}
