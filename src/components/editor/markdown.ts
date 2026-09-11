@@ -30,6 +30,7 @@ function renderInline(node: JSONContent): string {
 	if (marks.some((m) => m.type === "code")) text = `\`${text}\``;
 	if (marks.some((m) => m.type === "bold")) text = `**${text}**`;
 	if (marks.some((m) => m.type === "italic")) text = `*${text}*`;
+	if (marks.some((m) => m.type === "underline")) text = `<u>${text}</u>`;
 	if (marks.some((m) => m.type === "strike")) text = `~~${text}~~`;
 	const link = marks.find((m) => m.type === "link");
 	if (link) text = `[${text}](${String(link.attrs?.href ?? "")})`;
@@ -55,6 +56,17 @@ function renderBlock(node: JSONContent, indent: string): string {
 				.map((line) => `${indent}> ${line}`.trimEnd())
 				.join("\n");
 		}
+		case "taskList":
+			return (node.content ?? [])
+				.map((item) => {
+					const checked = Boolean(item.attrs?.checked);
+					return renderListItem(
+						item,
+						`${indent}- [${checked ? "x" : " "}] `,
+						indent,
+					);
+				})
+				.join("\n");
 		case "bulletList":
 			return (node.content ?? [])
 				.map((item) => renderListItem(item, `${indent}- `, indent))
@@ -75,10 +87,11 @@ function renderBlock(node: JSONContent, indent: string): string {
 			const renderRow = (row: JSONContent) =>
 				`| ${(row.content ?? []).map((cell) => renderInlineGroup(cell.content).replace(/\|/g, "\\|")).join(" | ")} |`;
 			const [headerRow, ...bodyRows] = rows;
-			const colCount = (headerRow?.content ?? []).length || 1;
+			if (!headerRow) return "";
+			const colCount = (headerRow.content ?? []).length || 1;
 			const separator = `| ${Array(colCount).fill("---").join(" | ")} |`;
 			const parts = [
-				renderRow(headerRow!),
+				renderRow(headerRow),
 				separator,
 				...bodyRows.map(renderRow),
 			];

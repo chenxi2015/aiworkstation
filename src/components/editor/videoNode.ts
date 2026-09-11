@@ -1,4 +1,6 @@
 import { mergeAttributes, Node } from "@tiptap/core";
+import { ReactNodeViewRenderer } from "@tiptap/react";
+import { MediaNodeView } from "./extensions/MediaNodeView";
 
 /**
  * 自定义视频节点（docs/editor-plan.md 第四节：视频以自定义节点嵌入）。
@@ -12,6 +14,7 @@ export const VideoNode = Node.create({
 	addAttributes() {
 		return {
 			src: { default: null },
+			originalSrc: { default: null },
 			poster: { default: null },
 		};
 	},
@@ -30,5 +33,9 @@ export const VideoNode = Node.create({
 				contenteditable: "false",
 			}),
 		];
+	},
+
+	addNodeView() {
+		return ReactNodeViewRenderer(MediaNodeView);
 	},
 });

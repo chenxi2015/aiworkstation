@@ -1,5 +1,11 @@
 import { toast } from "@heroui/react";
 import Image from "@tiptap/extension-image";
+import { Table } from "@tiptap/extension-table";
+import TableCell from "@tiptap/extension-table-cell";
+import TableHeader from "@tiptap/extension-table-header";
+import TableRow from "@tiptap/extension-table-row";
+import TaskItem from "@tiptap/extension-task-item";
+import TaskList from "@tiptap/extension-task-list";
 import StarterKit from "@tiptap/starter-kit";
 import { renderToHTMLString } from "@tiptap/static-renderer/pm/html-string";
 import { useCallback, useMemo } from "react";
@@ -22,6 +28,21 @@ export const EXPORT_EXTENSIONS = [
 		},
 	}),
 	VideoNode,
+	Table.configure({ resizable: false }),
+	TableRow,
+	TableHeader,
+	TableCell,
+	TaskList.configure({
+		HTMLAttributes: {
+			class: "task-list",
+		},
+	}),
+	TaskItem.configure({
+		nested: true,
+		HTMLAttributes: {
+			class: "task-list-item",
+		},
+	}),
 ];
 
 export interface UseDocumentExportOptions {

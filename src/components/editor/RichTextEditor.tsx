@@ -1,10 +1,16 @@
-import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Table } from "@tiptap/extension-table";
 import TableCell from "@tiptap/extension-table-cell";
 import TableHeader from "@tiptap/extension-table-header";
 import TableRow from "@tiptap/extension-table-row";
-import { type Editor, EditorContent, useEditor } from "@tiptap/react";
+import TaskItem from "@tiptap/extension-task-item";
+import TaskList from "@tiptap/extension-task-list";
+import {
+	type Editor,
+	EditorContent,
+	type Range,
+	useEditor,
+} from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import {
 	Bold,
@@ -19,11 +25,14 @@ import {
 	Link,
 	List,
 	ListOrdered,
+	ListTodo,
 	Minus,
 	PencilLine,
 	Quote,
 	Redo2,
 	Strikethrough,
+	Table as TableIcon,
+	Underline as UnderlineIcon,
 	Undo2,
 	Unlink,
 	Upload,
@@ -32,7 +41,14 @@ import {
 import { useEffect, useReducer, useRef, useState } from "react";
 import { uploadAssetRpc } from "../../services/api/editorClient";
 import { AiBubbleMenu } from "./AiBubbleMenu";
+import {
+	SlashCommandMenu,
+	type SlashCommandMenuRef,
+} from "./components/SlashCommandMenu";
 import { CodeBlockWithHighlight } from "./extensions/CodeBlockWithHighlight";
+import { CustomImage } from "./extensions/CustomImage";
+import { EditorMediaContext } from "./extensions/MediaNodeView";
+import { SlashCommands } from "./extensions/slashCommand";
 import { extractImageUrl, extractVideoUrl, markdownToHtml } from "./importers";
 import { VideoNode } from "./videoNode";
 
@@ -238,6 +254,14 @@ export function RichTextEditor({
 	const imageInputRef = useRef<HTMLInputElement>(null);
 	const videoInputRef = useRef<HTMLInputElement>(null);
 
+	const [slashMenu, setSlashMenu] = useState<{
+		query: string;
+		range: Range;
+		clientRect: (() => DOMRect | null) | null;
+		command: (item: unknown) => void;
+	} | null>(null);
+	const slashMenuRef = useRef<SlashCommandMenuRef>(null);
+
 	const editorRef = useRef<Editor | null>(null);
 
 	const uploadAndInsertMedia = async (file: File, kind: "image" | "video") => {
@@ -283,7 +307,7 @@ export function RichTextEditor({
 				codeBlock: false,
 			}),
 			CodeBlockWithHighlight,
-			Image.configure({
+			CustomImage.configure({
 				HTMLAttributes: {
 					referrerpolicy: "no-referrer",
 				},
@@ -293,7 +317,55 @@ export function RichTextEditor({
 			TableRow,
 			TableHeader,
 			TableCell,
-			Placeholder.configure({ placeholder: "开始创作…" }),
+			TaskList.configure({
+				HTMLAttributes: {
+					class: "task-list",
+				},
+			}),
+			TaskItem.configure({
+				nested: true,
+				HTMLAttributes: {
+					class: "task-list-item",
+				},
+			}),
+			Placeholder.configure({
+				placeholder: "开始创作，输入「/」唤起快捷工具栏…",
+			}),
+			SlashCommands.configure({
+				suggestion: {
+					render: () => ({
+						onStart: (props) => {
+							setSlashMenu({
+								query: props.query,
+								range: props.range,
+								clientRect: props.clientRect ?? null,
+								command: props.command,
+							});
+						},
+						onUpdate: (props) => {
+							setSlashMenu((prev) =>
+								prev
+									? {
+											...prev,
+											query: props.query,
+											range: props.range,
+											clientRect: props.clientRect ?? null,
+										}
+									: null,
+							);
+						},
+						onKeyDown: (props) => {
+							if (slashMenuRef.current) {
+								return slashMenuRef.current.onKeyDown(props.event);
+							}
+							return false;
+						},
+						onExit: () => {
+							setSlashMenu(null);
+						},
+					}),
+				},
+			}),
 		],
 		editorProps: {
 			handlePaste: (_view, event) => {
@@ -367,6 +439,9 @@ export function RichTextEditor({
 	});
 
 	editorRef.current = editor;
+	if (editor) {
+		(editor as any).docId = docId;
+	}
 
 	useEffect(() => {
 		onEditorReady?.(editor);
@@ -417,7 +492,7 @@ export function RichTextEditor({
 	return (
 		<div className="flex flex-col flex-1 min-h-0">
 			{/* 工具栏 */}
-			<div className="shrink-0 border-b border-border bg-surface/60 px-4 py-1.5 flex items-center gap-0.5 flex-wrap">
+			<div className="shrink-0 border-b border-border bg-surface/60 px-4 py-1.5 flex items-center justify-center gap-0.5 flex-wrap">
 				{preview ? (
 					<div className="flex items-center justify-between w-full py-0.5">
 						<div className="flex items-center gap-2">
@@ -491,6 +566,12 @@ export function RichTextEditor({
 							onClick={() => editor.chain().focus().toggleItalic().run()}
 						/>
 						<ToolButton
+							icon={UnderlineIcon}
+							label="下划线 (Cmd+U)"
+							active={editor.isActive("underline")}
+							onClick={() => editor.chain().focus().toggleUnderline().run()}
+						/>
+						<ToolButton
 							icon={Strikethrough}
 							label="删除线"
 							active={editor.isActive("strike")}
@@ -516,6 +597,12 @@ export function RichTextEditor({
 							onClick={() => editor.chain().focus().toggleOrderedList().run()}
 						/>
 						<ToolButton
+							icon={ListTodo}
+							label="任务待办清单"
+							active={editor.isActive("taskList")}
+							onClick={() => editor.chain().focus().toggleTaskList().run()}
+						/>
+						<ToolButton
 							icon={Quote}
 							label="引用"
 							active={editor.isActive("blockquote")}
@@ -532,6 +619,70 @@ export function RichTextEditor({
 							label="分割线"
 							onClick={() => editor.chain().focus().setHorizontalRule().run()}
 						/>
+						<ToolButton
+							icon={TableIcon}
+							label="插入表格 (3x3)"
+							active={editor.isActive("table")}
+							onClick={() =>
+								editor
+									.chain()
+									.focus()
+									.insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+									.run()
+							}
+						/>
+						{editor.isActive("table") && (
+							<>
+								<Divider />
+								<div className="flex items-center gap-1 bg-surface-secondary/70 border border-border/80 rounded-md px-1.5 py-0.5 text-xs">
+									<span className="text-[11px] text-muted font-medium mr-0.5">
+										表格:
+									</span>
+									<button
+										type="button"
+										onClick={() => editor.chain().focus().addRowAfter().run()}
+										className="px-1.5 py-0.5 text-[11px] text-muted hover:text-foreground hover:bg-muted/15 rounded cursor-pointer transition-colors"
+										title="在下方插入行"
+									>
+										+行
+									</button>
+									<button
+										type="button"
+										onClick={() => editor.chain().focus().deleteRow().run()}
+										className="px-1.5 py-0.5 text-[11px] text-muted hover:text-foreground hover:bg-muted/15 rounded cursor-pointer transition-colors"
+										title="删除当前行"
+									>
+										-行
+									</button>
+									<button
+										type="button"
+										onClick={() =>
+											editor.chain().focus().addColumnAfter().run()
+										}
+										className="px-1.5 py-0.5 text-[11px] text-muted hover:text-foreground hover:bg-muted/15 rounded cursor-pointer transition-colors"
+										title="在右侧插入列"
+									>
+										+列
+									</button>
+									<button
+										type="button"
+										onClick={() => editor.chain().focus().deleteColumn().run()}
+										className="px-1.5 py-0.5 text-[11px] text-muted hover:text-foreground hover:bg-muted/15 rounded cursor-pointer transition-colors"
+										title="删除当前列"
+									>
+										-列
+									</button>
+									<button
+										type="button"
+										onClick={() => editor.chain().focus().deleteTable().run()}
+										className="px-1.5 py-0.5 text-[11px] text-danger/80 hover:text-danger hover:bg-danger/10 rounded cursor-pointer transition-colors"
+										title="删除整个表格"
+									>
+										删表
+									</button>
+								</div>
+							</>
+						)}
 						<Divider />
 						<ToolButton
 							icon={Link}
@@ -604,26 +755,44 @@ export function RichTextEditor({
 				/>
 			)}
 
-			{/* 编辑画布 / 仿 DocViewerApp 纸质沉浸预览 */}
-			{preview ? (
-				<div className="doc-scroll-container flex-1 overflow-y-auto min-h-0 bg-slate-100/70 dark:bg-zinc-950/70 flex justify-center items-start py-6 px-4">
-					<article className="document-paper w-full max-w-[860px] my-2 mb-12 h-fit shrink-0 bg-surface text-foreground rounded-2xl shadow-sm border border-border p-8 sm:p-14 transition-all">
-						<EditorContent
-							editor={editor}
-							className="tiptap-editor doc-content-body prose prose-neutral dark:prose-invert max-w-none focus:outline-none"
-						/>
-					</article>
-				</div>
-			) : (
-				<div className="flex-1 overflow-y-auto min-h-0">
-					<div className="max-w-3xl mx-auto px-8 py-6">
-						<EditorContent
-							editor={editor}
-							className="tiptap-editor prose prose-neutral dark:prose-invert max-w-none focus:outline-none"
-						/>
-					</div>
-				</div>
+			{/* Slash Command floating menu triggered by "/" */}
+			{slashMenu && editor && !preview && (
+				<SlashCommandMenu
+					ref={slashMenuRef}
+					editor={editor}
+					range={slashMenu.range}
+					query={slashMenu.query}
+					clientRect={slashMenu.clientRect}
+					onClose={() => setSlashMenu(null)}
+					onSelectMedia={(kind) => {
+						if (kind === "image") imageInputRef.current?.click();
+						else videoInputRef.current?.click();
+					}}
+				/>
 			)}
+
+			{/* 编辑画布 / 仿 DocViewerApp 纸质沉浸预览 */}
+			<EditorMediaContext.Provider value={{ docId }}>
+				{preview ? (
+					<div className="doc-scroll-container flex-1 overflow-y-auto min-h-0 bg-slate-100/70 dark:bg-zinc-950/70 flex justify-center items-start py-6 px-4">
+						<article className="document-paper w-full max-w-[860px] my-2 mb-12 h-fit shrink-0 bg-surface text-foreground rounded-2xl shadow-sm border border-border p-8 sm:p-14 transition-all">
+							<EditorContent
+								editor={editor}
+								className="tiptap-editor doc-content-body prose prose-neutral dark:prose-invert max-w-none focus:outline-none"
+							/>
+						</article>
+					</div>
+				) : (
+					<div className="flex-1 overflow-y-auto min-h-0">
+						<div className="max-w-3xl mx-auto px-8 py-6">
+							<EditorContent
+								editor={editor}
+								className="tiptap-editor prose prose-neutral dark:prose-invert max-w-none focus:outline-none"
+							/>
+						</div>
+					</div>
+				)}
+			</EditorMediaContext.Provider>
 
 			<input
 				ref={imageInputRef}

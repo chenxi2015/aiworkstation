@@ -172,6 +172,98 @@ export const uploadDocumentAsset = createServerFn({ method: "POST" })
 	});
 
 /**
+ * Server Function: 下载外链图片/视频并转存到当前稿件本地目录
+ * 服务端请求无 CORS 限制，并携带防盗链 Referer 头
+ */
+export const downloadExternalAssetToDocument = createServerFn({
+	method: "POST",
+})
+	.validator((data: { documentId: number; url: string }) => {
+		const { documentId, url } = data;
+		if (!documentId || !url) throw new Error("缺少 documentId 或 url");
+		return { documentId: Number(documentId), url: String(url).trim() };
+	})
+	.handler(async ({ data }): Promise<{ url: string; filename: string }> => {
+		const { documentId, url } = data;
+		if (!workbenchDb.getDocument(documentId)) throw new Error("文档不存在");
+
+		const urlObj = new URL(url);
+		const headers: Record<string, string> = {
+			"User-Agent":
+				"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+		};
+		if (
+			urlObj.hostname.includes("qpic.cn") ||
+			urlObj.hostname.includes("qq.com")
+		) {
+			headers.Referer = "https://mp.weixin.qq.com/";
+		} else {
+			headers.Referer = `${urlObj.origin}/`;
+		}
+
+		const response = await fetch(url, { headers });
+		if (!response.ok) {
+			throw new Error(
+				`下载失败 (HTTP ${response.status} ${response.statusText})`,
+			);
+		}
+
+		const arrayBuffer = await response.arrayBuffer();
+		if (arrayBuffer.byteLength > MAX_UPLOAD_BYTES) {
+			throw new Error(
+				`媒体文件过大（${formatBytes(arrayBuffer.byteLength)}），上限 ${formatBytes(MAX_UPLOAD_BYTES)}`,
+			);
+		}
+
+		const filesRoot = getFilesRootDir();
+		const destDir = getDocumentAssetsDir(documentId);
+		assertPathWithinRoot(destDir, filesRoot);
+		assertWritablePath(destDir);
+		mkdirSync(destDir, { recursive: true });
+
+		// 智能解析扩展名：优先从 url query (wx_fmt)、pathname，再到 content-type
+		let ext = "";
+		const wxFmt = urlObj.searchParams.get("wx_fmt");
+		if (wxFmt) {
+			ext = wxFmt === "jpeg" ? ".jpg" : `.${wxFmt}`;
+		} else {
+			const pathExt = extname(urlObj.pathname);
+			if (
+				pathExt &&
+				/\.(jpg|jpeg|png|webp|gif|svg|avif|mp4|webm|mov|ogg)$/i.test(pathExt)
+			) {
+				ext = pathExt.toLowerCase();
+			} else {
+				const contentType = response.headers.get("content-type") || "";
+				if (contentType.includes("image/jpeg")) ext = ".jpg";
+				else if (contentType.includes("image/png")) ext = ".png";
+				else if (contentType.includes("image/webp")) ext = ".webp";
+				else if (contentType.includes("image/gif")) ext = ".gif";
+				else if (contentType.includes("image/svg")) ext = ".svg";
+				else if (contentType.includes("video/mp4")) ext = ".mp4";
+				else if (contentType.includes("video/webm")) ext = ".webm";
+				else if (contentType.includes("video/")) ext = ".mp4";
+				else ext = ".png";
+			}
+		}
+
+		const isVideo = ext.startsWith(".mp4") || ext.startsWith(".webm");
+		const basePrefix = isVideo ? "video" : "image";
+		const baseName = `${basePrefix}_${Date.now()}`;
+		let finalName = `${baseName}${ext}`;
+		let counter = 1;
+		while (existsSync(join(destDir, finalName))) {
+			finalName = `${baseName}-${counter}${ext}`;
+			counter += 1;
+		}
+
+		writeFileSync(join(destDir, finalName), Buffer.from(arrayBuffer));
+
+		const relPath = `editor/documents/${documentId}/${finalName}`;
+		return { url: `/api/files/${relPath}`, filename: finalName };
+	});
+
+/**
  * Server Function: AI bar 文本生成（非流式，快速返回改写结果）。
  * BubbleMenu 动作条专用；复用 ragContext LLM 配置，不走 agent loop，省 latency。
  */

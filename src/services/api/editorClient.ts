@@ -12,6 +12,7 @@ import {
 	snapshotDocumentVersion,
 	updateDocument,
 	uploadDocumentAsset,
+	downloadExternalAssetToDocument,
 } from "../../server/functions/editor";
 
 export async function fetchDocuments(): Promise<EditorDocument[]> {
@@ -73,6 +74,14 @@ export async function uploadAssetRpc(
 	formData.append("documentId", String(documentId));
 	formData.append("file", file);
 	return await uploadDocumentAsset({ data: formData });
+}
+
+/** 下载外链图片/视频并转存到当前稿件本地资产目录（免跨域，微信防盗链可破） */
+export async function downloadExternalAssetRpc(
+	documentId: number,
+	url: string,
+): Promise<{ url: string; filename: string }> {
+	return await downloadExternalAssetToDocument({ data: { documentId, url } });
 }
 
 import {
