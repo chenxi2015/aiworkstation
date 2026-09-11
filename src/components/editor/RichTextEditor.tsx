@@ -111,9 +111,22 @@ const MARKDOWN_PATTERNS: readonly RegExp[] = [
 ];
 
 /**
- * 判定粘贴文本是否应该按 Markdown 转换为富文本：
- * 1. 纯文本需匹配 Markdown 标记特征；
- * 2. 若剪贴板同时含 HTML，需确保 HTML 并非真正的语义富文本（如仅为 VS Code 代码高亮 span 包装）
+ * High-confidence markdown block patterns
+ */
+const STRONG_MARKDOWN_BLOCKS = {
+	// Fenced code block: ```python ... ```
+	codeBlock: /```[\s\S]*?```/,
+	// GFM table divider: |---|---|
+	tableDivider: /^\|?\s*:?-{2,}:?\s*(\|?\s*:?-{2,}:?\s*)+\|?$/m,
+	// Markdown heading: # Title
+	heading: /^#{1,6}\s+\S+/m,
+};
+
+/**
+ * Determine whether pasted clipboard content should be treated and converted as Markdown:
+ * 1. Plain text must match Markdown syntax characteristics.
+ * 2. If clipboard also contains HTML, check if HTML is merely a shallow wrapper (e.g. browser wrapping raw lines in <p>/<div>)
+ *    rather than genuinely rendered rich text (e.g. <table>, <pre>, <h1-6>).
  */
 function shouldTreatAsMarkdown(
 	text: string,
@@ -125,11 +138,25 @@ function shouldTreatAsMarkdown(
 	if (!html || !html.trim()) {
 		return true;
 	}
-	// 若剪贴板富文本中不包含标题/段落/列表/引用等大块语义，则倾向于按 Markdown 转换
-	const hasSemanticBlocks = /<(h[1-6]|ul|ol|blockquote|table|p)[\s>]/i.test(
+
+	// If text contains strong markdown blocks (code fences, tables, headings) but HTML lacks corresponding rendered tags,
+	// it means HTML is just a plain container wrapping unrendered markdown text.
+	if (STRONG_MARKDOWN_BLOCKS.codeBlock.test(text) && !/<pre[\s>]/i.test(html)) {
+		return true;
+	}
+	if (STRONG_MARKDOWN_BLOCKS.tableDivider.test(text) && !/<table[\s>]/i.test(html)) {
+		return true;
+	}
+	if (STRONG_MARKDOWN_BLOCKS.heading.test(text) && !/<h[1-6][\s>]/i.test(html)) {
+		return true;
+	}
+
+	// For general markdown, only block conversion if HTML contains actual rendered semantic blocks
+	// (Note: <p>, <div>, <span>, <br> are intentionally excluded because browsers wrap almost any copied text in them).
+	const hasRenderedSemanticBlocks = /<(h[1-6]|ul|ol|blockquote|table|pre)[\s>]/i.test(
 		html,
 	);
-	return !hasSemanticBlocks;
+	return !hasRenderedSemanticBlocks;
 }
 
 export interface RichTextEditorProps {
