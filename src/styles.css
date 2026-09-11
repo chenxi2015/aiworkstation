@@ -701,6 +701,34 @@ blockquote::after {
 .doc-content-body blockquote,
 .prose blockquote {
 	quotes: none !important;
+	padding-top: 0.15em;
+	padding-bottom: 0.15em;
+}
+
+/* Compact spacing for paragraphs inside blockquotes */
+.tiptap-editor blockquote p,
+.doc-content-body blockquote p,
+.prose blockquote p {
+	margin-top: 0.25em !important;
+	margin-bottom: 0.25em !important;
+}
+
+.tiptap-editor blockquote p:first-child,
+.doc-content-body blockquote p:first-child,
+.prose blockquote p:first-child {
+	margin-top: 0 !important;
+}
+
+.tiptap-editor blockquote p:last-child,
+.doc-content-body blockquote p:last-child,
+.prose blockquote p:last-child {
+	margin-bottom: 0 !important;
+}
+
+/* Adjust prose paragraph vertical margins to reduce excessive spacing */
+.prose :where(p):not(:where([class~="not-prose"], [class~="not-prose"] *)) {
+	margin-top: 1em;
+	margin-bottom: 1em;
 }
 
 

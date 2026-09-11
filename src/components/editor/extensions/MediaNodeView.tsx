@@ -119,15 +119,18 @@ export function MediaNodeView(props: NodeViewProps) {
 		const spaceAbove = containerRect.top;
 		const nextVertical = spaceAbove < 52 ? "bottom" : "top";
 
-		// 2. Horizontal boundary clamping: ensure toolbar stays within visible editor container
+		// 2. Horizontal boundary clamping:
+		// Since toolbar is right-aligned by default (right-0), we only clamp:
+		// - Left edge: if media is small/narrow and toolbar sticks out beyond container/viewport left
+		// - Right edge: only if toolbar overflows past the browser window viewport
 		const editorEl =
 			containerRef.current.closest(".tiptap-editor") ||
 			containerRef.current.closest(".doc-content-body") ||
 			document.body;
 		const editorRect = editorEl.getBoundingClientRect();
 
-		const safeLeft = Math.max(12, editorRect.left + 12);
-		const safeRight = Math.min(window.innerWidth - 12, editorRect.right - 12);
+		const safeLeft = Math.max(8, editorRect.left + 8);
+		const viewportRight = window.innerWidth - 8;
 
 		// Current unshifted position
 		const currentLeft = toolbarRect.left - horizontalShift;
@@ -136,22 +139,16 @@ export function MediaNodeView(props: NodeViewProps) {
 		let shift = 0;
 		if (currentLeft < safeLeft) {
 			shift = safeLeft - currentLeft;
-		} else if (currentRight > safeRight) {
-			shift = safeRight - currentRight;
+		} else if (currentRight > viewportRight) {
+			shift = viewportRight - currentRight;
 		}
 
 		setVerticalPos(nextVertical);
 		setHorizontalShift(shift);
 	}, [horizontalShift]);
 
-	// Recompute positioning when active, hovering, or window resizes/scrolls
+	// Recompute positioning on mount, selection, hover, or window resizes/scrolls
 	useEffect(() => {
-		const isToolbarVisible = selected || isHovered || showReplaceModal;
-		if (!isToolbarVisible) {
-			setHorizontalShift(0);
-			return;
-		}
-
 		updateToolbarPosition();
 
 		const handleScrollOrResize = () => {
@@ -170,7 +167,7 @@ export function MediaNodeView(props: NodeViewProps) {
 				capture: true,
 			});
 		};
-	}, [selected, isHovered, showReplaceModal, updateToolbarPosition]);
+	}, [updateToolbarPosition]);
 
 	const handleSetAlignment =
 		(alignment: "left" | "center" | "right") => (e: React.MouseEvent) => {
@@ -427,33 +424,22 @@ export function MediaNodeView(props: NodeViewProps) {
 					</div>
 				)}
 
-				{/* Floating action toolbar (outside media with boundary clamping) */}
+				{/* Floating action toolbar (outside media, fixed to top-right with boundary clamping) */}
 				<div
 					ref={toolbarRef}
 					style={{
-						transform:
-							textAlign === "center"
-								? `translateX(calc(-50% + ${horizontalShift}px))`
-								: horizontalShift
-									? `translateX(${horizontalShift}px)`
-									: undefined,
+						transform: horizontalShift
+							? `translateX(${horizontalShift}px)`
+							: undefined,
 					}}
-					className={`absolute z-30 media-action-toolbar flex items-center gap-1.5 p-1 bg-zinc-900/95 text-zinc-100 border border-zinc-700/80 rounded-lg shadow-xl backdrop-blur-md transition-opacity duration-150 whitespace-nowrap ${
+					className={`absolute z-30 media-action-toolbar flex items-center gap-1.5 p-1 bg-zinc-900/95 text-zinc-100 border border-zinc-700/80 rounded-lg shadow-xl backdrop-blur-md transition-opacity duration-150 whitespace-nowrap right-0 ${
 						verticalPos === "top"
 							? "bottom-[calc(100%+8px)]"
 							: "top-[calc(100%+8px)]"
 					} ${
-						textAlign === "center"
-							? "left-1/2"
-							: textAlign === "right"
-								? "right-0"
-								: "left-0"
-					} ${
 						selected || isHovered || showReplaceModal
 							? "opacity-100 scale-100 pointer-events-auto"
-							: isVideo
-								? "opacity-75 hover:opacity-100 pointer-events-auto"
-								: "opacity-0 group-hover:opacity-100 pointer-events-auto"
+							: "opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto"
 					}`}
 				>
 					{/* Source badge: External vs Local */}
@@ -547,9 +533,7 @@ export function MediaNodeView(props: NodeViewProps) {
 					{/* Replace popover menu anchored to toolbar */}
 					{showReplaceModal && (
 						<div
-							className={`absolute top-[calc(100%+6px)] z-40 media-action-toolbar w-76 p-3 bg-zinc-900/95 text-zinc-100 border border-zinc-700/90 rounded-xl shadow-2xl backdrop-blur-lg animate-in fade-in slide-in-from-top-2 duration-150 whitespace-normal ${
-								textAlign === "right" ? "right-0" : "left-0"
-							}`}
+							className="absolute top-[calc(100%+6px)] right-0 z-40 media-action-toolbar w-76 p-3 bg-zinc-900/95 text-zinc-100 border border-zinc-700/90 rounded-xl shadow-2xl backdrop-blur-lg animate-in fade-in slide-in-from-top-2 duration-150 whitespace-normal"
 							onClick={(e) => e.stopPropagation()}
 						>
 							<div className="flex items-center justify-between pb-2 mb-2.5 border-b border-zinc-800">
