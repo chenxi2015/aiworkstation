@@ -13,6 +13,7 @@ import type { SlashCommandMenuRef } from "../components/SlashCommandMenu";
 import { CodeBlockWithHighlight } from "../extensions/CodeBlockWithHighlight";
 import { CustomImage } from "../extensions/CustomImage";
 import { SlashCommands } from "../extensions/slashCommand";
+import { SuggestionDiffExtensions } from "../extensions/suggestionDiff";
 import {
 	extractImageUrl,
 	extractMultipleMediaUrls,
@@ -95,6 +96,7 @@ export function useRichTextEditor({
 			Placeholder.configure({
 				placeholder: "开始创作，输入「/」唤起快捷工具栏…",
 			}),
+			...SuggestionDiffExtensions,
 			SlashCommands.configure({
 				suggestion: {
 					render: () => ({

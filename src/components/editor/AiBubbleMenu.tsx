@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AiResultPanel } from "./components/bubble/AiResultPanel";
 import { AiRewriteDropdown } from "./components/bubble/AiRewriteDropdown";
+import { AiSuggestionReviewBar } from "./components/bubble/AiSuggestionReviewBar";
 import { InlineFormatGroup } from "./components/bubble/InlineFormatGroup";
 import {
 	type ActionState,
@@ -10,6 +11,10 @@ import {
 	DEFAULT_ACTIONS,
 	type FloatPos,
 } from "./components/bubble/types";
+import {
+	type ActiveSuggestionInfo,
+	SuggestionController,
+} from "./utils/suggestionController";
 
 // Re-export types & constants for external consumers
 export type { AiBarAction };
@@ -40,6 +45,12 @@ export function AiBubbleMenu({
 	const [state, setState] = useState<ActionState>("idle");
 	const [result, setResult] = useState("");
 	const [activeAction, setActiveAction] = useState<AiBarAction | null>(null);
+	const [activeSuggestion, setActiveSuggestion] =
+		useState<ActiveSuggestionInfo | null>(null);
+	const [suggestionPos, setSuggestionPos] = useState<{
+		top: number;
+		left: number;
+	}>({ top: 0, left: 0 });
 	const panelRef = useRef<HTMLDivElement>(null);
 
 	// Merge action registry
@@ -54,7 +65,11 @@ export function AiBubbleMenu({
 	useEffect(() => {
 		const handleSelectionUpdate = () => {
 			const { selection } = editor.state;
-			if (selection.empty || selection.to - selection.from < 2) {
+			if (
+				selection.empty ||
+				selection.to - selection.from < 2 ||
+				SuggestionController.detectActiveSuggestion(editor)
+			) {
 				setVisible(false);
 				return;
 			}
@@ -127,6 +142,80 @@ export function AiBubbleMenu({
 		[editor, onGenerate],
 	);
 
+	const handleReviewDiff = useCallback(async () => {
+		if (!result) return;
+		await onBeforeApply?.();
+		const { from, to } = editor.state.selection;
+		const suggestion = SuggestionController.applyDiff(
+			editor,
+			{ from, to },
+			result,
+		);
+		if (suggestion) {
+			setActiveSuggestion(suggestion);
+			const coords = SuggestionController.getFloatingCoordinates(
+				editor,
+				suggestion.id,
+			);
+			if (coords) setSuggestionPos(coords);
+		}
+		setVisible(false);
+		setState("idle");
+		setResult("");
+	}, [editor, result, onBeforeApply]);
+
+	const handleAcceptSuggestion = useCallback(() => {
+		if (!activeSuggestion) return;
+		SuggestionController.accept(editor, activeSuggestion.id);
+	}, [editor, activeSuggestion]);
+
+	const handleRejectSuggestion = useCallback(() => {
+		if (!activeSuggestion) return;
+		SuggestionController.reject(editor, activeSuggestion.id);
+	}, [editor, activeSuggestion]);
+
+	// Automatically synchronize active suggestion state with document content (handles Undo/Redo!)
+	useEffect(() => {
+		const syncSuggestionState = () => {
+			const detected = SuggestionController.detectActiveSuggestion(editor);
+			setActiveSuggestion(detected);
+			if (detected) {
+				const coords = SuggestionController.getFloatingCoordinates(
+					editor,
+					detected.id,
+				);
+				if (coords) setSuggestionPos(coords);
+			}
+		};
+
+		syncSuggestionState();
+
+		editor.on("transaction", syncSuggestionState);
+		return () => {
+			editor.off("transaction", syncSuggestionState);
+		};
+	}, [editor]);
+
+	// Update floating review bar coordinates on scroll or resize
+	useEffect(() => {
+		if (!activeSuggestion) return;
+		const updateCoord = () => {
+			const coords = SuggestionController.getFloatingCoordinates(
+				editor,
+				activeSuggestion.id,
+			);
+			if (coords) {
+				setSuggestionPos(coords);
+			}
+		};
+		window.addEventListener("scroll", updateCoord, true);
+		window.addEventListener("resize", updateCoord);
+		return () => {
+			window.removeEventListener("scroll", updateCoord, true);
+			window.removeEventListener("resize", updateCoord);
+		};
+	}, [activeSuggestion, editor]);
+
 	const handleReplace = useCallback(async () => {
 		if (!result) return;
 		await onBeforeApply?.();
@@ -162,11 +251,9 @@ export function AiBubbleMenu({
 		setActiveAction(null);
 	}, []);
 
-	if (!visible) return null;
-
 	const isDropdownDropUp = pos.top > window.innerHeight - 280;
 
-	const panel = (
+	const panel = visible ? (
 		<section
 			ref={panelRef}
 			aria-label="选中文本浮动菜单"
@@ -200,13 +287,25 @@ export function AiBubbleMenu({
 					result={result}
 					activeAction={activeAction}
 					onReplace={() => void handleReplace()}
+					onReviewDiff={() => void handleReviewDiff()}
 					onInsertAfter={() => void handleInsertAfter()}
 					onCopy={() => void handleCopy()}
 					onClose={handleClose}
 				/>
 			)}
 		</section>
-	);
+	) : null;
 
-	return createPortal(panel, document.body);
+	return (
+		<>
+			{panel && createPortal(panel, document.body)}
+			<AiSuggestionReviewBar
+				visible={Boolean(activeSuggestion)}
+				position={suggestionPos}
+				onAccept={handleAcceptSuggestion}
+				onReject={handleRejectSuggestion}
+				onClose={() => setActiveSuggestion(null)}
+			/>
+		</>
+	);
 }

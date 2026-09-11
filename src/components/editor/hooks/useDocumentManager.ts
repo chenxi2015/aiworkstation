@@ -13,6 +13,11 @@ import {
 	type EditorDocument,
 	type EditorStylePreset,
 } from "../types";
+import {
+	clearDocDraft,
+	getDocDraft,
+	saveDocDraft,
+} from "../utils/editorDraftStorage";
 
 export type SaveState = "idle" | "dirty" | "saving" | "saved" | "error";
 
@@ -81,6 +86,8 @@ export function useDocumentManager(): UseDocumentManagerReturn {
 			await updateDocumentRpc({ id, ...pending });
 			setSaveState("saved");
 			setSavedAt(new Date().toISOString());
+			// Clear local IndexedDB draft since database is now up to date
+			void clearDocDraft(id);
 			setDocuments((prev) =>
 				prev.map((d) =>
 					d.id === id
@@ -129,9 +136,30 @@ export function useDocumentManager(): UseDocumentManagerReturn {
 	useEffect(() => {
 		(async () => {
 			const docs = await fetchDocuments();
-			setDocuments(docs);
+			// Check if there are unsynced local drafts in IndexedDB
+			const mergedDocs = await Promise.all(
+				docs.map(async (doc) => {
+					try {
+						const draft = await getDocDraft(doc.id);
+						const remoteTime = doc.updatedAt
+							? new Date(doc.updatedAt).getTime()
+							: 0;
+						if (draft && draft.updatedAt > remoteTime && draft.content) {
+							return {
+								...doc,
+								content: draft.content,
+								contentText: draft.contentText ?? doc.contentText,
+							};
+						}
+					} catch {
+						// Fallback to remote doc if draft read fails
+					}
+					return doc;
+				}),
+			);
+			setDocuments(mergedDocs);
 			setLoading(false);
-			setActiveId((prev) => prev ?? docs[0]?.id ?? null);
+			setActiveId((prev) => prev ?? mergedDocs[0]?.id ?? null);
 
 			try {
 				const settings = await getWorkbenchSettings();
@@ -149,6 +177,26 @@ export function useDocumentManager(): UseDocumentManagerReturn {
 				);
 			}
 		})();
+	}, []);
+
+	// Save draft before page unloads
+	useEffect(() => {
+		const handleBeforeUnload = () => {
+			const id = activeIdRef.current;
+			const pending = pendingRef.current;
+			if (id && pending?.content) {
+				void saveDocDraft({
+					docId: id,
+					content: pending.content,
+					contentText: pending.contentText ?? "",
+					updatedAt: Date.now(),
+				});
+			}
+		};
+		window.addEventListener("beforeunload", handleBeforeUnload);
+		return () => {
+			window.removeEventListener("beforeunload", handleBeforeUnload);
+		};
 	}, []);
 
 	// Flush save on unmount
@@ -183,6 +231,7 @@ export function useDocumentManager(): UseDocumentManagerReturn {
 	const handleDelete = useCallback(
 		async (docId: number, deleteLocalAssets = false) => {
 			await deleteDocumentRpc(docId, deleteLocalAssets);
+			void clearDocDraft(docId);
 			setDocuments((prev) => {
 				const next = prev.filter((d) => d.id !== docId);
 				if (activeIdRef.current === docId) {
@@ -202,6 +251,17 @@ export function useDocumentManager(): UseDocumentManagerReturn {
 				contentText: text,
 			};
 			setContentText(text);
+
+			const currentId = activeIdRef.current;
+			if (currentId) {
+				void saveDocDraft({
+					docId: currentId,
+					content: contentJson,
+					contentText: text,
+					updatedAt: Date.now(),
+				});
+			}
+
 			scheduleSave();
 		},
 		[scheduleSave],
@@ -213,6 +273,18 @@ export function useDocumentManager(): UseDocumentManagerReturn {
 			setDocuments((prev) =>
 				prev.map((d) => (d.id === activeIdRef.current ? { ...d, title } : d)),
 			);
+
+			const currentId = activeIdRef.current;
+			if (currentId && pendingRef.current?.content) {
+				void saveDocDraft({
+					docId: currentId,
+					title,
+					content: pendingRef.current.content,
+					contentText: pendingRef.current.contentText ?? "",
+					updatedAt: Date.now(),
+				});
+			}
+
 			scheduleSave();
 		},
 		[scheduleSave],

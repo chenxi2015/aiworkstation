@@ -1,11 +1,12 @@
 import { toast } from "@heroui/react";
 import type { Editor } from "@tiptap/react";
-import { ArrowDownToLine, RefreshCw } from "lucide-react";
+import { ArrowDownToLine, GitCompare, RefreshCw } from "lucide-react";
 import type React from "react";
 import { useEffect } from "react";
 import { useAiPanel } from "../../shell/AppShell";
 import { markdownToHtml } from "../importers";
 import type { EditorDocument } from "../types";
+import { SuggestionController } from "../utils/suggestionController";
 
 export interface UseEditorAiBridgeOptions {
 	activeDoc: EditorDocument | null;
@@ -58,10 +59,33 @@ export function useEditorAiBridge({
 					},
 				},
 				{
+					id: "suggest_selection",
+					label: "建议对比",
+					icon: GitCompare,
+					variant: "accent",
+					tooltip: "在正文中以删除线与绿色高亮进行对比审阅（可接受或拒绝）",
+					onAction: async (aiContent: string) => {
+						const editor = editorRef.current;
+						if (!editor) {
+							toast.warning("编辑器未准备好");
+							return;
+						}
+						const { from, to } = editor.state.selection;
+						if (from === to) {
+							toast.warning("请先在正文中划选要优化的文本");
+							return;
+						}
+						await onBeforeAiApply();
+						const cleanText = aiContent.replace(/\r\n/g, "\n");
+						SuggestionController.applyDiff(editor, { from, to }, cleanText);
+						toast.info("已在编辑器正文中生成建议对比，可查看 Accept 或 Reject");
+					},
+				},
+				{
 					id: "replace_selection",
-					label: "替换选区",
+					label: "直接替换",
 					icon: RefreshCw,
-					tooltip: "用回答内容替换当前文档选中的文本（自动备份快照）",
+					tooltip: "用回答内容直接替换当前选中的文本（自动备份快照）",
 					onAction: async (aiContent: string) => {
 						const editor = editorRef.current;
 						if (!editor) {
