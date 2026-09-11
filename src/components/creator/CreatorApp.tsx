@@ -2,6 +2,7 @@ import { Inbox, Library, PenSquare } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import type { NavLayoutEntry } from "../../modules/registry";
 import { fetchDrafts, fetchMaterials } from "../../services/api/creatorClient";
+import { workbenchContextActions } from "../../stores/workbenchContextStore";
 import { useWorkbenchQuickActions } from "../workbench/layout/useWorkbenchQuickActions";
 import { WorkbenchHeader } from "../workbench/layout/WorkbenchHeader";
 import type { Folder } from "../workbench/types";
@@ -55,6 +56,27 @@ export function CreatorApp({
 	useEffect(() => {
 		reload();
 	}, [reload]);
+
+	// Sync currently active material to workbenchContextStore
+	useEffect(() => {
+		if (selectedMaterialId) {
+			const mat = materials.find((m) => m.id === selectedMaterialId);
+			if (mat) {
+				workbenchContextActions.setActiveMaterial({
+					id: mat.id,
+					title: mat.title || "未命名素材",
+				});
+				return;
+			}
+		}
+		workbenchContextActions.setActiveMaterial(null);
+	}, [selectedMaterialId, materials]);
+
+	useEffect(() => {
+		return () => {
+			workbenchContextActions.setActiveMaterial(null);
+		};
+	}, []);
 
 	/** 素材库「去二创」：选中素材并跳回工作台 */
 	const handleGoCreate = useCallback((materialId: number) => {

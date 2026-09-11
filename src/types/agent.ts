@@ -49,4 +49,6 @@ export interface AgentChatParams {
 	module?: string;
 	/** editor 模块：当前活跃文档 id（供 read_document 工具省略 documentId 时定位） */
 	activeDocumentId?: number;
+	/** creator 模块：当前选中的素材 id */
+	activeMaterialId?: number;
 }

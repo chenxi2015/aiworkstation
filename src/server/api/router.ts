@@ -40,6 +40,16 @@ const routes: RouteDefinition[] = [
 		},
 	},
 	{
+		path: "/api/editor/rewrite/stream",
+		exact: true,
+		handler: async (req, res) => {
+			const { handleEditorRewriteStreamRequest } = await import(
+				"./handlers/editorRewriteStreamHandler.ts"
+			);
+			return handleEditorRewriteStreamRequest(req, res);
+		},
+	},
+	{
 		path: "/api/crawler",
 		exact: false,
 		handler: async (req, res, pathname) => {

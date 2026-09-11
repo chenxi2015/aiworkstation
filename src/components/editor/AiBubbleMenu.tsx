@@ -1,6 +1,8 @@
+import { toast } from "@heroui/react";
 import type { Editor } from "@tiptap/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { streamRewriteText } from "../../services/api/editorClient";
 import { AiResultPanel } from "./components/bubble/AiResultPanel";
 import { AiRewriteDropdown } from "./components/bubble/AiRewriteDropdown";
 import { AiSuggestionReviewBar } from "./components/bubble/AiSuggestionReviewBar";
@@ -51,6 +53,8 @@ export function AiBubbleMenu({
 		top: number;
 		left: number;
 	}>({ top: 0, left: 0 });
+	const [isStreaming, setIsStreaming] = useState(false);
+	const abortControllerRef = useRef<AbortController | null>(null);
 	const panelRef = useRef<HTMLDivElement>(null);
 
 	// Merge action registry
@@ -111,44 +115,144 @@ export function AiBubbleMenu({
 		};
 	}, [editor]);
 
-	// AI action handlers
+	// AI action handlers: Stream directly into editor with fine-grained diff
 	const handleAction = useCallback(
 		async (action: AiBarAction) => {
-			const selection = editor.state.doc.textBetween(
-				editor.state.selection.from,
-				editor.state.selection.to,
-				" ",
-			);
+			const { from, to } = editor.state.selection;
+			const selection = editor.state.doc.textBetween(from, to, " ");
 			if (!selection.trim()) return;
 
-			setState("loading");
-			setActiveAction(action);
-			setResult("");
+			// Fallback if custom onGenerate is provided
+			if (onGenerate) {
+				setState("loading");
+				setActiveAction(action);
+				setResult("");
+				try {
+					const prompt = action.prompt.replace("{selection}", selection);
+					const generated = await onGenerate(prompt);
+					setResult(generated);
+					setState("result");
+				} catch (err) {
+					setResult(err instanceof Error ? err.message : String(err));
+					setState("error");
+				}
+				return;
+			}
+
+			// Stream directly into editor
+			setVisible(false);
+			setState("idle");
+
+			await onBeforeApply?.();
+
+			const suggestionId = `sug_${Date.now()}`;
+			const initialSug = SuggestionController.startStreaming(
+				editor,
+				{ from, to },
+				selection,
+				suggestionId,
+			);
+
+			if (initialSug) {
+				setActiveSuggestion(initialSug);
+				setIsStreaming(true);
+				const coords = SuggestionController.getFloatingCoordinates(
+					editor,
+					suggestionId,
+				);
+				if (coords) setSuggestionPos(coords);
+			}
+
+			const prompt = action.prompt.replace("{selection}", selection);
+			const ac = new AbortController();
+			abortControllerRef.current = ac;
+
+			let accumulated = "";
 
 			try {
-				const prompt = action.prompt.replace("{selection}", selection);
-				const generated = await (onGenerate
-					? onGenerate(prompt)
-					: Promise.resolve(
-							"（请先在设置中填入 LLM API Key 才能使用 AI bar）",
-						));
-				setResult(generated);
-				setState("result");
-			} catch (err) {
-				setResult(err instanceof Error ? err.message : String(err));
-				setState("error");
+				await streamRewriteText(
+					{ prompt },
+					{
+						onChunk: (_delta, fullText) => {
+							accumulated = fullText;
+							SuggestionController.updateStreaming(
+								editor,
+								suggestionId,
+								fullText,
+							);
+							const coords = SuggestionController.getFloatingCoordinates(
+								editor,
+								suggestionId,
+							);
+							if (coords) setSuggestionPos(coords);
+						},
+						onDone: (fullText) => {
+							accumulated = fullText;
+							setIsStreaming(false);
+							const finalized = SuggestionController.finalizeStreaming(
+								editor,
+								suggestionId,
+								selection,
+								fullText,
+							);
+							if (finalized) {
+								setActiveSuggestion(finalized);
+								const coords = SuggestionController.getFloatingCoordinates(
+									editor,
+									suggestionId,
+								);
+								if (coords) setSuggestionPos(coords);
+							}
+						},
+						onError: (err) => {
+							setIsStreaming(false);
+							toast.danger(err || "AI 生成建议失败");
+							SuggestionController.reject(editor, suggestionId);
+							setActiveSuggestion(null);
+						},
+					},
+					ac.signal,
+				);
+			} catch (err: unknown) {
+				setIsStreaming(false);
+				if (!ac.signal.aborted) {
+					console.warn("[AiBubbleMenu] Streaming error:", err);
+					if (accumulated) {
+						SuggestionController.finalizeStreaming(
+							editor,
+							suggestionId,
+							selection,
+							accumulated,
+						);
+					} else {
+						SuggestionController.reject(editor, suggestionId);
+						setActiveSuggestion(null);
+					}
+				}
+			} finally {
+				abortControllerRef.current = null;
 			}
 		},
-		[editor, onGenerate],
+		[editor, onGenerate, onBeforeApply],
 	);
+
+	const handleStopStreaming = useCallback(() => {
+		if (abortControllerRef.current) {
+			abortControllerRef.current.abort();
+			abortControllerRef.current = null;
+		}
+		setIsStreaming(false);
+	}, []);
 
 	const handleReviewDiff = useCallback(async () => {
 		if (!result) return;
 		await onBeforeApply?.();
 		const { from, to } = editor.state.selection;
-		const suggestion = SuggestionController.applyDiff(
+		const selection = editor.state.doc.textBetween(from, to, " ");
+		const suggestion = SuggestionController.applyFineDiff(
 			editor,
 			{ from, to },
+			selection,
 			result,
 		);
 		if (suggestion) {
@@ -302,8 +406,10 @@ export function AiBubbleMenu({
 			<AiSuggestionReviewBar
 				visible={Boolean(activeSuggestion)}
 				position={suggestionPos}
+				isStreaming={isStreaming}
 				onAccept={handleAcceptSuggestion}
 				onReject={handleRejectSuggestion}
+				onStopStreaming={handleStopStreaming}
 				onClose={() => setActiveSuggestion(null)}
 			/>
 		</>

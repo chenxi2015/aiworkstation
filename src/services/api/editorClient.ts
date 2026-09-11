@@ -147,3 +147,85 @@ export async function generateAiBarTextRpc(
 	});
 	return text;
 }
+
+/**
+ * 流式请求 AI 改写内容并通过 SSE 实时逐块回调
+ */
+export async function streamRewriteText(
+	params: { prompt: string; systemHint?: string; stylePreset?: string },
+	handlers: {
+		onChunk: (delta: string, fullText: string) => void;
+		onDone: (fullText: string) => void;
+		onError?: (error: string) => void;
+	},
+	signal?: AbortSignal,
+): Promise<void> {
+	const response = await fetch("/api/editor/rewrite/stream", {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify(params),
+		signal,
+	});
+
+	if (!response.ok) {
+		const text = await response.text();
+		throw new Error(text || `HTTP error ${response.status}`);
+	}
+
+	if (!response.body) {
+		throw new Error("No response body received from stream");
+	}
+
+	const reader = response.body.getReader();
+	const decoder = new TextDecoder("utf-8");
+	let buffer = "";
+	let fullText = "";
+
+	try {
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) break;
+
+			buffer += decoder.decode(value, { stream: true });
+			const lines = buffer.split("\n");
+			buffer = lines.pop() || "";
+
+			for (const line of lines) {
+				const trimmed = line.trim();
+				if (!trimmed || trimmed.startsWith(":")) continue;
+
+				if (trimmed.startsWith("data: ")) {
+					try {
+						const event = JSON.parse(trimmed.slice(6));
+						if (event.type === "chunk") {
+							fullText = event.fullText;
+							handlers.onChunk(event.delta, fullText);
+						} else if (event.type === "done") {
+							fullText = event.fullText;
+							handlers.onDone(fullText);
+						} else if (event.type === "error") {
+							handlers.onError?.(event.message);
+						}
+					} catch (e) {
+						console.warn(
+							"[streamRewriteText] Failed to parse SSE line:",
+							trimmed,
+							e,
+						);
+					}
+				}
+			}
+		}
+
+		if (fullText) {
+			handlers.onDone(fullText);
+		}
+	} catch (err: unknown) {
+		if (signal?.aborted) return;
+		const errMsg = err instanceof Error ? err.message : String(err);
+		handlers.onError?.(errMsg);
+		throw err;
+	}
+}

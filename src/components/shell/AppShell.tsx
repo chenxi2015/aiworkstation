@@ -10,6 +10,7 @@ import {
 	useState,
 } from "react";
 import { getModuleByRoute } from "../../modules/registry";
+import { workbenchContextActions } from "../../stores/workbenchContextStore";
 import type { ChatContextItem } from "../../types/chatContext";
 import type { PageBridge } from "../../types/pageBridge";
 import {
@@ -124,9 +125,12 @@ export function AppShell({
 	const router = useRouter();
 	const panelRef = useRef<ChatWithBookmarksPanelRef>(null);
 
-	// 当前导航模块：随路由推导，注入侧边 AI 面板（模块视角提示 + 模块推荐提问）
 	const pathname = useRouterState({ select: (s) => s.location.pathname });
-	const activeModule = getModuleByRoute(pathname)?.code;
+	const activeModule = getModuleByRoute(pathname)?.code ?? "workbench";
+
+	useEffect(() => {
+		workbenchContextActions.setActiveModule(activeModule);
+	}, [activeModule]);
 
 	const [scope, setScope] = useState<AiPanelScope>({ selectedFolder: null });
 	const [pageData, setPageData] = useState<AiPanelPageData | null>(null);

@@ -38,7 +38,18 @@ export function executeListDirectory(
 	args: ListDirectoryInput,
 ): ToolExecutionResult {
 	const dirPath = resolveUserPath(args.path);
-	const stat = statSync(dirPath);
+	let stat: Stats;
+	try {
+		stat = statSync(dirPath);
+	} catch (err: unknown) {
+		const isEnoent = (err as { code?: string })?.code === "ENOENT";
+		if (isEnoent) {
+			throw new Error(
+				`目录不存在: ${dirPath}。若目标是工作区内置文档，请改用 read_document，文档并非以本地文件形式保存在磁盘。`,
+			);
+		}
+		throw err;
+	}
 	if (!stat.isDirectory()) {
 		throw new Error(`${dirPath} 不是一个目录`);
 	}

@@ -63,22 +63,66 @@ export function useEditorAiBridge({
 					label: "建议对比",
 					icon: GitCompare,
 					variant: "accent",
-					tooltip: "在正文中以删除线与绿色高亮进行对比审阅（可接受或拒绝）",
+					tooltip: "在正文中以删除线与绿色高亮进行精细对比审阅（可接受或拒绝）",
 					onAction: async (aiContent: string) => {
 						const editor = editorRef.current;
 						if (!editor) {
 							toast.warning("编辑器未准备好");
 							return;
 						}
-						const { from, to } = editor.state.selection;
-						if (from === to) {
-							toast.warning("请先在正文中划选要优化的文本");
+						let { from, to } = editor.state.selection;
+						let targetText = "";
+						let isFullDoc = false;
+
+						if (from === to || to - from < 2) {
+							// No selection: automatically target entire document
+							from = 0;
+							to = editor.state.doc.content.size;
+							targetText = editor.state.doc.textBetween(0, to, "\n\n");
+							isFullDoc = true;
+						} else {
+							targetText = editor.state.doc.textBetween(from, to, " ");
+						}
+
+						await onBeforeAiApply();
+						const cleanText = aiContent.replace(/\r\n/g, "\n");
+						SuggestionController.applyFineDiff(
+							editor,
+							{ from, to },
+							targetText,
+							cleanText,
+						);
+						toast.success(
+							isFullDoc
+								? "已对整篇文档应用精细对比建议，可在正文中审阅 Accept 或 Reject"
+								: "已在编辑器正文中生成精细对比建议，可查看 Accept 或 Reject",
+						);
+					},
+				},
+				{
+					id: "suggest_full_doc",
+					label: "全文对比建议",
+					icon: GitCompare,
+					variant: "accent",
+					tooltip: "将 AI 优化结果与当前整篇文档进行多段落精细对比（保留未改动段落）",
+					onAction: async (aiContent: string) => {
+						const editor = editorRef.current;
+						if (!editor) {
+							toast.warning("编辑器未准备好");
 							return;
 						}
 						await onBeforeAiApply();
+						const from = 0;
+						const to = editor.state.doc.content.size;
+						const fullDocText = editor.state.doc.textBetween(0, to, "\n\n");
 						const cleanText = aiContent.replace(/\r\n/g, "\n");
-						SuggestionController.applyDiff(editor, { from, to }, cleanText);
-						toast.info("已在编辑器正文中生成建议对比，可查看 Accept 或 Reject");
+						SuggestionController.applyFineDiff(
+							editor,
+							{ from, to },
+							fullDocText,
+							cleanText,
+						);
+						toast.success("已将 AI 回答与全文进行段落精细对比，可在正文审阅 Accept 或 Reject");
 					},
 				},
 				{

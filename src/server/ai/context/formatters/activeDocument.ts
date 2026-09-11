@@ -26,5 +26,6 @@ export function resolveActiveDocumentPrompt(
 """
 ${preview}${previewSuffix}
 """
-  💡 提示：用户的提问默认针对此篇文档展开。你可以直接参考上述正文进行理解与回答；若需要读取更长正文或进行深入解析，请调用 read_document 工具（可省略 documentId 或传入 ${doc.id}）。`;
+  💡 提示：用户的提问默认针对此篇文档展开。你可以直接参考上述正文进行理解与回答；若需要读取更长正文或进行深入解析，请调用 read_document 工具（可省略 documentId 或传入 ${doc.id}）。
+  ⚠️ 核心约束：本文档由系统内置 SQLite 数据库托管，【磁盘中不存在任何对应的文件路径（如 ~/.aiworkstation 等不存在）】！严禁猜测路径或调用文件系统工具寻找文档！`;
 }

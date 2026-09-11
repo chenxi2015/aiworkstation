@@ -114,7 +114,12 @@ export function getModuleByCode(code: string): ModuleDef | undefined {
 }
 
 export function getModuleByRoute(pathname: string): ModuleDef | undefined {
-	return MODULES.find((m) => m.route === pathname);
+	const normalized = pathname.replace(/\/+$/, "") || "/";
+	return MODULES.find(
+		(m) =>
+			m.route === normalized ||
+			(normalized.startsWith(m.route) && normalized[m.route.length] === "/"),
+	);
 }
 
 /** 按 category 值（code 或别名）反查所属模块 */

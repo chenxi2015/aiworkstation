@@ -13,6 +13,7 @@ import { useItemFolderAssign } from "../../../../hooks/ai/useItemFolderAssign";
 import { getAiContribution } from "../../../../modules/ai-contributions";
 import type { ChatContextItem } from "../../../../types/chatContext";
 import type { PageBridge } from "../../../../types/pageBridge";
+import { workbenchContextStore } from "../../../../stores/workbenchContextStore";
 import type {
 	Category,
 	Folder,
@@ -158,13 +159,17 @@ export const ChatWithBookmarksPanel = forwardRef<
 				? { folderId: selectedFolder.id, folderName: selectedFolder.name }
 				: undefined;
 
+		const storeState = workbenchContextStore.state;
+		const effectiveModule = options?.module ?? activeModule ?? storeState.activeModule;
+		const effectiveDocId =
+			options?.activeDocumentId !== undefined
+				? options.activeDocumentId
+				: (pageBridge?.activeDocumentId ?? storeState.activeDocument?.id ?? undefined);
+
 		sendPrompt(prompt, {
 			...folderScope,
-			module: activeModule,
-			activeDocumentId:
-				options?.activeDocumentId !== undefined
-					? options.activeDocumentId
-					: (pageBridge?.activeDocumentId ?? undefined),
+			module: effectiveModule,
+			activeDocumentId: effectiveDocId,
 			...options,
 		});
 	};

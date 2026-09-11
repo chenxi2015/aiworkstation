@@ -103,10 +103,6 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 			"query_bookmarks",
 			"read_webpage_content",
 			"crawl_webpage_via_extension",
-			"fs_read_file",
-			"fs_list_directory",
-			"fs_search_files",
-			"fs_search_content",
 		],
 		promptSuggestions: [
 			"帮我分析当前文档的结构，给出改进建议",

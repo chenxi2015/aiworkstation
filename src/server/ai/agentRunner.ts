@@ -30,6 +30,7 @@ export async function runAgentStream(
 		folderName,
 		module,
 		activeDocumentId,
+		activeMaterialId,
 	} = params;
 
 	const q = question?.trim();
@@ -50,6 +51,7 @@ export async function runAgentStream(
 		contextItems: params.contextItems,
 		module,
 		activeDocumentId,
+		activeMaterialId,
 	});
 
 	if (prepared.emptyFallbackMessage) {
@@ -120,9 +122,15 @@ export async function runAgentStream(
 			emit({ type: "step_end", step });
 		},
 	};
+	// Only inject filesystem tools if module is NOT editor, or if explicit file attachments are present
+	const hasFileAttachment = (params.contextItems || []).some(
+		(item) => item.type === "file",
+	);
+	const shouldIncludeFsTools = module !== "editor" || hasFileAttachment;
+
 	const tools = [
 		...createBookmarkServerTools(toolHooks),
-		...createFsServerTools(toolHooks),
+		...(shouldIncludeFsTools ? createFsServerTools(toolHooks) : []),
 		// Inject editor-specific tools when user is in the editor module
 		...(module === "editor"
 			? createEditorServerTools(toolHooks, activeDocumentId)

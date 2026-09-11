@@ -3,6 +3,7 @@ import type { EmbeddingConfig } from "../../../services/embeddingService.ts";
 import type { ChatContextItem } from "../../../types/chatContext.ts";
 import { buildSystemPrompt } from "../prompts/index.ts";
 import { resolveActiveDocumentPrompt } from "./formatters/activeDocument.ts";
+import { resolveActiveMaterialPrompt } from "./formatters/activeMaterial.ts";
 import { resolveAttachmentsPrompt } from "./formatters/attachments.ts";
 import { resolveFolderScopePrompt } from "./formatters/folderScope.ts";
 import { getFormattedDate, getFormattedTime } from "./formatters/time.ts";
@@ -25,6 +26,8 @@ export interface RagAgentParams {
 	module?: string;
 	/** ID of the document currently being edited in the active page */
 	activeDocumentId?: number;
+	/** ID of the material currently selected in the creator page */
+	activeMaterialId?: number;
 }
 
 /**
@@ -40,6 +43,7 @@ export async function prepareRagAgentContext(
 		contextItems = [],
 		module,
 		activeDocumentId,
+		activeMaterialId,
 	} = params;
 
 	// 1. Semantic bookmark RAG retrieval (pure data + early-exit fallback)
@@ -60,13 +64,16 @@ export async function prepareRagAgentContext(
 	// 2. Independent context fragment builders
 	const folderScopePrompt = resolveFolderScopePrompt(folderId, folderName);
 
-	// Active document (injected via PageBridge) takes priority over dragged document items
+	// Active document (injected via PageBridge/Store) takes priority over dragged document items
 	const activeDocumentPrompt = resolveActiveDocumentPrompt(activeDocumentId);
+	// Active material (injected via Creator/Store) for creator module
+	const activeMaterialPrompt = resolveActiveMaterialPrompt(activeMaterialId);
 	const { attachmentsPrompt, draggedDocumentPrompt } =
 		resolveAttachmentsPrompt(contextItems);
 
 	const documentContextPrompt = activeDocumentPrompt || draggedDocumentPrompt;
-	const combinedContextPrompt = attachmentsPrompt + documentContextPrompt;
+	const combinedContextPrompt =
+		attachmentsPrompt + documentContextPrompt + activeMaterialPrompt;
 
 	// 3. Assemble the final system prompt
 	const systemPrompt = buildSystemPrompt({

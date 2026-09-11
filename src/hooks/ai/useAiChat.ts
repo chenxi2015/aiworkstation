@@ -6,6 +6,7 @@ import {
 	type ChatSession,
 	WorkbenchStorageService,
 } from "../../services/workbenchStorage";
+import { workbenchContextStore } from "../../stores/workbenchContextStore";
 import type { ChatContextItem } from "../../types/chatContext";
 import { type ChatItem, useChatMessages } from "./useChatMessages";
 import { useChatSessions } from "./useChatSessions";
@@ -314,11 +315,14 @@ export function useAiChat(options?: UseAiChatOptions) {
 						folderName: sendOptions?.folderName,
 						contextItems:
 							activeAttachments.length > 0 ? activeAttachments : undefined,
-						module: sendOptions?.module,
+						module:
+							sendOptions?.module ?? workbenchContextStore.state.activeModule,
 						activeDocumentId:
 							sendOptions?.activeDocumentId != null
 								? sendOptions.activeDocumentId
-								: undefined,
+								: (workbenchContextStore.state.activeDocument?.id ?? undefined),
+						activeMaterialId:
+							workbenchContextStore.state.activeMaterial?.id ?? undefined,
 					},
 					{
 						onStepStart: (step) => {

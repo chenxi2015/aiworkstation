@@ -6,6 +6,7 @@ export interface DocumentDraft {
 	contentText: string;
 	title?: string;
 	updatedAt: number;
+	synced?: boolean;
 }
 
 // Dedicated IndexedDB store for document drafts
@@ -19,6 +20,20 @@ export async function saveDocDraft(draft: DocumentDraft): Promise<void> {
 		await set(`draft:${draft.docId}`, draft, draftStore);
 	} catch (err) {
 		console.warn("[editorDraftStorage] Failed to save draft:", err);
+	}
+}
+
+/**
+ * Mark a local draft as synced with backend database without deleting it
+ */
+export async function markDocDraftSynced(docId: number): Promise<void> {
+	try {
+		const existing = await get<DocumentDraft>(`draft:${docId}`, draftStore);
+		if (existing) {
+			await set(`draft:${docId}`, { ...existing, synced: true }, draftStore);
+		}
+	} catch (err) {
+		console.warn("[editorDraftStorage] Failed to mark draft synced:", err);
 	}
 }
 
@@ -38,7 +53,7 @@ export async function getDocDraft(
 }
 
 /**
- * Remove draft from IndexedDB once synced or discarded
+ * Remove draft from IndexedDB only when document is permanently deleted
  */
 export async function clearDocDraft(docId: number): Promise<void> {
 	try {

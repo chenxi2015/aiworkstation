@@ -13,9 +13,11 @@ import {
 	type EditorDocument,
 	type EditorStylePreset,
 } from "../types";
+import { workbenchContextActions } from "../../../stores/workbenchContextStore";
 import {
 	clearDocDraft,
 	getDocDraft,
+	markDocDraftSynced,
 	saveDocDraft,
 } from "../utils/editorDraftStorage";
 
@@ -86,8 +88,8 @@ export function useDocumentManager(): UseDocumentManagerReturn {
 			await updateDocumentRpc({ id, ...pending });
 			setSaveState("saved");
 			setSavedAt(new Date().toISOString());
-			// Clear local IndexedDB draft since database is now up to date
-			void clearDocDraft(id);
+			// Mark local IndexedDB draft as synced with backend database
+			void markDocDraftSynced(id);
 			setDocuments((prev) =>
 				prev.map((d) =>
 					d.id === id
@@ -114,17 +116,42 @@ export function useDocumentManager(): UseDocumentManagerReturn {
 		saveTimerRef.current = setTimeout(flushSave, AUTOSAVE_DELAY);
 	}, [flushSave]);
 
-	/** Flush pending unsaved content before switching/unmounting */
+	/** Instant non-blocking document switch with background save */
 	const switchDocument = useCallback(
 		async (nextId: number | null) => {
 			if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-			await flushSave();
+			// Flush pending changes in background without blocking UI thread
+			void flushSave();
 			setActiveId(nextId);
 			setSaveState("idle");
 			setContentText("");
+
+			if (nextId != null) {
+				const target = documents.find((d) => d.id === nextId);
+				if (target) {
+					workbenchContextActions.setActiveDocument({
+						id: target.id,
+						title: target.title,
+					});
+				}
+			} else {
+				workbenchContextActions.setActiveDocument(null);
+			}
 		},
-		[flushSave],
+		[flushSave, documents],
 	);
+
+	// Synchronize activeDoc to global workbench context store
+	useEffect(() => {
+		if (activeDoc) {
+			workbenchContextActions.setActiveDocument({
+				id: activeDoc.id,
+				title: activeDoc.title,
+			});
+		} else if (!loading) {
+			workbenchContextActions.setActiveDocument(null);
+		}
+	}, [activeDoc, loading]);
 
 	const reloadDocuments = useCallback(async () => {
 		const docs = await fetchDocuments();
@@ -160,6 +187,24 @@ export function useDocumentManager(): UseDocumentManagerReturn {
 			setDocuments(mergedDocs);
 			setLoading(false);
 			setActiveId((prev) => prev ?? mergedDocs[0]?.id ?? null);
+
+			// Populate local IndexedDB cache for loaded documents
+			for (const doc of mergedDocs) {
+				void getDocDraft(doc.id).then((existing) => {
+					if (!existing) {
+						void saveDocDraft({
+							docId: doc.id,
+							title: doc.title,
+							content: doc.content,
+							contentText: doc.contentText,
+							updatedAt: doc.updatedAt
+								? new Date(doc.updatedAt).getTime()
+								: Date.now(),
+							synced: true,
+						});
+					}
+				});
+			}
 
 			try {
 				const settings = await getWorkbenchSettings();
@@ -259,6 +304,7 @@ export function useDocumentManager(): UseDocumentManagerReturn {
 					content: contentJson,
 					contentText: text,
 					updatedAt: Date.now(),
+					synced: false,
 				});
 			}
 
@@ -275,6 +321,12 @@ export function useDocumentManager(): UseDocumentManagerReturn {
 			);
 
 			const currentId = activeIdRef.current;
+			if (currentId) {
+				workbenchContextActions.setActiveDocument({
+					id: currentId,
+					title,
+				});
+			}
 			if (currentId && pendingRef.current?.content) {
 				void saveDocDraft({
 					docId: currentId,
@@ -282,6 +334,7 @@ export function useDocumentManager(): UseDocumentManagerReturn {
 					content: pendingRef.current.content,
 					contentText: pendingRef.current.contentText ?? "",
 					updatedAt: Date.now(),
+					synced: false,
 				});
 			}
 
