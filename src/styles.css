@@ -675,16 +675,34 @@ pre code {
 	-webkit-box-decoration-break: clone;
 }
 
-/* 彻底清除 Tailwind Typography prose 默认加上的反引号 */
+/* 彻底清除 Tailwind Typography prose 默认加上的反引号与引用块首尾双引号 */
 .tiptap-editor :not(pre) > code::before,
 .tiptap-editor :not(pre) > code::after,
 .doc-content-body :not(pre) > code::before,
 .doc-content-body :not(pre) > code::after,
 .prose :where(code):not(:where([class~="not-prose"] *))::before,
-.prose :where(code):not(:where([class~="not-prose"] *))::after {
+.prose :where(code):not(:where([class~="not-prose"] *))::after,
+.tiptap-editor blockquote p:first-of-type::before,
+.tiptap-editor blockquote p:last-of-type::after,
+.doc-content-body blockquote p:first-of-type::before,
+.doc-content-body blockquote p:last-of-type::after,
+.prose :where(blockquote p:first-of-type):not(:where([class~="not-prose"] *))::before,
+.prose :where(blockquote p:last-of-type):not(:where([class~="not-prose"] *))::after,
+.prose blockquote::before,
+.prose blockquote::after,
+blockquote::before,
+blockquote::after {
 	content: "" !important;
+	content: none !important;
 	display: none !important;
 }
+
+.tiptap-editor blockquote,
+.doc-content-body blockquote,
+.prose blockquote {
+	quotes: none !important;
+}
+
 
 /* ============ TipTap 待办任务清单（Task List）官网标准样式 ============ */
 .tiptap-editor ul[data-type="taskList"],

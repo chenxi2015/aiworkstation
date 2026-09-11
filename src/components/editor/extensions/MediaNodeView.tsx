@@ -15,7 +15,7 @@ import {
 	X,
 } from "lucide-react";
 import type React from "react";
-import { createContext, useContext, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import {
 	downloadExternalAssetRpc,
 	uploadAssetRpc,
@@ -101,6 +101,76 @@ export function MediaNodeView(props: NodeViewProps) {
 	const [mediaLoadError, setMediaLoadError] = useState(false);
 
 	const fileInputRef = useRef<HTMLInputElement>(null);
+	const containerRef = useRef<HTMLDivElement>(null);
+	const toolbarRef = useRef<HTMLDivElement>(null);
+	const [verticalPos, setVerticalPos] = useState<"top" | "bottom">("top");
+	const [horizontalShift, setHorizontalShift] = useState(0);
+
+	// Update toolbar position and clamp to visible boundaries
+	const updateToolbarPosition = useCallback(() => {
+		if (!toolbarRef.current || !containerRef.current) return;
+		const containerRect = containerRef.current.getBoundingClientRect();
+		const toolbarRect = toolbarRef.current.getBoundingClientRect();
+
+		// Avoid calculating when hidden or zero-dimensioned
+		if (toolbarRect.width === 0 || toolbarRect.height === 0) return;
+
+		// 1. Vertical space detection: if not enough space above, flip to bottom
+		const spaceAbove = containerRect.top;
+		const nextVertical = spaceAbove < 52 ? "bottom" : "top";
+
+		// 2. Horizontal boundary clamping: ensure toolbar stays within visible editor container
+		const editorEl =
+			containerRef.current.closest(".tiptap-editor") ||
+			containerRef.current.closest(".doc-content-body") ||
+			document.body;
+		const editorRect = editorEl.getBoundingClientRect();
+
+		const safeLeft = Math.max(12, editorRect.left + 12);
+		const safeRight = Math.min(window.innerWidth - 12, editorRect.right - 12);
+
+		// Current unshifted position
+		const currentLeft = toolbarRect.left - horizontalShift;
+		const currentRight = toolbarRect.right - horizontalShift;
+
+		let shift = 0;
+		if (currentLeft < safeLeft) {
+			shift = safeLeft - currentLeft;
+		} else if (currentRight > safeRight) {
+			shift = safeRight - currentRight;
+		}
+
+		setVerticalPos(nextVertical);
+		setHorizontalShift(shift);
+	}, [horizontalShift]);
+
+	// Recompute positioning when active, hovering, or window resizes/scrolls
+	useEffect(() => {
+		const isToolbarVisible = selected || isHovered || showReplaceModal;
+		if (!isToolbarVisible) {
+			setHorizontalShift(0);
+			return;
+		}
+
+		updateToolbarPosition();
+
+		const handleScrollOrResize = () => {
+			updateToolbarPosition();
+		};
+
+		window.addEventListener("resize", handleScrollOrResize, { passive: true });
+		window.addEventListener("scroll", handleScrollOrResize, {
+			passive: true,
+			capture: true,
+		});
+
+		return () => {
+			window.removeEventListener("resize", handleScrollOrResize);
+			window.removeEventListener("scroll", handleScrollOrResize, {
+				capture: true,
+			});
+		};
+	}, [selected, isHovered, showReplaceModal, updateToolbarPosition]);
 
 	const handleSetAlignment =
 		(alignment: "left" | "center" | "right") => (e: React.MouseEvent) => {
@@ -296,6 +366,7 @@ export function MediaNodeView(props: NodeViewProps) {
 			onMouseLeave={() => setIsHovered(false)}
 		>
 			<div
+				ref={containerRef}
 				className={`relative group max-w-full select-none transition-all duration-150 rounded-xl ${
 					isVideo ? "w-full" : "inline-block"
 				} ${
@@ -325,12 +396,12 @@ export function MediaNodeView(props: NodeViewProps) {
 						/>
 					</div>
 				) : (
-					<div className="relative inline-block max-w-full">
+					<div className="relative inline-flex items-center justify-center max-w-full min-w-[40px] min-h-[40px]">
 						<img
 							src={src}
 							alt={node.attrs.alt || ""}
 							referrerPolicy="no-referrer"
-							className="w-auto max-w-full h-auto rounded-xl block m-0 cursor-pointer"
+							className="w-auto max-w-full h-auto rounded-xl block m-0 cursor-pointer min-w-[32px] min-h-[32px] object-contain"
 							onError={() => setMediaLoadError(true)}
 							onLoad={() => setMediaLoadError(false)}
 						/>
@@ -356,9 +427,28 @@ export function MediaNodeView(props: NodeViewProps) {
 					</div>
 				)}
 
-				{/* Top-right action toolbar (always accessible for all media) */}
+				{/* Floating action toolbar (outside media with boundary clamping) */}
 				<div
-					className={`absolute top-2.5 right-2.5 z-30 media-action-toolbar flex items-center gap-1.5 p-1 bg-zinc-900/90 text-zinc-100 border border-zinc-700/80 rounded-lg shadow-xl backdrop-blur-md transition-opacity duration-150 ${
+					ref={toolbarRef}
+					style={{
+						transform:
+							textAlign === "center"
+								? `translateX(calc(-50% + ${horizontalShift}px))`
+								: horizontalShift
+									? `translateX(${horizontalShift}px)`
+									: undefined,
+					}}
+					className={`absolute z-30 media-action-toolbar flex items-center gap-1.5 p-1 bg-zinc-900/95 text-zinc-100 border border-zinc-700/80 rounded-lg shadow-xl backdrop-blur-md transition-opacity duration-150 whitespace-nowrap ${
+						verticalPos === "top"
+							? "bottom-[calc(100%+8px)]"
+							: "top-[calc(100%+8px)]"
+					} ${
+						textAlign === "center"
+							? "left-1/2"
+							: textAlign === "right"
+								? "right-0"
+								: "left-0"
+					} ${
 						selected || isHovered || showReplaceModal
 							? "opacity-100 scale-100 pointer-events-auto"
 							: isVideo
@@ -453,101 +543,103 @@ export function MediaNodeView(props: NodeViewProps) {
 						<ArrowLeftRight className="w-3.5 h-3.5" />
 						<span>替换</span>
 					</button>
-				</div>
 
-				{/* Replace popover menu */}
-				{showReplaceModal && (
-					<div
-						className="absolute top-12 right-2.5 z-40 media-action-toolbar w-76 p-3 bg-zinc-900/95 text-zinc-100 border border-zinc-700/90 rounded-xl shadow-2xl backdrop-blur-lg animate-in fade-in slide-in-from-top-2 duration-150"
-						onClick={(e) => e.stopPropagation()}
-					>
-						<div className="flex items-center justify-between pb-2 mb-2.5 border-b border-zinc-800">
-							<span className="text-xs font-semibold text-zinc-200">
-								替换{isVideo ? "视频" : "图片"}
-							</span>
-							<button
-								type="button"
-								onClick={() => setShowReplaceModal(false)}
-								className="text-zinc-400 hover:text-zinc-200 p-0.5 rounded cursor-pointer"
-							>
-								<X className="w-3.5 h-3.5" />
-							</button>
-						</div>
-
-						<div className="space-y-2.5">
-							{/* Option 1: Upload local file */}
-							<div>
+					{/* Replace popover menu anchored to toolbar */}
+					{showReplaceModal && (
+						<div
+							className={`absolute top-[calc(100%+6px)] z-40 media-action-toolbar w-76 p-3 bg-zinc-900/95 text-zinc-100 border border-zinc-700/90 rounded-xl shadow-2xl backdrop-blur-lg animate-in fade-in slide-in-from-top-2 duration-150 whitespace-normal ${
+								textAlign === "right" ? "right-0" : "left-0"
+							}`}
+							onClick={(e) => e.stopPropagation()}
+						>
+							<div className="flex items-center justify-between pb-2 mb-2.5 border-b border-zinc-800">
+								<span className="text-xs font-semibold text-zinc-200">
+									替换{isVideo ? "视频" : "图片"}
+								</span>
 								<button
 									type="button"
-									disabled={uploading}
-									onClick={() => fileInputRef.current?.click()}
-									className="w-full flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg bg-zinc-800 hover:bg-zinc-700/90 active:bg-zinc-700 text-xs font-medium text-zinc-200 border border-zinc-700/60 transition-colors cursor-pointer disabled:opacity-50"
+									onClick={() => setShowReplaceModal(false)}
+									className="text-zinc-400 hover:text-zinc-200 p-0.5 rounded cursor-pointer"
 								>
-									{uploading ? (
-										<Loader2 className="w-3.5 h-3.5 animate-spin text-accent" />
-									) : (
-										<Upload className="w-3.5 h-3.5" />
-									)}
-									<span>
-										{uploading ? "正在上传中..." : "上传本地文件替换"}
-									</span>
+									<X className="w-3.5 h-3.5" />
 								</button>
-								<input
-									ref={fileInputRef}
-									type="file"
-									accept={isVideo ? "video/*" : "image/*"}
-									className="hidden"
-									onChange={handleFileSelected}
-								/>
 							</div>
 
-							{/* Option 2: Restore original external URL (if available) */}
-							{originalSrc && !isExternal && (
-								<button
-									type="button"
-									onClick={handleRestoreOriginalSrc}
-									className="w-full flex items-center justify-center gap-1.5 py-1 px-2.5 rounded-lg bg-zinc-800/60 hover:bg-zinc-800 text-[11px] font-medium text-amber-300/90 border border-zinc-700/50 transition-colors cursor-pointer"
-									title={originalSrc}
-								>
-									<RefreshCw className="w-3 h-3" />
-									<span>恢复原网络链接</span>
-								</button>
-							)}
-
-							{/* Divider */}
-							<div className="flex items-center gap-2 text-[11px] text-zinc-500 my-1">
-								<span className="flex-1 h-[1px] bg-zinc-800" />
-								<span>或输入新链接</span>
-								<span className="flex-1 h-[1px] bg-zinc-800" />
-							</div>
-
-							{/* Option 3: Enter new URL */}
-							<form onSubmit={handleConfirmUrlReplace} className="space-y-2">
-								<input
-									type="url"
-									placeholder={`输入新的${isVideo ? "视频" : "图片"}网络 URL...`}
-									value={replaceUrlInput}
-									onChange={(e) => setReplaceUrlInput(e.target.value)}
-									className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-zinc-950 border border-zinc-700/80 text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-accent"
-								/>
-								<button
-									type="submit"
-									disabled={!replaceUrlInput.trim()}
-									className="w-full py-1.5 px-3 rounded-lg bg-accent text-white text-xs font-medium hover:bg-accent/90 transition-colors disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
-								>
-									确认替换
-								</button>
-							</form>
-
-							{/* Error message */}
-							{uploadError && (
-								<div className="text-[11px] text-red-400 bg-red-950/40 p-1.5 rounded border border-red-800/50">
-									{uploadError}
+							<div className="space-y-2.5">
+								{/* Option 1: Upload local file */}
+								<div>
+									<button
+										type="button"
+										disabled={uploading}
+										onClick={() => fileInputRef.current?.click()}
+										className="w-full flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg bg-zinc-800 hover:bg-zinc-700/90 active:bg-zinc-700 text-xs font-medium text-zinc-200 border border-zinc-700/60 transition-colors cursor-pointer disabled:opacity-50"
+									>
+										{uploading ? (
+											<Loader2 className="w-3.5 h-3.5 animate-spin text-accent" />
+										) : (
+											<Upload className="w-3.5 h-3.5" />
+										)}
+										<span>
+											{uploading ? "正在上传中..." : "上传本地文件替换"}
+										</span>
+									</button>
+									<input
+										ref={fileInputRef}
+										type="file"
+										accept={isVideo ? "video/*" : "image/*"}
+										className="hidden"
+										onChange={handleFileSelected}
+									/>
 								</div>
-							)}
+
+								{/* Option 2: Restore original external URL (if available) */}
+								{originalSrc && !isExternal && (
+									<button
+										type="button"
+										onClick={handleRestoreOriginalSrc}
+										className="w-full flex items-center justify-center gap-1.5 py-1 px-2.5 rounded-lg bg-zinc-800/60 hover:bg-zinc-800 text-[11px] font-medium text-amber-300/90 border border-zinc-700/50 transition-colors cursor-pointer"
+										title={originalSrc}
+									>
+										<RefreshCw className="w-3 h-3" />
+										<span>恢复原网络链接</span>
+									</button>
+								)}
+
+								{/* Divider */}
+								<div className="flex items-center gap-2 text-[11px] text-zinc-500 my-1">
+									<span className="flex-1 h-[1px] bg-zinc-800" />
+									<span>或输入新链接</span>
+									<span className="flex-1 h-[1px] bg-zinc-800" />
+								</div>
+
+								{/* Option 3: Enter new URL */}
+								<form onSubmit={handleConfirmUrlReplace} className="space-y-2">
+									<input
+										type="url"
+										placeholder={`输入新的${isVideo ? "视频" : "图片"}网络 URL...`}
+										value={replaceUrlInput}
+										onChange={(e) => setReplaceUrlInput(e.target.value)}
+										className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-zinc-950 border border-zinc-700/80 text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-accent"
+									/>
+									<button
+										type="submit"
+										disabled={!replaceUrlInput.trim()}
+										className="w-full py-1.5 px-3 rounded-lg bg-accent text-white text-xs font-medium hover:bg-accent/90 transition-colors disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+									>
+										确认替换
+									</button>
+								</form>
+
+								{/* Error message */}
+								{uploadError && (
+									<div className="text-[11px] text-red-400 bg-red-950/40 p-1.5 rounded border border-red-800/50">
+										{uploadError}
+									</div>
+								)}
+							</div>
 						</div>
-					</div>
-				)}
+					)}
+				</div>
 			</div>
 		</NodeViewWrapper>
 	);
