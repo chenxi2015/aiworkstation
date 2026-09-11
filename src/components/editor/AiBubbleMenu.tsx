@@ -270,12 +270,26 @@ export function AiBubbleMenu({
 
 	const handleAcceptSuggestion = useCallback(() => {
 		if (!activeSuggestion) return;
-		SuggestionController.accept(editor, activeSuggestion.id);
+		try {
+			SuggestionController.accept(editor, activeSuggestion.id);
+		} catch (err) {
+			console.error("[AiBubbleMenu] Failed to accept suggestion:", err);
+			toast.danger("采纳建议失败");
+		} finally {
+			setActiveSuggestion(null);
+		}
 	}, [editor, activeSuggestion]);
 
 	const handleRejectSuggestion = useCallback(() => {
 		if (!activeSuggestion) return;
-		SuggestionController.reject(editor, activeSuggestion.id);
+		try {
+			SuggestionController.reject(editor, activeSuggestion.id);
+		} catch (err) {
+			console.error("[AiBubbleMenu] Failed to reject suggestion:", err);
+			toast.danger("丢弃建议失败");
+		} finally {
+			setActiveSuggestion(null);
+		}
 	}, [editor, activeSuggestion]);
 
 	// Automatically synchronize active suggestion state with document content (handles Undo/Redo!)

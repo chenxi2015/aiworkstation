@@ -8,10 +8,14 @@ import {
 } from "../../services/workbenchStorage";
 import { workbenchContextStore } from "../../stores/workbenchContextStore";
 import type { ChatContextItem } from "../../types/chatContext";
-import { type ChatItem, useChatMessages } from "./useChatMessages";
+import {
+	type ChatItem,
+	type ChatMessagePart,
+	useChatMessages,
+} from "./useChatMessages";
 import { useChatSessions } from "./useChatSessions";
 
-export type { ChatItem };
+export type { ChatItem, ChatMessagePart };
 
 export interface UseAiChatOptions {
 	onMessageSent?: () => void;
@@ -297,6 +301,7 @@ export function useAiChat(options?: UseAiChatOptions) {
 					role: "assistant",
 					content: "",
 					steps: [],
+					parts: [],
 					isStreaming: true,
 					timestamp: new Date().toLocaleTimeString([], {
 						hour: "2-digit",
@@ -329,11 +334,35 @@ export function useAiChat(options?: UseAiChatOptions) {
 							setMessages((prev) => {
 								const last = prev[prev.length - 1];
 								if (!last || last.role !== "assistant") return prev;
+
+								const existingParts = last.parts ? [...last.parts] : [];
+								const lastPart = existingParts[existingParts.length - 1];
+
+								let nextParts: ChatMessagePart[];
+								if (lastPart && lastPart.type === "step_group") {
+									nextParts = [
+										...existingParts.slice(0, -1),
+										{
+											...lastPart,
+											steps: [...lastPart.steps, step],
+										},
+									];
+								} else {
+									nextParts = [
+										...existingParts,
+										{
+											type: "step_group",
+											steps: [step],
+										},
+									];
+								}
+
 								return [
 									...prev.slice(0, -1),
 									{
 										...last,
 										steps: [...(last.steps || []), step],
+										parts: nextParts,
 									},
 								];
 							});
@@ -348,11 +377,27 @@ export function useAiChat(options?: UseAiChatOptions) {
 										? step
 										: s,
 								);
+
+								const existingParts = last.parts ? [...last.parts] : [];
+								const nextParts = existingParts.map((p) => {
+									if (p.type !== "step_group") return p;
+									return {
+										...p,
+										steps: p.steps.map((s) =>
+											s.id === step.id ||
+											(s.toolName === step.toolName && s.status === "running")
+												? step
+												: s,
+										),
+									};
+								});
+
 								return [
 									...prev.slice(0, -1),
 									{
 										...last,
 										steps: updatedSteps,
+										parts: nextParts,
 									},
 								];
 							});
@@ -361,11 +406,35 @@ export function useAiChat(options?: UseAiChatOptions) {
 							setMessages((prev) => {
 								const last = prev[prev.length - 1];
 								if (!last || last.role !== "assistant") return prev;
+
+								const existingParts = last.parts ? [...last.parts] : [];
+								const lastPart = existingParts[existingParts.length - 1];
+
+								let nextParts: ChatMessagePart[];
+								if (lastPart && lastPart.type === "text") {
+									nextParts = [
+										...existingParts.slice(0, -1),
+										{
+											...lastPart,
+											text: lastPart.text + delta,
+										},
+									];
+								} else {
+									nextParts = [
+										...existingParts,
+										{
+											type: "text",
+											text: delta,
+										},
+									];
+								}
+
 								return [
 									...prev.slice(0, -1),
 									{
 										...last,
 										content: last.content + delta,
+										parts: nextParts,
 									},
 								];
 							});
@@ -387,11 +456,35 @@ export function useAiChat(options?: UseAiChatOptions) {
 							setMessages((prev) => {
 								const last = prev[prev.length - 1];
 								if (!last || last.role !== "assistant") return prev;
+
+								let finalParts = last.parts ? [...last.parts] : [];
+								const finalContent = answer || last.content;
+
+								const hasTextPart = finalParts.some(
+									(p) => p.type === "text" && p.text.trim().length > 0,
+								);
+								if (!hasTextPart && finalContent) {
+									finalParts.push({ type: "text", text: finalContent });
+								}
+
+								finalParts = finalParts.map((p) => {
+									if (p.type !== "step_group") return p;
+									return {
+										...p,
+										steps: p.steps.map((s) =>
+											s.status === "running"
+												? { ...s, status: "completed" }
+												: s,
+										),
+									};
+								});
+
 								return [
 									...prev.slice(0, -1),
 									{
 										...last,
-										content: answer || last.content,
+										content: finalContent,
+										parts: finalParts,
 										isStreaming: false,
 									},
 								];
@@ -406,6 +499,11 @@ export function useAiChat(options?: UseAiChatOptions) {
 							setMessages((prev) => {
 								const last = prev[prev.length - 1];
 								if (!last || last.role !== "assistant") return prev;
+								const existingParts = last.parts ? [...last.parts] : [];
+								existingParts.push({
+									type: "text",
+									text: `\n\n${errMsg}`,
+								});
 								return [
 									...prev.slice(0, -1),
 									{
@@ -413,6 +511,7 @@ export function useAiChat(options?: UseAiChatOptions) {
 										content: last.content
 											? `${last.content}\n\n${errMsg}`
 											: errMsg,
+										parts: existingParts,
 										isStreaming: false,
 									},
 								];

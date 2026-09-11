@@ -10,11 +10,19 @@ import type { ChatContextItem } from "../../types/chatContext.ts";
 
 export type { AgentStep };
 
+/**
+ * Individual ordered part within a conversational message, enabling text and tool steps to interleave seamlessly
+ */
+export type ChatMessagePart =
+	| { type: "text"; text: string }
+	| { type: "step_group"; steps: AgentStep[] };
+
 export interface ChatItem {
 	role: "user" | "assistant";
 	content: string;
 	references?: SearchResultItem[];
 	steps?: AgentStep[];
+	parts?: ChatMessagePart[];
 	contextItems?: ChatContextItem[];
 	isStreaming?: boolean;
 	timestamp?: string;

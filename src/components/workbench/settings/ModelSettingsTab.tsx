@@ -11,13 +11,23 @@ import {
 	TextField,
 	toast,
 } from "@heroui/react";
-import { Brain, Eye, EyeOff, Loader2, PenLine, RefreshCw, Sparkles } from "lucide-react";
+import {
+	Brain,
+	Eye,
+	EyeOff,
+	Loader2,
+	PenLine,
+	RefreshCw,
+	Sparkles,
+} from "lucide-react";
 import type React from "react";
 import { useState } from "react";
+import { useEmbeddingStats } from "../../../hooks/ai/useEmbeddingStats";
 import {
 	DEFAULT_SETTINGS,
 	WorkbenchStorageService,
 } from "../../../services/workbenchStorage";
+import { EmbeddingStatusWidget } from "../ai/shared/EmbeddingStatusWidget";
 import {
 	EMBEDDING_PROVIDERS,
 	FALLBACK_EMBEDDING_MODELS,
@@ -58,6 +68,7 @@ export function ModelSettingsTab({
 	embeddingModelList,
 	setEmbeddingModelList,
 }: ModelSettingsTabProps) {
+	const { stats, isIndexing, buildIndex } = useEmbeddingStats();
 	const [loadingLlmModels, setLoadingLlmModels] = useState(false);
 	const [isCustomLlmModel, setIsCustomLlmModel] = useState(false);
 	const [loadingEmbeddingModels, setLoadingEmbeddingModels] = useState(false);
@@ -187,8 +198,8 @@ export function ModelSettingsTab({
 				</div>
 				<p className="text-[11px] text-muted leading-relaxed">
 					用于未分类书签 TDK
-					批量深度分析、智能打标与主题文件夹自动归类。选择服务商后会自动填充
-					API 地址与模型列表。
+					批量深度分析、智能打标与主题文件夹自动归类。选择服务商后会自动填充 API
+					地址与模型列表。
 				</p>
 
 				<div className="grid grid-cols-2 gap-4 items-end">
@@ -258,10 +269,7 @@ export function ModelSettingsTab({
 					className="w-full"
 				>
 					<Label className="whitespace-nowrap">API Base URL</Label>
-					<Input
-						placeholder="https://api.deepseek.com"
-						variant="secondary"
-					/>
+					<Input placeholder="https://api.deepseek.com" variant="secondary" />
 				</TextField>
 
 				{/* LLM Model - Full Width Long Input with Action Bar */}
@@ -288,9 +296,7 @@ export function ModelSettingsTab({
 								type="button"
 								onClick={() => setIsCustomLlmModel(!isCustomLlmModel)}
 								className="text-[11px] text-muted hover:text-foreground flex items-center gap-0.5 cursor-pointer transition-colors"
-								title={
-									isCustomLlmModel ? "切换为下拉选择" : "切换为手动输入"
-								}
+								title={isCustomLlmModel ? "切换为下拉选择" : "切换为手动输入"}
 							>
 								<PenLine className="w-2.5 h-2.5" />
 								<span>{isCustomLlmModel ? "选择" : "手动"}</span>
@@ -465,9 +471,7 @@ export function ModelSettingsTab({
 								) : (
 									<RefreshCw className="w-3 h-3" />
 								)}
-								<span>
-									{loadingEmbeddingModels ? "获取中..." : "获取模型"}
-								</span>
+								<span>{loadingEmbeddingModels ? "获取中..." : "获取模型"}</span>
 							</button>
 							<span className="text-muted/40 text-[10px]">|</span>
 							<button
@@ -477,9 +481,7 @@ export function ModelSettingsTab({
 								}
 								className="text-[11px] text-muted hover:text-foreground flex items-center gap-0.5 cursor-pointer transition-colors"
 								title={
-									isCustomEmbeddingModel
-										? "切换为下拉选择"
-										: "切换为手动输入"
+									isCustomEmbeddingModel ? "切换为下拉选择" : "切换为手动输入"
 								}
 							>
 								<PenLine className="w-2.5 h-2.5" />
@@ -520,6 +522,19 @@ export function ModelSettingsTab({
 							</SelectPopover>
 						</Select>
 					)}
+				</div>
+
+				{/* Vector Embedding Status & Index Maintenance */}
+				<div className="pt-2 border-t border-border/50 flex flex-col gap-1.5 w-full">
+					<Label className="whitespace-nowrap text-xs text-muted">
+						书签向量索引状态
+					</Label>
+					<EmbeddingStatusWidget
+						stats={stats}
+						isIndexing={isIndexing}
+						onBuildIndex={buildIndex}
+						compact={false}
+					/>
 				</div>
 			</div>
 		</div>

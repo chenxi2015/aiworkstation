@@ -69,30 +69,77 @@ export const AssistantMessageBubble = memo(function AssistantMessageBubble({
 				)}
 			</div>
 
-			{/* Inline reasoning & tool process timeline */}
-			{msg.steps && msg.steps.length > 0 && (
-				<div className="mb-3">
-					<AgentStepTimeline steps={msg.steps} isStreaming={msg.isStreaming} />
+			{/* Interleaved message parts (flowing text and step groups in real-time execution order) */}
+			{msg.parts && msg.parts.length > 0 ? (
+				<div className="space-y-2">
+					{msg.parts.map((part, partIndex) => {
+						if (part.type === "step_group") {
+							const groupKey =
+								part.steps[0]?.id ||
+								`step-group-${msg.timestamp || "stream"}-${partIndex}`;
+							return (
+								<div key={groupKey} className="my-1.5">
+									<AgentStepTimeline
+										steps={part.steps}
+										isStreaming={
+											Boolean(msg.isStreaming) &&
+											partIndex === (msg.parts?.length ?? 0) - 1
+										}
+									/>
+								</div>
+							);
+						}
+						if (part.type === "text" && part.text) {
+							const textKey = `text-${msg.timestamp || "stream"}-${partIndex}`;
+							return (
+								<div key={textKey} className="text-foreground leading-relaxed">
+									<AiMarkdownRenderer
+										content={part.text}
+										compact={false}
+										folders={folders}
+										onNavigateToFolder={onNavigateToFolder}
+									/>
+								</div>
+							);
+						}
+						return null;
+					})}
 				</div>
+			) : (
+				/* Fallback for legacy messages or when parts are not populated */
+				<>
+					{msg.steps && msg.steps.length > 0 && (
+						<div className="mb-3">
+							<AgentStepTimeline
+								steps={msg.steps}
+								isStreaming={msg.isStreaming}
+							/>
+						</div>
+					)}
+
+					{msg.content ? (
+						<div className="text-foreground leading-relaxed">
+							<AiMarkdownRenderer
+								content={msg.content}
+								compact={false}
+								folders={folders}
+								onNavigateToFolder={onNavigateToFolder}
+							/>
+						</div>
+					) : null}
+				</>
 			)}
 
-			{/* Main markdown response body flowing freely without card borders */}
-			{msg.content ? (
-				<div className="text-foreground leading-relaxed">
-					<AiMarkdownRenderer
-						content={msg.content}
-						compact={false}
-						folders={folders}
-						onNavigateToFolder={onNavigateToFolder}
-					/>
-				</div>
-			) : msg.isStreaming && (!msg.steps || msg.steps.length === 0) ? (
-				/* Only show initial planning status if no steps timeline is present yet */
-				<div className="flex items-center gap-2 text-muted py-2">
-					<span className="inline-block w-2 h-2 rounded-full bg-accent animate-ping" />
-					<span className="text-xs">Agent 正在思考规划...</span>
-				</div>
-			) : null}
+			{/* Initial planning indicator (only before any parts, steps, or text arrive) */}
+			{msg.isStreaming &&
+				(!msg.parts || msg.parts.length === 0) &&
+				(!msg.steps || msg.steps.length === 0) &&
+				!msg.content && (
+					<div className="flex items-center gap-2 text-muted py-2">
+						<span className="inline-block w-2 h-2 rounded-full bg-accent animate-ping" />
+						<span className="text-xs">Agent 正在思考规划...</span>
+					</div>
+				)}
 
 			{/* Bottom Action Bar (Modular page actions, copy, regenerate, delete) */}
 			{!msg.isStreaming && (

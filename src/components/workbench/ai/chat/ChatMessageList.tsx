@@ -1,4 +1,5 @@
-import { ArrowDown, Brain } from "lucide-react";
+import { ScrollShadow } from "@heroui/react";
+import { ArrowDown } from "lucide-react";
 import {
 	type RefObject,
 	useCallback,
@@ -9,8 +10,8 @@ import {
 import type { ChatItem } from "../../../../hooks/ai/useAiChat";
 import type { PageBridge } from "../../../../types/pageBridge";
 import type { Category, Folder, SearchResultItem } from "../../types";
+import { ChatEmptyState } from "./ChatEmptyState";
 import { ChatMessageItem } from "./ChatMessageItem";
-import { ChatPromptSuggestions } from "./ChatPromptSuggestions";
 
 export interface ChatMessageListProps {
 	messages: ChatItem[];
@@ -36,6 +37,8 @@ export interface ChatMessageListProps {
 	) => void;
 	onSelectPrompt: (prompt: string) => void;
 	folders?: Folder[];
+	/** 当前模块（如 editor / creator / bookmarks 等） */
+	activeModule?: string;
 	/** 当前模块的推荐提问（见 modules/ai-contributions.ts） */
 	modulePrompts?: string[];
 	onNavigateToFolder?: (
@@ -68,6 +71,7 @@ export function ChatMessageList({
 	onOpenAssignMultiple,
 	onSelectPrompt,
 	folders,
+	activeModule,
 	modulePrompts,
 	onNavigateToFolder,
 }: ChatMessageListProps) {
@@ -98,11 +102,11 @@ export function ChatMessageList({
 		const atBottom = distanceToBottom <= threshold;
 
 		isAtBottomRef.current = atBottom;
-		setShowScrollBottom(!atBottom);
+		setShowScrollBottom(!atBottom && container.scrollTop > 100);
 	}, []);
 
 	// Smoothly or immediately scroll to bottom
-	const scrollToBottom = useCallback((smooth = true) => {
+	const scrollToBottom = useCallback((smooth = false) => {
 		const container = scrollContainerRef.current;
 		if (!container) return;
 
@@ -111,19 +115,13 @@ export function ChatMessageList({
 
 		if (smooth) {
 			isSmoothScrollingRef.current = true;
-			container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+			container.scrollTo({
+				top: container.scrollHeight,
+				behavior: "smooth",
+			});
 			setTimeout(() => {
 				isSmoothScrollingRef.current = false;
-				if (container) {
-					const distanceToBottom =
-						container.scrollHeight -
-						container.scrollTop -
-						container.clientHeight;
-					const atBottom = distanceToBottom <= 80;
-					isAtBottomRef.current = atBottom;
-					setShowScrollBottom(!atBottom);
-				}
-			}, 350);
+			}, 300);
 		} else {
 			container.scrollTop = container.scrollHeight;
 		}
@@ -209,52 +207,40 @@ export function ChatMessageList({
 	};
 	return (
 		<div className="relative flex-1 min-h-0 flex flex-col">
-			<div
+			<ScrollShadow
 				ref={scrollContainerRef}
 				onScroll={handleScroll}
-				className="flex-1 overflow-y-auto p-4 space-y-4"
+				size={40}
+				className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4"
 			>
 				{/* Empty State */}
 				{messages.length === 0 && (
-					<div className="flex flex-col items-center justify-center text-center py-6 px-2 min-h-[50vh]">
-						<div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-accent/20 to-accent-soft/80 border border-accent/20 flex items-center justify-center text-accent mb-3 shadow-xs">
-							<Brain className="w-6 h-6" />
-						</div>
-						<h3 className="font-bold text-sm text-foreground mb-1 tracking-tight">
-							工作台 AI 知识对话中心
-						</h3>
-						<p className="text-xs text-muted max-w-xs leading-relaxed">
-							基于本地 SQLite 与混合 RAG
-							检索，精准唤醒沉睡书签，智能答疑与盘点资产。
-						</p>
-
-						{/* Prompt Suggestions */}
-						<ChatPromptSuggestions
-							selectedFolder={selectedFolder}
-							scopeMode={scopeMode}
-							onSelectPrompt={onSelectPrompt}
-							globalPrompts={modulePrompts}
-						/>
-					</div>
+					<ChatEmptyState
+						activeModule={activeModule}
+						selectedFolder={selectedFolder}
+						scopeMode={scopeMode}
+						onSelectPrompt={onSelectPrompt}
+						globalPrompts={modulePrompts}
+					/>
 				)}
 
-				{/* Message Bubbles */}
-				{messages.map((msg, idx) => (
+				{/* Messages Rendering */}
+				{messages.map((message, index) => (
 					<ChatMessageItem
-						key={`${msg.timestamp || idx}_${msg.role}_${idx}`}
-						msg={msg}
-						index={idx}
+						key={`${message.timestamp || index}-${message.role}`}
+						msg={message}
+						index={index}
 						isLoading={isLoading}
 						pageBridge={pageBridge}
 						isSelectMode={isSelectMode}
-						isSelected={selectedIndices.has(idx)}
+						isSelected={selectedIndices.has(index)}
 						onToggleSelect={handleToggleSelect}
-						onStartSelectDelete={handleStartSelectDelete}
 						selectedRefKeys={selectedRefKeys}
 						onEditAndResend={onEditAndResend}
 						onEditOnly={onEditOnly}
 						onResend={onResend}
 						onDelete={onDelete}
+						onStartSelectDelete={handleStartSelectDelete}
 						onToggleRefCheck={onToggleRefCheck}
 						onToggleSelectGroup={onToggleSelectGroup}
 						onOpenAssignSingle={onOpenAssignSingle}
@@ -264,16 +250,12 @@ export function ChatMessageList({
 					/>
 				))}
 
-				{/* Sticky Delete Actions Bar (matching Figure 1) */}
+				{/* Batch Delete Action Bar (Fixed Overlay at bottom of scroll area) */}
 				{isSelectMode && (
-					<div className="sticky bottom-0 z-20 flex items-center justify-between gap-2 p-2.5 bg-surface/95 backdrop-blur-md border border-border rounded-2xl shadow-lg mt-2">
+					<div className="sticky bottom-2 z-30 mx-auto w-[90%] max-w-sm p-2.5 rounded-2xl bg-surface/95 dark:bg-neutral-900/95 border border-border shadow-xl backdrop-blur-md flex items-center justify-between animate-in fade-in slide-in-from-bottom-2 duration-200">
 						<div className="flex items-center gap-2">
-							<span className="text-xs text-foreground font-medium">
-								已选择{" "}
-								<span className="text-accent font-bold">
-									{selectedIndices.size}
-								</span>{" "}
-								项
+							<span className="text-xs font-medium text-foreground">
+								已选 {selectedIndices.size} 条
 							</span>
 							<button
 								type="button"
@@ -305,7 +287,7 @@ export function ChatMessageList({
 				)}
 
 				<div ref={targetEndRef} />
-			</div>
+			</ScrollShadow>
 
 			{/* Floating Quick Scroll to Bottom Button (matches Figure 2) */}
 			{!isSelectMode && showScrollBottom && (

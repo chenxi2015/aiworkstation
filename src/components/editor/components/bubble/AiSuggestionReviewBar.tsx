@@ -28,11 +28,14 @@ export const AiSuggestionReviewBar: React.FC<AiSuggestionReviewBarProps> = ({
 
 	return createPortal(
 		<div
+			role="toolbar"
+			aria-label="AI建议审阅工具栏"
 			style={{
 				top: `${position.top}px`,
 				left: `${position.left}px`,
 			}}
 			className="fixed z-50 transform -translate-x-1/2 flex items-center gap-1.5 p-1 px-1.5 bg-white/98 dark:bg-zinc-900/98 backdrop-blur-md border border-zinc-200/90 dark:border-zinc-800 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.15)] animate-in fade-in zoom-in-95 duration-150 select-none"
+			onMouseDown={(e) => e.preventDefault()}
 		>
 			{isStreaming ? (
 				<>

@@ -1,19 +1,16 @@
 import { useDroppable } from "@dnd-kit/react";
 import { Button, Tooltip } from "@heroui/react";
+import { useStore } from "@tanstack/react-store";
 import {
 	ArrowUp,
 	Clapperboard,
 	FileText,
 	Folder as FolderIcon,
 	Globe,
-	History,
-	MessageSquarePlus,
 	Paperclip,
 	Sparkles,
 	Square,
 } from "lucide-react";
-import { useStore } from "@tanstack/react-store";
-import { workbenchContextStore } from "../../../../stores/workbenchContextStore";
 import {
 	type ClipboardEvent,
 	type DragEvent,
@@ -25,6 +22,7 @@ import {
 	useState,
 } from "react";
 import { WorkbenchStorageService } from "../../../../services/workbenchStorage";
+import { workbenchContextStore } from "../../../../stores/workbenchContextStore";
 import type { ChatContextItem } from "../../../../types/chatContext";
 import { CHAT_INPUT_DROP_ID } from "../../dnd/dndUtils";
 import type { Category, Folder } from "../../types";
@@ -74,8 +72,8 @@ export const ChatInputArea = memo(function ChatInputArea({
 	onChangeInput,
 	onSend,
 	onStop,
-	onOpenHistory,
-	onNewChat,
+	onOpenHistory: _onOpenHistory,
+	onNewChat: _onNewChat,
 	model,
 	scopeMode = "global",
 	selectedFolder,
@@ -97,7 +95,9 @@ export const ChatInputArea = memo(function ChatInputArea({
 	const activeDoc =
 		contextState.activeModule === "editor" ? contextState.activeDocument : null;
 	const activeMaterial =
-		contextState.activeModule === "creator" ? contextState.activeMaterial : null;
+		contextState.activeModule === "creator"
+			? contextState.activeMaterial
+			: null;
 
 	// Dnd-kit droppable area for items and folders
 	const { isDropTarget, ref } = useDroppable({
@@ -222,7 +222,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 	);
 
 	return (
-		<div className="p-3 border-t border-border/70 bg-surface/50 shrink-0 flex flex-col gap-2 relative">
+		<div className="p-3 bg-surface/50 backdrop-blur-xs shrink-0 flex flex-col gap-2 relative z-10">
 			{/* Dropdown Mention Menu for @ mentions */}
 			<ChatContextMentionMenu
 				isOpen={mentionQuery !== null}
@@ -235,91 +235,45 @@ export const ChatInputArea = memo(function ChatInputArea({
 				onClose={() => setMentionQuery(null)}
 			/>
 
-			{/* Top action toolbar */}
-			<div className="flex items-center justify-between px-0.5">
-				{/* Left: Model Pill Badge & Active Context Indicator */}
-				<div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden pr-2">
+			{/* Top action toolbar: Model Badge & Active Context Indicator */}
+			<div className="flex items-center gap-1.5 min-w-0 overflow-hidden px-0.5">
+				<div
+					className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-surface-secondary/70 border border-border/60 text-[11px] font-medium text-foreground/90 shadow-2xs select-none shrink-0"
+					title={`当前模型: ${displayModel}`}
+				>
+					<span className="w-4 h-4 rounded-full bg-gradient-to-tr from-violet-500 via-indigo-500 to-fuchsia-500 flex items-center justify-center text-white shrink-0 shadow-2xs">
+						<Sparkles className="w-2.5 h-2.5" />
+					</span>
+					<span className="max-w-[120px] truncate text-[10px] font-semibold text-foreground/80">
+						{displayModel}
+					</span>
+				</div>
+
+				{/* Active Document Context Pill */}
+				{activeDoc && (
 					<div
-						className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-surface-secondary/70 border border-border/60 text-[11px] font-medium text-foreground/90 shadow-2xs select-none shrink-0"
-						title={`当前模型: ${displayModel}`}
+						className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent/10 border border-accent/25 text-[10px] text-accent font-medium shadow-2xs truncate select-none shrink min-w-0"
+						title={`当前问答自动聚焦文档 #${activeDoc.id}: 《${activeDoc.title}》。AI 将直接围绕此篇内容解答。`}
 					>
-						<span className="w-4 h-4 rounded-full bg-gradient-to-tr from-violet-500 via-indigo-500 to-fuchsia-500 flex items-center justify-center text-white shrink-0 shadow-2xs">
-							<Sparkles className="w-2.5 h-2.5" />
-						</span>
-						<span className="max-w-[100px] truncate text-[10px] font-semibold text-foreground/80">
-							{displayModel}
+						<FileText className="w-3 h-3 shrink-0" />
+						<span className="truncate">
+							#{activeDoc.id} {activeDoc.title || "未命名文档"}
 						</span>
 					</div>
+				)}
 
-					{/* Active Document Context Pill */}
-					{activeDoc && (
-						<div
-							className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent/10 border border-accent/25 text-[10px] text-accent font-medium shadow-2xs truncate select-none shrink min-w-0"
-							title={`当前问答自动聚焦文档 #${activeDoc.id}: 《${activeDoc.title}》。AI 将直接围绕此篇内容解答。`}
-						>
-							<FileText className="w-3 h-3 shrink-0" />
-							<span className="truncate">
-								#{activeDoc.id} {activeDoc.title || "未命名文档"}
-							</span>
-						</div>
-					)}
-
-					{/* Active Material Context Pill */}
-					{activeMaterial && (
-						<div
-							className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/25 text-[10px] text-amber-600 dark:text-amber-400 font-medium shadow-2xs truncate select-none shrink min-w-0"
-							title={`当前问答自动聚焦素材 #${activeMaterial.id}: 《${activeMaterial.title}》。`}
-						>
-							<Clapperboard className="w-3 h-3 shrink-0" />
-							<span className="truncate">
-								素材 #{activeMaterial.id} {activeMaterial.title || "未命名素材"}
-							</span>
-						</div>
-					)}
-				</div>
-
-				{/* Right: History & New Chat Buttons */}
-				<div className="flex items-center gap-1">
-					{onOpenHistory && (
-						<Tooltip>
-							<Tooltip.Trigger>
-								<Button
-									variant="ghost"
-									size="sm"
-									isIconOnly
-									className="h-6.5 w-6.5 p-0 text-muted hover:text-foreground hover:bg-surface-secondary/80 rounded-lg cursor-pointer transition-colors"
-									onPress={onOpenHistory}
-									aria-label="历史对话记录"
-								>
-									<History className="w-3.5 h-3.5" />
-								</Button>
-							</Tooltip.Trigger>
-							<Tooltip.Content className="text-xs py-1 px-2">
-								历史对话记录
-							</Tooltip.Content>
-						</Tooltip>
-					)}
-
-					{onNewChat && (
-						<Tooltip>
-							<Tooltip.Trigger>
-								<Button
-									variant="secondary"
-									size="sm"
-									isIconOnly
-									className="h-6.5 w-6.5 p-0 bg-accent/10 hover:bg-accent/20 text-accent border border-accent/20 rounded-lg cursor-pointer transition-all shadow-2xs"
-									onPress={onNewChat}
-									aria-label="新建对话"
-								>
-									<MessageSquarePlus className="w-3.5 h-3.5" />
-								</Button>
-							</Tooltip.Trigger>
-							<Tooltip.Content className="text-xs py-1 px-2">
-								新建对话
-							</Tooltip.Content>
-						</Tooltip>
-					)}
-				</div>
+				{/* Active Material Context Pill */}
+				{activeMaterial && (
+					<div
+						className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/25 text-[10px] text-amber-600 dark:text-amber-400 font-medium shadow-2xs truncate select-none shrink min-w-0"
+						title={`当前问答自动聚焦素材 #${activeMaterial.id}: 《${activeMaterial.title}》。`}
+					>
+						<Clapperboard className="w-3 h-3 shrink-0" />
+						<span className="truncate">
+							素材 #{activeMaterial.id} {activeMaterial.title || "未命名素材"}
+						</span>
+					</div>
+				)}
 			</div>
 
 			{/* Main Input Card: Droppable Zone with Context Bar, Textarea, and Action Bar */}
@@ -436,7 +390,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 					placeholder={
 						contextItems.length > 0
 							? "对上述引用的上下文提问，或按 Enter 直接分析..."
-							: "问任何问题，输入 @ 引用书签/文件夹，或拖拽注入上下文..."
+							: "发消息、输入 @ 引用书签或文件夹..."
 					}
 					className="w-full bg-transparent border-none text-xs text-foreground placeholder:text-muted/60 focus:outline-none resize-none leading-relaxed min-h-[44px] px-1 py-0.5"
 				/>

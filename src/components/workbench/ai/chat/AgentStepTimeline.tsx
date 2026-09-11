@@ -21,14 +21,15 @@ import {
 	Wrench,
 } from "lucide-react";
 import { memo, useMemo, useState } from "react";
-import type { AgentStep } from "../../../../types/agent.ts";
 import { formatDurationMs } from "../../../../lib/utils.ts";
+import type { AgentStep } from "../../../../types/agent.ts";
 import { AiMarkdownRenderer } from "../shared/AiMarkdownRenderer.tsx";
 
 export interface AgentStepTimelineProps {
 	steps?: AgentStep[];
 	isStreaming?: boolean;
 	className?: string;
+	defaultOpen?: boolean;
 }
 
 interface StepActionMeta {
@@ -265,16 +266,18 @@ function cleanSummaryPreview(summary?: string): string {
 }
 
 /**
- * Lightweight, continuous vertical timeline for Agent reasoning and tool actions
- * Inspired by modern AI Agent thinking indicators (Cursor / Claude / Perplexity)
+ * Modern interleaved Agent step timeline block (inspired by AI Agent tools context UI)
  */
 export const AgentStepTimeline = memo(function AgentStepTimeline({
 	steps = [],
 	isStreaming = false,
 	className = "",
+	defaultOpen,
 }: AgentStepTimelineProps) {
-	// Default collapsed when finished, or expanded while streaming
-	const [isOpen, setIsOpen] = useState<boolean>(false);
+	// Auto-expand while actively streaming steps in this group, or respect defaultOpen
+	const [isOpen, setIsOpen] = useState<boolean>(
+		() => defaultOpen ?? Boolean(isStreaming),
+	);
 	const [expandedStepIds, setExpandedStepIds] = useState<Set<string>>(
 		new Set(),
 	);
@@ -289,39 +292,49 @@ export const AgentStepTimeline = memo(function AgentStepTimeline({
 		[steps],
 	);
 
-	// Count search keywords if applicable (like in reference image)
-	const searchKeywordsCount = useMemo(() => {
-		const searches = (steps || []).filter(
-			(s) => s.toolName === "query_bookmarks",
-		);
-		return searches.length;
-	}, [steps]);
-
 	const runningStep = useMemo(
 		() => (steps || []).find((s) => s.status === "running"),
 		[steps],
 	);
 	const runningAction = runningStep ? formatStepAction(runningStep) : null;
 
-	// Construct concise reference-style summary text
+	// Construct concise reference-style summary text tailored for interleaved blocks
 	const summaryText = useMemo(() => {
 		if (isStreaming && runningAction) {
 			return `正在执行: ${runningAction.title}...`;
 		}
-		if (isStreaming) {
-			return "思考完成，正在生成回答...";
+		if (isStreaming && runningStep) {
+			return `正在执行操作...`;
 		}
-		if (searchKeywordsCount > 0) {
-			return `检索 ${searchKeywordsCount} 次数据库，执行 ${steps.length} 步思考推演 · 耗时 ${formatDurationMs(totalDurationMs)}`;
+
+		// When there is only a single step, directly display its clear action title
+		if (steps.length === 1) {
+			const single = formatStepAction(steps[0]);
+			const timePart =
+				totalDurationMs > 0 ? ` · ${formatDurationMs(totalDurationMs)}` : "";
+			return `${single.title}${timePart}`;
 		}
-		return `已完成 ${steps.length} 步思考与工具执行 · 耗时 ${formatDurationMs(totalDurationMs)}`;
-	}, [
-		isStreaming,
-		runningAction,
-		searchKeywordsCount,
-		steps.length,
-		totalDurationMs,
-	]);
+
+		// Group categories when multiple steps exist
+		const hasFs = steps.some((s) => s.toolName.includes("file"));
+		const hasBookmarks = steps.some(
+			(s) => s.toolName.includes("bookmark") || s.toolName === "get_stats",
+		);
+		const hasDocs = steps.some((s) => s.toolName.includes("document"));
+
+		let actionDesc = `已执行 ${steps.length} 项操作`;
+		if (hasFs && !hasBookmarks && !hasDocs) {
+			actionDesc = `已完成 ${steps.length} 项文件操作`;
+		} else if (hasBookmarks && !hasFs) {
+			actionDesc = `已检索与处理知识库 (${steps.length})`;
+		} else if (hasDocs && !hasFs) {
+			actionDesc = `已完成 ${steps.length} 项文档处理`;
+		}
+
+		const timePart =
+			totalDurationMs > 0 ? ` · 耗时 ${formatDurationMs(totalDurationMs)}` : "";
+		return `${actionDesc}${timePart}`;
+	}, [isStreaming, runningAction, runningStep, steps, totalDurationMs]);
 
 	if (!steps || steps.length === 0) return null;
 

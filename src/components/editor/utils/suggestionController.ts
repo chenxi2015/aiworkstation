@@ -297,15 +297,16 @@ export const SuggestionController = {
 			}
 		});
 
-		// 1. Remove inserted text ranges (in reverse order)
+		// 1. Unmark deleted original text so it restores to normal text first
+		// Must be done before deleting insertRanges, otherwise document positions shift and become out of range
+		for (const range of deleteRanges) {
+			tr.removeMark(range.from, range.to, state.schema.marks.suggestionDelete);
+		}
+
+		// 2. Remove inserted text ranges (in reverse order to keep preceding positions valid)
 		insertRanges.sort((a, b) => b.from - a.from);
 		for (const range of insertRanges) {
 			tr.delete(range.from, range.to);
-		}
-
-		// 2. Unmark deleted original text so it restores to normal text
-		for (const range of deleteRanges) {
-			tr.removeMark(range.from, range.to, state.schema.marks.suggestionDelete);
 		}
 
 		if (tr.docChanged) {

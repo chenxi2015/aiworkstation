@@ -1,19 +1,13 @@
-import {
-	Bot,
-	FileText,
-	Folder as FolderIcon,
-	Globe,
-	Search,
-	Sparkles,
-} from "lucide-react";
+import { Button, Tooltip } from "@heroui/react";
+import { History, MessageSquarePlus, Sparkles } from "lucide-react";
 import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { type ChatItem, useAiChat } from "../../../../hooks/ai/useAiChat";
-import { useEmbeddingStats } from "../../../../hooks/ai/useEmbeddingStats";
 import { useItemFolderAssign } from "../../../../hooks/ai/useItemFolderAssign";
 import { getAiContribution } from "../../../../modules/ai-contributions";
+import { getModuleByCode } from "../../../../modules/registry";
+import { workbenchContextStore } from "../../../../stores/workbenchContextStore";
 import type { ChatContextItem } from "../../../../types/chatContext";
 import type { PageBridge } from "../../../../types/pageBridge";
-import { workbenchContextStore } from "../../../../stores/workbenchContextStore";
 import type {
 	Category,
 	Folder,
@@ -21,8 +15,6 @@ import type {
 	WorkbenchSettings,
 } from "../../types";
 import { CATEGORIES } from "../../types";
-import { SearchTabContent } from "../search/SearchTabContent";
-import { EmbeddingStatusWidget } from "../shared/EmbeddingStatusWidget";
 import { ImagePreviewProvider } from "../shared/ImagePreviewModal";
 import { ItemFolderAssignPopover } from "../shared/ItemFolderAssignPopover";
 import { ChatHistoryDrawer } from "./ChatHistoryDrawer";
@@ -79,7 +71,7 @@ export const ChatWithBookmarksPanel = forwardRef<
 >(function ChatWithBookmarksPanel(
 	{
 		selectedFolder,
-		activeCategory,
+		activeCategory: _activeCategory,
 		activeModule,
 		pageBridge,
 		folders = [],
@@ -91,21 +83,17 @@ export const ChatWithBookmarksPanel = forwardRef<
 	},
 	ref,
 ) {
-	const [activeTab, setActiveTab] = useState<"search" | "chat">("chat");
 	const [scopeMode, setScopeMode] = useState<"global" | "folder">("global");
 	const messagesEndRef = useRef<HTMLDivElement | null>(null);
 	const inputRef = useRef<HTMLTextAreaElement | null>(null);
 	const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
 
-	// 1. Vector Index Embedding Stats Hook
-	const { stats, isIndexing, buildIndex, fetchStats } = useEmbeddingStats();
-
-	// 2. In-Chat Folder Assignment Hook
+	// 1. In-Chat Folder Assignment Hook
 	const folderAssign = useItemFolderAssign({
 		onDataChanged,
 	});
 
-	// 3. Conversational RAG Chat Hook with Session Management
+	// 2. Conversational RAG Chat Hook with Session Management
 	const {
 		messages,
 		sessions,
@@ -133,9 +121,6 @@ export const ChatWithBookmarksPanel = forwardRef<
 		removeContextItem,
 		clearContextItems,
 	} = useAiChat({
-		onResponseReceived: () => {
-			fetchStats();
-		},
 		onDataMutated: () => {
 			onDataChanged?.();
 		},
@@ -160,11 +145,14 @@ export const ChatWithBookmarksPanel = forwardRef<
 				: undefined;
 
 		const storeState = workbenchContextStore.state;
-		const effectiveModule = options?.module ?? activeModule ?? storeState.activeModule;
+		const effectiveModule =
+			options?.module ?? activeModule ?? storeState.activeModule;
 		const effectiveDocId =
 			options?.activeDocumentId !== undefined
 				? options.activeDocumentId
-				: (pageBridge?.activeDocumentId ?? storeState.activeDocument?.id ?? undefined);
+				: (pageBridge?.activeDocumentId ??
+					storeState.activeDocument?.id ??
+					undefined);
 
 		sendPrompt(prompt, {
 			...folderScope,
@@ -176,6 +164,12 @@ export const ChatWithBookmarksPanel = forwardRef<
 
 	// 当前模块的 AI 贡献包：切换导航时更新推荐提问与（服务端）模块视角
 	const moduleContribution = getAiContribution(activeModule);
+	const currentModuleDef = activeModule
+		? getModuleByCode(activeModule)
+		: undefined;
+	const currentModuleLabel = currentModuleDef?.label
+		? `${currentModuleDef.label}模式`
+		: "全库知识";
 
 	// Expose methods for parent components
 	useImperativeHandle(ref, () => ({
@@ -188,16 +182,16 @@ export const ChatWithBookmarksPanel = forwardRef<
 				contextItems?: ChatContextItem[];
 			},
 		) => {
-			setActiveTab("chat");
 			handleSendPrompt(prompt, options);
 		},
 		focusInput: () => {
-			if (activeTab === "chat") {
-				inputRef.current?.focus();
-			}
+			inputRef.current?.focus();
 		},
 		openSearchTab: () => {
-			setActiveTab("search");
+			inputRef.current?.focus();
+			if (!input.trim()) {
+				setInput("@");
+			}
 		},
 		openChatTab: (
 			prompt?: string,
@@ -207,7 +201,6 @@ export const ChatWithBookmarksPanel = forwardRef<
 				folderName?: string;
 			},
 		) => {
-			setActiveTab("chat");
 			if (prompt) {
 				handleSendPrompt(prompt, options);
 			} else {
@@ -218,7 +211,6 @@ export const ChatWithBookmarksPanel = forwardRef<
 			}
 		},
 		addContextItem: (item: ChatContextItem) => {
-			setActiveTab("chat");
 			addContextItem(item);
 			setTimeout(() => inputRef.current?.focus(), 50);
 		},
@@ -230,131 +222,63 @@ export const ChatWithBookmarksPanel = forwardRef<
 				data-ai-panel
 				className={`w-[380px] xl:w-[440px] 2xl:w-[480px] shrink-0 bg-surface/95 backdrop-blur-md border-l border-border flex flex-col h-full shadow-xs relative ${className}`}
 			>
-				{/* Top Header: Title & Embedding Status Widget */}
-				<div className="p-3 border-b border-border/80 bg-surface-secondary/30 shrink-0 flex flex-col gap-2">
-					<div className="flex items-center justify-between">
-						<div className="flex items-center gap-2">
-							<div className="w-6 h-6 rounded-lg bg-accent text-accent-foreground flex items-center justify-center text-xs shadow-xs font-bold">
-								<Sparkles className="w-3.5 h-3.5" />
-							</div>
-							<h3 className="font-bold text-xs text-foreground tracking-tight">
-								AI 知识中心与检索
-							</h3>
+				{/* Top Header: Clean, lightweight single-row header */}
+				<div className="h-12 px-3.5 bg-surface/80 backdrop-blur-md shrink-0 flex items-center justify-between z-10">
+					<div className="flex items-center gap-2 min-w-0">
+						<div className="w-6 h-6 rounded-lg bg-accent text-accent-foreground flex items-center justify-center text-xs shadow-xs font-bold shrink-0">
+							<Sparkles className="w-3.5 h-3.5" />
 						</div>
-
-						{/* Scope Switcher: defaults to Global */}
-						{selectedFolder ? (
-							<div className="inline-flex items-center p-0.5 rounded-lg bg-surface-secondary border border-border/80 text-[10px] shadow-2xs">
-								<button
-									type="button"
-									onClick={() => setScopeMode("global")}
-									className={`px-2 py-0.5 rounded-md transition-all font-medium flex items-center gap-1 cursor-pointer ${
-										scopeMode === "global"
-											? "bg-surface text-accent shadow-xs font-semibold border border-border/60"
-											: "text-muted hover:text-foreground"
-									}`}
-									title="全库所有书签与资产"
-								>
-									<Globe className="w-2.5 h-2.5 shrink-0" />
-									<span>全局</span>
-								</button>
-								<button
-									type="button"
-									onClick={() => setScopeMode("folder")}
-									className={`px-2 py-0.5 rounded-md transition-all font-medium flex items-center gap-1 cursor-pointer max-w-[120px] truncate ${
-										scopeMode === "folder"
-											? "bg-surface text-accent shadow-xs font-semibold border border-border/60"
-											: "text-muted hover:text-foreground"
-									}`}
-									title={`限定在此文件夹: ${selectedFolder.name}`}
-								>
-									<FolderIcon className="w-2.5 h-2.5 shrink-0" />
-									<span className="truncate">{selectedFolder.name}</span>
-								</button>
-							</div>
-						) : pageBridge?.activeDocumentTitle ? (
-							<span
-								className="inline-flex items-center gap-1 text-[10px] text-accent bg-accent/10 px-2 py-0.5 rounded-md border border-accent/30 max-w-[150px] truncate select-none shadow-2xs"
-								title={`当前活跃文档：${pageBridge.activeDocumentTitle}`}
-							>
-								<FileText className="w-2.5 h-2.5 text-accent shrink-0" />
-								<span className="truncate font-medium">
-									{pageBridge.activeDocumentTitle}
-								</span>
-							</span>
-						) : (
-							<span className="inline-flex items-center gap-1 text-[10px] text-muted bg-surface-secondary/60 px-2 py-0.5 rounded-md border border-border/50">
-								<Globe className="w-2.5 h-2.5 text-muted" />
-								全局资产
-							</span>
-						)}
+						<h3 className="font-bold text-xs text-foreground tracking-tight shrink-0">
+							AI 助手
+						</h3>
+						{/* Current module context badge */}
+						<span className="text-[10px] text-muted bg-surface-secondary/80 border border-border/60 px-2 py-0.5 rounded-full truncate max-w-[130px] select-none">
+							{currentModuleLabel}
+						</span>
 					</div>
 
-					{/* Shared Vector Embedding Status Widget */}
-					<EmbeddingStatusWidget
-						stats={stats}
-						isIndexing={isIndexing}
-						onBuildIndex={buildIndex}
-						compact={true}
-					/>
+					{/* Right actions: New Chat & History */}
+					<div className="flex items-center gap-1 shrink-0">
+						<Tooltip>
+							<Tooltip.Trigger>
+								<Button
+									variant="ghost"
+									size="sm"
+									isIconOnly
+									className="h-7 w-7 p-0 text-muted hover:text-foreground hover:bg-surface-secondary/80 rounded-lg cursor-pointer transition-colors"
+									onPress={() => createNewChat()}
+									aria-label="新建对话"
+								>
+									<MessageSquarePlus className="w-3.5 h-3.5" />
+								</Button>
+							</Tooltip.Trigger>
+							<Tooltip.Content className="text-xs py-1 px-2">
+								新建对话
+							</Tooltip.Content>
+						</Tooltip>
 
-					{/* Segmented Tab Switcher */}
-					<div className="flex items-center p-0.5 bg-surface-secondary/80 rounded-xl border border-border/60 mt-0.5">
-						<button
-							type="button"
-							onClick={() => setActiveTab("search")}
-							className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-								activeTab === "search"
-									? "bg-surface text-accent shadow-xs border border-border/80 font-semibold"
-									: "text-muted hover:text-foreground"
-							}`}
-						>
-							<Search className="w-3.5 h-3.5" />
-							<span>极速检索</span>
-						</button>
-						<button
-							type="button"
-							onClick={() => setActiveTab("chat")}
-							className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-								activeTab === "chat"
-									? "bg-surface text-accent shadow-xs border border-border/80 font-semibold"
-									: "text-muted hover:text-foreground"
-							}`}
-						>
-							<Bot className="w-3.5 h-3.5" />
-							<span>AI 问答</span>
-						</button>
+						<Tooltip>
+							<Tooltip.Trigger>
+								<Button
+									variant="ghost"
+									size="sm"
+									isIconOnly
+									className="h-7 w-7 p-0 text-muted hover:text-foreground hover:bg-surface-secondary/80 rounded-lg cursor-pointer transition-colors"
+									onPress={() => setIsHistoryOpen(true)}
+									aria-label="历史对话记录"
+								>
+									<History className="w-3.5 h-3.5" />
+								</Button>
+							</Tooltip.Trigger>
+							<Tooltip.Content className="text-xs py-1 px-2">
+								历史记录
+							</Tooltip.Content>
+						</Tooltip>
 					</div>
 				</div>
 
-				{/* Tab Body: keep both tabs mounted and toggle visibility so that
-				switching tabs never resets search state or chat scroll position */}
-				<div
-					className={
-						activeTab === "search" ? "flex-1 min-h-0 flex flex-col" : "hidden"
-					}
-				>
-					<SearchTabContent
-						folders={folders}
-						categories={categories}
-						selectedFolder={selectedFolder}
-						activeCategory={activeCategory}
-						scopeMode={scopeMode}
-						onNavigateToFolder={onNavigateToFolder}
-						onTransferToAiChat={(query) => {
-							setActiveTab("chat");
-							handleSendPrompt(
-								`请根据我的书签库，深入分析与「${query}」相关的核心工具与最佳使用方案。`,
-							);
-						}}
-						onDataChanged={onDataChanged}
-					/>
-				</div>
-				<div
-					className={
-						activeTab === "chat" ? "flex-1 min-h-0 flex flex-col" : "hidden"
-					}
-				>
+				{/* Chat Main Body: fills remaining height without tabs */}
+				<div className="flex-1 min-h-0 flex flex-col">
 					{/* Message History & Cards */}
 					<ChatMessageList
 						messages={messages}
@@ -375,6 +299,7 @@ export const ChatWithBookmarksPanel = forwardRef<
 						onOpenAssignSingle={folderAssign.openAssignSingle}
 						onOpenAssignMultiple={folderAssign.openAssignMultiple}
 						modulePrompts={moduleContribution.promptSuggestions}
+						activeModule={activeModule}
 						onSelectPrompt={(p) => handleSendPrompt(p)}
 						folders={folders}
 						onNavigateToFolder={onNavigateToFolder}
