@@ -32,6 +32,7 @@ import {
 import { useEffect, useReducer, useRef, useState } from "react";
 import { uploadAssetRpc } from "../../services/api/editorClient";
 import { AiBubbleMenu } from "./AiBubbleMenu";
+import { CodeBlockWithHighlight } from "./extensions/CodeBlockWithHighlight";
 import { extractImageUrl, extractVideoUrl, markdownToHtml } from "./importers";
 import { VideoNode } from "./videoNode";
 
@@ -144,18 +145,23 @@ function shouldTreatAsMarkdown(
 	if (STRONG_MARKDOWN_BLOCKS.codeBlock.test(text) && !/<pre[\s>]/i.test(html)) {
 		return true;
 	}
-	if (STRONG_MARKDOWN_BLOCKS.tableDivider.test(text) && !/<table[\s>]/i.test(html)) {
+	if (
+		STRONG_MARKDOWN_BLOCKS.tableDivider.test(text) &&
+		!/<table[\s>]/i.test(html)
+	) {
 		return true;
 	}
-	if (STRONG_MARKDOWN_BLOCKS.heading.test(text) && !/<h[1-6][\s>]/i.test(html)) {
+	if (
+		STRONG_MARKDOWN_BLOCKS.heading.test(text) &&
+		!/<h[1-6][\s>]/i.test(html)
+	) {
 		return true;
 	}
 
 	// For general markdown, only block conversion if HTML contains actual rendered semantic blocks
 	// (Note: <p>, <div>, <span>, <br> are intentionally excluded because browsers wrap almost any copied text in them).
-	const hasRenderedSemanticBlocks = /<(h[1-6]|ul|ol|blockquote|table|pre)[\s>]/i.test(
-		html,
-	);
+	const hasRenderedSemanticBlocks =
+		/<(h[1-6]|ul|ol|blockquote|table|pre)[\s>]/i.test(html);
 	return !hasRenderedSemanticBlocks;
 }
 
@@ -274,7 +280,9 @@ export function RichTextEditor({
 			StarterKit.configure({
 				heading: { levels: [1, 2, 3] },
 				link: { openOnClick: false },
+				codeBlock: false,
 			}),
+			CodeBlockWithHighlight,
 			Image.configure({
 				HTMLAttributes: {
 					referrerpolicy: "no-referrer",

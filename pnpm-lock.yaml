@@ -89,6 +89,9 @@ importers:
       '@tiptap/core':
         specifier: ^3.31.3
         version: 3.31.3(@tiptap/pm@3.31.3)
+      '@tiptap/extension-code-block':
+        specifier: 3.31.3
+        version: 3.31.3
       '@tiptap/extension-image':
         specifier: ^3.31.3
         version: 3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))
@@ -134,12 +137,18 @@ importers:
       docx:
         specifier: ^9.7.1
         version: 9.7.1
+      highlight.js:
+        specifier: ^11.12.0
+        version: 11.12.0
       html-to-image:
         specifier: ^1.11.13
         version: 1.11.13
       jsonrepair:
         specifier: ^3.15.0
         version: 3.15.0
+      lowlight:
+        specifier: ^3.3.0
+        version: 3.3.0
       lucide-react:
         specifier: ^0.577.0
         version: 0.577.0(react@19.2.8)
@@ -4426,6 +4435,10 @@ packages:
 
   highlight.js@11.11.2:
     resolution: {integrity: sha512-oaXMACAU0kzOMXBjWpNcX+vlwSBCIAiZ9BHa7gA15NOTtT2L/l8OSZDuqS2XppOhZBPJ7hm4o8ep2kyuip2uEQ==}
+    engines: {node: '>=12.0.0'}
+
+  highlight.js@11.12.0:
+    resolution: {integrity: sha512-nbfWpyRMcMrPMmDwJB+dhX/eiaPKtc2RB+0QZskqJ3WjRA/FDS0e9hZrx8EC/lbEv8gXy98FcDbNa/dspAaJMg==}
     engines: {node: '>=12.0.0'}
 
   hookable@6.1.1:
@@ -10628,6 +10641,8 @@ snapshots:
       space-separated-tokens: 2.0.2
 
   highlight.js@11.11.2: {}
+
+  highlight.js@11.12.0: {}
 
   hookable@6.1.1: {}
 

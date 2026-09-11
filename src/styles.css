@@ -575,6 +575,107 @@ pre code {
 	outline-offset: 2px;
 }
 
+/* ============ TipTap 代码块与高亮（CodeBlockWithHighlight） ============ */
+.tiptap-editor .code-block-node-view {
+	margin: 1.4em 0 !important;
+	border: 1px solid rgba(255, 255, 255, 0.12) !important;
+	border-radius: 0.75rem !important;
+	background-color: #1e1e1e !important;
+	box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+	overflow: hidden !important;
+}
+
+.tiptap-editor .code-block-node-view pre {
+	margin: 0 !important;
+	padding: 1rem 1.25rem !important;
+	background: #1e1e1e !important;
+	border: none !important;
+	border-radius: 0 !important;
+	color: #abb2bf !important;
+	overflow-x: auto !important;
+}
+
+.tiptap-editor .code-block-node-view pre code {
+	display: block !important;
+	background: transparent !important;
+	padding: 0 !important;
+	border: none !important;
+	border-radius: 0 !important;
+	font-size: 13px !important;
+	line-height: 1.65 !important;
+	font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+	color: #abb2bf !important;
+	white-space: pre !important;
+}
+
+/* Atom One Dark 语法高亮分词配色 (兼容 TipTap ProseMirror Decorations) */
+.tiptap-editor .hljs-comment,
+.tiptap-editor .hljs-quote {
+	color: #5c6370 !important;
+	font-style: italic !important;
+}
+
+.tiptap-editor .hljs-doctag,
+.tiptap-editor .hljs-keyword,
+.tiptap-editor .hljs-formula {
+	color: #c678dd !important;
+	font-weight: 500 !important;
+}
+
+.tiptap-editor .hljs-section,
+.tiptap-editor .hljs-name,
+.tiptap-editor .hljs-selector-tag,
+.tiptap-editor .hljs-deletion,
+.tiptap-editor .hljs-subst {
+	color: #e06c75 !important;
+}
+
+.tiptap-editor .hljs-literal {
+	color: #56b6c2 !important;
+}
+
+.tiptap-editor .hljs-string,
+.tiptap-editor .hljs-regexp,
+.tiptap-editor .hljs-addition,
+.tiptap-editor .hljs-attribute,
+.tiptap-editor .hljs-meta .hljs-string {
+	color: #98c379 !important;
+}
+
+.tiptap-editor .hljs-attr,
+.tiptap-editor .hljs-variable,
+.tiptap-editor .hljs-template-variable,
+.tiptap-editor .hljs-type,
+.tiptap-editor .hljs-selector-class,
+.tiptap-editor .hljs-selector-attr,
+.tiptap-editor .hljs-selector-pseudo,
+.tiptap-editor .hljs-number {
+	color: #d19a66 !important;
+}
+
+.tiptap-editor .hljs-symbol,
+.tiptap-editor .hljs-bullet,
+.tiptap-editor .hljs-link,
+.tiptap-editor .hljs-meta,
+.tiptap-editor .hljs-selector-id,
+.tiptap-editor .hljs-title {
+	color: #61aeee !important;
+}
+
+.tiptap-editor .hljs-built_in,
+.tiptap-editor .hljs-title.class_,
+.tiptap-editor .hljs-class .hljs-title {
+	color: #e6c07b !important;
+}
+
+.tiptap-editor .hljs-emphasis {
+	font-style: italic !important;
+}
+
+.tiptap-editor .hljs-strong {
+	font-weight: bold !important;
+}
+
 /* 参考 DocViewerApp: 拟真文档纸张排版容器与视频卡片 */
 .document-paper {
 	background-color: var(--surface);
