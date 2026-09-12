@@ -97,9 +97,7 @@ export function WorkbenchHeader({
 		<header className="shrink-0 z-40 bg-surface/80 border-b border-border px-6 h-15 flex items-center gap-4 justify-between backdrop-blur-md">
 			{/* Left: Brand */}
 			<div className="flex items-center gap-2.5 shrink-0 pr-2">
-				<div className="w-8 h-8 rounded-xl bg-accent text-accent-foreground flex items-center justify-center shadow-sm">
-					<WorkbenchLogoIcon className="w-4 h-4" />
-				</div>
+				<WorkbenchLogoIcon className="w-9 h-9 shrink-0" />
 				<div className="flex flex-col">
 					<span className="font-semibold text-sm tracking-tight text-foreground leading-none">
 						AI 工作台

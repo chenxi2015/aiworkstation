@@ -62,31 +62,13 @@ export function ItemIcon({
 	}
 }
 
-// Logo Mark Icon
-export function WorkbenchLogoIcon({
-	className = "w-4 h-4",
-}: {
-	className?: string;
-}) {
-	return (
-		<svg
-			role="img"
-			aria-label="AI 工作台 Logo"
-			className={className}
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="var(--accent-foreground, #ffffff)"
-			strokeWidth="2.2"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-		>
-			<rect x="3" y="3" width="7" height="7" rx="1.5" />
-			<rect x="14" y="3" width="7" height="7" rx="1.5" />
-			<rect x="3" y="14" width="7" height="7" rx="1.5" />
-			<path d="M14 17.5h7M17.5 14v7" />
-		</svg>
-	);
-}
+// Logo Mark Icons
+export {
+	AiAssistantLogoIcon,
+	AppBrandBadge,
+	CollectorLogoIcon,
+	WorkbenchLogoIcon,
+} from "../brand/BrandLogo";
 
 // Calendar Date Icon using Lucide
 export function CalendarIcon({
@@ -101,4 +83,3 @@ export function CalendarIcon({
 export function EditIcon({ className = "w-4 h-4" }: { className?: string }) {
 	return <Pencil className={className} />;
 }
-

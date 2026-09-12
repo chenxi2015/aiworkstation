@@ -567,9 +567,17 @@ pre code {
 	display: block;
 }
 
-/* 媒体节点 NodeView 容器选中态统一在组件内部控制，避免双层边框 */
-.tiptap-editor .media-node-view {
+/* 媒体节点 NodeView 容器选中态统一在内部控制，彻底避免外层全宽容器产生边框或蓝框选中轮廓 */
+.tiptap-editor .media-node-view,
+.tiptap-editor .media-node-view.ProseMirror-selectednode,
+.doc-content-body .media-node-view,
+.doc-content-body .media-node-view.ProseMirror-selectednode,
+.media-node-view,
+.media-node-view.ProseMirror-selectednode {
 	outline: none !important;
+	border: none !important;
+	box-shadow: none !important;
+	user-select: none !important;
 }
 
 /* ============ TipTap 表格（Table）现代美观样式 ============ */

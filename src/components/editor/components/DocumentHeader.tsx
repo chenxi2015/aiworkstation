@@ -42,7 +42,7 @@ export function DocumentHeader({
 	};
 
 	return (
-		<div className="shrink-0 px-8 pt-4 pb-2 max-w-3xl mx-auto w-full flex items-center gap-3">
+		<div className="shrink-0 px-8 pt-4 pb-2 max-w-full mx-auto w-full flex items-center gap-3">
 			<div className="flex-1 min-w-0 flex items-center gap-1.5">
 				<span
 					className="text-base font-mono font-medium text-muted/60 select-none shrink-0"
@@ -59,7 +59,7 @@ export function DocumentHeader({
 						value={activeDoc.title}
 						onChange={(e) => onTitleChange(e.target.value)}
 						placeholder="未命名文档"
-						className="col-start-1 row-start-1 text-xl font-semibold bg-transparent outline-none placeholder:text-muted/50 px-1 rounded hover:bg-muted/10 focus:bg-muted/15 transition-colors w-full"
+						className="col-start-1 row-start-1 max-w-2xl text-xl font-semibold bg-transparent outline-none placeholder:text-muted/50 px-1 rounded hover:bg-muted/10 focus:bg-muted/15 transition-colors w-full"
 					/>
 				</div>
 				<button

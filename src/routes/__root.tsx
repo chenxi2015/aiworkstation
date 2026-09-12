@@ -14,6 +14,7 @@ import { Suspense } from "react";
 import Footer from "../components/Footer";
 import Header from "../components/Header";
 import NotFound from "../components/NotFound";
+import { RootErrorComponent } from "../components/RootErrorComponent";
 import { AppShell } from "../components/shell/AppShell";
 import TanStackQueryDevtools from "../integrations/tanstack-query/devtools";
 import appCss from "../styles.css?url";
@@ -53,6 +54,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 		],
 	}),
 	notFoundComponent: NotFound,
+	errorComponent: RootErrorComponent,
 	shellComponent: RootDocument,
 });
 

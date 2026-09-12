@@ -1,14 +1,13 @@
 import {
 	ArrowUpRight,
 	FileText,
-	GraduationCap,
-	Megaphone,
+	Heading1,
 	PenLine,
 	Search,
 	Sparkles,
 	Wand2,
 } from "lucide-react";
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState } from "react";
 import type { PageBridge } from "../../../../types/pageBridge";
 import type { Folder } from "../../types";
 
@@ -28,7 +27,83 @@ const DEFAULT_GLOBAL_PROMPTS = [
 	"分析我的全库书签资产，给出最有价值的核心工具与场景",
 ];
 
-function getPromptMeta(prompt: string) {
+interface PromptListItem {
+	id: string;
+	icon: typeof Sparkles;
+	title: string;
+	subtitle: string;
+	badge?: string;
+	actionText?: string;
+	onClick: () => void;
+}
+
+/**
+ * Minimalist cloud and laptop illustration matching Sider Claw aesthetics
+ */
+function HeroIllustration() {
+	return (
+		<div className="relative w-28 h-20 mb-2 flex items-center justify-center select-none pointer-events-none">
+			<img
+				src="/hero-illustration.svg"
+				alt="AI Assistant Illustration"
+				className="w-full h-full object-contain drop-shadow-xs"
+				aria-hidden="true"
+			/>
+		</div>
+	);
+}
+
+function parsePromptMeta(prompt: string) {
+	if (prompt.includes("标题") || prompt.includes("起名")) {
+		return {
+			icon: Heading1,
+			title: "爆款标题，一键拟定",
+		};
+	}
+	if (
+		prompt.includes("逐段") ||
+		(prompt.includes("全文") &&
+			(prompt.includes("润色") ||
+				prompt.includes("精修") ||
+				prompt.includes("改写")))
+	) {
+		return {
+			icon: Wand2,
+			title: "全文润色，逐段精修",
+		};
+	}
+	if (
+		prompt.includes("开源") ||
+		prompt.includes("大模型") ||
+		(prompt.includes("工具") && !prompt.includes("创作"))
+	) {
+		return {
+			icon: Search,
+			title: "开源工具，深度盘点",
+		};
+	}
+	if (
+		prompt.includes("前端") ||
+		prompt.includes("框架") ||
+		prompt.includes("组件库")
+	) {
+		return {
+			icon: Search,
+			title: "前端资源，精选推荐",
+		};
+	}
+	if (prompt.includes("创作") || prompt.includes("工具集")) {
+		return {
+			icon: Sparkles,
+			title: "创作工具，场景搭配",
+		};
+	}
+	if (prompt.includes("全库") || prompt.includes("最有价值")) {
+		return {
+			icon: FileText,
+			title: "资产洞察，核心盘点",
+		};
+	}
 	if (
 		prompt.includes("结构") ||
 		prompt.includes("大纲") ||
@@ -36,60 +111,50 @@ function getPromptMeta(prompt: string) {
 	) {
 		return {
 			icon: FileText,
-			tag: "结构洞察",
-			color:
-				"text-blue-500 dark:text-blue-400 bg-blue-500/10 border-blue-500/20",
+			title: "结构洞察，改进建议",
 		};
 	}
 	if (
 		prompt.includes("润色") ||
 		prompt.includes("文字") ||
-		prompt.includes("改写") ||
-		prompt.includes("风格")
+		prompt.includes("改写")
 	) {
 		return {
 			icon: PenLine,
-			tag: "行文润色",
-			color:
-				"text-purple-500 dark:text-purple-400 bg-purple-500/10 border-purple-500/20",
+			title: "行文润色，发布就绪",
 		};
 	}
 	if (
 		prompt.includes("素材") ||
 		prompt.includes("检索") ||
-		prompt.includes("搜索") ||
-		prompt.includes("盘点")
+		prompt.includes("搜索")
 	) {
 		return {
 			icon: Search,
-			tag: "素材检索",
-			color:
-				"text-amber-500 dark:text-amber-400 bg-amber-500/10 border-amber-500/20",
+			title: "素材检索，精准引用",
 		};
 	}
 	if (
 		prompt.includes("自媒体") ||
 		prompt.includes("小红书") ||
 		prompt.includes("脚本") ||
-		prompt.includes("选题")
+		prompt.includes("选题") ||
+		prompt.includes("风格")
 	) {
 		return {
 			icon: Sparkles,
-			tag: "二创生成",
-			color:
-				"text-pink-500 dark:text-pink-400 bg-pink-500/10 border-pink-500/20",
+			title: "风格改写，多端裂变",
 		};
 	}
 	return {
-		icon: Wand2,
-		tag: "快捷探索",
-		color: "text-accent bg-accent/10 border-accent/20",
+		icon: Sparkles,
+		title: "智能问答，即刻开启",
 	};
 }
 
 /**
- * Product-grade Empty State with glowing ambient badge, module-tailored hero,
- * and richly styled prompt suggestion cards.
+ * Product-grade Empty State with minimalist Sider Claw aesthetic,
+ * clean typography, unified card container, and calm line-art icons.
  */
 export const ChatEmptyState = memo(function ChatEmptyState({
 	activeModule,
@@ -100,6 +165,7 @@ export const ChatEmptyState = memo(function ChatEmptyState({
 	pageBridge,
 }: ChatEmptyStateProps) {
 	const isFolderScope = scopeMode === "folder" && Boolean(selectedFolder);
+	const [isExpanded, setIsExpanded] = useState(false);
 
 	const rewriteAction = useMemo(() => {
 		return (
@@ -107,55 +173,44 @@ export const ChatEmptyState = memo(function ChatEmptyState({
 		);
 	}, [pageBridge]);
 
-	// Determine contextual hero headers based on current active module or folder scope
+	// Hero title & description
 	const heroConfig = useMemo(() => {
 		if (isFolderScope && selectedFolder) {
 			return {
 				title: `聚焦「${selectedFolder.name}」`,
-				subtitle: "针对此文件夹中的归集资源进行深度分析、总结与问答",
-				icon: Sparkles,
-				glow: "from-blue-500/20 via-cyan-500/15 to-emerald-500/10",
-				badge: "文件夹范围",
+				description: "针对此文件夹中的归集资源进行深度分析、总结与问答。",
 			};
 		}
 
 		switch (activeModule) {
 			case "editor":
 				return {
-					title: "AI 写作搭档",
-					subtitle: "实时理解当前文档上下文，协助结构梳理、文本润色与素材引用",
-					icon: PenLine,
-					glow: "from-violet-500/25 via-purple-500/15 to-pink-500/10",
-					badge: "写作协同模式",
+					title: "认识 AI 写作搭档",
+					description:
+						"不只是一个聊天助手——而是一位能深度协同创作的搭档。实时理解文档上下文，协助结构梳理、文本润色、标题拟定与素材引用。",
 				};
 			case "creator":
 				return {
-					title: "自媒体二创助手",
-					subtitle: "挖掘素材核心亮点，提炼切入角度并快速起草多平台发布文案",
-					icon: Megaphone,
-					glow: "from-amber-500/25 via-orange-500/15 to-red-500/10",
-					badge: "二创加速模式",
+					title: "认识 自媒体二创助手",
+					description:
+						"不只是一个生成工具——而是一位深谙传播逻辑的二创策划。提炼核心亮点，快速起草并裂变多平台发布文案。",
 				};
 			case "learn":
 				return {
-					title: "学习探索搭档",
-					subtitle: "聚合关联学习资源，梳理知识图谱脉络，规划渐进式学习路径",
-					icon: GraduationCap,
-					glow: "from-emerald-500/25 via-teal-500/15 to-cyan-500/10",
-					badge: "知识探索模式",
+					title: "认识 学习探索搭档",
+					description:
+						"聚合多维度学习资源，梳理知识脉络与核心概念，规划循序渐进的高效学习路径。",
 				};
 			default:
 				return {
-					title: "知识库智能助手",
-					subtitle: "随时提问、盘点全库资产，输入 @ 即可精准引用书签与文件夹",
-					icon: Sparkles,
-					glow: "from-blue-500/25 via-indigo-500/15 to-purple-500/10",
-					badge: "全库知识库",
+					title: "认识 知识库智能助手",
+					description:
+						"不只是又一个聊天机器人——而是一位随身数字大脑。随时提问、盘点全库资产，输入 @ 即可精准引用书签与文件夹。",
 				};
 		}
 	}, [activeModule, isFolderScope, selectedFolder]);
 
-	const prompts = useMemo(() => {
+	const rawPrompts = useMemo(() => {
 		if (isFolderScope && selectedFolder) {
 			return [
 				`深度盘点「${selectedFolder.name}」中的全部资源并总结核心亮点`,
@@ -169,103 +224,118 @@ export const ChatEmptyState = memo(function ChatEmptyState({
 			: DEFAULT_GLOBAL_PROMPTS;
 	}, [isFolderScope, selectedFolder, globalPrompts]);
 
-	const HeroIcon = heroConfig.icon;
+	// Build unified prompt list items
+	const allItems = useMemo<PromptListItem[]>(() => {
+		const list: PromptListItem[] = [];
+
+		// If full rewrite action is available in editor, place it as the featured top item
+		if (rewriteAction) {
+			list.push({
+				id: "action-full-rewrite",
+				icon: Wand2,
+				title: "全文润色，逐段精修",
+				subtitle: "逐段流式改写，保留图片视频并实时对照审阅。",
+				badge: "保护媒体",
+				actionText: "立即开始 ↗",
+				onClick: () => {
+					void rewriteAction.onAction("");
+				},
+			});
+		}
+
+		rawPrompts.forEach((prompt, idx) => {
+			const meta = parsePromptMeta(prompt);
+			// Avoid duplicate title if rewrite action already exists
+			if (rewriteAction && meta.title === "全文润色，逐段精修") {
+				return;
+			}
+			list.push({
+				id: `prompt-${idx}`,
+				icon: meta.icon,
+				title: meta.title,
+				subtitle: prompt,
+				onClick: () => onSelectPrompt(prompt),
+			});
+		});
+
+		return list;
+	}, [rewriteAction, rawPrompts, onSelectPrompt]);
+
+	// Show top 3 by default, expand all on click
+	const displayLimit = 3;
+	const hasMore = allItems.length > displayLimit;
+	const visibleItems = isExpanded ? allItems : allItems.slice(0, displayLimit);
 
 	return (
-		<div className="flex flex-col items-center justify-center text-center py-8 px-3 w-full max-w-md mx-auto animate-in fade-in duration-300">
-			{/* Modern glowing hero avatar badge */}
-			<div className="relative mb-3.5 group cursor-default">
-				<div
-					className={`absolute -inset-1.5 rounded-3xl bg-gradient-to-tr ${heroConfig.glow} blur-lg opacity-70 group-hover:opacity-100 transition-opacity duration-300`}
-				/>
-				<div className="relative w-13 h-13 rounded-2xl bg-surface/90 dark:bg-neutral-900/90 border border-border/80 shadow-xs flex items-center justify-center text-accent backdrop-blur-md transition-transform duration-200 group-hover:scale-105">
-					<HeroIcon className="w-6 h-6 stroke-[2]" />
-				</div>
-			</div>
+		<div className="flex flex-col items-center justify-center text-center py-6 px-3 w-full max-w-[390px] mx-auto animate-in fade-in duration-300">
+			{/* Top Hero Art */}
+			<HeroIllustration />
 
-			{/* Title and Subtitle */}
-			<div className="flex items-center gap-1.5 mb-1.5">
-				<h3 className="font-bold text-sm text-foreground tracking-tight">
-					{heroConfig.title}
-				</h3>
-				<span className="text-[10px] text-accent font-medium px-1.5 py-0.2 rounded-full bg-accent/10 border border-accent/25">
-					{heroConfig.badge}
-				</span>
-			</div>
-			<p className="text-xs text-muted max-w-[300px] leading-relaxed">
-				{heroConfig.subtitle}
+			{/* Title & Narrative Intro */}
+			<h2 className="text-xl font-bold text-foreground tracking-tight mb-2">
+				{heroConfig.title}
+			</h2>
+			<p className="text-xs text-muted leading-relaxed max-w-[320px] mb-5">
+				{heroConfig.description}
 			</p>
 
-			{/* High-priority Action: Full paragraph streaming rewrite for editor */}
-			{rewriteAction && (
-				<div className="w-full mt-5 p-3 rounded-2xl bg-gradient-to-r from-accent/12 via-accent/6 to-transparent border border-accent/25 flex items-center justify-between gap-3 shadow-2xs">
-					<div className="flex items-center gap-2.5 min-w-0">
-						<div className="w-7 h-7 rounded-xl bg-accent text-accent-foreground flex items-center justify-center shrink-0 shadow-xs">
-							<Sparkles className="w-3.5 h-3.5" />
-						</div>
-						<div className="min-w-0 text-left">
-							<div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-								<span>全文逐段精修</span>
-								<span className="text-[10px] text-accent px-1.5 py-0.2 rounded-full bg-accent/15 border border-accent/20 font-normal">
-									保护媒体
-								</span>
-							</div>
-							<div className="text-[11px] text-muted truncate mt-0.5">
-								逐段流式改写，保留图片视频并实时对照审阅
-							</div>
-						</div>
-					</div>
-					<button
-						type="button"
-						onClick={() => void rewriteAction.onAction("")}
-						className="shrink-0 px-2.5 py-1.5 text-xs font-medium rounded-xl bg-accent text-accent-foreground hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-xs flex items-center gap-1"
-					>
-						<span>立即开始</span>
-						<ArrowUpRight className="w-3.5 h-3.5" />
-					</button>
-				</div>
-			)}
-
-			{/* Prompt Suggestions List */}
-			<div className="w-full mt-6 flex flex-col gap-2 text-left">
-				<div className="flex items-center justify-between px-1">
-					<span className="text-[11px] font-medium text-muted flex items-center gap-1">
-						<Sparkles className="w-3 h-3 text-accent" />
-						<span>快捷提问建议</span>
-					</span>
-					<span className="text-[10px] text-muted/60">点击直接发送</span>
-				</div>
-
-				<div className="flex flex-col gap-2 w-full">
-					{prompts.map((prompt) => {
-						const meta = getPromptMeta(prompt);
-						const CardIcon = meta.icon;
-
+			{/* Sider Claw Style Unified Minimalist Card Container */}
+			<div className="w-full rounded-2xl border border-border/80 bg-surface/90 dark:bg-neutral-900/80 shadow-2xs overflow-hidden text-left transition-all">
+				<div className="px-4 py-4 space-y-2">
+					{visibleItems.map((item) => {
+						const ItemIcon = item.icon;
 						return (
 							<button
-								key={prompt}
+								key={item.id}
 								type="button"
-								onClick={() => onSelectPrompt(prompt)}
-								className="w-full text-left p-2.5 rounded-2xl bg-surface-secondary/40 hover:bg-surface border border-border/60 hover:border-accent/40 text-foreground/90 hover:text-foreground text-xs leading-relaxed transition-all duration-150 shadow-2xs hover:shadow-xs cursor-pointer group flex items-start gap-2.5 active:scale-[0.99]"
+								onClick={item.onClick}
+								className="w-full text-left flex items-start gap-3.5 py-2.5 px-3 rounded-xl hover:bg-surface-secondary/70 dark:hover:bg-neutral-800/60 cursor-pointer transition-colors group active:scale-[0.99]"
 							>
-								<div
-									className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 mt-0.5 border ${meta.color} transition-transform group-hover:scale-110 duration-150`}
-								>
-									<CardIcon className="w-3.5 h-3.5" />
+								{/* Clean line-art icon */}
+								<div className="mt-0.5 text-foreground/80 group-hover:text-accent transition-colors shrink-0">
+									<ItemIcon className="w-4.5 h-4.5 stroke-[1.8]" />
 								</div>
-								<div className="flex-1 min-w-0 pr-1">
-									<div className="text-[10px] text-muted/80 font-medium mb-0.5 flex items-center gap-1">
-										<span>{meta.tag}</span>
+
+								{/* Content area */}
+								<div className="flex-1 min-w-0">
+									<div className="flex items-center justify-between gap-1.5">
+										<div className="text-xs font-semibold text-foreground group-hover:text-accent transition-colors flex items-center gap-1.5">
+											<span>{item.title}</span>
+											{item.badge && (
+												<span className="text-[10px] font-normal px-1.5 py-0.2 rounded-full bg-accent/10 text-accent border border-accent/20">
+													{item.badge}
+												</span>
+											)}
+										</div>
+										{item.actionText ? (
+											<span className="text-[11px] text-accent font-medium flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform shrink-0">
+												{item.actionText}
+											</span>
+										) : (
+											<ArrowUpRight className="w-3.5 h-3.5 text-muted/30 group-hover:text-accent opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all shrink-0" />
+										)}
 									</div>
-									<div className="text-xs font-normal text-foreground/85 group-hover:text-foreground line-clamp-2">
-										{prompt}
+									<div className="text-[11.5px] text-muted leading-relaxed mt-1.5 line-clamp-2">
+										{item.subtitle}
 									</div>
 								</div>
-								<ArrowUpRight className="w-4 h-4 text-muted/40 group-hover:text-accent group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all shrink-0 mt-1 opacity-0 group-hover:opacity-100 duration-150" />
 							</button>
 						);
 					})}
 				</div>
+
+				{/* Bottom expansive bar matching Sider Claw */}
+				{hasMore && (
+					<button
+						type="button"
+						onClick={() => setIsExpanded((prev) => !prev)}
+						className="w-full py-2.5 px-4 bg-accent/6 hover:bg-accent/12 dark:bg-accent/10 dark:hover:bg-accent/15 text-accent text-xs font-medium border-t border-border/50 flex items-center justify-center gap-1 transition-colors cursor-pointer"
+					>
+						<span>
+							{isExpanded ? "收起示例" : `查看全部 ${allItems.length} 个示例 ↗`}
+						</span>
+					</button>
+				)}
 			</div>
 		</div>
 	);

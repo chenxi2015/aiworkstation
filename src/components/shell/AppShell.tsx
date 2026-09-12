@@ -87,10 +87,28 @@ export interface AiPanelApi {
 
 const AiPanelContext = createContext<AiPanelApi | null>(null);
 
-/** 全局 AI 面板桥接：任意页面/组件都可向常驻右侧 AI 面板发指令 */
+const DEFAULT_AI_PANEL_API: AiPanelApi = {
+	sendPrompt: () => {},
+	focusInput: () => {},
+	openSearchTab: () => {},
+	openChatTab: () => {},
+	addContextItem: () => {},
+	setScope: () => {},
+	setPageData: () => {},
+	registerDataChangedHandler: () => {},
+	registerNavigateHandler: () => {},
+	registerDndHandlers: () => {},
+	consumePendingNavigation: () => null,
+	pageBridge: null,
+	registerPageBridge: () => {},
+};
+
+/** Global AI panel bridge: fallback to safe no-op when rendered outside AppShell to prevent crash */
 export function useAiPanel(): AiPanelApi {
 	const ctx = useContext(AiPanelContext);
-	if (!ctx) throw new Error("useAiPanel must be used within <AppShell>");
+	if (!ctx) {
+		return DEFAULT_AI_PANEL_API;
+	}
 	return ctx;
 }
 

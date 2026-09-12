@@ -1,7 +1,8 @@
 import React from 'react';
 import { Button, Chip } from '@heroui/react';
-import { Sparkles, Sun, Moon, Monitor } from 'lucide-react';
+import { Sun, Moon, Monitor } from 'lucide-react';
 import type { ThemeMode } from '../../../src/utils/theme';
+import { CollectorLogoIcon } from './common/BrandLogo';
 
 interface HeaderProps {
   isOnline: boolean;
@@ -20,9 +21,7 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="flex items-center justify-between px-4 py-3 bg-surface border-b border-border">
       <div className="flex items-center gap-2">
-        <div className="w-7 h-7 rounded-lg bg-accent text-accent-foreground flex items-center justify-center shadow-sm">
-          <Sparkles className="w-4 h-4" />
-        </div>
+        <CollectorLogoIcon className="w-7 h-7 shrink-0" />
         <div>
           <h1 className="text-sm font-bold tracking-tight text-foreground">AI Workstation</h1>
         </div>

@@ -71,20 +71,20 @@ export const MODULES: readonly ModuleDef[] = [
 		aliases: ["自媒体"],
 	},
 	{
-		code: "learn",
-		label: "学习",
-		route: "/learn",
-		icon: GraduationCap,
-		description: "学习主题资源聚合与学习路径管理。",
-		aliases: ["学习"],
-	},
-	{
 		code: "editor",
 		label: "创作",
 		route: "/editor",
 		icon: PenLine,
 		description: "强大的文本预览与 Markdown 操作台。",
 		aliases: ["创作"],
+	},
+	{
+		code: "learn",
+		label: "学习",
+		route: "/learn",
+		icon: GraduationCap,
+		description: "学习主题资源聚合与学习路径管理。",
+		aliases: ["学习"],
 	},
 	{
 		code: "ecommerce",

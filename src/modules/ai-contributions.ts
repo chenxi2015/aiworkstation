@@ -99,12 +99,14 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 		tools: [
 			"read_document",
 			"list_documents",
+			"update_document_title",
 			"trigger_paragraph_rewrite",
 			"query_bookmarks",
 			"read_webpage_content",
 			"crawl_webpage_via_extension",
 		],
 		promptSuggestions: [
+			"根据全文提炼 5 个高点击爆款标题，并选最优的一个直接更新为文章标题",
 			"对全文进行逐段流式润色，保留图片并对照审阅",
 			"帮我分析当前文档的结构，给出改进建议",
 			"润色这段文字，使其更适合公开发布",
@@ -113,6 +115,11 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 		],
 		contextItemTypes: ["bookmark", "folder", "tag", "file", "document"],
 		entryActions: [
+			{
+				label: "爆款标题拟定",
+				prompt:
+					"请深度阅读当前文档核心内容，为我拟定 5 个针对自媒体传播的爆款标题（涵盖悬念、干货、反常识等维度），并选择综合效果最好的一个直接更新为文章标题。",
+			},
 			{
 				label: "分析文档结构",
 				prompt: "帮我分析当前文档的结构，找出可优化的部分，给出详细改进建议",

@@ -297,3 +297,102 @@ export const triggerParagraphRewriteToolDef = toolDefinition({
 		"在当前富文本编辑器中启动【逐段流式精修流水线】。当用户要求润色、改写、精简、扩写、调整文风时必须调用此工具。大模型先在回复中给出篇章诊断与修改意图，再调用本工具协同前端在正文中逐段流式生成并提供 Diff 审阅。严禁直接覆写数据库！",
 	inputSchema: triggerParagraphRewriteInputSchema,
 });
+
+// ---------- update_document_title ----------
+
+export const updateDocumentTitleInputSchema = z.object({
+	documentId: z
+		.number()
+		.optional()
+		.describe("要修改标题的文档 ID。省略时自动定位当前活跃文档"),
+	newTitle: z
+		.string()
+		.min(1)
+		.max(120)
+		.describe("修改后的新标题（精炼、吸睛、符合文章受众心理）"),
+	reason: z
+		.string()
+		.optional()
+		.describe("修改理由或受众切入点说明（如：更具悬念感与自媒体传播度）"),
+});
+export type UpdateDocumentTitleInput = z.infer<
+	typeof updateDocumentTitleInputSchema
+>;
+
+export function executeUpdateDocumentTitle(
+	args: UpdateDocumentTitleInput & { activeDocumentId?: number },
+): ToolExecutionResult {
+	const id = args.documentId ?? args.activeDocumentId;
+	if (!id) {
+		const recentDocs = workbenchDb.listDocuments(false);
+		if (recentDocs.length === 1) {
+			const targetId = recentDocs[0].id;
+			const oldTitle = recentDocs[0].title;
+			const trimmedTitle = args.newTitle.trim();
+			if (!trimmedTitle) {
+				return {
+					toolName: "update_document_title",
+					summary: "修改标题失败：新标题不能为空。",
+					items: [],
+					references: [],
+					isMutation: false,
+				};
+			}
+			workbenchDb.updateDocument(targetId, { title: trimmedTitle });
+			return {
+				toolName: "update_document_title",
+				summary: `✅ 已成功将文档（ID: ${targetId}）的标题从《${oldTitle}》更新为《${trimmedTitle}》${args.reason ? `\n修改理由：${args.reason}` : ""}`,
+				items: [],
+				references: [],
+				isMutation: true,
+			};
+		}
+		return {
+			toolName: "update_document_title",
+			summary: "无法修改标题：未指定 documentId 且当前无明确的活跃编辑文档。",
+			items: [],
+			references: [],
+			isMutation: false,
+		};
+	}
+
+	const doc = workbenchDb.getDocument(id);
+	if (!doc) {
+		return {
+			toolName: "update_document_title",
+			summary: `文档 ID=${id} 不存在，无法修改标题。`,
+			items: [],
+			references: [],
+			isMutation: false,
+		};
+	}
+
+	const oldTitle = doc.title;
+	const trimmedTitle = args.newTitle.trim();
+	if (!trimmedTitle) {
+		return {
+			toolName: "update_document_title",
+			summary: "修改标题失败：新标题不能为空。",
+			items: [],
+			references: [],
+			isMutation: false,
+		};
+	}
+
+	workbenchDb.updateDocument(id, { title: trimmedTitle });
+
+	return {
+		toolName: "update_document_title",
+		summary: `✅ 已成功将文档（ID: ${id}）的标题从《${oldTitle}》更新为《${trimmedTitle}》${args.reason ? `\n修改理由：${args.reason}` : ""}`,
+		items: [],
+		references: [],
+		isMutation: true,
+	};
+}
+
+export const updateDocumentTitleToolDef = toolDefinition({
+	name: "update_document_title",
+	description:
+		"修改当前创作文档或指定文档的标题。当用户要求修改标题、或者要求头脑风暴并应用最优标题时调用。省略 documentId 时自动定位当前正在编辑的活跃文档。",
+	inputSchema: updateDocumentTitleInputSchema,
+});

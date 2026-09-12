@@ -1,5 +1,5 @@
 import { Button, Tooltip } from "@heroui/react";
-import { History, MessageSquarePlus, Sparkles } from "lucide-react";
+import { History, MessageSquarePlus } from "lucide-react";
 import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { type ChatItem, useAiChat } from "../../../../hooks/ai/useAiChat";
 import { useItemFolderAssign } from "../../../../hooks/ai/useItemFolderAssign";
@@ -8,6 +8,7 @@ import { getModuleByCode } from "../../../../modules/registry";
 import { workbenchContextStore } from "../../../../stores/workbenchContextStore";
 import type { ChatContextItem } from "../../../../types/chatContext";
 import type { PageBridge } from "../../../../types/pageBridge";
+import { AiAssistantLogoIcon } from "../../Icons";
 import type {
 	Category,
 	Folder,
@@ -242,9 +243,7 @@ export const ChatWithBookmarksPanel = forwardRef<
 				{/* Top Header: Clean, lightweight single-row header */}
 				<div className="h-12 px-3.5 bg-surface/80 backdrop-blur-md shrink-0 flex items-center justify-between z-10">
 					<div className="flex items-center gap-2 min-w-0">
-						<div className="w-6 h-6 rounded-lg bg-accent text-accent-foreground flex items-center justify-center text-xs shadow-xs font-bold shrink-0">
-							<Sparkles className="w-3.5 h-3.5" />
-						</div>
+						<AiAssistantLogoIcon className="w-6 h-6 shrink-0" />
 						<h3 className="font-bold text-xs text-foreground tracking-tight shrink-0">
 							AI 助手
 						</h3>

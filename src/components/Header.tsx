@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { WorkbenchLogoIcon } from "./brand/BrandLogo";
 import ThemeToggle from "./ThemeToggle";
 
 export default function Header() {
@@ -10,7 +11,7 @@ export default function Header() {
 						to="/"
 						className="inline-flex items-center gap-2 rounded-full border border-border bg-surface-secondary px-3 py-1.5 text-sm text-foreground no-underline shadow-sm transition hover:bg-surface-hover hover:border-border-secondary sm:px-4 sm:py-2"
 					>
-						<span className="h-2 w-2 rounded-full bg-accent" />
+						<WorkbenchLogoIcon className="w-3.5 h-3.5 text-accent" />
 						AI Workstation
 					</Link>
 				</h2>
