@@ -85,7 +85,7 @@ export function AiBubbleMenu({
 			const start = view.coordsAtPos(selection.from);
 			const end = view.coordsAtPos(selection.to);
 			const panelH = panelRef.current?.offsetHeight ?? 40;
-			const panelW = panelRef.current?.offsetWidth ?? 340;
+			const panelW = panelRef.current?.offsetWidth ?? 440;
 
 			// Position above selection; if space above is too tight, place below selection
 			const fitsAbove = start.top - panelH - 8 >= 8;

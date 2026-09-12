@@ -10,6 +10,7 @@ import {
 	ListOrdered,
 	ListTodo,
 	Minus,
+	Pilcrow,
 	Quote,
 	Table as TableIcon,
 	Video,
@@ -60,6 +61,21 @@ export const SlashCommandMenu = forwardRef<
 
 	const items: SlashMenuItem[] = useMemo(
 		() => [
+			{
+				id: "paragraph",
+				title: "正文",
+				description: "普通段落文本",
+				icon: Pilcrow,
+				keywords: ["p", "paragraph", "text", "zhengwen", "zw", "正文", "段落", "普通文本"],
+				command: ({ editor, range }) => {
+					editor
+						.chain()
+						.focus()
+						.deleteRange(range)
+						.setParagraph()
+						.run();
+				},
+			},
 			{
 				id: "heading1",
 				title: "一级标题",

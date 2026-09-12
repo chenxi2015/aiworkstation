@@ -18,6 +18,7 @@ import {
 	ListTodo,
 	Minus,
 	PencilLine,
+	Pilcrow,
 	Quote,
 	Redo2,
 	Strikethrough,
@@ -155,6 +156,12 @@ export function EditorToolbar({
 						onClick={() => editor.chain().focus().redo().run()}
 					/>
 					<Divider />
+					<ToolButton
+						icon={Pilcrow}
+						label="正文 (段落)"
+						active={editor.isActive("paragraph")}
+						onClick={() => editor.chain().focus().setParagraph().run()}
+					/>
 					<ToolButton
 						icon={Heading1}
 						label="标题 1"

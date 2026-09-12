@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { SplitCompareHeader } from "./split/SplitCompareHeader";
 import { SplitOriginalColumn } from "./split/SplitOriginalColumn";
 import { SplitRevisedColumn } from "./split/SplitRevisedColumn";
+import { SplitStreamingFloatingBar } from "./split/SplitStreamingFloatingBar";
 import type { SplitCompareViewProps, ViewMode } from "./split/types";
 import { useSplitCompare } from "./split/useSplitCompare";
 import { buildDocFromBlocks } from "./split/utils";
@@ -89,6 +90,15 @@ export function SplitCompareView({
 					onResetBlockText={handleResetBlockText}
 				/>
 			</div>
+
+			{/* Bottom Floating Streaming Status Bar */}
+			<SplitStreamingFloatingBar
+				isStreaming={isStreaming}
+				currentStep={currentStep}
+				totalSteps={totalSteps}
+				diffCount={diffStats.diffCount}
+				onStop={handleStop}
+			/>
 		</div>
 	);
 }

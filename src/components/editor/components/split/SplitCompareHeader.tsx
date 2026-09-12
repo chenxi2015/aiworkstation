@@ -5,9 +5,7 @@ import {
 	Columns2,
 	Eye,
 	GitCompare,
-	Loader2,
 	Sparkles,
-	Square,
 	X,
 } from "lucide-react";
 import type { ViewMode } from "./types";
@@ -33,12 +31,12 @@ export function SplitCompareHeader({
 	docTitle,
 	modeLabel,
 	isStreaming,
-	currentStep,
+	currentStep: _currentStep,
 	totalSteps,
 	diffCount,
 	viewMode,
 	onViewModeChange,
-	onStop,
+	onStop: _onStop,
 	onAccept,
 	onCancel,
 }: SplitCompareHeaderProps) {
@@ -60,34 +58,19 @@ export function SplitCompareHeader({
 					<div className="w-5 h-5 rounded bg-accent/15 text-accent flex items-center justify-center shrink-0">
 						<Columns2 className="w-3.5 h-3.5" />
 					</div>
-					<h2 className="font-semibold text-xs text-foreground truncate max-w-[200px]">
+					<h2 className="font-semibold text-xs text-foreground truncate max-w-[140px] md:max-w-[240px]">
 						双栏改写对比{modeLabel ? ` · ${modeLabel}` : ""}
 					</h2>
 					{docTitle && (
-						<span className="text-[11px] text-muted truncate max-w-[140px]">
+						<span className="hidden sm:inline text-[11px] text-muted truncate max-w-[100px] md:max-w-[180px]">
 							· {docTitle}
 						</span>
 					)}
 				</div>
 
-				{/* Pipeline progress badge */}
-				{isStreaming ? (
-					<div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-accent/10 border border-accent/30 text-accent text-[11px] font-medium animate-pulse">
-						<Loader2 className="w-3 h-3 animate-spin" />
-						<span>
-							AI 实时流式写入 ({currentStep}/{totalSteps})
-						</span>
-						<button
-							type="button"
-							onClick={onStop}
-							className="ml-1 p-0.5 hover:bg-accent/20 rounded cursor-pointer transition-colors"
-							title="停止后续改写"
-						>
-							<Square className="w-2.5 h-2.5 fill-current" />
-						</button>
-					</div>
-				) : (
-					<div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-[11px] font-medium">
+				{/* Completed badge when finished (hidden on smaller screens to avoid crowding) */}
+				{!isStreaming && totalSteps > 0 && (
+					<div className="hidden lg:flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-[11px] font-medium shrink-0">
 						<Sparkles className="w-3 h-3" />
 						<span>改写完成 ({totalSteps} 段)</span>
 						{diffCount !== 0 && (
@@ -100,7 +83,7 @@ export function SplitCompareHeader({
 			</div>
 
 			{/* Center: View Mode Switch */}
-			<div className="flex items-center bg-surface-secondary/80 dark:bg-zinc-800/80 p-0.5 rounded-lg border border-border/80">
+			<div className="flex items-center shrink-0 bg-surface-secondary/80 dark:bg-zinc-800/80 p-0.5 rounded-lg border border-border/80">
 				<button
 					type="button"
 					onClick={() => onViewModeChange("diff")}
