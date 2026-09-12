@@ -7,8 +7,8 @@ import {
 	extractImageUrl,
 	extractMultipleMediaUrls,
 	extractVideoUrl,
-	markdownToHtml,
 } from "../importers";
+import { markdownToTiptapDoc } from "../markdown";
 import {
 	extractMediaFiles,
 	getMediaFileKind,
@@ -133,9 +133,10 @@ export function useRichTextEditor({
 					// 2.4 Markdown content -> convert to formatted rich text
 					const html = event.clipboardData?.getData("text/html");
 					if (shouldTreatAsMarkdown(text, html)) {
-						const converted = markdownToHtml(text);
-						if (converted) {
-							editorRef.current.commands.insertContent(converted);
+						const { nodes } = markdownToTiptapDoc(text);
+						if (nodes.length > 0) {
+							event.preventDefault();
+							editorRef.current.chain().focus().insertContent(nodes).run();
 							return true;
 						}
 					}

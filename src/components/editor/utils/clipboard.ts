@@ -16,6 +16,7 @@ export const MARKDOWN_PATTERNS: readonly RegExp[] = [
 	/\*\*[^*]+?\*\*/,
 	/~~[^~]+?~~/,
 	/`[^`]+`/,
+	/!\[.*?\]\([^\s)]+\)/,
 	/\[.+?\]\(.+?\)/,
 	// GFM table: line starting and ending with |
 	/^\|.+\|/m,
@@ -31,6 +32,12 @@ export const STRONG_MARKDOWN_BLOCKS = {
 	tableDivider: /^\|?\s*:?-{2,}:?\s*(\|?\s*:?-{2,}:?\s*)+\|?$/m,
 	// Markdown heading: # Title
 	heading: /^#{1,6}\s+\S+/m,
+	// Markdown image: ![alt](url)
+	image: /!\[.*?\]\([^\s)]+\)/,
+	// Markdown bullet/task list: - item or - [ ] item
+	list: /^\s*[-*+]\s+(?:\[[ xX]\]\s+)?\S+/m,
+	// Bold marker: **text**
+	bold: /\*\*[^*]+?\*\*/,
 };
 
 /**
@@ -116,8 +123,8 @@ export function updateMediaSrc(editor: Editor, oldSrc: string, newSrc: string) {
 /**
  * Determine whether pasted clipboard content should be treated and converted as Markdown:
  * 1. Plain text must match Markdown syntax characteristics.
- * 2. If clipboard also contains HTML, check if HTML is merely a shallow wrapper (e.g. browser wrapping raw lines in <p>/<div>)
- *    rather than genuinely rendered rich text (e.g. <table>, <pre>, <h1-6>).
+ * 2. If clipboard contains HTML from a code box (<pre><code>) or plain wrapper (<div/p>),
+ *    check if strong Markdown markers exist in plain text but are unrendered in HTML.
  */
 export function shouldTreatAsMarkdown(
 	text: string,
@@ -130,14 +137,14 @@ export function shouldTreatAsMarkdown(
 		return true;
 	}
 
-	// If text contains strong markdown blocks (code fences, tables, headings) but HTML lacks corresponding rendered tags,
-	// it means HTML is just a plain container wrapping unrendered markdown text.
-	if (STRONG_MARKDOWN_BLOCKS.codeBlock.test(text) && !/<pre[\s>]/i.test(html)) {
+	// If text contains strong markdown elements but HTML lacks corresponding rendered semantic tags,
+	// it indicates HTML is just an unrendered container (e.g. copied from code block, IDE, or chatbox)
+	if (STRONG_MARKDOWN_BLOCKS.image.test(text) && !/<img[\s>]/i.test(html)) {
 		return true;
 	}
 	if (
-		STRONG_MARKDOWN_BLOCKS.tableDivider.test(text) &&
-		!/<table[\s>]/i.test(html)
+		STRONG_MARKDOWN_BLOCKS.bold.test(text) &&
+		!/<(strong|b)[\s>]/i.test(html)
 	) {
 		return true;
 	}
@@ -147,10 +154,30 @@ export function shouldTreatAsMarkdown(
 	) {
 		return true;
 	}
+	if (STRONG_MARKDOWN_BLOCKS.list.test(text) && !/<li[\s>]/i.test(html)) {
+		return true;
+	}
+	if (
+		STRONG_MARKDOWN_BLOCKS.tableDivider.test(text) &&
+		!/<table[\s>]/i.test(html)
+	) {
+		return true;
+	}
+
+	// For code fence in text: if HTML is <pre><code> but text has headings/images/lists,
+	// user copied raw markdown source from a code block -> convert as Markdown
+	if (
+		/<pre[\s>]/i.test(html) &&
+		(STRONG_MARKDOWN_BLOCKS.heading.test(text) ||
+			STRONG_MARKDOWN_BLOCKS.image.test(text) ||
+			STRONG_MARKDOWN_BLOCKS.bold.test(text) ||
+			STRONG_MARKDOWN_BLOCKS.list.test(text))
+	) {
+		return true;
+	}
 
 	// For general markdown, only block conversion if HTML contains actual rendered semantic blocks
-	// (Note: <p>, <div>, <span>, <br> are intentionally excluded because browsers wrap almost any copied text in them).
 	const hasRenderedSemanticBlocks =
-		/<(h[1-6]|ul|ol|blockquote|table|pre)[\s>]/i.test(html);
+		/<(h[1-6]|ul|ol|blockquote|table|img|strong|b)[\s>]/i.test(html);
 	return !hasRenderedSemanticBlocks;
 }

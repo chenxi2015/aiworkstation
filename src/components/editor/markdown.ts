@@ -1,6 +1,8 @@
+import { marked, type Tokens } from "marked";
+import { extractVideoUrl } from "./importers.ts";
+
 /**
- * TipTap JSON → Markdown 导出（editor-plan.md Editor-α：导出走受控序列化器，
- * 只覆盖本编辑器 schema 内的节点/标记，行为确定性优于通用转换器）。
+ * TipTap JSON ↔ Markdown 转换器（基于 marked AST 保证标准 Markdown/GFM 解析保真度）
  */
 
 export interface JSONContent {
@@ -133,56 +135,327 @@ export function tiptapJsonToMarkdown(doc: JSONContent): string {
 }
 
 /**
+ * Parses inline markdown tokens (bold, italic, code, strike, link) into TipTap inline text nodes with marks.
+ */
+export function parseInlineMarkdownToNodes(
+	tokensOrText: Tokens.Generic[] | string,
+	activeMarks: Array<{ type: string; attrs?: Record<string, unknown> }> = [],
+): JSONContent[] {
+	const tokens =
+		typeof tokensOrText === "string"
+			? (marked.lexer(tokensOrText)[0] as Tokens.Paragraph | undefined)
+					?.tokens || []
+			: tokensOrText;
+
+	const result: JSONContent[] = [];
+
+	for (const token of tokens) {
+		switch (token.type) {
+			case "text":
+				if (token.tokens && token.tokens.length > 0) {
+					result.push(...parseInlineMarkdownToNodes(token.tokens, activeMarks));
+				} else if (token.text) {
+					result.push({
+						type: "text",
+						text: token.text,
+						...(activeMarks.length > 0 ? { marks: [...activeMarks] } : {}),
+					});
+				}
+				break;
+			case "strong":
+				result.push(
+					...parseInlineMarkdownToNodes(token.tokens || [], [
+						...activeMarks,
+						{ type: "bold" },
+					]),
+				);
+				break;
+			case "em":
+				result.push(
+					...parseInlineMarkdownToNodes(token.tokens || [], [
+						...activeMarks,
+						{ type: "italic" },
+					]),
+				);
+				break;
+			case "codespan":
+				result.push({
+					type: "text",
+					text: token.text,
+					marks: [...activeMarks, { type: "code" }],
+				});
+				break;
+			case "del":
+				result.push(
+					...parseInlineMarkdownToNodes(token.tokens || [], [
+						...activeMarks,
+						{ type: "strike" },
+					]),
+				);
+				break;
+			case "link":
+				result.push(
+					...parseInlineMarkdownToNodes(token.tokens || [], [
+						...activeMarks,
+						{ type: "link", attrs: { href: token.href } },
+					]),
+				);
+				break;
+			case "escape":
+				result.push({
+					type: "text",
+					text: token.text,
+					...(activeMarks.length > 0 ? { marks: [...activeMarks] } : {}),
+				});
+				break;
+			case "br":
+				result.push({ type: "hardBreak" });
+				break;
+			default:
+				if (
+					"text" in token &&
+					typeof (token as { text?: unknown }).text === "string" &&
+					(token as { text: string }).text
+				) {
+					result.push({
+						type: "text",
+						text: (token as { text: string }).text,
+						...(activeMarks.length > 0 ? { marks: [...activeMarks] } : {}),
+					});
+				}
+				break;
+		}
+	}
+	return result;
+}
+
+function convertTokenToBlocks(token: Tokens.Generic): JSONContent[] {
+	switch (token.type) {
+		case "heading": {
+			const inlineContent = parseInlineMarkdownToNodes(token.tokens || []);
+			return [
+				{
+					type: "heading",
+					attrs: { level: Math.min(Math.max(token.depth, 1), 3) },
+					content:
+						inlineContent.length > 0
+							? inlineContent
+							: [{ type: "text", text: token.text }],
+				},
+			];
+		}
+		case "paragraph": {
+			const subTokens = token.tokens || [];
+			const blocks: JSONContent[] = [];
+			let pendingInline: Tokens.Generic[] = [];
+
+			const flushInline = () => {
+				if (pendingInline.length > 0) {
+					const content = parseInlineMarkdownToNodes(pendingInline);
+					if (content.length > 0) {
+						blocks.push({ type: "paragraph", content });
+					}
+					pendingInline = [];
+				}
+			};
+
+			for (const t of subTokens) {
+				if (t.type === "image") {
+					flushInline();
+					blocks.push({
+						type: "image",
+						attrs: {
+							src: t.href,
+							alt: t.text || "",
+						},
+					});
+				} else if (
+					t.type === "link" &&
+					(extractVideoUrl(t.href) ||
+						(t.text && /▶\s*视频|视频|video/i.test(t.text)))
+				) {
+					flushInline();
+					blocks.push({
+						type: "video",
+						attrs: {
+							src: t.href,
+						},
+					});
+				} else {
+					pendingInline.push(t);
+				}
+			}
+			flushInline();
+
+			if (blocks.length === 0) {
+				const content = parseInlineMarkdownToNodes(subTokens);
+				return [
+					{
+						type: "paragraph",
+						content:
+							content.length > 0
+								? content
+								: [{ type: "text", text: token.text }],
+					},
+				];
+			}
+			return blocks;
+		}
+		case "list": {
+			const items = token.items || [];
+			const isTask = items.some((i: { task?: boolean }) => Boolean(i.task));
+			const listType = isTask
+				? "taskList"
+				: token.ordered
+					? "orderedList"
+					: "bulletList";
+			const itemType = isTask ? "taskItem" : "listItem";
+
+			const content = items.map(
+				(item: {
+					task?: boolean;
+					checked?: boolean;
+					tokens?: Tokens.Generic[];
+					text: string;
+				}) => {
+					const itemBlocks: JSONContent[] = [];
+					for (const it of item.tokens || []) {
+						itemBlocks.push(...convertTokenToBlocks(it));
+					}
+					return {
+						type: itemType,
+						...(isTask ? { attrs: { checked: Boolean(item.checked) } } : {}),
+						content:
+							itemBlocks.length > 0
+								? itemBlocks
+								: [
+										{
+											type: "paragraph",
+											content: [{ type: "text", text: item.text }],
+										},
+									],
+					};
+				},
+			);
+
+			return [{ type: listType, content }];
+		}
+		case "blockquote": {
+			const quoteBlocks: JSONContent[] = [];
+			for (const t of token.tokens || []) {
+				quoteBlocks.push(...convertTokenToBlocks(t));
+			}
+			return [
+				{
+					type: "blockquote",
+					content:
+						quoteBlocks.length > 0 ? quoteBlocks : [{ type: "paragraph" }],
+				},
+			];
+		}
+		case "code":
+			return [
+				{
+					type: "codeBlock",
+					attrs: { language: token.lang || "" },
+					content: [{ type: "text", text: token.text }],
+				},
+			];
+		case "table": {
+			const rows: JSONContent[] = [];
+			if (token.header && token.header.length > 0) {
+				rows.push({
+					type: "tableRow",
+					content: token.header.map(
+						(cell: { tokens?: Tokens.Generic[]; text: string }) => {
+							const cellInline = parseInlineMarkdownToNodes(cell.tokens || []);
+							return {
+								type: "tableHeader",
+								content: [
+									{
+										type: "paragraph",
+										content:
+											cellInline.length > 0
+												? cellInline
+												: [{ type: "text", text: cell.text }],
+									},
+								],
+							};
+						},
+					),
+				});
+			}
+			for (const row of token.rows || []) {
+				rows.push({
+					type: "tableRow",
+					content: row.map(
+						(cell: { tokens?: Tokens.Generic[]; text: string }) => {
+							const cellInline = parseInlineMarkdownToNodes(cell.tokens || []);
+							return {
+								type: "tableCell",
+								content: [
+									{
+										type: "paragraph",
+										content:
+											cellInline.length > 0
+												? cellInline
+												: [{ type: "text", text: cell.text }],
+									},
+								],
+							};
+						},
+					),
+				});
+			}
+			return [{ type: "table", content: rows }];
+		}
+		case "hr":
+			return [{ type: "horizontalRule" }];
+		case "space":
+			return [];
+		default:
+			if (token.tokens) {
+				const inner: JSONContent[] = [];
+				for (const t of token.tokens) {
+					inner.push(...convertTokenToBlocks(t));
+				}
+				return inner;
+			}
+			return [];
+	}
+}
+
+/**
  * Converts Markdown text into a TipTap document structure (ProseMirror JSON nodes)
+ * Powered by marked AST lexer for standard Markdown and GFM compliance.
  */
 export function markdownToTiptapDoc(markdownText: string): {
-	nodes: Array<Record<string, unknown>>;
+	nodes: JSONContent[];
 	jsonString: string;
 	contentText: string;
 } {
-	const lines = markdownText.split("\n").filter((l) => l.trim().length > 0);
-	const nodes = lines.map((line) => {
-		const trimmed = line.trim();
-		// 1. Image: ![alt](url)
-		const imgMatch = trimmed.match(
-			/^!\[(.*?)\]\((https?:\/\/[^\s)]+|\/api\/files\/[^\s)]+)\)$/,
-		);
-		if (imgMatch) {
-			return {
-				type: "image",
-				attrs: { src: imgMatch[2], alt: imgMatch[1] || "" },
-			};
-		}
-		// 2. Video: [▶ 视频](url) or similar
-		const videoMatch = trimmed.match(
-			/^\[(?:▶\s*|🎥\s*)?(?:.*?视频|video).*?\]\((https?:\/\/[^\s)]+|\/api\/files\/[^\s)]+)\)$/,
-		);
-		if (videoMatch) {
-			return {
-				type: "video",
-				attrs: { src: videoMatch[1] },
-			};
-		}
-		// 3. Heading: # Heading
-		const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
-		if (headingMatch) {
-			return {
-				type: "heading",
-				attrs: { level: headingMatch[1].length },
-				content: [{ type: "text", text: headingMatch[2] }],
-			};
-		}
-		// 4. Default paragraph
+	if (!markdownText || !markdownText.trim()) {
+		const emptyNodes = [{ type: "paragraph" }];
 		return {
-			type: "paragraph",
-			content: [{ type: "text", text: trimmed }],
+			nodes: emptyNodes,
+			jsonString: JSON.stringify({ type: "doc", content: emptyNodes }),
+			contentText: "",
 		};
-	});
+	}
 
+	const normalized = markdownText.replace(/\r\n/g, "\n");
+	const tokens = marked.lexer(normalized);
+	const nodes: JSONContent[] = [];
+
+	for (const token of tokens) {
+		nodes.push(...convertTokenToBlocks(token));
+	}
+
+	const finalNodes = nodes.length > 0 ? nodes : [{ type: "paragraph" }];
 	const jsonString = JSON.stringify({
 		type: "doc",
-		content: nodes.length > 0 ? nodes : [{ type: "paragraph" }],
+		content: finalNodes,
 	});
 
-	return { nodes, jsonString, contentText: markdownText };
+	return { nodes: finalNodes, jsonString, contentText: markdownText };
 }

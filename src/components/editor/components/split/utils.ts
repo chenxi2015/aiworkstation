@@ -1,4 +1,5 @@
 import type { Editor } from "@tiptap/core";
+import { parseInlineMarkdownToNodes } from "../../markdown";
 import type { DocBlock } from "./types";
 
 /**
@@ -79,10 +80,18 @@ export function buildDocFromBlocks(blocks: DocBlock[]) {
 		content: blocks.map((b) => {
 			if (b.type === "text") {
 				const textToUse = b.revisedText || b.originalText;
+				const inlineNodes = textToUse
+					? parseInlineMarkdownToNodes(textToUse)
+					: [];
 				return {
 					type: b.nodeType,
 					attrs: b.attrs,
-					content: textToUse ? [{ type: "text", text: textToUse }] : [],
+					content:
+						inlineNodes.length > 0
+							? inlineNodes
+							: textToUse
+								? [{ type: "text", text: textToUse }]
+								: [],
 				};
 			}
 			return {

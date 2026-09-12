@@ -1,4 +1,3 @@
-import type React from "react";
 import { type ChangeEvent, type FormEvent, useRef, useState } from "react";
 import {
 	downloadExternalAssetRpc,
