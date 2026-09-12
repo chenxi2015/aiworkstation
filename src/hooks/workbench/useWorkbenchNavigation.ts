@@ -228,14 +228,22 @@ export function useWorkbenchNavigation({
 				if (target) {
 					setActiveCategory(target.category as Category);
 					setSelectedFolderId(target.id);
-					setCurrentFolderId(target.parentId ?? null);
+					// If locating a specific bookmark item, stay in parent folder and highlight it;
+					// Otherwise if clicking on a folder chip, directly enter the folder!
+					if (targetItemId !== undefined && targetItemId !== null) {
+						setCurrentFolderId(target.parentId ?? null);
+					} else {
+						setCurrentFolderId(target.id);
+					}
 				} else if (category) {
 					setActiveCategory(category);
 					setSelectedFolderId(folderId);
+					setCurrentFolderId(folderId);
 				}
 			} else {
 				setActiveCategory("未分类");
 				setSelectedFolderId(null);
+				setCurrentFolderId(null);
 			}
 
 			if (targetItemId !== undefined && targetItemId !== null) {

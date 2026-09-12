@@ -131,3 +131,58 @@ function renderBlocks(nodes: JSONContent[], indent: string): string {
 export function tiptapJsonToMarkdown(doc: JSONContent): string {
 	return renderBlocks(doc.content ?? [], "");
 }
+
+/**
+ * Converts Markdown text into a TipTap document structure (ProseMirror JSON nodes)
+ */
+export function markdownToTiptapDoc(markdownText: string): {
+	nodes: Array<Record<string, unknown>>;
+	jsonString: string;
+	contentText: string;
+} {
+	const lines = markdownText.split("\n").filter((l) => l.trim().length > 0);
+	const nodes = lines.map((line) => {
+		const trimmed = line.trim();
+		// 1. Image: ![alt](url)
+		const imgMatch = trimmed.match(
+			/^!\[(.*?)\]\((https?:\/\/[^\s)]+|\/api\/files\/[^\s)]+)\)$/,
+		);
+		if (imgMatch) {
+			return {
+				type: "image",
+				attrs: { src: imgMatch[2], alt: imgMatch[1] || "" },
+			};
+		}
+		// 2. Video: [▶ 视频](url) or similar
+		const videoMatch = trimmed.match(
+			/^\[(?:▶\s*|🎥\s*)?(?:.*?视频|video).*?\]\((https?:\/\/[^\s)]+|\/api\/files\/[^\s)]+)\)$/,
+		);
+		if (videoMatch) {
+			return {
+				type: "video",
+				attrs: { src: videoMatch[1] },
+			};
+		}
+		// 3. Heading: # Heading
+		const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
+		if (headingMatch) {
+			return {
+				type: "heading",
+				attrs: { level: headingMatch[1].length },
+				content: [{ type: "text", text: headingMatch[2] }],
+			};
+		}
+		// 4. Default paragraph
+		return {
+			type: "paragraph",
+			content: [{ type: "text", text: trimmed }],
+		};
+	});
+
+	const jsonString = JSON.stringify({
+		type: "doc",
+		content: nodes.length > 0 ? nodes : [{ type: "paragraph" }],
+	});
+
+	return { nodes, jsonString, contentText: markdownText };
+}

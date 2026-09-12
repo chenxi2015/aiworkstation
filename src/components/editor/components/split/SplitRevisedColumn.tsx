@@ -1,5 +1,7 @@
+import { Skeleton } from "@heroui/react";
 import { Loader2, Pencil } from "lucide-react";
-import React, { useState } from "react";
+import type React from "react";
+import { useState } from "react";
 import { computeFineDiff } from "../../utils/diffHelper";
 import { SplitBlockEditor } from "./SplitBlockEditor";
 import type { DocBlock, ViewMode } from "./types";
@@ -13,6 +15,14 @@ export interface SplitRevisedColumnProps {
 	onScroll: () => void;
 	onUpdateBlockText?: (id: string, text: string) => void;
 	onResetBlockText?: (id: string) => void;
+}
+
+function getSkeletonLineCount(text: string): number {
+	const len = text.trim().length;
+	if (len <= 40) return 1;
+	if (len <= 100) return 2;
+	if (len <= 200) return 3;
+	return 4;
 }
 
 /**
@@ -58,7 +68,7 @@ export function SplitRevisedColumn({
 			<div
 				ref={scrollRef as any}
 				onScroll={onScroll}
-				className="flex-1 overflow-y-auto px-6 py-8"
+				className="flex-1 overflow-y-auto px-6 py-8 select-text"
 			>
 				<div className="max-w-2xl mx-auto space-y-4">
 					{blocks.map((block) => {
@@ -101,18 +111,38 @@ export function SplitRevisedColumn({
 
 							// 1. Pending block: graceful skeleton preview while waiting in queue
 							if (block.status === "pending") {
+								const lineCount = isHeading
+									? 1
+									: getSkeletonLineCount(block.originalText);
 								return (
 									<div
 										key={block.id}
 										data-block-id={block.id}
-										className="p-3 rounded-lg border border-dashed border-border/50 bg-muted/[0.02] space-y-1.5 opacity-40 transition-all select-none"
+										className="p-3.5 rounded-xl border border-dashed border-border/60 bg-surface-secondary/20 space-y-2 opacity-70 transition-all select-none"
 									>
 										<div className="flex items-center justify-between text-[10px] text-muted">
 											<span>第 {block.textIndex} 段待处理</span>
-											<span>等待排队</span>
+											<span className="font-mono">等待排队…</span>
 										</div>
-										<div className="h-2.5 bg-muted/20 rounded w-full" />
-										<div className="h-2 bg-muted/15 rounded w-3/4" />
+										{isHeading ? (
+											<Skeleton className="h-5 rounded-md w-3/5" />
+										) : (
+											<div className="space-y-1.5 pt-0.5">
+												{Array.from({ length: lineCount }).map((_, idx) => (
+													<Skeleton
+														// biome-ignore lint/suspicious/noArrayIndexKey: skeleton lines
+														key={idx}
+														className="h-2.5 rounded"
+														style={{
+															width:
+																idx === lineCount - 1 && lineCount > 1
+																	? "65%"
+																	: `${100 - idx * 8}%`,
+														}}
+													/>
+												))}
+											</div>
+										)}
 									</div>
 								);
 							}
@@ -147,19 +177,31 @@ export function SplitRevisedColumn({
 
 										{/* If AI has not yielded text yet: show animated skeleton shimmer bars */}
 										{!hasOutput ? (
-											<div className="space-y-2 py-1 animate-pulse">
-												<div className="h-3.5 bg-accent/25 rounded-md w-full" />
-												<div
-													className="h-3.5 bg-accent/20 rounded-md w-4/5"
-													style={{ animationDelay: "150ms" }}
-												/>
-												<div
-													className="h-3.5 bg-accent/15 rounded-md w-2/3"
-													style={{ animationDelay: "300ms" }}
-												/>
+											<div className="space-y-2 py-1">
+												{isHeading ? (
+													<Skeleton className="h-6 rounded-lg w-3/5" />
+												) : (
+													Array.from({
+														length: Math.max(
+															2,
+															getSkeletonLineCount(block.originalText),
+														),
+													}).map((_, idx, arr) => (
+														<Skeleton
+															// biome-ignore lint/suspicious/noArrayIndexKey: skeleton lines
+															key={idx}
+															className="h-3.5 rounded-md"
+															style={{
+																width:
+																	idx === arr.length - 1
+																		? "65%"
+																		: `${100 - idx * 10}%`,
+															}}
+														/>
+													))
+												)}
 											</div>
 										) : (
-											/* Streaming text output with green diffs & cursor */
 											<div
 												className={
 													isHeading

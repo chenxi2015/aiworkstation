@@ -22,6 +22,11 @@ export interface UseAiChatOptions {
 	onResponseReceived?: () => void;
 	onDataMutated?: () => void;
 	onTriggerRewritePipeline?: (instruction?: string) => void;
+	onTriggerCreateDocumentPipeline?: (params: {
+		title: string;
+		prompt: string;
+		stylePreset?: string;
+	}) => void;
 }
 
 /**
@@ -324,14 +329,38 @@ export function useAiChat(options?: UseAiChatOptions) {
 						module:
 							sendOptions?.module ?? workbenchContextStore.state.activeModule,
 						activeDocumentId:
-							sendOptions?.activeDocumentId != null
-								? sendOptions.activeDocumentId
-								: (workbenchContextStore.state.activeDocument?.id ?? undefined),
+							sendOptions?.activeDocumentId !== undefined
+								? (sendOptions.activeDocumentId ?? undefined)
+								: workbenchContextStore.state.detachedDocumentId ===
+										workbenchContextStore.state.activeDocument?.id
+									? undefined
+									: (workbenchContextStore.state.activeDocument?.id ??
+										undefined),
 						activeMaterialId:
-							workbenchContextStore.state.activeMaterial?.id ?? undefined,
+							workbenchContextStore.state.detachedMaterialId ===
+							workbenchContextStore.state.activeMaterial?.id
+								? undefined
+								: (workbenchContextStore.state.activeMaterial?.id ?? undefined),
 					},
 					{
 						onStepStart: (step) => {
+							if (step.toolName === "trigger_document_create") {
+								const title =
+									typeof step.args?.title === "string"
+										? step.args.title
+										: "未命名文档";
+								const prompt =
+									typeof step.args?.prompt === "string" ? step.args.prompt : "";
+								const stylePreset =
+									typeof step.args?.stylePreset === "string"
+										? step.args.stylePreset
+										: undefined;
+								options?.onTriggerCreateDocumentPipeline?.({
+									title,
+									prompt,
+									stylePreset,
+								});
+							}
 							if (step.toolName === "trigger_paragraph_rewrite") {
 								const instruction =
 									typeof step.args?.instruction === "string"

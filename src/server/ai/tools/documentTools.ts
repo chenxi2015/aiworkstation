@@ -1,6 +1,9 @@
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
-import { tiptapJsonToMarkdown } from "../../../components/editor/markdown.ts";
+import {
+	markdownToTiptapDoc,
+	tiptapJsonToMarkdown,
+} from "../../../components/editor/markdown.ts";
 import { workbenchDb } from "../../db/sqlite.ts";
 import type { ToolExecutionResult } from "./types.ts";
 
@@ -201,52 +204,11 @@ export async function executeRewriteDocument(
 		note: args.snapshotNote ?? "AI 改写前自动备份",
 	});
 
-	// Write new content by parsing markdown blocks (preserving images, videos, headings)
-	const newContentText = args.newContent;
-	const lines = newContentText.split("\n").filter((l) => l.trim().length > 0);
-	const nodes = lines.map((line) => {
-		const trimmed = line.trim();
-		// 1. Image: ![alt](url)
-		const imgMatch = trimmed.match(
-			/^!\[(.*?)\]\((https?:\/\/[^\s)]+|\/api\/files\/[^\s)]+)\)$/,
-		);
-		if (imgMatch) {
-			return {
-				type: "image",
-				attrs: { src: imgMatch[2], alt: imgMatch[1] || "" },
-			};
-		}
-		// 2. Video: [▶ 视频](url) or similar
-		const videoMatch = trimmed.match(
-			/^\[(?:▶\s*|🎥\s*)?(?:.*?视频|video).*?\]\((https?:\/\/[^\s)]+|\/api\/files\/[^\s)]+)\)$/,
-		);
-		if (videoMatch) {
-			return {
-				type: "video",
-				attrs: { src: videoMatch[1] },
-			};
-		}
-		// 3. Heading: # Heading
-		const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
-		if (headingMatch) {
-			return {
-				type: "heading",
-				attrs: { level: headingMatch[1].length },
-				content: [{ type: "text", text: headingMatch[2] }],
-			};
-		}
-		// 4. Default paragraph
-		return {
-			type: "paragraph",
-			content: [{ type: "text", text: trimmed }],
-		};
-	});
-
-	const newJson = JSON.stringify({ type: "doc", content: nodes });
+	const { jsonString, contentText } = markdownToTiptapDoc(args.newContent);
 
 	workbenchDb.updateDocument(args.documentId, {
-		content: newJson,
-		contentText: newContentText,
+		content: jsonString,
+		contentText,
 	});
 
 	return {
@@ -263,6 +225,47 @@ export const rewriteDocumentToolDef = toolDefinition({
 	description:
 		"【需人工批准 needsApproval】按指令改写创作模块中的文档全文或指定段落。改写前自动打版本快照（origin=ai），支持回滚。仅在用户明确同意后执行写入。",
 	inputSchema: rewriteDocumentInputSchema,
+});
+
+// ---------- trigger_document_create ----------
+
+export const triggerDocumentCreateInputSchema = z.object({
+	title: z
+		.string()
+		.min(1)
+		.max(120)
+		.describe("新建文档的标题（精炼、吸睛、契合用户创作主题）"),
+	prompt: z
+		.string()
+		.describe(
+			"下发给流式长文创作引擎的结构大纲与深度创作要求（例如：从架构设计、关键技术、落地场景等维度深入展开）",
+		),
+	stylePreset: z
+		.string()
+		.optional()
+		.describe("可选的排版文风预设（如 tech、story、academic、default 等）"),
+});
+export type TriggerDocumentCreateInput = z.infer<
+	typeof triggerDocumentCreateInputSchema
+>;
+
+export function executeTriggerDocumentCreate(
+	args: TriggerDocumentCreateInput,
+): ToolExecutionResult {
+	return {
+		toolName: "trigger_document_create",
+		summary: `已在单栏富文本编辑器中创建新文档《${args.title}》并启动流式创作流水线。`,
+		items: [],
+		references: [],
+		isMutation: true,
+	};
+}
+
+export const triggerDocumentCreateToolDef = toolDefinition({
+	name: "trigger_document_create",
+	description:
+		"在创作模块中新建一篇文档，并在单栏富文本编辑器中启动【长文流式动态创作流水线】。当用户要求「新建文档」、「以XX为主题写一篇文章」、「起草新稿件」或从零创作时必须调用此工具。前端将自动切换到新文档并在富文本中流式打字输出。严禁在此场景下调用 trigger_paragraph_rewrite！",
+	inputSchema: triggerDocumentCreateInputSchema,
 });
 
 // ---------- trigger_paragraph_rewrite ----------

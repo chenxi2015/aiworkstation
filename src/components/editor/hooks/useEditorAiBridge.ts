@@ -14,7 +14,13 @@ export interface UseEditorAiBridgeOptions {
 		customInstruction?: string,
 		modeLabel?: string,
 	) => Promise<void>;
+	onStartCreatePipeline?: (params: {
+		title: string;
+		prompt: string;
+		stylePreset?: string;
+	}) => Promise<void>;
 	flushSave?: () => Promise<void>;
+	onSwitchDocument?: (id: number) => Promise<void>;
 }
 
 /**
@@ -28,12 +34,20 @@ export function useEditorAiBridge({
 	onBeforeAiApply: _onBeforeAiApply,
 	reloadDocuments,
 	onStartRewritePipeline,
+	onStartCreatePipeline,
 	flushSave,
+	onSwitchDocument,
 }: UseEditorAiBridgeOptions) {
 	const { registerPageBridge, registerDataChangedHandler } = useAiPanel();
 
 	const onStartRewritePipelineRef = useRef(onStartRewritePipeline);
 	onStartRewritePipelineRef.current = onStartRewritePipeline;
+
+	const onStartCreatePipelineRef = useRef(onStartCreatePipeline);
+	onStartCreatePipelineRef.current = onStartCreatePipeline;
+
+	const onSwitchDocumentRef = useRef(onSwitchDocument);
+	onSwitchDocumentRef.current = onSwitchDocument;
 
 	const flushSaveRef = useRef(flushSave);
 	flushSaveRef.current = flushSave;
@@ -43,11 +57,6 @@ export function useEditorAiBridge({
 
 	// 1. Register page capabilities to AI side panel
 	useEffect(() => {
-		if (!activeDocId) {
-			registerPageBridge(null);
-			return;
-		}
-
 		registerPageBridge({
 			module: "editor",
 			activeDocumentId: activeDocId,
@@ -56,6 +65,25 @@ export function useEditorAiBridge({
 				await flushSaveRef.current?.();
 			},
 			actions: [
+				{
+					id: "stream_create_document",
+					label: "新建长文创作",
+					icon: Sparkles,
+					variant: "accent" as const,
+					tooltip: "在单栏富文本中根据主题与大纲流式动态创作新长文",
+					onAction: async (payload?: string) => {
+						if (!payload) return;
+						try {
+							const parsed = JSON.parse(payload);
+							await onStartCreatePipelineRef.current?.(parsed);
+						} catch {
+							await onStartCreatePipelineRef.current?.({
+								title: "新建文档",
+								prompt: payload,
+							});
+						}
+					},
+				},
 				{
 					id: "stream_spin_rewrite",
 					label: "二创洗稿重构",
@@ -101,17 +129,22 @@ export function useEditorAiBridge({
 		};
 	}, [activeDocId, activeDocTitle, registerPageBridge]);
 
-	// 2. Sync when AI tools execute backend mutations (e.g. rewrite_document)
+	// 2. Sync when AI tools execute backend mutations
 	useEffect(() => {
 		registerDataChangedHandler(async () => {
-			if (!activeDoc) return;
+			const currentDocId = activeDoc?.id;
 			const docs = await reloadDocuments();
-			const current = docs.find((d) => d.id === activeDoc.id);
-			if (current && editorRef.current) {
-				try {
-					editorRef.current.commands.setContent(JSON.parse(current.content));
-				} catch {
-					editorRef.current.commands.setContent(current.contentText || "");
+			if (docs.length === 0) return;
+
+			// If current doc was mutated externally, reload its editor content
+			if (currentDocId) {
+				const current = docs.find((d) => d.id === currentDocId);
+				if (current && editorRef.current) {
+					try {
+						editorRef.current.commands.setContent(JSON.parse(current.content));
+					} catch {
+						editorRef.current.commands.setContent(current.contentText || "");
+					}
 				}
 			}
 		});
@@ -119,5 +152,5 @@ export function useEditorAiBridge({
 		return () => {
 			registerDataChangedHandler(null);
 		};
-	}, [activeDoc, editorRef, reloadDocuments, registerDataChangedHandler]);
+	}, [activeDoc?.id, editorRef, reloadDocuments, registerDataChangedHandler]);
 }

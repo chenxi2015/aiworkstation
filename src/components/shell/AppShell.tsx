@@ -175,10 +175,11 @@ export function AppShell({
 		[pageData, loaderFolders],
 	);
 
-	// 页面已注册导航回调时直接页面内定位；否则暂存请求并跳转书签模块
+	// 页面已注册导航回调且当前在书签模块时直接页面内定位；否则暂存请求并跳转书签模块
 	const handleNavigateToFolder = useCallback<NavigateHandler>(
 		(folderId, category, targetItemId) => {
-			if (navigateRef.current) {
+			const isBookmarks = pathname === "/bookmarks";
+			if (isBookmarks && navigateRef.current) {
 				navigateRef.current(folderId, category, targetItemId);
 				return;
 			}
@@ -189,7 +190,7 @@ export function AppShell({
 			};
 			void router.navigate({ to: "/bookmarks" });
 		},
-		[router],
+		[pathname, router],
 	);
 
 	// 页面已注册刷新回调（WorkbenchApp 的 reloadFromDb）时走页面刷新，面板数据随后由页面同步；

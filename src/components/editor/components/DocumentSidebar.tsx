@@ -1,4 +1,4 @@
-import { toast } from "@heroui/react";
+import { Skeleton, toast } from "@heroui/react";
 import dayjs from "dayjs";
 import {
 	FilePlus2,
@@ -89,8 +89,32 @@ export function DocumentSidebar({
 				{/* Documents list */}
 				<div className="flex-1 overflow-y-auto p-2 space-y-1 min-h-0">
 					{loading && (
-						<div className="flex items-center justify-center py-8 text-muted">
-							<Loader2 className="w-4 h-4 animate-spin" />
+						<div className="space-y-1.5">
+							{[0, 1, 2, 3, 4].map((i) => (
+								<div
+									key={i}
+									className={`w-full px-3 py-2.5 rounded-lg border border-border/30 bg-surface-secondary/20 space-y-2 ${
+										i === 0 ? "border-accent/30 bg-accent/5" : ""
+									}`}
+								>
+									<div className="flex items-center justify-between gap-2">
+										<Skeleton
+											className={`h-3.5 rounded ${
+												i === 0
+													? "w-3/4"
+													: i % 2 === 0
+														? "w-4/5"
+														: "w-3/5"
+											}`}
+										/>
+										<Skeleton className="w-8 h-2.5 rounded shrink-0" />
+									</div>
+									<div className="flex items-center justify-between gap-2">
+										<Skeleton className="w-16 h-2.5 rounded" />
+										<Skeleton className="w-10 h-2.5 rounded" />
+									</div>
+								</div>
+							))}
 						</div>
 					)}
 					{!loading && documents.length === 0 && (

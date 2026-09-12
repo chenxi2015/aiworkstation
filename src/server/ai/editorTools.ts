@@ -6,10 +6,12 @@
 import {
 	executeListDocuments,
 	executeReadDocument,
+	executeTriggerDocumentCreate,
 	executeTriggerParagraphRewrite,
 	executeUpdateDocumentTitle,
 	listDocumentsToolDef,
 	readDocumentToolDef,
+	triggerDocumentCreateToolDef,
 	triggerParagraphRewriteToolDef,
 	updateDocumentTitleToolDef,
 } from "./tools/documentTools.ts";
@@ -53,7 +55,16 @@ export function createEditorServerTools(
 				hooks,
 			),
 		),
-		// Trigger client-side paragraph streaming rewrite pipeline in Tiptap editor
+		// Trigger client-side full-article streaming creation pipeline in single Tiptap rich-text editor
+		triggerDocumentCreateToolDef.server((args) =>
+			wrapExecution(
+				"trigger_document_create",
+				args,
+				() => executeTriggerDocumentCreate(args),
+				hooks,
+			),
+		),
+		// Trigger client-side paragraph streaming rewrite pipeline in Tiptap editor (split comparison view)
 		// Saves document changes in editor natively with rich diffs, never overwriting DB directly.
 		triggerParagraphRewriteToolDef.server((args) =>
 			wrapExecution(

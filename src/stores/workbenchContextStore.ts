@@ -24,6 +24,10 @@ export interface WorkbenchContextState {
 	activeMaterial: ActiveMaterialContext | null;
 	/** Currently active bookmark folder */
 	activeFolder: ActiveFolderContext | null;
+	/** When set to a document id, this document is detached from the chat prompt context */
+	detachedDocumentId: number | null;
+	/** When set to a material id, this material is detached from the chat prompt context */
+	detachedMaterialId: number | null;
 }
 
 const initialState: WorkbenchContextState = {
@@ -31,6 +35,8 @@ const initialState: WorkbenchContextState = {
 	activeDocument: null,
 	activeMaterial: null,
 	activeFolder: null,
+	detachedDocumentId: null,
+	detachedMaterialId: null,
 };
 
 /**
@@ -38,7 +44,9 @@ const initialState: WorkbenchContextState = {
  * Serves as the Single Source of Truth for the right-side AI Q&A panel
  * and eliminates lifecycle/network latency when switching documents or modules.
  */
-export const workbenchContextStore = new Store<WorkbenchContextState>(initialState);
+export const workbenchContextStore = new Store<WorkbenchContextState>(
+	initialState,
+);
 
 export const workbenchContextActions = {
 	setActiveModule(activeModule: string) {
@@ -55,15 +63,48 @@ export const workbenchContextActions = {
 		workbenchContextStore.setState((prev) => ({
 			...prev,
 			activeDocument: doc,
+			// Reset detached status when switching to a different document
+			detachedDocumentId: null,
+		}));
+	},
+
+	detachDocumentContext(docId: number) {
+		workbenchContextStore.setState((prev) => ({
+			...prev,
+			detachedDocumentId: docId,
+		}));
+	},
+
+	attachDocumentContext() {
+		workbenchContextStore.setState((prev) => ({
+			...prev,
+			detachedDocumentId: null,
 		}));
 	},
 
 	setActiveMaterial(material: ActiveMaterialContext | null) {
 		const current = workbenchContextStore.state.activeMaterial;
-		if (current?.id === material?.id && current?.title === material?.title) return;
+		if (current?.id === material?.id && current?.title === material?.title)
+			return;
 		workbenchContextStore.setState((prev) => ({
 			...prev,
 			activeMaterial: material,
+			// Reset detached status when switching to a different material
+			detachedMaterialId: null,
+		}));
+	},
+
+	detachMaterialContext(materialId: number) {
+		workbenchContextStore.setState((prev) => ({
+			...prev,
+			detachedMaterialId: materialId,
+		}));
+	},
+
+	attachMaterialContext() {
+		workbenchContextStore.setState((prev) => ({
+			...prev,
+			detachedMaterialId: null,
 		}));
 	},
 

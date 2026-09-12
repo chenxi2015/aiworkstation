@@ -3,6 +3,7 @@ import { History, MessageSquarePlus } from "lucide-react";
 import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { type ChatItem, useAiChat } from "../../../../hooks/ai/useAiChat";
 import { useItemFolderAssign } from "../../../../hooks/ai/useItemFolderAssign";
+import { useChatScope } from "../../../../hooks/ai/useChatScope";
 import { getAiContribution } from "../../../../modules/ai-contributions";
 import { getModuleByCode } from "../../../../modules/registry";
 import { workbenchContextStore } from "../../../../stores/workbenchContextStore";
@@ -89,6 +90,19 @@ export const ChatWithBookmarksPanel = forwardRef<
 	const inputRef = useRef<HTMLTextAreaElement | null>(null);
 	const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
 
+	// Contextual scope management (global ⇄ scoped folder / document / material)
+	const {
+		activeScope,
+		toggleScope: handleToggleScope,
+		isFolderScoped,
+	} = useChatScope({
+		activeModule,
+		selectedFolder,
+		scopeMode,
+		onToggleFolderScope: () =>
+			setScopeMode((prev) => (prev === "global" ? "folder" : "global")),
+	});
+
 	// 1. In-Chat Folder Assignment Hook
 	const folderAssign = useItemFolderAssign({
 		onDataChanged,
@@ -133,6 +147,14 @@ export const ChatWithBookmarksPanel = forwardRef<
 				void rewriteAct.onAction(instruction || "");
 			}
 		},
+		onTriggerCreateDocumentPipeline: (params) => {
+			const createAct = pageBridge?.actions.find(
+				(a) => a.id === "stream_create_document",
+			);
+			if (createAct) {
+				void createAct.onAction(JSON.stringify(params));
+			}
+		},
 	});
 
 	// Helper to send prompts with active scope options
@@ -158,19 +180,23 @@ export const ChatWithBookmarksPanel = forwardRef<
 		}
 
 		const folderScope =
-			scopeMode === "folder" && selectedFolder
+			isFolderScoped && selectedFolder
 				? { folderId: selectedFolder.id, folderName: selectedFolder.name }
 				: undefined;
 
 		const storeState = workbenchContextStore.state;
 		const effectiveModule =
 			options?.module ?? activeModule ?? storeState.activeModule;
+		const rawDocId =
+			pageBridge?.activeDocumentId ?? storeState.activeDocument?.id;
+		const isDocDetached =
+			rawDocId != null && storeState.detachedDocumentId === rawDocId;
 		const effectiveDocId =
 			options?.activeDocumentId !== undefined
 				? options.activeDocumentId
-				: (pageBridge?.activeDocumentId ??
-					storeState.activeDocument?.id ??
-					undefined);
+				: isDocDetached
+					? undefined
+					: (rawDocId ?? undefined);
 
 		sendPrompt(prompt, {
 			...folderScope,
@@ -385,9 +411,8 @@ export const ChatWithBookmarksPanel = forwardRef<
 						model={settings?.model}
 						scopeMode={scopeMode}
 						selectedFolder={selectedFolder}
-						onToggleScope={() =>
-							setScopeMode((prev) => (prev === "global" ? "folder" : "global"))
-						}
+						activeScope={activeScope}
+						onToggleScope={handleToggleScope}
 						contextItems={contextItems}
 						folders={folders}
 						onRemoveContextItem={removeContextItem}

@@ -1,19 +1,9 @@
 import { useDroppable } from "@dnd-kit/react";
-import { Button, Tooltip } from "@heroui/react";
-import { useStore } from "@tanstack/react-store";
-import {
-	ArrowUp,
-	Clapperboard,
-	FileText,
-	Folder as FolderIcon,
-	Globe,
-	Paperclip,
-	Sparkles,
-	Square,
-} from "lucide-react";
+import { Paperclip } from "lucide-react";
 import {
 	type ClipboardEvent,
 	type DragEvent,
+	type KeyboardEvent,
 	memo,
 	type RefObject,
 	useCallback,
@@ -22,12 +12,13 @@ import {
 	useState,
 } from "react";
 import { WorkbenchStorageService } from "../../../../services/workbenchStorage";
-import { workbenchContextStore } from "../../../../stores/workbenchContextStore";
 import type { ChatContextItem } from "../../../../types/chatContext";
 import { CHAT_INPUT_DROP_ID } from "../../dnd/dndUtils";
 import type { Category, Folder } from "../../types";
 import { ChatContextBar } from "./ChatContextBar";
 import { ChatContextMentionMenu } from "./ChatContextMentionMenu";
+import { type ActiveChatScope, ChatInputBottomBar } from "./ChatInputBottomBar";
+import { ChatInputTopToolbar } from "./ChatInputTopToolbar";
 import { searchMentionCandidates } from "./utils/mentionSearch";
 
 export interface ChatInputAreaProps {
@@ -44,6 +35,7 @@ export interface ChatInputAreaProps {
 	model?: string;
 	scopeMode?: "global" | "folder";
 	selectedFolder?: Folder | null;
+	activeScope?: ActiveChatScope | null;
 	onToggleScope?: () => void;
 	folders?: Folder[];
 	/** Contextual attachment chips displayed above textarea */
@@ -57,6 +49,13 @@ export interface ChatInputAreaProps {
 		targetItemId?: string | number,
 	) => void;
 }
+
+/** Friendly label map for dynamic scope placeholder */
+const SCOPE_TYPE_LABELS: Record<string, string> = {
+	document: "文档",
+	material: "素材",
+	folder: "文件夹",
+};
 
 /** Max height (px) the textarea grows to before scrolling internally */
 const MAX_TEXTAREA_HEIGHT = 200;
@@ -77,6 +76,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 	model,
 	scopeMode = "global",
 	selectedFolder,
+	activeScope,
 	onToggleScope,
 	folders = [],
 	contextItems = [],
@@ -90,14 +90,6 @@ export const ChatInputArea = memo(function ChatInputArea({
 			? WorkbenchStorageService.getSettings()
 			: null;
 	const displayModel = model || currentSettings?.model || "AI";
-
-	const contextState = useStore(workbenchContextStore);
-	const activeDoc =
-		contextState.activeModule === "editor" ? contextState.activeDocument : null;
-	const activeMaterial =
-		contextState.activeModule === "creator"
-			? contextState.activeMaterial
-			: null;
 
 	// Dnd-kit droppable area for items and folders
 	const { isDropTarget, ref } = useDroppable({
@@ -221,6 +213,68 @@ export const ChatInputArea = memo(function ChatInputArea({
 		[input, inputRef, onAttachContextItem, onChangeInput],
 	);
 
+	const handleKeyDown = useCallback(
+		(e: KeyboardEvent<HTMLTextAreaElement>) => {
+			if (mentionQuery !== null && activeCandidates.length > 0) {
+				if (e.key === "ArrowDown") {
+					e.preventDefault();
+					setMentionSelectedIndex((prev) =>
+						prev + 1 < activeCandidates.length ? prev + 1 : 0,
+					);
+					return;
+				}
+				if (e.key === "ArrowUp") {
+					e.preventDefault();
+					setMentionSelectedIndex((prev) =>
+						prev - 1 >= 0 ? prev - 1 : activeCandidates.length - 1,
+					);
+					return;
+				}
+				if (e.key === "Enter" && !e.shiftKey) {
+					e.preventDefault();
+					const target = activeCandidates[mentionSelectedIndex];
+					if (target) {
+						handleSelectMention({
+							id: target.id,
+							type: target.type,
+							title: target.title,
+							subtitle: target.subtitle,
+							url: target.url,
+							folderId: target.folderId,
+							icon: target.icon,
+						});
+					}
+					return;
+				}
+				if (e.key === "Escape") {
+					e.preventDefault();
+					setMentionQuery(null);
+					return;
+				}
+			}
+
+			if (e.key === "Enter" && !e.shiftKey) {
+				e.preventDefault();
+				if (canSend) {
+					onSend();
+				}
+			} else if (e.key === "Escape" && isLoading && onStop) {
+				e.preventDefault();
+				onStop();
+			}
+		},
+		[
+			mentionQuery,
+			activeCandidates,
+			mentionSelectedIndex,
+			handleSelectMention,
+			canSend,
+			onSend,
+			isLoading,
+			onStop,
+		],
+	);
+
 	return (
 		<div className="p-3 bg-surface/50 backdrop-blur-xs shrink-0 flex flex-col gap-2 relative z-10">
 			{/* Dropdown Mention Menu for @ mentions */}
@@ -236,45 +290,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 			/>
 
 			{/* Top action toolbar: Model Badge & Active Context Indicator */}
-			<div className="flex items-center gap-1.5 min-w-0 overflow-hidden px-0.5">
-				<div
-					className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-surface-secondary/70 border border-border/60 text-[11px] font-medium text-foreground/90 shadow-2xs select-none shrink-0"
-					title={`当前模型: ${displayModel}`}
-				>
-					<span className="w-4 h-4 rounded-full bg-gradient-to-tr from-violet-500 via-indigo-500 to-fuchsia-500 flex items-center justify-center text-white shrink-0 shadow-2xs">
-						<Sparkles className="w-2.5 h-2.5" />
-					</span>
-					<span className="max-w-[120px] truncate text-[10px] font-semibold text-foreground/80">
-						{displayModel}
-					</span>
-				</div>
-
-				{/* Active Document Context Pill */}
-				{activeDoc && (
-					<div
-						className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent/10 border border-accent/25 text-[10px] text-accent font-medium shadow-2xs truncate select-none shrink min-w-0"
-						title={`当前问答自动聚焦文档 #${activeDoc.id}: 《${activeDoc.title}》。AI 将直接围绕此篇内容解答。`}
-					>
-						<FileText className="w-3 h-3 shrink-0" />
-						<span className="truncate">
-							#{activeDoc.id} {activeDoc.title || "未命名文档"}
-						</span>
-					</div>
-				)}
-
-				{/* Active Material Context Pill */}
-				{activeMaterial && (
-					<div
-						className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/25 text-[10px] text-amber-600 dark:text-amber-400 font-medium shadow-2xs truncate select-none shrink min-w-0"
-						title={`当前问答自动聚焦素材 #${activeMaterial.id}: 《${activeMaterial.title}》。`}
-					>
-						<Clapperboard className="w-3 h-3 shrink-0" />
-						<span className="truncate">
-							素材 #{activeMaterial.id} {activeMaterial.title || "未命名素材"}
-						</span>
-					</div>
-				)}
-			</div>
+			<ChatInputTopToolbar displayModel={displayModel} />
 
 			{/* Main Input Card: Droppable Zone with Context Bar, Textarea, and Action Bar */}
 			<section
@@ -324,11 +340,10 @@ export const ChatInputArea = memo(function ChatInputArea({
 						const lastAtIndex = textBeforeCursor.lastIndexOf("@");
 						if (lastAtIndex !== -1) {
 							const query = textBeforeCursor.slice(lastAtIndex + 1);
-							// Allow spaces in query (e.g. "@AI 开源武器库"), only close on newlines or double-spaces
 							if (
 								!query.includes("\n") &&
-								!/\s{2,}/.test(query) &&
-								query.length <= 40
+								!query.includes("  ") &&
+								query.length <= 30
 							) {
 								setMentionQuery(query);
 								setMentionSelectedIndex(0);
@@ -338,141 +353,28 @@ export const ChatInputArea = memo(function ChatInputArea({
 						setMentionQuery(null);
 					}}
 					onPaste={handlePaste}
-					onKeyDown={(e) => {
-						if (mentionQuery !== null && activeCandidates.length > 0) {
-							if (e.key === "ArrowDown") {
-								e.preventDefault();
-								setMentionSelectedIndex((prev) =>
-									prev + 1 < activeCandidates.length ? prev + 1 : 0,
-								);
-								return;
-							}
-							if (e.key === "ArrowUp") {
-								e.preventDefault();
-								setMentionSelectedIndex((prev) =>
-									prev - 1 >= 0 ? prev - 1 : activeCandidates.length - 1,
-								);
-								return;
-							}
-							if (e.key === "Enter" && !e.shiftKey) {
-								e.preventDefault();
-								const target = activeCandidates[mentionSelectedIndex];
-								if (target) {
-									handleSelectMention({
-										id: target.id,
-										type: target.type,
-										title: target.title,
-										subtitle: target.subtitle,
-										url: target.url,
-										folderId: target.folderId,
-										icon: target.icon,
-									});
-								}
-								return;
-							}
-							if (e.key === "Escape") {
-								e.preventDefault();
-								setMentionQuery(null);
-								return;
-							}
-						}
-
-						if (e.key === "Enter" && !e.shiftKey) {
-							e.preventDefault();
-							if (canSend) {
-								onSend();
-							}
-						} else if (e.key === "Escape" && isLoading && onStop) {
-							e.preventDefault();
-							onStop();
-						}
-					}}
+					onKeyDown={handleKeyDown}
 					placeholder={
 						contextItems.length > 0
 							? "对上述引用的上下文提问，或按 Enter 直接分析..."
-							: "发消息、输入 @ 引用书签或文件夹..."
+							: activeScope?.isActive
+								? `针对当前${SCOPE_TYPE_LABELS[activeScope.type] || "内容"}提问，或输入 @ 引用...`
+								: "发消息、输入 @ 引用书签或文件夹..."
 					}
 					className="w-full bg-transparent border-none text-xs text-foreground placeholder:text-muted/60 focus:outline-none resize-none leading-relaxed min-h-[44px] px-1 py-0.5"
 				/>
 
 				{/* Card Bottom Bar: Left scope switch, Right Send/Stop Button */}
-				<div className="flex items-center justify-between pt-2 px-0.5">
-					{/* Left: Scope Pill */}
-					<div className="flex items-center gap-1.5">
-						<button
-							type="button"
-							onClick={onToggleScope}
-							className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full transition-all cursor-pointer border ${
-								scopeMode === "folder" && selectedFolder
-									? "bg-accent/10 text-accent border-accent/30 hover:bg-accent/20"
-									: "bg-surface-secondary/70 text-muted hover:text-foreground border-border/50 hover:bg-surface-secondary"
-							}`}
-							title="点击切换问答范围（全局 / 当前文件夹）"
-						>
-							{scopeMode === "folder" && selectedFolder ? (
-								<>
-									<FolderIcon className="w-3 h-3 text-accent shrink-0" />
-									<span className="max-w-[120px] truncate">
-										限定: {selectedFolder.name}
-									</span>
-								</>
-							) : (
-								<>
-									<Globe className="w-3 h-3 shrink-0" />
-									<span>全局检索</span>
-								</>
-							)}
-						</button>
-					</div>
-
-					{/* Right: Send / Stop Action Button */}
-					<div className="flex items-center gap-1">
-						{isLoading ? (
-							<Tooltip>
-								<Tooltip.Trigger>
-									<Button
-										variant="secondary"
-										size="sm"
-										isIconOnly
-										className="h-7 w-7 rounded-xl border border-danger/30 bg-danger/10 hover:bg-danger/20 text-danger flex items-center justify-center cursor-pointer shadow-2xs group transition-all"
-										onPress={onStop}
-										aria-label="停止回答"
-									>
-										<Square className="w-2.5 h-2.5 fill-current group-hover:scale-90 transition-transform" />
-									</Button>
-								</Tooltip.Trigger>
-								<Tooltip.Content className="text-xs py-1 px-2">
-									停止回答
-								</Tooltip.Content>
-							</Tooltip>
-						) : (
-							<Tooltip>
-								<Tooltip.Trigger>
-									<Button
-										variant={canSend ? "primary" : "secondary"}
-										size="sm"
-										isIconOnly
-										className={`h-7 w-7 rounded-xl flex items-center justify-center cursor-pointer transition-all shadow-xs ${
-											canSend
-												? "bg-accent text-accent-foreground hover:opacity-90 shadow-accent/20"
-												: "bg-surface-secondary text-muted/50 border border-border/40 cursor-not-allowed opacity-60"
-										}`}
-										onPress={() => {
-											if (canSend) onSend();
-										}}
-										isDisabled={!canSend}
-										aria-label="发送消息"
-									>
-										<ArrowUp className="w-3.5 h-3.5 stroke-[2.5]" />
-									</Button>
-								</Tooltip.Trigger>
-								<Tooltip.Content className="text-xs py-1 px-2">
-									发送 (Enter)
-								</Tooltip.Content>
-							</Tooltip>
-						)}
-					</div>
-				</div>
+				<ChatInputBottomBar
+					scopeMode={scopeMode}
+					selectedFolder={selectedFolder}
+					activeScope={activeScope}
+					onToggleScope={onToggleScope}
+					isLoading={isLoading}
+					canSend={canSend}
+					onSend={onSend}
+					onStop={onStop}
+				/>
 			</section>
 
 			{/* Footer Hints */}

@@ -18,12 +18,15 @@ export * from "./ItemFavicon";
 // Item components
 export * from "./item/WorkbenchItemCard";
 export * from "./layout/CategoryFilterBar";
+export * from "./layout/CategoryMainView";
 export * from "./layout/CategoryView";
 export * from "./layout/FloatingChatButton";
 export * from "./layout/ModuleTabs";
 export * from "./layout/UnclassifiedView";
+export * from "./layout/UnclassifiedWorkspace";
 // Layout & View components
 export * from "./layout/WorkbenchHeader";
 export * from "./skeletons";
 export * from "./types";
 export * from "./WorkbenchApp";
+export * from "./WorkbenchModals";

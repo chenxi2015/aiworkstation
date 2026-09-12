@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { EditorApp } from "../components/editor/EditorApp";
-import { ModuleSkeleton } from "../components/workbench/skeletons";
+import { EditorSkeleton } from "../components/workbench/skeletons";
 import { workbenchLoader } from "./-workbenchLoader";
 
 export const Route = createFileRoute("/editor")({
 	loader: workbenchLoader,
-	pendingComponent: ModuleSkeleton,
+	pendingComponent: EditorSkeleton,
 	pendingMs: 200,
 	component: EditorPage,
 });
