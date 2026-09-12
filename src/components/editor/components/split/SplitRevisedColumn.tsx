@@ -1,6 +1,7 @@
-import { Loader2 } from "lucide-react";
-import type React from "react";
+import { Loader2, Pencil } from "lucide-react";
+import React, { useState } from "react";
 import { computeFineDiff } from "../../utils/diffHelper";
+import { SplitBlockEditor } from "./SplitBlockEditor";
 import type { DocBlock, ViewMode } from "./types";
 
 export interface SplitRevisedColumnProps {
@@ -10,10 +11,13 @@ export interface SplitRevisedColumnProps {
 	viewMode: ViewMode;
 	scrollRef: React.RefObject<HTMLDivElement | null>;
 	onScroll: () => void;
+	onUpdateBlockText?: (id: string, text: string) => void;
+	onResetBlockText?: (id: string) => void;
 }
 
 /**
- * Right column rendering the AI streaming revised document with skeleton overlays and diff insertions.
+ * Right column rendering the AI streaming revised document with skeleton overlays,
+ * diff insertions, and direct inline manual editing.
  */
 export function SplitRevisedColumn({
 	blocks,
@@ -22,9 +26,14 @@ export function SplitRevisedColumn({
 	viewMode,
 	scrollRef,
 	onScroll,
+	onUpdateBlockText,
+	onResetBlockText,
 }: SplitRevisedColumnProps) {
+	const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
+
 	return (
 		<section className="flex-1 flex flex-col min-w-0 bg-surface dark:bg-background">
+			{/* Top Column Header */}
 			<div className="h-8 px-4 border-b border-border/60 bg-accent/5 flex items-center justify-between text-xs font-medium shrink-0 text-accent">
 				<span className="flex items-center gap-1.5">
 					<span
@@ -32,10 +41,20 @@ export function SplitRevisedColumn({
 							isStreaming ? "animate-ping" : ""
 						}`}
 					/>
-					右栏 · AI 实时数据流写入
+					{isStreaming
+						? "右栏 · AI 实时数据流写入"
+						: "右栏 · 改写成果 (支持直接点击修改)"}
 				</span>
-				<span className="text-[11px] text-muted">{revisedLen} 字</span>
+				<div className="flex items-center gap-2">
+					{!isStreaming && (
+						<span className="text-[10px] text-accent/80 bg-accent/10 px-1.5 py-0.5 rounded font-normal">
+							点击段落可手动微调
+						</span>
+					)}
+					<span className="text-[11px] text-muted">{revisedLen} 字</span>
+				</div>
 			</div>
+
 			<div
 				ref={scrollRef as any}
 				onScroll={onScroll}
@@ -78,6 +97,7 @@ export function SplitRevisedColumn({
 						if (block.type === "text") {
 							const isHeading = block.nodeType === "heading";
 							const isCurrentStreaming = block.status === "streaming";
+							const isEditing = editingBlockId === block.id;
 
 							// 1. Pending block: graceful skeleton preview while waiting in queue
 							if (block.status === "pending") {
@@ -171,7 +191,29 @@ export function SplitRevisedColumn({
 								);
 							}
 
-							// 3. Completed block (done) in diff view
+							// 3. Active inline manual editor
+							if (isEditing && onUpdateBlockText) {
+								return (
+									<SplitBlockEditor
+										key={block.id}
+										block={block}
+										isHeading={isHeading}
+										onUpdate={onUpdateBlockText}
+										onReset={onResetBlockText}
+										onExit={() => setEditingBlockId(null)}
+									/>
+								);
+							}
+
+							// 4. Completed block (done) - clickable to edit
+							const isModifiedFromAi =
+								Boolean(block.aiRevisedText) &&
+								block.revisedText !== block.aiRevisedText;
+
+							// Common wrapper styling for click-to-edit affordance
+							const hoverAffordance =
+								"group relative p-2 -m-1 rounded-lg border border-transparent hover:border-accent/30 hover:bg-accent/[0.02] cursor-text transition-all";
+
 							if (viewMode === "diff") {
 								const diffs = computeFineDiff(
 									block.originalText,
@@ -181,11 +223,13 @@ export function SplitRevisedColumn({
 									<div
 										key={block.id}
 										data-block-id={block.id}
-										className={`p-1.5 rounded transition-colors leading-relaxed ${
+										onClick={() => setEditingBlockId(block.id)}
+										className={`${hoverAffordance} leading-relaxed ${
 											isHeading
 												? "font-bold text-lg text-foreground"
 												: "text-sm text-foreground"
 										}`}
+										title="点击可直接编辑修改"
 									>
 										{diffs.map((d, idx) => {
 											if (d.status === "added") {
@@ -203,22 +247,64 @@ export function SplitRevisedColumn({
 											}
 											return null;
 										})}
+
+										{/* Hover quick edit button & modified badge */}
+										<div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 text-[11px] select-none">
+											{isModifiedFromAi && (
+												<span className="bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] px-1.5 py-0.5 rounded border border-amber-500/20">
+													已手动修改
+												</span>
+											)}
+											<button
+												type="button"
+												onClick={(e) => {
+													e.stopPropagation();
+													setEditingBlockId(block.id);
+												}}
+												className="bg-surface/95 dark:bg-background/95 hover:bg-accent/10 hover:border-accent/40 text-accent px-1.5 py-0.5 rounded shadow-xs border border-border/60 flex items-center gap-1 text-[10px] cursor-pointer transition-colors"
+											>
+												<Pencil className="w-2.5 h-2.5" />
+												点击修改
+											</button>
+										</div>
 									</div>
 								);
 							}
 
-							// Clean preview mode: pure clean text
+							// Clean preview mode: pure clean text, also clickable to edit
 							return (
 								<div
 									key={block.id}
 									data-block-id={block.id}
-									className={`p-1.5 rounded leading-relaxed ${
+									onClick={() => setEditingBlockId(block.id)}
+									className={`${hoverAffordance} leading-relaxed ${
 										isHeading
 											? "font-bold text-lg text-foreground"
 											: "text-sm text-foreground"
 									}`}
+									title="点击可直接编辑修改"
 								>
 									{block.revisedText}
+
+									{/* Hover quick edit button & modified badge */}
+									<div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 text-[11px] select-none">
+										{isModifiedFromAi && (
+											<span className="bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] px-1.5 py-0.5 rounded border border-amber-500/20">
+												已手动修改
+											</span>
+										)}
+										<button
+											type="button"
+											onClick={(e) => {
+												e.stopPropagation();
+												setEditingBlockId(block.id);
+											}}
+											className="bg-surface/95 dark:bg-background/95 hover:bg-accent/10 hover:border-accent/40 text-accent px-1.5 py-0.5 rounded shadow-xs border border-border/60 flex items-center gap-1 text-[10px] cursor-pointer transition-colors"
+										>
+											<Pencil className="w-2.5 h-2.5" />
+											点击修改
+										</button>
+									</div>
 								</div>
 							);
 						}

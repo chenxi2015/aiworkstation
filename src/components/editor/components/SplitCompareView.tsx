@@ -35,6 +35,8 @@ export function SplitCompareView({
 		handleLeftScroll,
 		handleRightScroll,
 		handleStop,
+		handleUpdateBlockText,
+		handleResetBlockText,
 	} = useSplitCompare({
 		leftEditor,
 		docTitle,
@@ -83,6 +85,8 @@ export function SplitCompareView({
 					viewMode={viewMode}
 					scrollRef={rightScrollRef}
 					onScroll={handleRightScroll}
+					onUpdateBlockText={handleUpdateBlockText}
+					onResetBlockText={handleResetBlockText}
 				/>
 			</div>
 		</div>

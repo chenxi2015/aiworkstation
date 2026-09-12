@@ -26,6 +26,7 @@ export interface DocBlock {
 	attrs?: Record<string, any>;
 	originalText: string;
 	revisedText: string;
+	aiRevisedText?: string;
 	status: "pending" | "streaming" | "done";
 	textIndex?: number;
 }

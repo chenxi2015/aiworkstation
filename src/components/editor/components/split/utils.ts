@@ -64,6 +64,7 @@ export function parseDocToBlocks(editor: Editor): DocBlock[] {
 			attrs: node.attrs,
 			originalText,
 			revisedText: originalText,
+			aiRevisedText: originalText,
 			status: "done" as const,
 		};
 	});

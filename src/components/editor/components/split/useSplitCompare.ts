@@ -178,7 +178,12 @@ export function useSplitCompare({
 				setBlocks((prev) =>
 					prev.map((b) =>
 						b.id === target.id
-							? { ...b, revisedText: finalized, status: "done" as const }
+							? {
+									...b,
+									revisedText: finalized,
+									aiRevisedText: finalized,
+									status: "done" as const,
+								}
 							: b,
 					),
 				);
@@ -213,6 +218,24 @@ export function useSplitCompare({
 		setIsStreaming(false);
 	}, []);
 
+	// Update revised text directly for manual user editing
+	const handleUpdateBlockText = useCallback((id: string, text: string) => {
+		setBlocks((prev) =>
+			prev.map((b) => (b.id === id ? { ...b, revisedText: text } : b)),
+		);
+	}, []);
+
+	// Revert manual edits back to the initial AI generation
+	const handleResetBlockText = useCallback((id: string) => {
+		setBlocks((prev) =>
+			prev.map((b) =>
+				b.id === id && b.aiRevisedText !== undefined
+					? { ...b, revisedText: b.aiRevisedText }
+					: b,
+			),
+		);
+	}, []);
+
 	// Stats
 	const diffStats = useMemo(() => {
 		let totalOriginal = 0;
@@ -242,5 +265,7 @@ export function useSplitCompare({
 		handleLeftScroll,
 		handleRightScroll,
 		handleStop,
+		handleUpdateBlockText,
+		handleResetBlockText,
 	};
 }
