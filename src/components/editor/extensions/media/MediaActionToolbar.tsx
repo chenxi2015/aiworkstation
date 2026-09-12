@@ -15,9 +15,9 @@ import type { ChangeEvent, FormEvent, RefObject } from "react";
 import { MediaReplacePopover } from "./MediaReplacePopover";
 
 interface MediaActionToolbarProps {
-	toolbarRef: RefObject<HTMLDivElement | null>;
-	verticalPos: "top" | "bottom";
-	horizontalShift: number;
+	toolbarRef?: RefObject<HTMLDivElement | null>;
+	verticalPos?: "top" | "bottom";
+	horizontalShift?: number;
 	visible: boolean;
 	isExternal: boolean;
 	textAlign: string;
@@ -48,11 +48,10 @@ interface MediaActionToolbarProps {
 
 /**
  * Floating action toolbar for media elements (alignment, download/persist, and replace)
+ * Positioned inside the top-right corner of the media container for seamless hovering
  */
 export function MediaActionToolbar({
 	toolbarRef,
-	verticalPos,
-	horizontalShift,
 	visible,
 	isExternal,
 	textAlign,
@@ -79,19 +78,15 @@ export function MediaActionToolbar({
 	return (
 		<div
 			ref={toolbarRef}
-			style={{
-				transform: horizontalShift
-					? `translateX(${horizontalShift}px)`
-					: undefined,
-			}}
-			className={`absolute z-30 media-action-toolbar flex items-center gap-1.5 p-1 bg-zinc-900/95 text-zinc-100 border border-zinc-700/80 rounded-lg shadow-xl backdrop-blur-md transition-opacity duration-150 whitespace-nowrap right-0 ${
-				verticalPos === "top"
-					? "bottom-[calc(100%+8px)]"
-					: "top-[calc(100%+8px)]"
-			} ${
+			role="toolbar"
+			aria-label="媒体操作工具栏"
+			onClick={(e) => e.stopPropagation()}
+			onMouseDown={(e) => e.stopPropagation()}
+			onKeyDown={(e) => e.stopPropagation()}
+			className={`absolute top-2.5 right-2.5 z-30 media-action-toolbar flex items-center gap-1.5 p-1 bg-zinc-900/95 text-zinc-100 border border-zinc-700/80 rounded-lg shadow-xl backdrop-blur-md transition-all duration-150 whitespace-nowrap ${
 				visible
 					? "opacity-100 scale-100 pointer-events-auto"
-					: "opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto"
+					: "opacity-0 scale-95 pointer-events-none group-hover:opacity-100 group-hover:scale-100 group-hover:pointer-events-auto"
 			}`}
 		>
 			{/* Source badge: External vs Local */}

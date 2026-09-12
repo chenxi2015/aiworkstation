@@ -9,7 +9,6 @@ import {
 	isExternalMedia,
 } from "./media/mediaUtils";
 import { useMediaOperations } from "./media/useMediaOperations";
-import { useMediaToolbarPosition } from "./media/useMediaToolbarPosition";
 
 // Re-export utilities and context for backward compatibility
 export { downloadFileToDisk, EditorMediaContext, isExternalMedia };
@@ -34,12 +33,6 @@ export function MediaNodeView(props: NodeViewProps) {
 	const [isHovered, setIsHovered] = useState(false);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const toolbarRef = useRef<HTMLDivElement>(null);
-
-	// Floating toolbar positioning logic
-	const { verticalPos, horizontalShift } = useMediaToolbarPosition({
-		containerRef,
-		toolbarRef,
-	});
 
 	// Media operation handlers and state
 	const {
@@ -81,10 +74,34 @@ export function MediaNodeView(props: NodeViewProps) {
 		if ((e.target as HTMLElement).closest(".media-action-toolbar")) {
 			return;
 		}
+		e.preventDefault();
+		e.stopPropagation();
 		if (typeof getPos === "function") {
 			const pos = getPos();
 			if (typeof pos === "number") {
 				editor.commands.setNodeSelection(pos);
+				editor.view.focus();
+			}
+		}
+	};
+
+	// Handle clicks on empty line areas outside the media element to insert text cursor instead of selecting outer div
+	const handleWrapperClick = (e: React.MouseEvent) => {
+		if (containerRef.current?.contains(e.target as Node)) {
+			return;
+		}
+		if (typeof getPos === "function") {
+			const pos = getPos();
+			if (typeof pos === "number") {
+				e.preventDefault();
+				e.stopPropagation();
+				const containerRect = containerRef.current?.getBoundingClientRect();
+				const insertPos =
+					containerRect && e.clientX < containerRect.left
+						? pos
+						: pos + node.nodeSize;
+				editor.commands.setTextSelection(insertPos);
+				editor.view.focus();
 			}
 		}
 	};
@@ -92,7 +109,7 @@ export function MediaNodeView(props: NodeViewProps) {
 	return (
 		<NodeViewWrapper
 			as="div"
-			className={`media-node-view not-prose my-3 w-full flex ${
+			className={`media-node-view not-prose my-3 w-full flex select-none outline-none ${
 				textAlign === "center"
 					? "justify-center"
 					: textAlign === "right"
@@ -101,6 +118,7 @@ export function MediaNodeView(props: NodeViewProps) {
 			}`}
 			onMouseEnter={() => setIsHovered(true)}
 			onMouseLeave={() => setIsHovered(false)}
+			onClick={handleWrapperClick}
 		>
 			<div
 				ref={containerRef}
@@ -137,12 +155,13 @@ export function MediaNodeView(props: NodeViewProps) {
 						</video>
 					</div>
 				) : (
-					<div className="relative inline-flex items-center justify-center max-w-full min-w-[40px] min-h-[40px]">
+					<div className="relative inline-flex items-center justify-center max-w-full min-w-[48px] min-h-[48px]">
 						<img
 							src={src}
 							alt={node.attrs.alt || ""}
 							referrerPolicy="no-referrer"
-							className="w-auto max-w-full h-auto rounded-xl block m-0 cursor-pointer min-w-[32px] min-h-[32px] object-contain"
+							draggable={false}
+							className="w-auto max-w-full h-auto rounded-xl block m-0 cursor-pointer min-w-[32px] min-h-[32px] object-contain select-none pointer-events-auto"
 							onError={() => setMediaLoadError(true)}
 							onLoad={() => setMediaLoadError(false)}
 						/>
@@ -168,11 +187,9 @@ export function MediaNodeView(props: NodeViewProps) {
 					</div>
 				)}
 
-				{/* Floating action toolbar */}
+				{/* Action toolbar inside top-right corner of the media */}
 				<MediaActionToolbar
 					toolbarRef={toolbarRef}
-					verticalPos={verticalPos}
-					horizontalShift={horizontalShift}
 					visible={selected || isHovered || showReplaceModal}
 					isExternal={isExternal}
 					textAlign={textAlign}
