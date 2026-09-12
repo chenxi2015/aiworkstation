@@ -38,6 +38,7 @@ export const SUPPORTED_LANGUAGES = [
 	{ label: "C#", value: "csharp" },
 	{ label: "YAML", value: "yaml" },
 	{ label: "Markdown", value: "markdown" },
+	{ label: "Mermaid (图表)", value: "mermaid" },
 	{ label: "PHP", value: "php" },
 	{ label: "Ruby", value: "ruby" },
 	{ label: "Swift", value: "swift" },

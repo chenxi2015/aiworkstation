@@ -80,6 +80,11 @@ import {
 	updateFolderInputSchema,
 	updateFolderToolDef,
 } from "./updateFolderTool.ts";
+import {
+	executeWebSearch,
+	webSearchInputSchema,
+	webSearchToolDef,
+} from "./webSearchTool.ts";
 
 export * from "./addTagsToBookmarksTool.ts";
 export * from "./crawlWebpageViaExtensionTool.ts";
@@ -88,6 +93,7 @@ export * from "./createTagsTool.ts";
 export * from "./deleteFolderTool.ts";
 export * from "./getStatsTool.ts";
 export * from "./mergeFoldersTool.ts";
+export * from "./mermaidTool.ts";
 export * from "./moveBookmarksTool.ts";
 export * from "./moveFolderTool.ts";
 export * from "./queryBookmarksTool.ts";
@@ -100,6 +106,7 @@ export * from "./timeResolver.ts";
 // Re-export all tool definitions and helpers
 export * from "./types.ts";
 export * from "./updateFolderTool.ts";
+export * from "./webSearchTool.ts";
 
 /**
  * Generic execution wrapper that logs metrics and dispatches lifecycle hooks
@@ -249,6 +256,9 @@ export function createBookmarkServerTools(hooks?: BookmarkToolHooks) {
 				hooks,
 			),
 		),
+		webSearchToolDef.server((args) =>
+			wrapExecution("web_search", args, () => executeWebSearch(args), hooks),
+		),
 	];
 }
 
@@ -336,6 +346,9 @@ export async function executeBookmarkToolCall(
 			result = await executeCrawlWebpageViaExtension(
 				crawlWebpageViaExtensionInputSchema.parse(parsedArgs),
 			);
+			break;
+		case "web_search":
+			result = await executeWebSearch(webSearchInputSchema.parse(parsedArgs));
 			break;
 		default:
 			result = {

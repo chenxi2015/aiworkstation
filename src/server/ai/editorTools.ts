@@ -4,11 +4,15 @@
  * Integrated into agentRunner when module === 'editor'.
  */
 import {
+	editDocumentParagraphToolDef,
+	executeEditDocumentParagraph,
+	executeInsertDocumentBlock,
 	executeListDocuments,
 	executeReadDocument,
 	executeTriggerDocumentCreate,
 	executeTriggerParagraphRewrite,
 	executeUpdateDocumentTitle,
+	insertDocumentBlockToolDef,
 	listDocumentsToolDef,
 	readDocumentToolDef,
 	triggerDocumentCreateToolDef,
@@ -16,9 +20,14 @@ import {
 	updateDocumentTitleToolDef,
 } from "./tools/documentTools.ts";
 import { wrapExecution } from "./tools/index.ts";
+import {
+	executeGenerateMermaidDiagram,
+	generateMermaidDiagramToolDef,
+} from "./tools/mermaidTool.ts";
 import type { BookmarkToolHooks } from "./tools/types.ts";
 
 export * from "./tools/documentTools.ts";
+export * from "./tools/mermaidTool.ts";
 
 /**
  * Create executable editor tools with lifecycle hooks.
@@ -71,6 +80,33 @@ export function createEditorServerTools(
 				"trigger_paragraph_rewrite",
 				args,
 				() => executeTriggerParagraphRewrite(args),
+				hooks,
+			),
+		),
+		// Targeted insertion of a block (paragraph, image, mermaid, heading, blockquote) at anchor position or append
+		insertDocumentBlockToolDef.server((args) =>
+			wrapExecution(
+				"insert_document_block",
+				args,
+				() => executeInsertDocumentBlock({ ...args, activeDocumentId }),
+				hooks,
+			),
+		),
+		// Targeted modification/polishing of a specific single paragraph without full-article rewrite
+		editDocumentParagraphToolDef.server((args) =>
+			wrapExecution(
+				"edit_document_paragraph",
+				args,
+				() => executeEditDocumentParagraph({ ...args, activeDocumentId }),
+				hooks,
+			),
+		),
+		// Structured Mermaid diagram generation and insertion into document
+		generateMermaidDiagramToolDef.server((args) =>
+			wrapExecution(
+				"generate_mermaid_diagram",
+				args,
+				() => executeGenerateMermaidDiagram({ ...args, activeDocumentId }),
 				hooks,
 			),
 		),

@@ -128,7 +128,7 @@ export async function runAgentStream(
 	);
 	const shouldIncludeFsTools = module !== "editor" || hasFileAttachment;
 
-	const tools = [
+	const allTools = [
 		...createBookmarkServerTools(toolHooks),
 		...(shouldIncludeFsTools ? createFsServerTools(toolHooks) : []),
 		// Inject editor-specific tools when user is in the editor module
@@ -136,6 +136,10 @@ export async function runAgentStream(
 			? createEditorServerTools(toolHooks, activeDocumentId)
 			: []),
 	];
+	// Deduplicate tools by name to ensure uniqueness for TanStack AI chat()
+	const tools = Array.from(
+		new Map(allTools.map((t) => [(t as any).name, t])).values(),
+	);
 
 	// 3. Create adapter
 	const adapter = openaiCompatibleText(model, {

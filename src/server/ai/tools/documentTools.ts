@@ -1,6 +1,7 @@
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 import {
+	type JSONContent,
 	markdownToTiptapDoc,
 	tiptapJsonToMarkdown,
 } from "../../../components/editor/markdown.ts";
@@ -398,4 +399,338 @@ export const updateDocumentTitleToolDef = toolDefinition({
 	description:
 		"修改当前创作文档或指定文档的标题。当用户要求修改标题、或者要求头脑风暴并应用最优标题时调用。省略 documentId 时自动定位当前正在编辑的活跃文档。",
 	inputSchema: updateDocumentTitleInputSchema,
+});
+
+// ---------- Helper: Extract text from TipTap JSON node ----------
+
+function extractBlockText(node: JSONContent | undefined): string {
+	if (!node) return "";
+	if (typeof node.text === "string") return node.text;
+	if (Array.isArray(node.content)) {
+		return node.content.map(extractBlockText).join("");
+	}
+	return "";
+}
+
+// ---------- insert_document_block ----------
+
+export const insertDocumentBlockInputSchema = z.object({
+	documentId: z
+		.number()
+		.optional()
+		.describe("要插入内容的文档 ID。省略时自动定位当前活跃文档"),
+	targetAnchor: z
+		.string()
+		.optional()
+		.describe(
+			"定位锚点：目标段落的首句或关键词（例如某个副标题或特定论点句子）。若省略或未找到，默认插在文章末尾",
+		),
+	position: z
+		.enum(["before", "after", "append"])
+		.default("after")
+		.describe("相对于锚点的位置：before(前) / after(后) / append(文章末尾)"),
+	blockType: z
+		.enum(["paragraph", "image", "mermaid", "heading", "blockquote"])
+		.default("paragraph")
+		.describe(
+			"插入的块类型：paragraph(普通段落) / image(图片) / mermaid(架构/流程图) / heading(小标题) / blockquote(引述)",
+		),
+	content: z
+		.string()
+		.describe(
+			"要插入的具体内容。如果是图片可传入 URL 或 ![alt](url)；如果是 mermaid 可传入 mermaid 代码或 ```mermaid 代码块；如果是段落传入 Markdown 文本",
+		),
+	caption: z.string().optional().describe("可选的图片说明、图注或标题"),
+	snapshotNote: z
+		.string()
+		.optional()
+		.describe("写入前快照说明，默认「AI 插入内容前自动备份」"),
+});
+export type InsertDocumentBlockInput = z.input<
+	typeof insertDocumentBlockInputSchema
+>;
+
+export function executeInsertDocumentBlock(
+	args: InsertDocumentBlockInput & { activeDocumentId?: number },
+): ToolExecutionResult {
+	const id = args.documentId ?? args.activeDocumentId;
+	if (!id) {
+		const recentDocs = workbenchDb.listDocuments(false);
+		if (recentDocs.length === 1) {
+			return executeInsertDocumentBlock({
+				...args,
+				documentId: recentDocs[0].id,
+			});
+		}
+		return {
+			toolName: "insert_document_block",
+			summary: "插入失败：未指定 documentId 且当前无明确的活跃编辑文档。",
+			items: [],
+			references: [],
+			isMutation: false,
+		};
+	}
+
+	const doc = workbenchDb.getDocument(id);
+	if (!doc) {
+		return {
+			toolName: "insert_document_block",
+			summary: `文档 ID=${id} 不存在，无法插入内容。`,
+			items: [],
+			references: [],
+			isMutation: false,
+		};
+	}
+
+	const blockType = args.blockType ?? "paragraph";
+	const position = args.position ?? "after";
+
+	// 1. Format raw content to valid Markdown based on blockType
+	let rawMarkdown = args.content.trim();
+	if (blockType === "image") {
+		const isMarkdownImg = /^!\[.*\]\(.+\)$/.test(rawMarkdown);
+		if (!isMarkdownImg) {
+			const altText = args.caption || "插图";
+			rawMarkdown = `![${altText}](${rawMarkdown})`;
+		}
+	} else if (blockType === "mermaid") {
+		if (!rawMarkdown.startsWith("```mermaid")) {
+			rawMarkdown = `\`\`\`mermaid\n${rawMarkdown}\n\`\`\``;
+		}
+	} else if (blockType === "heading" && !rawMarkdown.startsWith("#")) {
+		rawMarkdown = `### ${rawMarkdown}`;
+	} else if (blockType === "blockquote" && !rawMarkdown.startsWith(">")) {
+		rawMarkdown = `> ${rawMarkdown}`;
+	}
+
+	const { nodes: newBlocks } = markdownToTiptapDoc(rawMarkdown);
+	if (newBlocks.length === 0) {
+		return {
+			toolName: "insert_document_block",
+			summary: "插入失败：解析后的内容为空。",
+			items: [],
+			references: [],
+			isMutation: false,
+		};
+	}
+
+	// 2. Parse current document AST
+	let docJson: { type: string; content?: JSONContent[] };
+	try {
+		docJson = doc.content
+			? JSON.parse(doc.content)
+			: { type: "doc", content: [] };
+		if (!Array.isArray(docJson.content)) {
+			docJson.content = [];
+		}
+	} catch {
+		docJson = {
+			type: "doc",
+			content: markdownToTiptapDoc(doc.contentText || "").nodes,
+		};
+	}
+
+	// 3. Auto-snapshot before mutation
+	workbenchDb.createDocumentVersion({
+		documentId: id,
+		content: doc.content,
+		origin: "ai",
+		note: args.snapshotNote ?? `AI 插入${blockType}内容前自动备份`,
+	});
+
+	// 4. Locate insertion position by targetAnchor
+	let anchorIndex = -1;
+	const anchor = args.targetAnchor?.trim().toLowerCase();
+	if (anchor && position !== "append" && docJson.content) {
+		anchorIndex = docJson.content.findIndex((node) => {
+			const text = extractBlockText(node).toLowerCase();
+			return text.includes(anchor);
+		});
+	}
+
+	if (anchorIndex !== -1 && docJson.content) {
+		if (position === "before") {
+			docJson.content.splice(anchorIndex, 0, ...newBlocks);
+		} else {
+			// default 'after'
+			docJson.content.splice(anchorIndex + 1, 0, ...newBlocks);
+		}
+	} else {
+		// Append to end if anchor not found or position === 'append'
+		if (!docJson.content) docJson.content = [];
+		docJson.content.push(...newBlocks);
+	}
+
+	const updatedJsonString = JSON.stringify(docJson);
+	const updatedMarkdown = tiptapJsonToMarkdown(docJson);
+	const contentText = updatedMarkdown.replace(/!\[.*?\]\(.*?\)/g, "").trim();
+
+	workbenchDb.updateDocument(id, {
+		content: updatedJsonString,
+		contentText,
+	});
+
+	const locationDesc =
+		anchorIndex !== -1
+			? `在「${args.targetAnchor?.slice(0, 20)}…」${position === "before" ? "之前" : "之后"}`
+			: "在文章末尾追加";
+
+	return {
+		toolName: "insert_document_block",
+		summary: `✅ 已成功${locationDesc}插入 ${blockType} 内容，原文已更新！\n写入前已打版本快照，支持回滚。`,
+		items: [],
+		references: [],
+		isMutation: true,
+	};
+}
+
+export const insertDocumentBlockToolDef = toolDefinition({
+	name: "insert_document_block",
+	description:
+		"在当前文档的指定位置（如某段话前/后或文末）精确插入新段落、插图、Mermaid 架构图/流程图、小标题或引用。当用户要求配图、补充某段分析、加图表或插内容时必须调用此工具，绝不要调用 trigger_paragraph_rewrite 全篇重写！",
+	inputSchema: insertDocumentBlockInputSchema,
+});
+
+// ---------- edit_document_paragraph ----------
+
+export const editDocumentParagraphInputSchema = z.object({
+	documentId: z
+		.number()
+		.optional()
+		.describe("要修改段落的文档 ID。省略时自动定位当前活跃文档"),
+	targetParagraphSnippet: z
+		.string()
+		.describe("要修改的原段落关键文字特征或首句，用于定位目标段落"),
+	newParagraphContent: z
+		.string()
+		.describe("修改/润色后的新段落完整内容（Markdown 格式）"),
+	reason: z.string().optional().describe("修改的理由或优化点说明"),
+	snapshotNote: z
+		.string()
+		.optional()
+		.describe("写入前快照说明，默认「AI 定向修改段落前自动备份」"),
+});
+export type EditDocumentParagraphInput = z.infer<
+	typeof editDocumentParagraphInputSchema
+>;
+
+export function executeEditDocumentParagraph(
+	args: EditDocumentParagraphInput & { activeDocumentId?: number },
+): ToolExecutionResult {
+	const id = args.documentId ?? args.activeDocumentId;
+	if (!id) {
+		const recentDocs = workbenchDb.listDocuments(false);
+		if (recentDocs.length === 1) {
+			return executeEditDocumentParagraph({
+				...args,
+				documentId: recentDocs[0].id,
+			});
+		}
+		return {
+			toolName: "edit_document_paragraph",
+			summary: "修改失败：未指定 documentId 且当前无明确的活跃编辑文档。",
+			items: [],
+			references: [],
+			isMutation: false,
+		};
+	}
+
+	const doc = workbenchDb.getDocument(id);
+	if (!doc) {
+		return {
+			toolName: "edit_document_paragraph",
+			summary: `文档 ID=${id} 不存在，无法修改段落。`,
+			items: [],
+			references: [],
+			isMutation: false,
+		};
+	}
+
+	let docJson: { type: string; content?: JSONContent[] };
+	try {
+		docJson = doc.content
+			? JSON.parse(doc.content)
+			: { type: "doc", content: [] };
+		if (!Array.isArray(docJson.content)) {
+			docJson.content = [];
+		}
+	} catch {
+		docJson = {
+			type: "doc",
+			content: markdownToTiptapDoc(doc.contentText || "").nodes,
+		};
+	}
+
+	const snippet = args.targetParagraphSnippet.trim().toLowerCase();
+	if (!snippet || !docJson.content || docJson.content.length === 0) {
+		return {
+			toolName: "edit_document_paragraph",
+			summary: "修改失败：未提供目标段落特征文字或当前文档为空。",
+			items: [],
+			references: [],
+			isMutation: false,
+		};
+	}
+
+	const targetIndex = docJson.content.findIndex((node) => {
+		const text = extractBlockText(node).toLowerCase();
+		return text.includes(snippet);
+	});
+
+	if (targetIndex === -1) {
+		return {
+			toolName: "edit_document_paragraph",
+			summary: `未找到匹配「${args.targetParagraphSnippet.slice(0, 30)}…」的目标段落，请确认段落特征文字是否准确。`,
+			items: [],
+			references: [],
+			isMutation: false,
+		};
+	}
+
+	// Auto-snapshot before mutation
+	workbenchDb.createDocumentVersion({
+		documentId: id,
+		content: doc.content,
+		origin: "ai",
+		note: args.snapshotNote ?? "AI 定向修改段落前自动备份",
+	});
+
+	const { nodes: replacementNodes } = markdownToTiptapDoc(
+		args.newParagraphContent.trim(),
+	);
+	if (replacementNodes.length === 0) {
+		return {
+			toolName: "edit_document_paragraph",
+			summary: "修改失败：替换后的段落内容为空。",
+			items: [],
+			references: [],
+			isMutation: false,
+		};
+	}
+
+	docJson.content.splice(targetIndex, 1, ...replacementNodes);
+
+	const updatedJsonString = JSON.stringify(docJson);
+	const updatedMarkdown = tiptapJsonToMarkdown(docJson);
+	const contentText = updatedMarkdown.replace(/!\[.*?\]\(.*?\)/g, "").trim();
+
+	workbenchDb.updateDocument(id, {
+		content: updatedJsonString,
+		contentText,
+	});
+
+	return {
+		toolName: "edit_document_paragraph",
+		summary: `✅ 已成功定向修改目标段落（ID: ${id}）！${args.reason ? `\n优化说明：${args.reason}` : ""}\n写入前已自动打快照备份，可在版本历史中回滚。`,
+		items: [],
+		references: [],
+		isMutation: true,
+	};
+}
+
+export const editDocumentParagraphToolDef = toolDefinition({
+	name: "edit_document_paragraph",
+	description:
+		"定向替换/润色/修改指定的一个段落。通过提供原段落的特征关键句定位，并仅替换该段落内容，绝不影响其他未修改段落。当用户要求微调、润色某特定段落时必须调用此工具，严禁触发 trigger_paragraph_rewrite 全篇重写！",
+	inputSchema: editDocumentParagraphInputSchema,
 });

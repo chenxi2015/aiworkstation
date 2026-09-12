@@ -75,6 +75,7 @@ export function AiBubbleMenu({
 			if (
 				selection.empty ||
 				selection.to - selection.from < 2 ||
+				editor.isActive("codeBlock") ||
 				SuggestionController.detectActiveSuggestion(editor)
 			) {
 				setVisible(false);
