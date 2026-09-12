@@ -152,7 +152,17 @@ export async function generateAiBarTextRpc(
  * 流式请求 AI 改写内容并通过 SSE 实时逐块回调
  */
 export async function streamRewriteText(
-	params: { prompt: string; systemHint?: string; stylePreset?: string },
+	params: {
+		prompt: string;
+		systemHint?: string;
+		stylePreset?: string;
+		articleTitle?: string;
+		fullArticleContext?: string;
+		paragraphIndex?: number;
+		totalParagraphs?: number;
+		precedingText?: string;
+		followingText?: string;
+	},
 	handlers: {
 		onChunk: (delta: string, fullText: string) => void;
 		onDone: (fullText: string) => void;

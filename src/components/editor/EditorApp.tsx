@@ -1,3 +1,4 @@
+import { toast } from "@heroui/react";
 import type { Editor } from "@tiptap/react";
 import { FileText } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
@@ -8,6 +9,7 @@ import type { Folder } from "../workbench/types";
 import { DocumentHeader } from "./components/DocumentHeader";
 import { DocumentSidebar } from "./components/DocumentSidebar";
 import { EditorActionBar } from "./components/EditorActionBar";
+import { SplitCompareView } from "./components/SplitCompareView";
 import { DistributionModal } from "./DistributionModal";
 import { useDocumentExport } from "./hooks/useDocumentExport";
 import { useDocumentManager } from "./hooks/useDocumentManager";
@@ -74,9 +76,47 @@ export function EditorApp({
 	const [isDistributionModalOpen, setIsDistributionModalOpen] = useState(false);
 
 	const editorInstanceRef = useRef<Editor | null>(null);
+	const pipelineTriggerRef = useRef<
+		((instruction?: string) => Promise<void>) | null
+	>(null);
 	const pendingImportHtmlRef = useRef<{ docId: number; html: string } | null>(
 		null,
 	);
+
+	const [splitSession, setSplitSession] = useState<{
+		isOpen: boolean;
+		instruction?: string;
+	} | null>(null);
+
+	const handleStartRewritePipeline = useCallback(
+		async (instruction?: string) => {
+			if (!editorInstanceRef.current) {
+				toast.warning("编辑器未准备好");
+				return;
+			}
+			setSplitSession({
+				isOpen: true,
+				instruction,
+			});
+		},
+		[],
+	);
+
+	const handleAcceptSplitCompare = useCallback(
+		async (cleanDocJson: any) => {
+			if (!editorInstanceRef.current) return;
+			await handleBeforeAiApply();
+			editorInstanceRef.current.commands.setContent(cleanDocJson);
+			setSplitSession(null);
+			toast.success("已成功采纳改写成果，原文已更新！");
+		},
+		[handleBeforeAiApply],
+	);
+
+	const handleCancelSplitCompare = useCallback(() => {
+		setSplitSession(null);
+		toast.info("已退出改写比对，保留原文");
+	}, []);
 
 	// Bridge editor with the global AI side panel
 	useEditorAiBridge({
@@ -84,6 +124,8 @@ export function EditorApp({
 		editorRef: editorInstanceRef,
 		onBeforeAiApply: handleBeforeAiApply,
 		reloadDocuments,
+		onStartRewritePipeline: handleStartRewritePipeline,
+		flushSave: docManager.flushSave,
 	});
 
 	const handleEditorReady = useCallback(
@@ -137,13 +179,19 @@ export function EditorApp({
 					documents={documents}
 					loading={loading}
 					activeId={activeId}
-					onSelect={(id) => void switchDocument(id)}
-					onCreate={() => void handleCreate()}
+					onSelect={(id) => {
+						setSplitSession(null);
+						void switchDocument(id);
+					}}
+					onCreate={() => {
+						setSplitSession(null);
+						void handleCreate();
+					}}
 					onDelete={handleDelete}
 					onOpenImport={() => setIsImportModalOpen(true)}
 				/>
 
-				{/* Center: Title + Editor + Bottom actions */}
+				{/* Center: Title + Editor + Bottom actions or Split Diff View */}
 				<section className="flex-1 flex flex-col min-w-0 min-h-0">
 					{!activeDoc && !loading && (
 						<div className="flex-1 flex items-center justify-center">
@@ -158,43 +206,71 @@ export function EditorApp({
 					)}
 					{activeDoc && (
 						<>
-							<DocumentHeader
-								activeDoc={activeDoc}
-								stylePresets={stylePresets}
-								onTitleChange={handleTitleChange}
-								onStylePresetChange={handleStylePresetChange}
-								onOpenStylePresetModal={() => setIsStylePresetModalOpen(true)}
-							/>
-							<RichTextEditor
-								key={activeDoc.id}
-								docId={activeDoc.id}
-								initialContent={activeDoc.content}
-								onChange={handleEditorChange}
-								onAiGenerate={handleAiGenerate}
-								onBeforeAiApply={handleBeforeAiApply}
-								onEditorReady={handleEditorReady}
-								onOpenImport={() => setIsImportModalOpen(true)}
-							/>
-							<EditorActionBar
-								activeDoc={activeDoc}
-								wordCount={wordCount}
-								saveState={saveState}
-								savedAt={savedAt}
-								contentText={contentText}
-								currentMarkdown={currentMarkdown}
-								onSnapshot={() => void handleSnapshot()}
-								onToggleFinalized={() =>
-									void handleStatusChange(
-										activeDoc.status === "finalized" ? "editing" : "finalized",
-									)
+							{splitSession?.isOpen && editorInstanceRef.current ? (
+								<SplitCompareView
+									key={`split_${activeDoc.id}`}
+									leftEditor={editorInstanceRef.current}
+									docTitle={activeDoc.title}
+									docId={activeDoc.id}
+									stylePreset={activeDoc.stylePreset}
+									instruction={splitSession.instruction}
+									onAccept={handleAcceptSplitCompare}
+									onCancel={handleCancelSplitCompare}
+								/>
+							) : null}
+							<div
+								className={
+									splitSession?.isOpen
+										? "hidden"
+										: "flex-1 flex flex-col min-h-0"
 								}
-								onCopyText={copyText}
-								onExportWord={handleExportWord}
-								onExportMarkdown={handleExportMarkdown}
-								onExportHtml={handleExportHtml}
-								onExportPdf={handleExportPdf}
-								onOpenDistribution={() => setIsDistributionModalOpen(true)}
-							/>
+							>
+								<DocumentHeader
+									activeDoc={activeDoc}
+									stylePresets={stylePresets}
+									onTitleChange={handleTitleChange}
+									onStylePresetChange={handleStylePresetChange}
+									onOpenStylePresetModal={() => setIsStylePresetModalOpen(true)}
+								/>
+								<RichTextEditor
+									key={activeDoc.id}
+									docId={activeDoc.id}
+									docTitle={activeDoc.title}
+									stylePreset={activeDoc.stylePreset}
+									initialContent={activeDoc.content}
+									onChange={handleEditorChange}
+									onAiGenerate={handleAiGenerate}
+									onBeforeAiApply={handleBeforeAiApply}
+									onEditorReady={handleEditorReady}
+									onOpenImport={() => setIsImportModalOpen(true)}
+									onOpenSplitRewrite={() => void handleStartRewritePipeline()}
+									onRegisterPipeline={(trigger) => {
+										pipelineTriggerRef.current = trigger;
+									}}
+								/>
+								<EditorActionBar
+									activeDoc={activeDoc}
+									wordCount={wordCount}
+									saveState={saveState}
+									savedAt={savedAt}
+									contentText={contentText}
+									currentMarkdown={currentMarkdown}
+									onSnapshot={() => void handleSnapshot()}
+									onToggleFinalized={() =>
+										void handleStatusChange(
+											activeDoc.status === "finalized"
+												? "editing"
+												: "finalized",
+										)
+									}
+									onCopyText={copyText}
+									onExportWord={handleExportWord}
+									onExportMarkdown={handleExportMarkdown}
+									onExportHtml={handleExportHtml}
+									onExportPdf={handleExportPdf}
+									onOpenDistribution={() => setIsDistributionModalOpen(true)}
+								/>
+							</div>
 						</>
 					)}
 				</section>

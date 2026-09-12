@@ -221,6 +221,7 @@ export function ChatMessageList({
 						scopeMode={scopeMode}
 						onSelectPrompt={onSelectPrompt}
 						globalPrompts={modulePrompts}
+						pageBridge={pageBridge}
 					/>
 				)}
 

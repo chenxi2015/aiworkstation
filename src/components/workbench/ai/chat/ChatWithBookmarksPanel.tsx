@@ -124,10 +124,18 @@ export const ChatWithBookmarksPanel = forwardRef<
 		onDataMutated: () => {
 			onDataChanged?.();
 		},
+		onTriggerRewritePipeline: (instruction) => {
+			const rewriteAct = pageBridge?.actions.find(
+				(a) => a.id === "stream_full_rewrite",
+			);
+			if (rewriteAct) {
+				void rewriteAct.onAction(instruction || "");
+			}
+		},
 	});
 
 	// Helper to send prompts with active scope options
-	const handleSendPrompt = (
+	const handleSendPrompt = async (
 		prompt?: string,
 		options?: {
 			newChat?: boolean;
@@ -139,6 +147,15 @@ export const ChatWithBookmarksPanel = forwardRef<
 			activeDocumentId?: number | null;
 		},
 	) => {
+		// Flush any pending unsaved document changes so AI reads full up-to-date text
+		if (pageBridge?.flushSave) {
+			try {
+				await pageBridge.flushSave();
+			} catch (err) {
+				console.warn("[ChatWithBookmarksPanel] flushSave failed:", err);
+			}
+		}
+
 		const folderScope =
 			scopeMode === "folder" && selectedFolder
 				? { folderId: selectedFolder.id, folderName: selectedFolder.name }

@@ -1,5 +1,6 @@
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
+import { tiptapJsonToMarkdown } from "../../../components/editor/markdown.ts";
 import { workbenchDb } from "../../db/sqlite.ts";
 import type { ToolExecutionResult } from "./types.ts";
 
@@ -55,11 +56,21 @@ export function executeReadDocument(
 			isMutation: false,
 		};
 	}
-	const wordCount = doc.contentText?.length ?? 0;
-	const preview = doc.contentText?.slice(0, 500) ?? "(空文档)";
-	const previewSuffix = wordCount > 500 ? `\n…（共 ${wordCount} 字）` : "";
+	let markdownContent = "";
+	if (doc.content) {
+		try {
+			const parsed = JSON.parse(doc.content);
+			markdownContent = tiptapJsonToMarkdown(parsed);
+		} catch {
+			markdownContent = doc.contentText || "";
+		}
+	} else {
+		markdownContent = doc.contentText || "";
+	}
 
-	const summary = `## 文档「${doc.title}」\n- **状态**: ${doc.status}  **风格**: ${doc.stylePreset || "无"}\n- **字数**: ${wordCount} 字  **更新**: ${doc.updatedAt ?? "-"}\n\n### 内容预览\n${preview}${previewSuffix}`;
+	const wordCount = doc.contentText?.length ?? markdownContent.length;
+
+	const summary = `## 文档「${doc.title}」\n- **状态**: ${doc.status}  **风格**: ${doc.stylePreset || "无"}\n- **字数**: ${wordCount} 字  **更新**: ${doc.updatedAt ?? "-"}\n\n### 完整正文（含图片/视频标记）\n${markdownContent || "(空文档)"}`;
 
 	return {
 		toolName: "read_document",
@@ -190,13 +201,48 @@ export async function executeRewriteDocument(
 		note: args.snapshotNote ?? "AI 改写前自动备份",
 	});
 
-	// Write new content as plain text (wrapped in TipTap paragraph nodes)
+	// Write new content by parsing markdown blocks (preserving images, videos, headings)
 	const newContentText = args.newContent;
-	const paragraphs = newContentText
-		.split("\n")
-		.filter((l) => l.trim())
-		.map((text) => ({ type: "paragraph", content: [{ type: "text", text }] }));
-	const newJson = JSON.stringify({ type: "doc", content: paragraphs });
+	const lines = newContentText.split("\n").filter((l) => l.trim().length > 0);
+	const nodes = lines.map((line) => {
+		const trimmed = line.trim();
+		// 1. Image: ![alt](url)
+		const imgMatch = trimmed.match(
+			/^!\[(.*?)\]\((https?:\/\/[^\s)]+|\/api\/files\/[^\s)]+)\)$/,
+		);
+		if (imgMatch) {
+			return {
+				type: "image",
+				attrs: { src: imgMatch[2], alt: imgMatch[1] || "" },
+			};
+		}
+		// 2. Video: [▶ 视频](url) or similar
+		const videoMatch = trimmed.match(
+			/^\[(?:▶\s*|🎥\s*)?(?:.*?视频|video).*?\]\((https?:\/\/[^\s)]+|\/api\/files\/[^\s)]+)\)$/,
+		);
+		if (videoMatch) {
+			return {
+				type: "video",
+				attrs: { src: videoMatch[1] },
+			};
+		}
+		// 3. Heading: # Heading
+		const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
+		if (headingMatch) {
+			return {
+				type: "heading",
+				attrs: { level: headingMatch[1].length },
+				content: [{ type: "text", text: headingMatch[2] }],
+			};
+		}
+		// 4. Default paragraph
+		return {
+			type: "paragraph",
+			content: [{ type: "text", text: trimmed }],
+		};
+	});
+
+	const newJson = JSON.stringify({ type: "doc", content: nodes });
 
 	workbenchDb.updateDocument(args.documentId, {
 		content: newJson,
@@ -217,4 +263,37 @@ export const rewriteDocumentToolDef = toolDefinition({
 	description:
 		"【需人工批准 needsApproval】按指令改写创作模块中的文档全文或指定段落。改写前自动打版本快照（origin=ai），支持回滚。仅在用户明确同意后执行写入。",
 	inputSchema: rewriteDocumentInputSchema,
+});
+
+// ---------- trigger_paragraph_rewrite ----------
+
+export const triggerParagraphRewriteInputSchema = z.object({
+	instruction: z
+		.string()
+		.describe(
+			"提炼后的精细润色/改写/精简要求与原则，将直接注入正文逐段流式改写流水线中（例如：保留事实，精简铺垫，提升表述质感）",
+		),
+	strategySummary: z.string().describe("针对当前文章的结构诊断与优化策略简述"),
+});
+export type TriggerParagraphRewriteInput = z.infer<
+	typeof triggerParagraphRewriteInputSchema
+>;
+
+export function executeTriggerParagraphRewrite(
+	args: TriggerParagraphRewriteInput,
+): ToolExecutionResult {
+	return {
+		toolName: "trigger_paragraph_rewrite",
+		summary: `已在编辑器中启动逐段流式精修流水线：${args.strategySummary}（指令：${args.instruction}）`,
+		items: [],
+		references: [],
+		isMutation: false,
+	};
+}
+
+export const triggerParagraphRewriteToolDef = toolDefinition({
+	name: "trigger_paragraph_rewrite",
+	description:
+		"在当前富文本编辑器中启动【逐段流式精修流水线】。当用户要求润色、改写、精简、扩写、调整文风时必须调用此工具。大模型先在回复中给出篇章诊断与修改意图，再调用本工具协同前端在正文中逐段流式生成并提供 Diff 审阅。严禁直接覆写数据库！",
+	inputSchema: triggerParagraphRewriteInputSchema,
 });

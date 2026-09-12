@@ -5,6 +5,30 @@ export interface EditorRewriteStreamParams {
 	prompt: string;
 	systemHint?: string;
 	stylePreset?: string;
+	articleTitle?: string;
+	fullArticleContext?: string;
+	paragraphIndex?: number;
+	totalParagraphs?: number;
+	precedingText?: string;
+	followingText?: string;
+}
+
+/**
+ * Strips accidental LLM meta-chatter or explanation lines
+ */
+function stripMetaChatter(text: string): string {
+	let cleaned = text.trim();
+	// Remove leading common AI preambles
+	cleaned = cleaned.replace(
+		/^(好的[，,！!]?|好的，我来为你.*?[：:\n]|根据你的要求[，,].*?[：:\n]|为您润色如下[：:\n]|你未附完整现稿.*?[：:\n]|我先按.*?压缩如下[：:\n])/i,
+		"",
+	).trim();
+	// Remove trailing meta notes like "如需全篇...请发来"
+	cleaned = cleaned.replace(
+		/(\n\s*(如需全篇|若需更多|以上是针对|如有其他需求).*$)/s,
+		"",
+	).trim();
+	return cleaned;
 }
 
 /**
@@ -59,10 +83,40 @@ export async function handleEditorRewriteStreamRequest(
 
 		const adapter = openaiCompatibleText(model, { baseURL: baseUrl, apiKey });
 		const presetPrompt = resolveEditorPresetPrompt(params.stylePreset);
+
+		let contextSection = "";
+		if (
+			params.articleTitle ||
+			params.totalParagraphs ||
+			params.precedingText ||
+			params.followingText
+		) {
+			contextSection = "\n\n【文章全篇脉络与上下文】：";
+			if (params.articleTitle) {
+				contextSection += `\n- 文章标题：《${params.articleTitle}》`;
+			}
+			if (params.paragraphIndex && params.totalParagraphs) {
+				contextSection += `\n- 进度定位：全篇共 ${params.totalParagraphs} 段，当前正在改写第 ${params.paragraphIndex} 段。请保证与前后文承接自然。`;
+			}
+			if (params.precedingText) {
+				contextSection += `\n- 上一段内容（仅供承上启下参考，严禁重复输出）："""\n${params.precedingText.slice(0, 500)}\n"""`;
+			}
+			if (params.followingText) {
+				contextSection += `\n- 下一段内容（仅供逻辑参考，严禁重复输出）："""\n${params.followingText.slice(0, 500)}\n"""`;
+			}
+		}
+
+		const strictRules = `\n\n【输出铁律（恪守不渝）】：
+1. 你的任务是仅针对【当前段落】进行精细改写/润色/精简。
+2. 严禁输出任何问候、开场白、确认语、解释或前后缀说明（例如严禁输出“你未附完整现稿”、“好的”、“我为你优化如下”、“如需全篇请发来”等）！
+3. 直接输出改写后的正文段落内容，绝不要添加任何 Markdown 引用块包装或多余闲话！`;
+
+		const baseHint =
+			params.systemHint ||
+			"你是一名专业中文写作助手。请对给定的一段正文进行精细润色与优化。保持原意与事实，提升修辞、逻辑连贯性与表达质感。";
+
 		const systemPrompt =
-			(params.systemHint ||
-				"你是一名专业中文写作助手。直接输出改写后的内容，不要加前缀说明，不要输出任何多余的引言。") +
-			presetPrompt;
+			baseHint + presetPrompt + contextSection + strictRules;
 
 		const stream = await chat({
 			adapter,
@@ -89,7 +143,10 @@ export async function handleEditorRewriteStreamRequest(
 		}
 
 		if (!res.writableEnded && !res.closed) {
-			res.write(`data: ${JSON.stringify({ type: "done", fullText })}\n\n`);
+			const sanitizedText = stripMetaChatter(fullText);
+			res.write(
+				`data: ${JSON.stringify({ type: "done", fullText: sanitizedText })}\n\n`,
+			);
 		}
 	} catch (err: unknown) {
 		const errMsg = err instanceof Error ? err.message : String(err);

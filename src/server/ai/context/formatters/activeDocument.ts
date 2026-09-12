@@ -1,8 +1,9 @@
+import { tiptapJsonToMarkdown } from "../../../../components/editor/markdown.ts";
 import { workbenchDb } from "../../../db/sqlite.ts";
 
 /**
  * Build a detailed active-document context block for injection into the system prompt.
- * Returns empty string when no activeDocumentId is provided or document is not found.
+ * Preserves full Markdown formatting including images and videos.
  */
 export function resolveActiveDocumentPrompt(
 	activeDocumentId: number | undefined | null,
@@ -12,9 +13,20 @@ export function resolveActiveDocumentPrompt(
 	const doc = workbenchDb.getDocument(activeDocumentId);
 	if (!doc) return "";
 
-	const wordCount = doc.contentText?.length ?? 0;
-	const preview = (doc.contentText || "").slice(0, 1000) || "(空文档/暂无文字)";
-	const previewSuffix = wordCount > 1000 ? `\n…（共 ${wordCount} 字）` : "";
+	let markdownContent = "";
+	if (doc.content) {
+		try {
+			const parsed = JSON.parse(doc.content);
+			markdownContent = tiptapJsonToMarkdown(parsed);
+		} catch {
+			markdownContent = doc.contentText || "";
+		}
+	} else {
+		markdownContent = doc.contentText || "";
+	}
+
+	const wordCount = doc.contentText?.length ?? markdownContent.length;
+	const preview = markdownContent || "(空文档/暂无文字)";
 
 	return `\n- 【当前正在编辑的活跃文档（用户当前屏幕聚焦，最高优先级）】:
   - 文档 ID: ${doc.id}
@@ -22,10 +34,10 @@ export function resolveActiveDocumentPrompt(
   - 状态: ${doc.status} | 风格: ${doc.stylePreset || "默认"}
   - 当前字数: ${wordCount} 字
   - 更新时间: ${doc.updatedAt ?? "-"}
-  - 正文摘要预览:
+  - 完整正文（包含标题、段落、图片 ![alt](url)、视频 [▶ 视频](url)）:
 """
-${preview}${previewSuffix}
+${preview}
 """
-  💡 提示：用户的提问默认针对此篇文档展开。你可以直接参考上述正文进行理解与回答；若需要读取更长正文或进行深入解析，请调用 read_document 工具（可省略 documentId 或传入 ${doc.id}）。
-  ⚠️ 核心约束：本文档由系统内置 SQLite 数据库托管，【磁盘中不存在任何对应的文件路径（如 ~/.aiworkstation 等不存在）】！严禁猜测路径或调用文件系统工具寻找文档！`;
+  💡 提示：用户的提问默认针对此篇文档展开。文档包含多媒体标记，改写时请务必保留原有图片与视频链接！若需检索或盘点历史文档，请使用对应工具。
+  ⚠️ 核心约束：本文档由系统内置 SQLite 数据库托管，【磁盘中不存在任何对应的文件路径】！严禁猜测路径或调用文件系统工具寻找文档！`;
 }

@@ -6,13 +6,13 @@
 import {
 	executeListDocuments,
 	executeReadDocument,
-	executeRewriteDocument,
+	executeTriggerParagraphRewrite,
 	listDocumentsToolDef,
 	readDocumentToolDef,
-	rewriteDocumentToolDef,
+	triggerParagraphRewriteToolDef,
 } from "./tools/documentTools.ts";
-import type { BookmarkToolHooks } from "./tools/types.ts";
 import { wrapExecution } from "./tools/index.ts";
+import type { BookmarkToolHooks } from "./tools/types.ts";
 
 export * from "./tools/documentTools.ts";
 
@@ -43,13 +43,13 @@ export function createEditorServerTools(
 				hooks,
 			),
 		),
-		// rewrite_document is marked needsApproval — the client-side tool approval
-		// flow will gate execution; server impl executes only after user confirms.
-		rewriteDocumentToolDef.server((args) =>
+		// Trigger client-side paragraph streaming rewrite pipeline in Tiptap editor
+		// Saves document changes in editor natively with rich diffs, never overwriting DB directly.
+		triggerParagraphRewriteToolDef.server((args) =>
 			wrapExecution(
-				"rewrite_document",
+				"trigger_paragraph_rewrite",
 				args,
-				() => executeRewriteDocument(args),
+				() => executeTriggerParagraphRewrite(args),
 				hooks,
 			),
 		),

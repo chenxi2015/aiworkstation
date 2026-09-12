@@ -21,6 +21,7 @@ export interface UseAiChatOptions {
 	onMessageSent?: () => void;
 	onResponseReceived?: () => void;
 	onDataMutated?: () => void;
+	onTriggerRewritePipeline?: (instruction?: string) => void;
 }
 
 /**
@@ -331,6 +332,13 @@ export function useAiChat(options?: UseAiChatOptions) {
 					},
 					{
 						onStepStart: (step) => {
+							if (step.toolName === "trigger_paragraph_rewrite") {
+								const instruction =
+									typeof step.args?.instruction === "string"
+										? step.args.instruction
+										: undefined;
+								options?.onTriggerRewritePipeline?.(instruction);
+							}
 							setMessages((prev) => {
 								const last = prev[prev.length - 1];
 								if (!last || last.role !== "assistant") return prev;

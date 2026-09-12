@@ -30,4 +30,6 @@ export interface PageBridge {
 	activeDocumentId?: number | null;
 	/** Title of the document currently active in the page */
 	activeDocumentTitle?: string | null;
+	/** Optional callback to flush unsaved editor changes to backend before querying AI */
+	flushSave?: () => Promise<void>;
 }

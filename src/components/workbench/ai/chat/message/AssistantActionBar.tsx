@@ -20,7 +20,7 @@ export const AssistantActionBar = memo(function AssistantActionBar({
 	content,
 	index,
 	isLoading,
-	pageBridge,
+	pageBridge: _pageBridge,
 	onResend,
 	onDelete,
 	onStartSelectDelete,
@@ -35,40 +35,7 @@ export const AssistantActionBar = memo(function AssistantActionBar({
 	};
 
 	return (
-		<div className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center gap-1 text-muted text-xs pt-1 flex-wrap">
-			{/* Module-specific page bridge actions (e.g. Editor: Insert at cursor, Replace selection) */}
-			{pageBridge && pageBridge.actions.length > 0 && (
-				<div className="flex items-center gap-1 mr-1 pr-1 border-r border-border/60">
-					{pageBridge.actions.map((act) => {
-						const Icon = act.icon;
-						return (
-							<Tooltip key={act.id}>
-								<Tooltip.Trigger>
-									<button
-										type="button"
-										onClick={() => void act.onAction(content)}
-										className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
-											act.variant === "accent"
-												? "bg-accent/15 text-accent hover:bg-accent/25"
-												: "bg-surface-secondary hover:bg-surface-secondary/80 text-foreground hover:text-accent border border-border/60"
-										}`}
-										aria-label={act.label}
-									>
-										{Icon && <Icon className="w-3 h-3 shrink-0" />}
-										<span>{act.label}</span>
-									</button>
-								</Tooltip.Trigger>
-								{act.tooltip && (
-									<Tooltip.Content className="text-[10px] py-0.5 px-1.5">
-										{act.tooltip}
-									</Tooltip.Content>
-								)}
-							</Tooltip>
-						);
-					})}
-				</div>
-			)}
-
+		<div className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center gap-1 text-muted text-xs pt-1">
 			{/* Copy full answer */}
 			<Tooltip>
 				<Tooltip.Trigger>

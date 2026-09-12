@@ -30,6 +30,8 @@ export interface AiBubbleMenuProps {
 	extraActions?: AiBarAction[];
 	/** Server function for AI text generation */
 	onGenerate?: (prompt: string) => Promise<string>;
+	/** Whether full-document paragraph pipeline is actively streaming */
+	isPipelineRunning?: boolean;
 }
 
 /**
@@ -41,6 +43,7 @@ export function AiBubbleMenu({
 	onBeforeApply,
 	extraActions = [],
 	onGenerate,
+	isPipelineRunning = false,
 }: AiBubbleMenuProps) {
 	const [visible, setVisible] = useState(false);
 	const [pos, setPos] = useState<FloatPos>({ top: 0, left: 0 });
@@ -192,6 +195,7 @@ export function AiBubbleMenu({
 							const finalized = SuggestionController.finalizeStreaming(
 								editor,
 								suggestionId,
+								{ from, to },
 								selection,
 								fullText,
 							);
@@ -221,6 +225,7 @@ export function AiBubbleMenu({
 						SuggestionController.finalizeStreaming(
 							editor,
 							suggestionId,
+							{ from, to },
 							selection,
 							accumulated,
 						);
@@ -296,7 +301,19 @@ export function AiBubbleMenu({
 	useEffect(() => {
 		const syncSuggestionState = () => {
 			const detected = SuggestionController.detectActiveSuggestion(editor);
-			setActiveSuggestion(detected);
+			setActiveSuggestion((prev) => {
+				if (!prev && !detected) return null;
+				if (
+					prev &&
+					detected &&
+					prev.id === detected.id &&
+					prev.from === detected.from &&
+					prev.to === detected.to
+				) {
+					return prev;
+				}
+				return detected;
+			});
 			if (detected) {
 				const coords = SuggestionController.getFloatingCoordinates(
 					editor,
@@ -418,7 +435,7 @@ export function AiBubbleMenu({
 		<>
 			{panel && createPortal(panel, document.body)}
 			<AiSuggestionReviewBar
-				visible={Boolean(activeSuggestion)}
+				visible={Boolean(activeSuggestion) && !isPipelineRunning}
 				position={suggestionPos}
 				isStreaming={isStreaming}
 				onAccept={handleAcceptSuggestion}

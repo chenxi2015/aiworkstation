@@ -43,7 +43,8 @@ export const SuggestionController = {
 	},
 
 	/**
-	 * Start a streaming suggestion in editor
+	 * Start a streaming suggestion in editor directly beneath the target paragraph block.
+	 * Keeps original text clean and untouched during streaming.
 	 */
 	startStreaming(
 		editor: Editor,
@@ -51,42 +52,37 @@ export const SuggestionController = {
 		_oldText: string,
 		suggestionId = `sug_${Date.now()}`,
 	): ActiveSuggestionInfo | null {
-		const { from, to } = range;
+		const { to } = range;
 		const { state, view } = editor;
 		const { tr } = state;
 
-		// 1. Mark original text with suggestionDelete
-		if (from < to) {
-			const deleteMark = state.schema.marks.suggestionDelete?.create({
-				suggestionId,
-			});
-			if (deleteMark) {
-				tr.addMark(from, to, deleteMark);
-			}
-		}
-
-		// 2. Insert initial empty streaming paragraph with insert mark
+		// 1. Insert initial streaming paragraph directly after target block with isStreaming flag
 		const insertMark = state.schema.marks.suggestionInsert?.create({
 			suggestionId,
+			isStreaming: true,
 		});
 		const initialTextNode = state.schema.text(
 			"▍",
 			insertMark ? [insertMark] : [],
 		);
-		tr.insert(to, initialTextNode);
+		const streamingParagraph = state.schema.nodes.paragraph.create(
+			null,
+			initialTextNode,
+		);
 
+		tr.insert(to, streamingParagraph);
 		view.dispatch(tr);
 
 		return {
 			id: suggestionId,
-			from,
-			to: to + initialTextNode.nodeSize,
+			from: to,
+			to: to + streamingParagraph.nodeSize,
 			isStreaming: true,
 		};
 	},
 
 	/**
-	 * Update streaming suggestion content during streaming
+	 * Update streaming suggestion content word by word during streaming
 	 */
 	updateStreaming(
 		editor: Editor,
@@ -96,7 +92,7 @@ export const SuggestionController = {
 		const { state, view } = editor;
 		const { doc, tr } = state;
 
-		// Find the range of the current streamed text (has suggestionInsert mark)
+		// Find the range of the current streamed text
 		let insertFrom = -1;
 		let insertTo = -1;
 
@@ -117,26 +113,13 @@ export const SuggestionController = {
 
 		const insertMark = state.schema.marks.suggestionInsert?.create({
 			suggestionId,
+			isStreaming: true,
 		});
 		const marks = insertMark ? [insertMark] : [];
 
-		const lines = streamedText.split("\n");
-		if (lines.length === 1) {
-			const textNode = state.schema.text(`${lines[0]}▍`, marks);
-			tr.replaceWith(insertFrom, insertTo, textNode);
-		} else {
-			const nodes = lines.map((line, idx) => {
-				const isLast = idx === lines.length - 1;
-				const content = isLast ? `${line}▍` : line;
-				return content.trim()
-					? state.schema.nodes.paragraph.create(
-							null,
-							state.schema.text(content, marks),
-						)
-					: state.schema.nodes.paragraph.create();
-			});
-			tr.replaceWith(insertFrom, insertTo, nodes);
-		}
+		const content = `${streamedText || ""}▍`;
+		const textNode = state.schema.text(content, marks);
+		tr.replaceWith(insertFrom, insertTo, textNode);
 
 		if (tr.docChanged) {
 			view.dispatch(tr);
@@ -144,42 +127,45 @@ export const SuggestionController = {
 	},
 
 	/**
-	 * Finalize streaming suggestion with fine-grained diff
+	 * Finalize streaming suggestion: convert original text and completed stream into fine-grained diff
 	 */
 	finalizeStreaming(
 		editor: Editor,
 		suggestionId: string,
+		oldRange: { from: number; to: number },
 		oldText: string,
 		finalNewText: string,
 	): ActiveSuggestionInfo | null {
 		const { state, view } = editor;
 		const { doc, tr } = state;
 
-		// Find the full span of this suggestion (both delete and insert ranges)
-		let minPos = Infinity;
-		let maxPos = -1;
+		// Find the end boundary of the streaming paragraph
+		let streamEndPos = oldRange.to;
 
 		doc.descendants((node, pos) => {
 			if (!node.isText) return;
 			const isMatch = node.marks.some(
 				(m) =>
-					(m.type.name === "suggestionDelete" ||
-						m.type.name === "suggestionInsert") &&
+					m.type.name === "suggestionInsert" &&
 					m.attrs.suggestionId === suggestionId,
 			);
 			if (isMatch) {
-				minPos = Math.min(minPos, pos);
-				maxPos = Math.max(maxPos, pos + node.nodeSize);
+				streamEndPos = Math.max(streamEndPos, pos + node.nodeSize);
 			}
 		});
 
-		if (minPos === Infinity || maxPos === -1) return null;
+		// Find the enclosing block end of streamEndPos if it's inside a paragraph
+		const $streamEnd = doc.resolve(Math.min(streamEndPos, doc.content.size));
+		const replaceEnd =
+			$streamEnd.parent.isBlock && $streamEnd.depth > 0
+				? $streamEnd.after()
+				: streamEndPos;
 
-		// Replace the entire temporary range with fine-grained diff
+		// Replace original paragraph + streaming paragraph with fine-grained diff
 		const segments = computeFineDiff(oldText, finalNewText);
 		const nodes = buildNodesFromDiff(state.schema, segments, suggestionId);
 
-		tr.replaceWith(minPos, maxPos, nodes);
+		tr.replaceWith(oldRange.from, replaceEnd, nodes);
 
 		if (tr.docChanged) {
 			view.dispatch(tr);
@@ -187,20 +173,22 @@ export const SuggestionController = {
 
 		return {
 			id: suggestionId,
-			from: minPos,
-			to: minPos + nodes.reduce((sum, n) => sum + n.nodeSize, 0),
+			from: oldRange.from,
+			to: oldRange.from + nodes.reduce((sum, n) => sum + n.nodeSize, 0),
 			isStreaming: false,
 		};
 	},
 
 	/**
-	 * Detect if there is any active suggestion mark in the document
+	 * Detect if there is any active suggestion mark ready for review in the document
+	 * Ignores in-progress streaming marks to prevent premature popups
 	 */
 	detectActiveSuggestion(editor: Editor): ActiveSuggestionInfo | null {
 		const { doc } = editor.state;
 		let foundId: string | null = null;
 		let minPos = Infinity;
 		let maxPos = -1;
+		let hasStreamingMark = false;
 
 		doc.descendants((node, pos) => {
 			if (!node.isText) return;
@@ -209,6 +197,9 @@ export const SuggestionController = {
 					mark.type.name === "suggestionDelete" ||
 					mark.type.name === "suggestionInsert"
 				) {
+					if (mark.attrs.isStreaming) {
+						hasStreamingMark = true;
+					}
 					foundId = mark.attrs.suggestionId || "default";
 					minPos = Math.min(minPos, pos);
 					maxPos = Math.max(maxPos, pos + node.nodeSize);
@@ -216,7 +207,8 @@ export const SuggestionController = {
 			}
 		});
 
-		if (!foundId || maxPos === -1) return null;
+		// Do not return active suggestion if actively streaming or not found
+		if (!foundId || maxPos === -1 || hasStreamingMark) return null;
 
 		return {
 			id: foundId,

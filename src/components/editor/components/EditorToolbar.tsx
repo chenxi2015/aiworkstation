@@ -20,6 +20,7 @@ import {
 	PencilLine,
 	Quote,
 	Redo2,
+	Sparkles,
 	Strikethrough,
 	Table as TableIcon,
 	Underline as UnderlineIcon,
@@ -76,6 +77,7 @@ export interface EditorToolbarProps {
 	onInsertImageUrl: () => void;
 	onInsertVideoUrl: () => void;
 	onOpenImport?: () => void;
+	onOpenSplitRewrite?: () => void;
 }
 
 /**
@@ -91,6 +93,7 @@ export function EditorToolbar({
 	onInsertImageUrl,
 	onInsertVideoUrl,
 	onOpenImport,
+	onOpenSplitRewrite,
 }: EditorToolbarProps) {
 	const setLink = () => {
 		const previousUrl = editor.getAttributes("link").href;
@@ -335,6 +338,17 @@ export function EditorToolbar({
 						</button>
 					)}
 					<Divider />
+					{onOpenSplitRewrite && (
+						<button
+							type="button"
+							onClick={onOpenSplitRewrite}
+							className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-accent bg-accent/10 hover:bg-accent/20 rounded-md transition-colors cursor-pointer"
+							title="启动 AI 双栏智能改写与差异对比"
+						>
+							<Sparkles className="w-3.5 h-3.5" />
+							<span>AI 改写比对</span>
+						</button>
+					)}
 					<ToolButton
 						icon={Eye}
 						label="预览"

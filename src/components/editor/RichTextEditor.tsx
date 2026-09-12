@@ -1,17 +1,23 @@
 import { type Editor, EditorContent } from "@tiptap/react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AiBubbleMenu } from "./AiBubbleMenu";
 import { EditorToolbar } from "./components/EditorToolbar";
+import { PipelineProgressFloatingBar } from "./components/PipelineProgressFloatingBar";
 import { ScrollToTopButton } from "./components/ScrollToTopButton";
 import { SlashCommandMenu } from "./components/SlashCommandMenu";
 import { TableActionMenu } from "./components/TableActionMenu";
 import { EditorMediaContext } from "./extensions/MediaNodeView";
 import { useEditorMediaUpload } from "./hooks/useEditorMediaUpload";
+import { useParagraphRewritePipeline } from "./hooks/useParagraphRewritePipeline";
 import { useRichTextEditor } from "./hooks/useRichTextEditor";
 
 export interface RichTextEditorProps {
 	/** 文档 id（媒体上传需要） */
 	docId: number;
+	/** 文档标题（AI 篇章上下文参考） */
+	docTitle?: string;
+	/** 文档风格预设（AI 润色/改写参考） */
+	stylePreset?: string;
 	/** TipTap JSON 字符串（初始内容；组件以 docId 为 key 重挂载，不做增量同步） */
 	initialContent: string;
 	/** 内容变化回调（父组件负责防抖落库） */
@@ -24,6 +30,12 @@ export interface RichTextEditorProps {
 	onEditorReady?: (editor: Editor | null) => void;
 	/** 点击顶部工具栏导入按钮回调 */
 	onOpenImport?: () => void;
+	/** 启动分屏改写对比视图 */
+	onOpenSplitRewrite?: () => void;
+	/** 暴露段落流水线触发器给父组件（用于 AI 侧边栏跨模块触发） */
+	onRegisterPipeline?: (
+		trigger: (instruction?: string) => Promise<void>,
+	) => void;
 }
 
 /**
@@ -32,12 +44,16 @@ export interface RichTextEditorProps {
  */
 export function RichTextEditor({
 	docId,
+	docTitle,
+	stylePreset,
 	initialContent,
 	onChange,
 	onAiGenerate,
 	onBeforeAiApply,
 	onEditorReady,
 	onOpenImport,
+	onOpenSplitRewrite,
+	onRegisterPipeline,
 }: RichTextEditorProps) {
 	const [preview, setPreview] = useState(false);
 	const [showScrollTop, setShowScrollTop] = useState(false);
@@ -59,6 +75,18 @@ export function RichTextEditor({
 		insertAndUploadMediaFiles: mediaUpload.insertAndUploadMediaFiles,
 		externalEditorRef: editorRef,
 	});
+
+	// 3. Sequential streaming paragraph rewrite pipeline
+	const pipeline = useParagraphRewritePipeline({
+		editor,
+		docTitle,
+		stylePreset,
+		onBeforeAiApply,
+	});
+
+	useEffect(() => {
+		onRegisterPipeline?.(pipeline.startPipeline);
+	}, [onRegisterPipeline, pipeline.startPipeline]);
 
 	if (!editor) return null;
 
@@ -94,6 +122,7 @@ export function RichTextEditor({
 				onInsertImageUrl={mediaUpload.promptInsertImageUrl}
 				onInsertVideoUrl={mediaUpload.promptInsertVideoUrl}
 				onOpenImport={onOpenImport}
+				onOpenSplitRewrite={onOpenSplitRewrite}
 			/>
 
 			{/* AI BubbleMenu — appears on text selection */}
@@ -102,6 +131,7 @@ export function RichTextEditor({
 					editor={editor}
 					onGenerate={onAiGenerate}
 					onBeforeApply={onBeforeAiApply}
+					isPipelineRunning={pipeline.isStreaming}
 				/>
 			)}
 
@@ -160,6 +190,17 @@ export function RichTextEditor({
 				<ScrollToTopButton
 					visible={showScrollTop}
 					onClick={handleScrollToTop}
+				/>
+
+				{/* AI 逐段流式改写进度与批量审阅条 */}
+				<PipelineProgressFloatingBar
+					isStreaming={pipeline.isStreaming}
+					currentStep={pipeline.currentStep}
+					totalSteps={pipeline.totalSteps}
+					hasActiveSuggestions={pipeline.activeSuggestionCount > 0}
+					onStop={pipeline.stopPipeline}
+					onAcceptAll={pipeline.acceptAll}
+					onRejectAll={pipeline.rejectAll}
 				/>
 			</div>
 

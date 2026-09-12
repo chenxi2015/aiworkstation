@@ -9,6 +9,7 @@ import {
 	Wand2,
 } from "lucide-react";
 import { memo, useMemo } from "react";
+import type { PageBridge } from "../../../../types/pageBridge";
 import type { Folder } from "../../types";
 
 export interface ChatEmptyStateProps {
@@ -17,6 +18,7 @@ export interface ChatEmptyStateProps {
 	scopeMode?: "global" | "folder";
 	onSelectPrompt: (prompt: string) => void;
 	globalPrompts?: string[];
+	pageBridge?: PageBridge | null;
 }
 
 const DEFAULT_GLOBAL_PROMPTS = [
@@ -95,8 +97,15 @@ export const ChatEmptyState = memo(function ChatEmptyState({
 	scopeMode = "global",
 	onSelectPrompt,
 	globalPrompts,
+	pageBridge,
 }: ChatEmptyStateProps) {
 	const isFolderScope = scopeMode === "folder" && Boolean(selectedFolder);
+
+	const rewriteAction = useMemo(() => {
+		return (
+			pageBridge?.actions?.find((a) => a.id === "stream_full_rewrite") ?? null
+		);
+	}, [pageBridge]);
 
 	// Determine contextual hero headers based on current active module or folder scope
 	const heroConfig = useMemo(() => {
@@ -186,6 +195,36 @@ export const ChatEmptyState = memo(function ChatEmptyState({
 			<p className="text-xs text-muted max-w-[300px] leading-relaxed">
 				{heroConfig.subtitle}
 			</p>
+
+			{/* High-priority Action: Full paragraph streaming rewrite for editor */}
+			{rewriteAction && (
+				<div className="w-full mt-5 p-3 rounded-2xl bg-gradient-to-r from-accent/12 via-accent/6 to-transparent border border-accent/25 flex items-center justify-between gap-3 shadow-2xs">
+					<div className="flex items-center gap-2.5 min-w-0">
+						<div className="w-7 h-7 rounded-xl bg-accent text-accent-foreground flex items-center justify-center shrink-0 shadow-xs">
+							<Sparkles className="w-3.5 h-3.5" />
+						</div>
+						<div className="min-w-0 text-left">
+							<div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+								<span>全文逐段精修</span>
+								<span className="text-[10px] text-accent px-1.5 py-0.2 rounded-full bg-accent/15 border border-accent/20 font-normal">
+									保护媒体
+								</span>
+							</div>
+							<div className="text-[11px] text-muted truncate mt-0.5">
+								逐段流式改写，保留图片视频并实时对照审阅
+							</div>
+						</div>
+					</div>
+					<button
+						type="button"
+						onClick={() => void rewriteAction.onAction("")}
+						className="shrink-0 px-2.5 py-1.5 text-xs font-medium rounded-xl bg-accent text-accent-foreground hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-xs flex items-center gap-1"
+					>
+						<span>立即开始</span>
+						<ArrowUpRight className="w-3.5 h-3.5" />
+					</button>
+				</div>
+			)}
 
 			{/* Prompt Suggestions List */}
 			<div className="w-full mt-6 flex flex-col gap-2 text-left">

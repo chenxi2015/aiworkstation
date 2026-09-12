@@ -99,12 +99,13 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 		tools: [
 			"read_document",
 			"list_documents",
-			"rewrite_document",
+			"trigger_paragraph_rewrite",
 			"query_bookmarks",
 			"read_webpage_content",
 			"crawl_webpage_via_extension",
 		],
 		promptSuggestions: [
+			"对全文进行逐段流式润色，保留图片并对照审阅",
 			"帮我分析当前文档的结构，给出改进建议",
 			"润色这段文字，使其更适合公开发布",
 			"从我的收藏库找可以引用的素材",
