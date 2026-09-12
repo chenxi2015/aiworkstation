@@ -6,6 +6,10 @@ export interface AiRewriteDropdownProps {
 	actions: AiBarAction[];
 	onSelectAction: (action: AiBarAction) => void;
 	isDropUp?: boolean;
+	label?: string;
+	title?: string;
+	align?: "left" | "right";
+	buttonClassName?: string;
 }
 
 /**
@@ -15,6 +19,10 @@ export function AiRewriteDropdown({
 	actions,
 	onSelectAction,
 	isDropUp = false,
+	label = "AI 快速改写",
+	title = "AI 智能改写",
+	align = "right",
+	buttonClassName,
 }: AiRewriteDropdownProps) {
 	const [isOpen, setIsOpen] = useState(false);
 	const dropdownRef = useRef<HTMLDivElement>(null);
@@ -43,19 +51,21 @@ export function AiRewriteDropdown({
 		onSelectAction(action);
 	};
 
+	const defaultButtonCls = `flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer select-none ${
+		isOpen
+			? "bg-accent text-accent-foreground shadow-xs ring-1 ring-accent/30"
+			: "text-accent bg-accent/10 hover:bg-accent/20 hover:text-accent active:bg-accent/25"
+	}`;
+
 	return (
 		<div ref={dropdownRef} className="relative">
 			<button
 				type="button"
 				onClick={() => setIsOpen((prev) => !prev)}
-				className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer select-none ${
-					isOpen
-						? "bg-accent text-accent-foreground shadow-xs ring-1 ring-accent/30"
-						: "text-accent bg-accent/10 hover:bg-accent/20 hover:text-accent active:bg-accent/25"
-				}`}
+				className={buttonClassName || defaultButtonCls}
 			>
 				<Sparkles className="w-3.5 h-3.5 shrink-0" />
-				<span>AI 快速改写</span>
+				<span>{label}</span>
 				<ChevronDown
 					className={`w-3 h-3 opacity-80 transition-transform duration-200 ${
 						isOpen ? "rotate-180" : ""
@@ -66,12 +76,12 @@ export function AiRewriteDropdown({
 			{/* Dropdown Menu Overlay */}
 			{isOpen && (
 				<div
-					className={`absolute right-0 ${
+					className={`absolute ${align === "left" ? "left-0" : "right-0"} ${
 						isDropUp ? "bottom-full mb-2" : "top-full mt-2"
 					} w-56 py-1 bg-surface border border-border/80 rounded-xl shadow-[0_12px_36px_rgba(0,0,0,0.16)] ring-1 ring-black/5 dark:ring-white/10 z-50 overflow-hidden flex flex-col`}
 				>
 					<div className="px-3 py-1.5 text-[10px] font-semibold text-muted tracking-wider border-b border-border/50 uppercase flex items-center justify-between bg-muted/5">
-						<span>AI 智能改写</span>
+						<span>{title}</span>
 						<span className="text-[9px] text-muted/70 normal-case font-normal">
 							点击即可执行
 						</span>

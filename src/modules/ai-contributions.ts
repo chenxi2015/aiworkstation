@@ -106,15 +106,20 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 			"crawl_webpage_via_extension",
 		],
 		promptSuggestions: [
+			"基于本文核心观点与素材进行深度二创（洗稿重构），生成一篇全新稿件",
 			"根据全文提炼 5 个高点击爆款标题，并选最优的一个直接更新为文章标题",
 			"对全文进行逐段流式润色，保留图片并对照审阅",
 			"帮我分析当前文档的结构，给出改进建议",
-			"润色这段文字，使其更适合公开发布",
-			"从我的收藏库找可以引用的素材",
 			"把这篇文章改写成更适合自媒体传播的风格",
+			"从我的收藏库找可以引用的素材",
 		],
 		contextItemTypes: ["bookmark", "folder", "tag", "file", "document"],
 		entryActions: [
+			{
+				label: "深度二创洗稿",
+				prompt:
+					"请基于当前正文事实与核心论据，进行深度二次创作与洗稿重构。彻底打破原有句式与段落次序，重新提炼切入点并换用全新生动表达，调用 trigger_paragraph_rewrite 下发洗稿重构流水线，在正文中流式输出全新的稿件。",
+			},
 			{
 				label: "爆款标题拟定",
 				prompt:

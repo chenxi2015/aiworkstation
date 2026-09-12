@@ -1,5 +1,5 @@
 import type { Editor } from "@tiptap/react";
-import { Sparkles } from "lucide-react";
+import { Shuffle, Sparkles } from "lucide-react";
 import type React from "react";
 import { useEffect, useRef } from "react";
 import { useAiPanel } from "../../shell/AppShell";
@@ -10,7 +10,10 @@ export interface UseEditorAiBridgeOptions {
 	editorRef: React.RefObject<Editor | null>;
 	onBeforeAiApply: () => Promise<void>;
 	reloadDocuments: () => Promise<EditorDocument[]>;
-	onStartRewritePipeline?: (customInstruction?: string) => Promise<void>;
+	onStartRewritePipeline?: (
+		customInstruction?: string,
+		modeLabel?: string,
+	) => Promise<void>;
 	flushSave?: () => Promise<void>;
 }
 
@@ -54,10 +57,30 @@ export function useEditorAiBridge({
 			},
 			actions: [
 				{
+					id: "stream_spin_rewrite",
+					label: "二创洗稿重构",
+					icon: Shuffle,
+					variant: "accent" as const,
+					tooltip:
+						"基于原文事实进行深度二创与去重洗稿，彻底打破原有句式和篇章结构（保留多媒体）",
+					onAction: async (aiContent?: string) => {
+						const trimmed = aiContent?.trim();
+						const customRequirement = trimmed
+							? `\n补充要求：${trimmed.slice(0, 300)}`
+							: "";
+						const prompt = `你是一名资深内容二创与去重改写专家。请基于当前正文事实进行深度二创（洗稿重构）：
+1. 彻底打破原有句式结构、段落组织与表达习惯，重构叙事逻辑与切入视角；
+2. 完整保留原文的核心观点、关键数据与客观事实，严禁凭空捏造；
+3. 换用全新的表达风格和生动修辞，最大限度去重，使其成为一篇立意相同但表达截然不同的全新独立稿件；
+4. 正文中若包含图片或多媒体标记请原样保留位置；直接输出重构后的正文，严禁任何说明前缀。${customRequirement}`;
+						await onStartRewritePipelineRef.current?.(prompt, "二创洗稿");
+					},
+				},
+				{
 					id: "stream_full_rewrite",
 					label: "逐段流式改写",
 					icon: Sparkles,
-					variant: "accent" as const,
+					variant: "default" as const,
 					tooltip:
 						"在正文中逐段流式优化改写（绝不丢失任何图片视频，实时对照审阅）",
 					onAction: async (aiContent: string) => {
@@ -67,7 +90,7 @@ export function useEditorAiBridge({
 								? trimmed
 								: `参考以下要求对段落润色：${trimmed.slice(0, 400)}`
 							: undefined;
-						await onStartRewritePipelineRef.current?.(prompt);
+						await onStartRewritePipelineRef.current?.(prompt, "全文润色");
 					},
 				},
 			],

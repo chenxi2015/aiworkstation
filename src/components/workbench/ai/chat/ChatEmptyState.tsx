@@ -4,6 +4,7 @@ import {
 	Heading1,
 	PenLine,
 	Search,
+	Shuffle,
 	Sparkles,
 	Wand2,
 } from "lucide-react";
@@ -23,8 +24,8 @@ export interface ChatEmptyStateProps {
 const DEFAULT_GLOBAL_PROMPTS = [
 	"检索我收藏的所有关于 AI 与大模型相关的开源工具",
 	"盘点我最近收藏的前端开发框架与高质量资源",
+	"从我的收藏中挑选 3 个最适合独立开发者的盈利产品案例",
 	"根据我的书签库，推荐一套高效的内容创作工具集",
-	"分析我的全库书签资产，给出最有价值的核心工具与场景",
 ];
 
 interface PromptListItem {
@@ -173,6 +174,12 @@ export const ChatEmptyState = memo(function ChatEmptyState({
 		);
 	}, [pageBridge]);
 
+	const spinRewriteAction = useMemo(() => {
+		return (
+			pageBridge?.actions?.find((a) => a.id === "stream_spin_rewrite") ?? null
+		);
+	}, [pageBridge]);
+
 	// Hero title & description
 	const heroConfig = useMemo(() => {
 		if (isFolderScope && selectedFolder) {
@@ -228,7 +235,21 @@ export const ChatEmptyState = memo(function ChatEmptyState({
 	const allItems = useMemo<PromptListItem[]>(() => {
 		const list: PromptListItem[] = [];
 
-		// If full rewrite action is available in editor, place it as the featured top item
+		// Featured Actions in editor
+		if (spinRewriteAction) {
+			list.push({
+				id: "action-spin-rewrite",
+				icon: Shuffle,
+				title: "二创洗稿，全新稿件",
+				subtitle: "打破原有句式与段落结构，深度去重重构，生成全新稿件。",
+				badge: "深度去重",
+				actionText: "立即二创 ↗",
+				onClick: () => {
+					void spinRewriteAction.onAction("");
+				},
+			});
+		}
+
 		if (rewriteAction) {
 			list.push({
 				id: "action-full-rewrite",
@@ -249,6 +270,9 @@ export const ChatEmptyState = memo(function ChatEmptyState({
 			if (rewriteAction && meta.title === "全文润色，逐段精修") {
 				return;
 			}
+			if (spinRewriteAction && meta.title === "二创洗稿，全新稿件") {
+				return;
+			}
 			list.push({
 				id: `prompt-${idx}`,
 				icon: meta.icon,
@@ -259,7 +283,7 @@ export const ChatEmptyState = memo(function ChatEmptyState({
 		});
 
 		return list;
-	}, [rewriteAction, rawPrompts, onSelectPrompt]);
+	}, [spinRewriteAction, rewriteAction, rawPrompts, onSelectPrompt]);
 
 	// Show top 3 by default, expand all on click
 	const displayLimit = 3;
@@ -281,7 +305,7 @@ export const ChatEmptyState = memo(function ChatEmptyState({
 
 			{/* Sider Claw Style Unified Minimalist Card Container */}
 			<div className="w-full rounded-2xl border border-border/80 bg-surface/90 dark:bg-neutral-900/80 shadow-2xs overflow-hidden text-left transition-all">
-				<div className="px-4 py-4 space-y-2">
+				<div className="px-4 py-4">
 					{visibleItems.map((item) => {
 						const ItemIcon = item.icon;
 						return (

@@ -8,12 +8,12 @@ import {
 	snapshotVersionRpc,
 	updateDocumentRpc,
 } from "../../../services/api/editorClient";
+import { workbenchContextActions } from "../../../stores/workbenchContextStore";
 import {
 	DEFAULT_STYLE_PRESETS,
 	type EditorDocument,
 	type EditorStylePreset,
 } from "../types";
-import { workbenchContextActions } from "../../../stores/workbenchContextStore";
 import {
 	clearDocDraft,
 	getDocDraft,
@@ -213,7 +213,23 @@ export function useDocumentManager(): UseDocumentManagerReturn {
 					Array.isArray(settings.editorStylePresets) &&
 					settings.editorStylePresets.length > 0
 				) {
-					setStylePresets(settings.editorStylePresets);
+					const customMap = new Map(
+						settings.editorStylePresets.map((p) => [p.id, p]),
+					);
+					const merged: EditorStylePreset[] = DEFAULT_STYLE_PRESETS.map(
+						(defaultPreset) => {
+							const custom = customMap.get(defaultPreset.id);
+							if (custom) {
+								customMap.delete(defaultPreset.id);
+								return { ...defaultPreset, ...custom };
+							}
+							return defaultPreset;
+						},
+					);
+					for (const extra of customMap.values()) {
+						merged.push(extra);
+					}
+					setStylePresets(merged);
 				}
 			} catch (err) {
 				console.warn(

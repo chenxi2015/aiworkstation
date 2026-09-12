@@ -4,6 +4,7 @@ import {
 	Languages,
 	RefreshCw,
 	Scissors,
+	Shuffle,
 	Sparkles,
 	Type,
 } from "lucide-react";
@@ -18,6 +19,14 @@ export interface AiBarAction {
 }
 
 export const DEFAULT_ACTIONS: AiBarAction[] = [
+	{
+		id: "rewrite",
+		label: "二创洗稿",
+		description: "打破结构与句式，重构蜕变为全新独立稿件",
+		icon: Shuffle,
+		prompt:
+			"你是一名资深内容二创与去重改写专家。请将以下文本作为事实与素材基础，进行深度二创与洗稿重构：\n1. 彻底打破原有句式结构、段落编排与行文习惯，重构叙事逻辑与切入视角；\n2. 完整保留原文的核心观点、关键数据与客观事实，严禁凭空捏造；\n3. 换用全新的表达风格和生动修辞，最大限度去重，使其成为一篇立意相同但表达截然不同的全新独立稿件；\n4. 直接输出重构后的正文，严禁包含任何说明、前缀、引导词或客套话。\n\n原文内容：\n{selection}",
+	},
 	{
 		id: "polish",
 		label: "润色",
@@ -72,6 +81,20 @@ export const DEFAULT_ACTIONS: AiBarAction[] = [
 		prompt: "请为以下文本生成一段 2~3 句话的精炼摘要：\n\n{selection}",
 	},
 ];
+
+/**
+ * Transforms segment template prompt to full-document/stream pipeline instruction
+ */
+export function getActionInstruction(action: AiBarAction): string {
+	return action.prompt
+		.replace(/\n*原文内容：\s*\{selection\}/g, "")
+		.replace(/\s*\{selection\}/g, "")
+		.replace(/^请对以下文本/g, "请对正文")
+		.replace(/^请将以下文本/g, "请将正文")
+		.replace(/^请润色以下文本/g, "请润色正文")
+		.replace(/^请扩写以下文本/g, "请扩写正文")
+		.trim();
+}
 
 export type ActionState = "idle" | "loading" | "result" | "error";
 

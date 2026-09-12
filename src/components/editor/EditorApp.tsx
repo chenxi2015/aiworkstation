@@ -86,10 +86,11 @@ export function EditorApp({
 	const [splitSession, setSplitSession] = useState<{
 		isOpen: boolean;
 		instruction?: string;
+		modeLabel?: string;
 	} | null>(null);
 
 	const handleStartRewritePipeline = useCallback(
-		async (instruction?: string) => {
+		async (instruction?: string, modeLabel?: string) => {
 			if (!editorInstanceRef.current) {
 				toast.warning("编辑器未准备好");
 				return;
@@ -97,6 +98,7 @@ export function EditorApp({
 			setSplitSession({
 				isOpen: true,
 				instruction,
+				modeLabel,
 			});
 		},
 		[],
@@ -214,6 +216,7 @@ export function EditorApp({
 									docId={activeDoc.id}
 									stylePreset={activeDoc.stylePreset}
 									instruction={splitSession.instruction}
+									modeLabel={splitSession.modeLabel}
 									onAccept={handleAcceptSplitCompare}
 									onCancel={handleCancelSplitCompare}
 								/>
@@ -243,7 +246,9 @@ export function EditorApp({
 									onBeforeAiApply={handleBeforeAiApply}
 									onEditorReady={handleEditorReady}
 									onOpenImport={() => setIsImportModalOpen(true)}
-									onOpenSplitRewrite={() => void handleStartRewritePipeline()}
+									onOpenSplitRewrite={(instruction, modeLabel) =>
+										void handleStartRewritePipeline(instruction, modeLabel)
+									}
 									onRegisterPipeline={(trigger) => {
 										pipelineTriggerRef.current = trigger;
 									}}

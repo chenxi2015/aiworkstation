@@ -14,6 +14,7 @@ import type { ViewMode } from "./types";
 
 export interface SplitCompareHeaderProps {
 	docTitle?: string;
+	modeLabel?: string;
 	isStreaming: boolean;
 	currentStep: number;
 	totalSteps: number;
@@ -30,6 +31,7 @@ export interface SplitCompareHeaderProps {
  */
 export function SplitCompareHeader({
 	docTitle,
+	modeLabel,
 	isStreaming,
 	currentStep,
 	totalSteps,
@@ -59,7 +61,7 @@ export function SplitCompareHeader({
 						<Columns2 className="w-3.5 h-3.5" />
 					</div>
 					<h2 className="font-semibold text-xs text-foreground truncate max-w-[200px]">
-						双栏改写对比
+						双栏改写对比{modeLabel ? ` · ${modeLabel}` : ""}
 					</h2>
 					{docTitle && (
 						<span className="text-[11px] text-muted truncate max-w-[140px]">

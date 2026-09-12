@@ -31,7 +31,7 @@ export interface RichTextEditorProps {
 	/** 点击顶部工具栏导入按钮回调 */
 	onOpenImport?: () => void;
 	/** 启动分屏改写对比视图 */
-	onOpenSplitRewrite?: () => void;
+	onOpenSplitRewrite?: (instruction?: string, modeLabel?: string) => void;
 	/** 暴露段落流水线触发器给父组件（用于 AI 侧边栏跨模块触发） */
 	onRegisterPipeline?: (
 		trigger: (instruction?: string) => Promise<void>,

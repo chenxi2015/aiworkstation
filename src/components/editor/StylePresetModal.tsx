@@ -36,8 +36,24 @@ export function StylePresetModal({
 					Array.isArray(settings.editorStylePresets) &&
 					settings.editorStylePresets.length > 0
 				) {
-					setPresets(settings.editorStylePresets);
-					setSelectedId(settings.editorStylePresets[0]?.id ?? "official");
+					const customMap = new Map(
+						settings.editorStylePresets.map((p) => [p.id, p]),
+					);
+					const merged: EditorStylePreset[] = DEFAULT_STYLE_PRESETS.map(
+						(defaultPreset) => {
+							const custom = customMap.get(defaultPreset.id);
+							if (custom) {
+								customMap.delete(defaultPreset.id);
+								return { ...defaultPreset, ...custom };
+							}
+							return defaultPreset;
+						},
+					);
+					for (const extra of customMap.values()) {
+						merged.push(extra);
+					}
+					setPresets(merged);
+					setSelectedId(merged[0]?.id ?? "official");
 				} else {
 					setPresets(DEFAULT_STYLE_PRESETS);
 					setSelectedId("official");
@@ -86,7 +102,7 @@ export function StylePresetModal({
 	);
 
 	const handleResetDefaults = useCallback(() => {
-		if (window.confirm("确定恢复为默认的 4 大内置行文风格吗？")) {
+		if (window.confirm("确定恢复为默认的 5 大内置行文风格吗？")) {
 			setPresets(DEFAULT_STYLE_PRESETS);
 			setSelectedId("official");
 		}

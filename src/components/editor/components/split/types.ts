@@ -11,6 +11,8 @@ export interface SplitCompareViewProps {
 	stylePreset?: string;
 	/** Rewrite prompt / instruction (e.g. "精简这篇文章") */
 	instruction?: string;
+	/** Rewrite action / mode label (e.g. "二创洗稿", "扩写") */
+	modeLabel?: string;
 	/** Callback when user accepts the revised version */
 	onAccept: (cleanDocJson: any) => void;
 	/** Callback when user rejects/exits split compare */

@@ -20,7 +20,6 @@ import {
 	PencilLine,
 	Quote,
 	Redo2,
-	Sparkles,
 	Strikethrough,
 	Table as TableIcon,
 	Underline as UnderlineIcon,
@@ -29,6 +28,8 @@ import {
 	Upload,
 	Video,
 } from "lucide-react";
+import { AiRewriteDropdown } from "./bubble/AiRewriteDropdown";
+import { DEFAULT_ACTIONS, getActionInstruction } from "./bubble/types";
 
 interface ToolButtonProps {
 	icon: typeof Bold;
@@ -48,36 +49,35 @@ function ToolButton({
 	return (
 		<button
 			type="button"
-			title={label}
-			aria-label={label}
-			disabled={disabled}
 			onClick={onClick}
-			className={`p-1.5 rounded-md transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${
+			disabled={disabled}
+			title={label}
+			className={`p-1.5 rounded-md text-xs transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
 				active
-					? "bg-accent/15 text-accent"
+					? "bg-accent/15 text-accent font-medium"
 					: "text-muted hover:text-foreground hover:bg-muted/10"
 			}`}
 		>
-			<Icon className="w-4 h-4" />
+			<Icon className="w-3.5 h-3.5" />
 		</button>
 	);
 }
 
 function Divider() {
-	return <div className="w-px h-5 bg-border mx-1 shrink-0" />;
+	return <div className="w-[1px] h-4 bg-border/60 mx-1 shrink-0" />;
 }
 
 export interface EditorToolbarProps {
 	editor: Editor;
 	preview: boolean;
-	uploading: boolean;
+	uploading?: boolean;
 	onTogglePreview: () => void;
 	onSelectLocalImages: () => void;
 	onSelectLocalVideos: () => void;
 	onInsertImageUrl: () => void;
 	onInsertVideoUrl: () => void;
 	onOpenImport?: () => void;
-	onOpenSplitRewrite?: () => void;
+	onOpenSplitRewrite?: (instruction?: string, modeLabel?: string) => void;
 }
 
 /**
@@ -339,15 +339,17 @@ export function EditorToolbar({
 					)}
 					<Divider />
 					{onOpenSplitRewrite && (
-						<button
-							type="button"
-							onClick={onOpenSplitRewrite}
-							className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-accent bg-accent/10 hover:bg-accent/20 rounded-md transition-colors cursor-pointer"
-							title="启动 AI 双栏智能改写与差异对比"
-						>
-							<Sparkles className="w-3.5 h-3.5" />
-							<span>AI 改写比对</span>
-						</button>
+						<AiRewriteDropdown
+							label="AI 改写比对"
+							title="选择全篇改写比对模式"
+							actions={DEFAULT_ACTIONS}
+							align="right"
+							buttonClassName="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-accent bg-accent/10 hover:bg-accent/20 rounded-md transition-colors cursor-pointer"
+							onSelectAction={(action) => {
+								const instruction = getActionInstruction(action);
+								onOpenSplitRewrite(instruction, action.label);
+							}}
+						/>
 					)}
 					<ToolButton
 						icon={Eye}

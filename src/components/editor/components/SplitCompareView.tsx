@@ -18,6 +18,7 @@ export function SplitCompareView({
 	docId: _docId,
 	stylePreset,
 	instruction,
+	modeLabel,
 	onAccept,
 	onCancel,
 }: SplitCompareViewProps) {
@@ -51,6 +52,7 @@ export function SplitCompareView({
 			{/* Top Control Header */}
 			<SplitCompareHeader
 				docTitle={docTitle}
+				modeLabel={modeLabel}
 				isStreaming={isStreaming}
 				currentStep={currentStep}
 				totalSteps={totalSteps}
