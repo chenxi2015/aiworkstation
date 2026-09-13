@@ -1,11 +1,11 @@
 # AI Workstation (本地优先的个人知识 Agent 工作台)
 
 <p align="center">
-  <img src="./public/favicon.ico" alt="AI Workstation Logo" width="80" height="80" style="border-radius: 16px; margin-bottom: 12px;" />
+  <img src="./public/logo.svg" alt="AI Workstation Logo" width="84" height="84" style="border-radius: 18px; margin-bottom: 14px;" />
 </p>
 
 <p align="center">
-  <strong>将散落在全网的灵感与素材归集于本地，用 AI Agent 赋能知识整理、深度调研、内容二创与一键分发。</strong>
+  <strong>将散落在全网的灵感、推文与资料归集于本地，用 AI Agent 赋能知识治理、深度调研、AI 创作与安全分发。</strong>
 </p>
 
 <p align="center">
@@ -14,6 +14,7 @@
   <img src="https://img.shields.io/badge/React-19-61dafb?style=flat-square&logo=react" alt="React 19" />
   <img src="https://img.shields.io/badge/TailwindCSS-v4-38bdf8?style=flat-square&logo=tailwindcss" alt="TailwindCSS v4" />
   <img src="https://img.shields.io/badge/HeroUI-v3-purple?style=flat-square" alt="HeroUI" />
+  <img src="https://img.shields.io/badge/TipTap-v3-black?style=flat-square" alt="TipTap" />
   <img src="https://img.shields.io/badge/Local--First-SQLite-green?style=flat-square" alt="Local-First" />
   <img src="https://img.shields.io/badge/License-MIT-gray?style=flat-square" alt="License" />
 </p>
@@ -24,152 +25,211 @@
 
 **AI Workstation** 是一款**本地优先（Local-First）**的个人知识 Agent 工作台。
 
-日常在推特（X）、微信公众号、小红书、技术博客等平台浏览时，优质内容往往散落各处、难以沉淀与再利用。AI Workstation 将采集端与处理端打通，并通过 AI Agent 实现知识的主动整理与洞察：
-1. **输入端（手）**：通过强劲的 Chrome 浏览器扩展（Sidepanel 侧边栏），一键抓取正文 Markdown、整页长截图、图片素材，支持 Word / ZIP 归档。
-2. **中心脑（脑）**：本地 TanStack Start 服务与 SQLite 数据库，按主题文件夹沉淀资产，借助 RAG 混合检索激活沉睡收藏，AI Agent 自主完成智能归类、知识巡检、深度调研与内容二创。
-3. **输出端（分发）**：通过浏览器控制通道，辅助将二创内容安全、可控地回填到目标平台。
+日常在推特（X）、微信公众号、小红书、GitHub、技术博客等平台浏览时，优质内容往往散落各处、难以沉淀与再利用。市面上的书签管理工具（Raindrop / Pocket / Notion Web Clipper）多停留在「人驱动 → 系统响应」的被动存储模式。
 
-> **产品愿景**：从「收藏工具」进化为「个人知识 Agent」——Agent 不只等你提问，还能自主规划、多步执行、主动发现。
->
-> **核心原则**：数据完全属于用户（本地单文件存储，支持备份迁移，不上云），发布动作保留人工最终确认（保障账号合规安全）。
+AI Workstation 打通了**浏览器采集端**、**本地知识治理中心**与**内容创作分发台**：
+1. **输入端（手）**：Chrome 浏览器扩展（Sidepanel 侧边栏），一键提取正文 Markdown、整页/局部长截图、图片与富媒体素材，支持 Word / ZIP 归档。支持作为静默爬虫通道突破 SPA 和登录态屏障。
+2. **中心脑（脑）**：本地 TanStack Start 服务与 SQLite 单文件数据库。按工作主题沉淀资产，借助 RAG 混合检索激活沉睡收藏；内置自主 ReAct 多步 Agent，主动完成分类归档、健康巡检、知识重组与深度研报。
+3. **创作与分发（笔与桥）**：内置 TipTap AI 富文本创作台，支持划词润色、扩写、版本 Diff 与多格式导出；通过浏览器控制通道，辅助将二创内容安全、受控地回填至目标发布平台。
+
+> **核心原则**：
+> - **数据完全属于用户**：本地单文件持久化（`better-sqlite3`），可自由冷备份迁移，不上云。
+> - **发布动作保留人工确认**：采集与 AI 处理自动化，最终外发保留确认闭环，保障账号安全。
 
 ---
 
 ## ✨ 核心特性
 
-### 1. 🗂️ 主题文件夹资产归集 (Workbench UI)
-- **类似手机 App 分组的文件夹网格**：将收藏的网站、推文、提示词、工具链接与本地素材按工作主题分类。
-- **未分类缓冲池**：所有新采集内容的暂存区，支持人工拖拽整理或通过 AI 一键批量自动归类。
-- **直观的侧边栏详情面板**：实时查看文件夹内项目、标签、创建时间，快速检索与管理。
+### 1. 🗂️ 7 大核心功能模块体系
+采用「导航即能力地图、分类即数据维度」的设计理念（约定大于配置，支持用户自定义导航排序与显隐）：
+- **工作台 (`/workbench`)**：个人工作首页，沉淀高频入口、数据统计与功能卡片。
+- **书签 (`/bookmarks`)**：完整书签知识库与**未分类缓冲池**，按分类筛选、批量管理与标签沉淀。
+- **自媒体 (`/creator`)**：专为自媒体打造的「采集 ➔ AI 二创 ➔ 审稿 ➔ 发布」流水线。
+- **创作台 (`/editor`)**：基于 TipTap 3 的 AI 富文本创作中心，深度融合素材库引用与划词交互。
+- **学习 (`/learn`)**：学习主题聚合与成长路径跟踪。
+- **电商 (`/ecommerce`)**：电商选品、灵感素材与竞品调研归集。
+- **Skills (`/skills`)**：本地 Agent Skills 集合管理与调度。
 
-### 2. 🧩 强大的采集扩展 (`AI Workstation Collector`)
-- **浏览器原生 Sidepanel 侧边栏**：无需离开当前网页即可完成内容提取与整理。
-- **全方位网页抓取**：
-  - **正文智能提取**：一键转标准 Markdown，自动去除冗余广告与导航。
-  - **局部选区提取**：高亮选择指定 DOM 元素抓取。
-  - **全网页滚动长截图 & 局部滚动截屏**：精准捕捉长图文与代码段。
-- **多格式导出与离线打包**：
-  - 📄 **Markdown (.md)**：纯净格式，即存即用。
-  - 📑 **Word (.docx)**：一键生成排版工整的 Office 文档。
-  - 📦 **ZIP 归档包**：自动打包文章内容与所有离线图片素材。
-- **书签同步与历史操作日志**：无缝打通浏览器原生书签与抓取记录。
+### 2. 🧩 浏览器采集扩展 (`AI Workstation Collector`)
+- **原生 Sidepanel 侧边栏**：沉浸式浏览，无需离开当前页面即可完成收藏、分类与打标。
+- **全方位网页内容提取**：
+  - **正文智能提纯**：一键抽取纯净 Markdown，自动剔除广告、导航与无关噪声；
+  - **DOM 局部选区**：可视化框选指定区域定向提取；
+  - **整页长截图 & 局部滚动截屏**：精准捕捉长图文与代码段落。
+- **多格式导出与离线归档**：
+  - 📄 **Markdown (.md)**：纯净格式，即存即用；
+  - 📑 **Word (.docx)**：排版工整的 Office 文档；
+  - 📦 **ZIP 归档包**：自动打包图文与本地关联静态素材。
+- **静默爬虫通道 (Headless Crawler Channel)**：
+  - 突破传统爬虫的 SPA 客户端渲染、反爬风控与登录态壁垒；
+  - 工作台下发指令，插件后台静默调度秒级开合 Tab 提纯正文并回传，零成本复用登录会话。
 
-### 3. 🤖 AI Agent 智能治理与交互式问答 (Chat with Bookmarks)
-- **RAG 混合多模态检索**：向量语义（Embedding）+ 关键词混合加权召回，用自然语言精准召回模糊记忆中的长尾工具与技术资料。
-- **ReAct 多步自主规划与执行引擎**：内置 TanStack AI Agent Loop，能够自主决策、链式调用底层数据库工具完成复杂治理任务。
-- **Batch-First 批量操作与原子归集**：
-  - **批量增/删/移**：支持一次性批量创建多级目录、批量删除冗余分类、批量跨层级迁移，杜绝单步循环刷屏；
-  - **文件夹一站式归集 (`merge_folders`)**：一键将多个零散文件夹中的所有书签安全归并至目标体系，并在底层原子清理原空壳目录。
-- **轻量透明的实时步骤时间轴 (AgentStepTimeline)**：类似 Cursor / Claude 的极简折叠式状态轨，毫秒级展现思考与工具执行细节。
-- **专业级 Markdown 成果看板交付物 (Executive Dashboard)**：
-  - 拒绝冷冰冰的“操作成功”和流水账式的过程碎碎念；
-  - 正文严格遵循结构化契约：**成果指标看板 ➔ 新架构全景矩阵 ➔ 核心代表资产推荐 ➔ 启发式演进指引**，交付高质量知识资产重塑报告。
-- **文件夹专题提炼 (Dossier)**：一键将成批碎片收藏提取并总结为体系化研究综述与备忘录。
-- **热帖二创与互动草稿**：支持推文自动生成多种风格的回复草稿与再创作文案。
+### 3. 🤖 ReAct 多步智能 Agent (Batch-First 治理体系)
+内置 TanStack AI 驱动的 ReAct 多步自主执行引擎，具备 **17+ 维系统治理与探索工具**：
+- **Batch-First 批量治理**：支持原子级批量创建、批量迁移、批量归类与标签打标，杜绝单步循环刷屏。
+- **复合归集工具 (`merge_folders`)**：一键将多个散乱目录的所有书签安全合并至新体系，并自动清理空壳目录。
+- **标签治理体系**：支持标签批量创建、绑定、解绑、重命名与合并（`rename_or_merge_tags`）。
+- **实时步骤时间轴 (`AgentStepTimeline`)**：类似 Cursor / Claude 的极简折叠轨，毫秒级透明展示 Agent 思考过程与工具调用入参结果。
+- **Executive Dashboard 成果看板交付契约**：
+  - 拒绝过程碎碎念流水账；
+  - 产出标准的专业报告：**成效指标看板 ➔ 架构矩阵全景 ➔ 代表性资产亮点 ➔ 启发式演进指引**。
+- **外脑探索**：集成网页读取（`read_webpage_content`）、插件静默抓取（`crawl_webpage_via_extension`）与联网搜索（`web_search`）。
+
+### 4. 📝 AI 富文本创作中心 (`/editor`)
+- **现代编辑器内核**：基于 TipTap 3 + TailwindCSS Typography 构建，支持表格、任务列表、代码块高亮与 Mermaid 流程图渲染。
+- **AI 协同创作面板**：
+  - 划词一键润色、续写、纠错、长文扩写、提炼金句；
+  - **版本 Diff 对比**：AI 改写前后直观呈现新增与删除差异，支持单段接受或还原；
+- **多模态导入导出**：支持 Markdown、Docx、PDF、Excel 导入与预览。
+
+### 5. 🔍 混合 RAG 检索与知识活化
+- **Hybrid Search 融合排序**：`0.6 * 语义向量相似度 (Embedding) + 0.4 * 关键词精准匹配 (BM25 权重)`，模糊记忆也能秒级定位目标。
+- **多 Provider Embedding 适配**：支持 SiliconFlow (`bge-m3`)、OpenAI (`text-embedding-3-small`)、本地 Ollama 向量模型等。
+- **Chat with Bookmarks**：基于个人知识库进行多轮问答对话，智能溯源定位参考出处。
+- **专题综述 (Dossier)**：一键将指定文件夹中的碎片资料提炼为体系化调研报告与备忘单。
 
 ---
 
 ## 🏗️ 总体架构
 
 ```
-┌────────────────────────────────────────┐       ┌────────────────────────────────────────┐
-│      Chrome 插件端（"手"）             │       │     本地工作台 TanStack Start（"脑"）   │
-│  extensions/aicollector                │       │     src/                               │
-│                                        │       │                                        │
-│  - Sidepanel 交互侧边栏                │       │  - 文件夹网格 / 未分类缓冲池 UI        │
-│  - 网页 DOM 提取 & 智能降噪转 MD        │ ──1──>│  - 本地 SQLite 存储 (drizzle)           │
-│  - 整页长截图 / 局部滚动截图           │       │  - AI 编排 (TanStack AI / Claude /     │
-│  - DOCX 导出 & ZIP 离线打包            │ <──2──│    OpenAI / Gemini)                    │
-│  - 网页编辑器回填驱动 (小红书/公众号)  │       │  - 定时任务与批处理（Node 常驻进程）   │
-└────────────────────────────────────────┘       └────────────────────────────────────────┘
+┌────────────────────────────────────────┐       ┌────────────────────────────────────────────────────────┐
+│      Chrome 插件端（"手"）             │       │              本地工作台 TanStack Start（"脑"）          │
+│      extensions/aicollector            │       │              src/                                      │
+│                                        │       │                                                        │
+│  - Sidepanel 交互侧边栏                │ ──1──>│  - 7 大核心模块 (Workbench / Bookmarks / Editor 等)    │
+│  - 网页 DOM 智能提纯 (转 MD)           │ (HTTP)│  - 本地 SQLite 存储 (better-sqlite3 + 本地单文件)      │
+│  - 整页长截图 / 局部截屏               │       │  - 混合 RAG 引擎 (向量化 + 关键词加权)                 │
+│  - DOCX 导出 & ZIP 离线归档            │ <──2──│  - TanStack AI Agent 编排 (Claude / OpenAI / Gemini / │
+│  - 静默后台爬虫 (免登录态抓取)         │ (Job) │    DeepSeek / Ollama)                                  │
+│  - 网页编辑器回填驱动 (小红书/公众号)  │ <──3──│  - TipTap AI 富文本创作内核与版本对比引擎              │
+└────────────────────────────────────────┘(Port) └────────────────────────────────────────────────────────┘
 ```
 
-### 通信机制
-1. **数据通道（HTTP API）**：插件 → `POST http://localhost:3888/api/*`（携带 Local Bearer Token 认证），常态可用，负责大文本、图片与素材入库。
-2. **控制信令通道（Port 连接）**：工作台 ↔ 插件（`externally_connectable`），工作台激活时建立长连接，用于指令下发、进度回传与编辑器回填。
+### 通信三通道设计
+1. **数据通道（HTTP API）**：插件 → `POST http://localhost:3888/api/collect`，常态可用，负责大文本、图片与素材入库。
+2. **爬虫任务通道（Crawler Polling）**：工作台下发抓取任务进入队列，插件后台长轮询 `/api/crawler` 认领任务，静默打开 Tab 提纯后回传。
+3. **控制信令通道（Port 长连接）**：工作台 ↔ 插件（`externally_connectable`），工作台页面打开时自动建立，用于指令下发、进度回传与网页编辑器辅助回填。
 
 ---
 
 ## 📁 目录结构
 
-本项目采用 Monorepo 组织结构，工作台本体与 Chrome 扩展统一管理：
+本项目采用清晰整洁的工程目录组织，工作台本体与 Chrome 扩展统一管理：
 
 ```bash
 aiworkstation/
 ├── src/                          # 【本地工作台】TanStack Start 应用源码
-│   ├── components/               # 公共 UI 组件与工作台模块
-│   │   ├── workbench/            # 文件夹卡片、详情侧栏、新建弹窗、图标库
-│   │   └── ThemeToggle.tsx       # 明暗主题切换
+│   ├── components/               # 公共 UI 组件与业务组件
+│   │   ├── workbench/            # 文件夹卡片、详情侧栏、新建弹窗、图标选择器
+│   │   ├── bookmarks/            # 书签列表、未分类缓冲池、同步弹窗、巡检面板
+│   │   ├── editor/               # TipTap 编辑器、工具栏、AI 贡献面板与 Diff 视图
+│   │   └── chat/                 # Agent 对话面板、时间轴 (AgentStepTimeline)
 │   ├── routes/                   # TanStack Router 文件路由系统
-│   │   ├── __root.tsx            # 全局根布局
-│   │   └── index.tsx             # 工作台首页（文件夹网格 + 分类 Tab）
-│   ├── integrations/             # AI 与第三方服务集成
-│   └── styles.css                # TailwindCSS v4 全局样式配置
+│   │   ├── __root.tsx            # 全局根布局（含统一顶部导航条）
+│   │   ├── index.tsx             # 重定向至 /workbench
+│   │   ├── workbench.tsx         # 工作台首页
+│   │   ├── bookmarks.tsx         # 书签知识库与缓冲池
+│   │   ├── creator.tsx           # 自媒体工作流
+│   │   ├── editor.tsx            # AI 富文本创作台
+│   │   ├── learn.tsx             # 学习模块
+│   │   ├── ecommerce.tsx         # 电商模块
+│   │   └── skills.tsx            # Skills 模块
+│   ├── modules/                  # 模块注册表（registry.ts，统一路由与别名契约）
+│   ├── server/                   # 服务端代码（Node 运行时）
+│   │   ├── ai/                   # AI 编排层
+│   │   │   ├── tools/            # Agent 治理工具体系 (17+ 维原子与复合 Tool)
+│   │   │   └── prompt.ts         # Agent System Prompt 与契约规范
+│   │   ├── db/                   # better-sqlite3 数据库配置、Schema 与迁移
+│   │   └── functions/            # TanStack Start Server Functions (RPC)
+│   ├── stores/                   # 客户端状态管理与主题控制
+│   └── styles.css                # TailwindCSS v4 全局样式设计
 │
 ├── extensions/aicollector/       # 【采集扩展】Chrome Extension (WXT 框架)
 │   ├── entrypoints/
 │   │   ├── sidepanel/            # 浏览器侧边栏页面 (React + TailwindCSS)
-│   │   │   ├── components/tabs/  # 采集 (Grab)、书签 (Bookmarks)、日志 (Logs)、设置 (Settings)
-│   │   │   ├── components/actions/ # 导出工具条 (MD, DOCX, ZIP, 截图)
-│   │   │   └── components/modals/ # 批量打包导出弹窗
-│   │   ├── background.ts         # Service Worker 后台脚本与消息调度
-│   │   ├── content.ts            # 网页内容注入脚本 (DOM 采集/截图辅助)
-│   │   ├── doc-viewer/           # 独立文档预览窗口
-│   │   └── viewer/               # 语法高亮预览页面
-│   ├── src/utils/                # 导出器 (zipExporter, docxExporter, imageDownloader)
-│   └── wxt.config.ts             # WXT 配置文件与 Manifest MV3 声明
+│   │   ├── background.ts         # 后台 Service Worker（消息分发、静默爬虫执行）
+│   │   ├── content.ts            # 网页注入脚本（DOM 提取、截图与编辑器回填）
+│   │   └── doc-viewer/           # 独立离线文档预览窗口
+│   └── wxt.config.ts             # WXT 配置文件与 MV3 权限声明
 │
-├── public/                       # 静态资源文件
-├── PROJECT.md                    # 🌟 产品宪法与核心设计决策文档
+├── .aiworkstation/               # 运行时持久化目录（本地单文件，不上云）
+│   ├── workbench.db              # SQLite 数据库本体
+│   └── pages/                    # 离线抓取全文存档
+├── docs/                         # 需求设计与演进规划文档
+├── PROJECT.md                    # 🌟 产品宪法与设计决策准则
 ├── AGENTS.md                     # AI Agent 开发规范与 TanStack Intent 指引
-└── package.json                  # 工作区根依赖配置
+└── package.json                  # 项目依赖与构建脚本
 ```
 
 ---
 
 ## 🛠️ 技术栈
 
-| 模块 | 关键技术 / 库 |
+| 分类 | 核心技术 / 选型 |
 |---|---|
-| **工作台前端** | [TanStack Start](https://tanstack.com/start), [TanStack Router](https://tanstack.com/router), [React 19](https://react.dev/), [HeroUI](https://heroui.com/), [Tailwind CSS v4](https://tailwindcss.com/) |
-| **工作台 AI 编排** | [TanStack AI](https://tanstack.com/ai) (支持 Anthropic Claude, OpenAI, Gemini, Ollama 等) |
-| **浏览器扩展** | [WXT Framework](https://wxt.dev/), React 19, Chrome Extension Manifest V3, `@tailwindcss/vite` |
-| **内容解析与导出** | `marked`, `prismjs`, `highlight.js`, `docx`, `jszip`, `streamdown` |
-| **工程化 & 规范** | [Biome](https://biomejs.dev/) (格式化与 Lint), [Vite](https://vitejs.dev/), TypeScript 5.9+ |
+| **前端框架** | [TanStack Start](https://tanstack.com/start), [TanStack Router](https://tanstack.com/router), [React 19](https://react.dev/) |
+| **UI & 样式** | [TailwindCSS v4](https://tailwindcss.com/), [HeroUI v3](https://heroui.com/), [Lucide React](https://lucide.dev/) |
+| **富文本创作** | [TipTap v3](https://tiptap.dev/), `@tailwindcss/typography`, `@streamdown/mermaid` |
+| **AI 编排** | [TanStack AI](https://tanstack.com/ai) (支持 Claude, OpenAI, Gemini, DeepSeek, Ollama) |
+| **本地存储** | [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) (SQLite 本地单文件 + 向量存储) |
+| **浏览器扩展** | [WXT Framework](https://wxt.dev/) (Manifest V3 + React 19 + Vite) |
+| **导出与解析** | `docx`, `jszip`, `marked`, `mammoth`, `pdfjs-dist`, `xlsx`, `html-to-image` |
+| **代码工程** | [Biome](https://biomejs.dev/) (格式化与 Lint), TypeScript 5.9+, Vite 8 |
 
 ---
 
 ## 🚀 快速上手
 
-### 1. 启动本地工作台
+### 1. 环境准备
+- Node.js >= 20.x
+- pnpm >= 9.x
+
+### 2. 配置环境变量
+在项目根目录下创建 `.env` 文件，配置所需的 AI 模型服务密钥（可根据常用模型选择性配置）：
+
+```env
+# AI 模型服务配置（支持 OpenAI 兼容格式 / DeepSeek / Claude / Gemini）
+AI_PROVIDER=deepseek                      # deepseek | openai | anthropic | gemini | ollama
+DEEPSEEK_API_KEY=your_deepseek_api_key
+OPENAI_API_KEY=your_openai_api_key
+ANTHROPIC_API_KEY=your_anthropic_api_key
+
+# 向量 Embedding 服务配置（用于混合检索）
+EMBEDDING_API_KEY=your_embedding_api_key
+EMBEDDING_BASE_URL=https://api.siliconflow.cn/v1
+EMBEDDING_MODEL=BAAI/bge-m3
+```
+
+### 3. 启动本地工作台
 
 ```bash
 # 1. 安装项目依赖
 pnpm install
 
-# 2. 启动开发服务器 (默认运行在 http://localhost:3888)
+# 2. 启动开发服务器 (默认端口 3888)
 pnpm dev
 ```
 
-浏览器访问 [http://localhost:3888](http://localhost:3888) 即可进入 AI Workstation。
+浏览器访问 [http://localhost:3888](http://localhost:3888) 即可进入 AI Workstation。首次运行会自动在根目录下创建 `.aiworkstation/workbench.db` 数据库并完成表初始化。
 
-### 2. 开发与加载 Chrome 采集插件
+### 4. 开发与安装 Chrome 采集插件
 
 ```bash
-# 启动插件开发模式（固定在 3889 端口，支持 HMR 热重载）
+# 启动插件开发热更新模式 (固定端口 3889)
 pnpm --filter ./extensions/aicollector dev
 ```
 
-**加载插件到 Chrome：**
-1. 打开 Chrome 浏览器，访问 `chrome://extensions/`；
-2. 开启右上角的 **「开发者模式」**；
+**加载到 Chrome 浏览器：**
+1. 打开 Chrome 浏览器，进入 `chrome://extensions/`；
+2. 开启右上角 **「开发者模式」**；
 3. 点击 **「加载已解压的扩展程序」**；
 4. 选择项目中的 `extensions/aicollector/.output/chrome-mv3` 目录；
-5. 点击浏览器右上角扩展栏图标或快捷键打开 **AI Workstation Collector 侧边栏**。
+5. 在任意网页按快捷键或点击扩展栏图标唤起 **AI Workstation Collector 侧边栏**。
 
 ---
 
-## 📋 常用开发命令
+## 📋 常用命令
 
 | 命令 | 说明 |
 |---|---|
@@ -177,41 +237,43 @@ pnpm --filter ./extensions/aicollector dev
 | `pnpm --filter ./extensions/aicollector dev` | 启动 Chrome 插件开发热更服务 (端口 3889) |
 | `pnpm build` | 构建工作台生产产物 |
 | `pnpm --filter ./extensions/aicollector build` | 构建 Chrome 插件生产包 |
-| `pnpm --filter ./extensions/aicollector zip` | 打包生成 Chrome 插件发布 .zip 文件 |
+| `pnpm zip:extension` | 打包生成 Chrome 扩展发布 ZIP 包 |
 | `pnpm check` | 运行 Biome 代码检查与修复 |
-| `pnpm format` | 运行 Biome 代码格式化 |
+| `pnpm format` | 运行 Biome 自动格式化 |
 
 ---
 
-## 🗺️ 产品规划路线图 (Roadmap)
+## 🗺️ 产品路线图 (Roadmap)
 
-- [x] **M1: 采集与工作台基础 (已完成)**
-  - [x] 主题文件夹网格与详情面板 UI
-  - [x] Chrome 扩展 Sidepanel 架构与内容抓取
-  - [x] Markdown、Word (DOCX)、ZIP 打包多格式导出
-  - [x] 整页滚动与局部滚动区域截屏
-  - [x] 本地 SQLite 单文件持久化接入 (`better-sqlite3`)
+- [x] **M1: 采集闭环与工作台基座**
+  - [x] 主题文件夹 App 网格布局与详情侧栏
+  - [x] WXT Chrome 扩展 Sidepanel 架构与正文提取
+  - [x] Markdown、Word (DOCX)、ZIP 打包导出
+  - [x] 整页滚动长截图与局部选区截图
+  - [x] SQLite 单文件持久化 (`better-sqlite3`)
   - [x] 插件一键推送数据至工作台 API
-- [x] **M2: RAG 知识检索与智能问答 (已完成)**
+- [x] **M2: RAG 混合检索与 Agent 治理体系**
   - [x] 混合检索（Hybrid Search）：向量语义 + 关键词精准召回
   - [x] 浏览器原生书签导入同步（BookmarkSyncModal）
-  - [x] 死链与失效书签巡检（DeadLinksModal）
-  - [x] ReAct Tool Calling 知识库治理（10 个基础与治理 Tool 闭环）
-  - [x] Batch-First 批量治理体系（批量建、批量删、批量移、`merge_folders` 原子归集）
-  - [x] 结构化 Markdown 成果看板交付物契约
-- [ ] **M3: 推特 / 社交媒体工作流**
-  - [ ] 社交平台页面内嵌“收藏与 AI 回复”快捷按钮
-  - [ ] 服务端批量生成回复草稿与二创内容
-  - [ ] 工作台审稿流与控制通道回填
-- [ ] **M4: 多平台发布与深度打磨**
-  - [ ] 微信公众号、小红书网页编辑器辅助填充
-  - [ ] 浏览器原生书签拦截与旁路监听
-  - [ ] 数据一键导出与冷备份恢复
-- [ ] **M5: AI Agent 智能体演进 (L3 → L4 → L5)**
-  - [x] 多态批量 Tool 架构与原子事务归集（已落地 ✅）
-  - [ ] 后台自治 Agent（自动归档 / 定期巡检 / 知识资产周报）
-  - [ ] 联网研究 Agent（搜索补充 + 深度调研对比报告）
-  - [ ] 跨源知识联邦（Connector Plugin 架构）
+  - [x] 失效链接巡检与死链清理（DeadLinksModal）
+  - [x] 17+ 维 Agent Tools（批量建/删/移、`merge_folders` 原子归集、标签管理）
+  - [x] Batch-First 原则与 Executive Dashboard 交付物契约
+  - [x] 实时折叠步骤时间轴（AgentStepTimeline）
+- [x] **M3: 智能爬虫通道与 Browser Co-Pilot**
+  - [x] 插件静默抓取通道（调度扩展后台抓取，突破 SPA 客户端渲染与登录态）
+  - [x] 联网搜索工具集成（`web_search`）
+  - [ ] 选区规则模板化（Recipe：可视化点选录制选择器 ➔ 持久化精准定向爬取）
+  - [ ] 浏览器原子动作驱动（点击、滚动翻页、表单填写交互流）
+- [x] **M4: 创作台与自媒体工作流**
+  - [x] 基于 TipTap 3 的 AI 富文本创作台架构
+  - [x] 划词 AI 润色/扩写/改写与版本 Diff 差异对比
+  - [x] Mermaid 图表与代码高亮静态渲染
+  - [ ] 推文/小红书二创流水线与草稿生成
+  - [ ] 控制通道回灌至网页编辑器并保留人工确认发布
+- [ ] **M5: 知识自治与跨源生态**
+  - [ ] 后台自治 Agent（自动入库分类 / 定期知识库体检周报）
+  - [ ] 跨源知识联邦（Connector Plugin：联动 Notion、Raindrop 等外部源）
+  - [ ] 个人专属视觉展示页（Showcase）一键导出
 
 ---
 
