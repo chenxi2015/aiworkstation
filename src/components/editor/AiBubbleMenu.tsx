@@ -406,7 +406,7 @@ export function AiBubbleMenu({
 			{/* Format tools + AI Quick Rewrite entrance */}
 			{state === "idle" && (
 				<div className="flex items-center gap-0.5 px-1.5 py-1">
-					<InlineFormatGroup editor={editor} />
+					<InlineFormatGroup editor={editor} isDropUp={isDropdownDropUp} />
 					<div className="w-px h-4 bg-border mx-1 shrink-0" />
 					<AiRewriteDropdown
 						actions={actions}

@@ -7,9 +7,6 @@ import {
 	Code,
 	Code2,
 	Eye,
-	Heading1,
-	Heading2,
-	Heading3,
 	ImagePlus,
 	Italic,
 	Link,
@@ -18,7 +15,6 @@ import {
 	ListTodo,
 	Minus,
 	PencilLine,
-	Pilcrow,
 	Quote,
 	Redo2,
 	Strikethrough,
@@ -31,6 +27,7 @@ import {
 } from "lucide-react";
 import { AiRewriteDropdown } from "./bubble/AiRewriteDropdown";
 import { DEFAULT_ACTIONS, getActionInstruction } from "./bubble/types";
+import { HeadingDropdown } from "./HeadingDropdown";
 
 interface ToolButtonProps {
 	icon: typeof Bold;
@@ -156,36 +153,7 @@ export function EditorToolbar({
 						onClick={() => editor.chain().focus().redo().run()}
 					/>
 					<Divider />
-					<ToolButton
-						icon={Pilcrow}
-						label="正文 (段落)"
-						active={editor.isActive("paragraph")}
-						onClick={() => editor.chain().focus().setParagraph().run()}
-					/>
-					<ToolButton
-						icon={Heading1}
-						label="标题 1"
-						active={editor.isActive("heading", { level: 1 })}
-						onClick={() =>
-							editor.chain().focus().toggleHeading({ level: 1 }).run()
-						}
-					/>
-					<ToolButton
-						icon={Heading2}
-						label="标题 2"
-						active={editor.isActive("heading", { level: 2 })}
-						onClick={() =>
-							editor.chain().focus().toggleHeading({ level: 2 }).run()
-						}
-					/>
-					<ToolButton
-						icon={Heading3}
-						label="标题 3"
-						active={editor.isActive("heading", { level: 3 })}
-						onClick={() =>
-							editor.chain().focus().toggleHeading({ level: 3 }).run()
-						}
-					/>
+					<HeadingDropdown editor={editor} />
 					<Divider />
 					<ToolButton
 						icon={Bold}
