@@ -185,23 +185,7 @@ aiworkstation/
 - Node.js >= 20.x
 - pnpm >= 9.x
 
-### 2. 配置环境变量
-在项目根目录下创建 `.env` 文件，配置所需的 AI 模型服务密钥（可根据常用模型选择性配置）：
-
-```env
-# AI 模型服务配置（支持 OpenAI 兼容格式 / DeepSeek / Claude / Gemini）
-AI_PROVIDER=deepseek                      # deepseek | openai | anthropic | gemini | ollama
-DEEPSEEK_API_KEY=your_deepseek_api_key
-OPENAI_API_KEY=your_openai_api_key
-ANTHROPIC_API_KEY=your_anthropic_api_key
-
-# 向量 Embedding 服务配置（用于混合检索）
-EMBEDDING_API_KEY=your_embedding_api_key
-EMBEDDING_BASE_URL=https://api.siliconflow.cn/v1
-EMBEDDING_MODEL=BAAI/bge-m3
-```
-
-### 3. 启动本地工作台
+### 2. 启动本地工作台
 
 ```bash
 # 1. 安装项目依赖
@@ -213,7 +197,9 @@ pnpm dev
 
 浏览器访问 [http://localhost:3888](http://localhost:3888) 即可进入 AI Workstation。首次运行会自动在根目录下创建 `.aiworkstation/workbench.db` 数据库并完成表初始化。
 
-### 4. 开发与安装 Chrome 采集插件
+> 💡 **免配置 .env 文件**：所有 AI 服务密钥（OpenAI、DeepSeek、Claude、Gemini、Ollama 等）与 Embedding 向量检索模型参数，均直接保存在本地 SQLite 数据库中。进入工作台后点击右上角 **「设置」** 即可直接可视化配置与切换。
+
+### 3. 开发与安装 Chrome 采集插件
 
 ```bash
 # 启动插件开发热更新模式 (固定端口 3889)
