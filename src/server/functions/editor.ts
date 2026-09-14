@@ -127,12 +127,13 @@ export const listDocumentVersions = createServerFn({ method: "GET" })
 	});
 
 /**
- * Server Function: 手动打版本快照（AI 回写前的自动快照也走这里，origin='ai'）
+ * Server Function: 手动打版本快照（AI 回写前的自动快照也走这里，origin='ai'；支持自定义 content）
  */
 export const snapshotDocumentVersion = createServerFn({ method: "POST" })
 	.validator(
 		(data: {
 			documentId: number;
+			content?: string;
 			origin?: DocumentVersionOrigin;
 			note?: string;
 		}) => data,
@@ -140,9 +141,11 @@ export const snapshotDocumentVersion = createServerFn({ method: "POST" })
 	.handler(async ({ data }): Promise<DocumentVersion> => {
 		const doc = workbenchDb.getDocument(data.documentId);
 		if (!doc) throw new Error("文档不存在");
+		const contentToSave =
+			data.content !== undefined ? data.content : doc.content;
 		const id = workbenchDb.createDocumentVersion({
 			documentId: data.documentId,
-			content: doc.content,
+			content: contentToSave,
 			origin: data.origin ?? "human",
 			note: data.note ?? null,
 		});

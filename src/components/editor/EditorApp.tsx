@@ -3,6 +3,7 @@ import type { Editor } from "@tiptap/react";
 import { FileText, Sparkles, Square } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 import type { NavLayoutEntry } from "../../modules/registry";
+import { updateDocumentRpc } from "../../services/api/editorClient";
 import { useWorkbenchQuickActions } from "../workbench/layout/useWorkbenchQuickActions";
 import { WorkbenchHeader } from "../workbench/layout/WorkbenchHeader";
 import { EditorCanvasSkeleton } from "../workbench/skeletons";
@@ -17,8 +18,8 @@ import { useDocumentExport } from "./hooks/useDocumentExport";
 import { useDocumentManager } from "./hooks/useDocumentManager";
 import { useEditorAiBridge } from "./hooks/useEditorAiBridge";
 import { ImportModal } from "./ImportModal";
+import { markdownToTiptapDoc } from "./markdown";
 import { RichTextEditor } from "./RichTextEditor";
-import { StylePresetModal } from "./StylePresetModal";
 
 export interface EditorAppProps {
 	unclassifiedCount: number;
@@ -47,8 +48,6 @@ export function EditorApp({
 		saveState,
 		savedAt,
 		contentText,
-		stylePresets,
-		setStylePresets,
 		switchDocument,
 		handleCreate,
 		handleDelete,
@@ -74,7 +73,6 @@ export function EditorApp({
 	} = useDocumentExport({ activeDoc, contentText });
 
 	const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-	const [isStylePresetModalOpen, setIsStylePresetModalOpen] = useState(false);
 	const [isDistributionModalOpen, setIsDistributionModalOpen] = useState(false);
 
 	const editorInstanceRef = useRef<Editor | null>(null);
@@ -161,20 +159,66 @@ export function EditorApp({
 		[],
 	);
 
+	const handleToggleSplitLayout = useCallback(() => {
+		if (!editorInstanceRef.current) return;
+		if (splitSession?.isOpen) {
+			setSplitSession(null);
+			toast.info("已切回单栏专注写作");
+		} else {
+			setSplitSession({
+				isOpen: true,
+			});
+		}
+	}, [splitSession]);
+
+	const handleSaveAsNewDocument = useCallback(
+		async (title: string, markdown: string) => {
+			try {
+				const { nodes } = markdownToTiptapDoc(markdown);
+				const docJson = {
+					type: "doc",
+					content: nodes.length > 0 ? nodes : [{ type: "paragraph" }],
+				};
+				const newDoc = await handleInsertNewDocument(title);
+				pendingImportHtmlRef.current = null;
+				await updateDocumentRpc({
+					id: newDoc.id,
+					title,
+					content: JSON.stringify(docJson),
+					contentText: markdown,
+				});
+				await reloadDocuments();
+				await switchDocument(newDoc.id);
+				setSplitSession(null);
+				toast.success(`已成功将该版本另存为新文档《${title}》！`);
+			} catch (err: unknown) {
+				const msg = err instanceof Error ? err.message : String(err);
+				toast.danger(`另存为新文档失败: ${msg}`);
+			}
+		},
+		[handleInsertNewDocument, reloadDocuments, switchDocument],
+	);
+
 	const handleAcceptSplitCompare = useCallback(
 		async (cleanDocJson: Parameters<Editor["commands"]["setContent"]>[0]) => {
 			if (!editorInstanceRef.current) return;
 			await handleBeforeAiApply();
-			editorInstanceRef.current.commands.setContent(cleanDocJson);
+			editorInstanceRef.current.commands.setContent(cleanDocJson, {
+				emitUpdate: true,
+			});
+			handleEditorChange(
+				JSON.stringify(cleanDocJson),
+				editorInstanceRef.current.getText(),
+			);
 			setSplitSession(null);
 			toast.success("已成功采纳改写成果，原文已更新！");
 		},
-		[handleBeforeAiApply],
+		[handleBeforeAiApply, handleEditorChange],
 	);
 
 	const handleCancelSplitCompare = useCallback(() => {
 		setSplitSession(null);
-		toast.info("已退出改写比对，保留原文");
+		toast.info("已退出双栏演练");
 	}, []);
 
 	// Bridge editor with the global AI side panel
@@ -279,6 +323,7 @@ export function EditorApp({
 									modeLabel={splitSession.modeLabel}
 									onAccept={handleAcceptSplitCompare}
 									onCancel={handleCancelSplitCompare}
+									onSaveAsNewDocument={handleSaveAsNewDocument}
 								/>
 							) : null}
 							<div
@@ -290,10 +335,9 @@ export function EditorApp({
 							>
 								<DocumentHeader
 									activeDoc={activeDoc}
-									stylePresets={stylePresets}
 									onTitleChange={handleTitleChange}
-									onStylePresetChange={handleStylePresetChange}
-									onOpenStylePresetModal={() => setIsStylePresetModalOpen(true)}
+									isSplitLayout={splitSession?.isOpen}
+									onToggleSplitLayout={handleToggleSplitLayout}
 								/>
 								<RichTextEditor
 									key={activeDoc.id}
@@ -306,9 +350,6 @@ export function EditorApp({
 									onBeforeAiApply={handleBeforeAiApply}
 									onEditorReady={handleEditorReady}
 									onOpenImport={() => setIsImportModalOpen(true)}
-									onOpenSplitRewrite={(instruction, modeLabel) =>
-										void handleStartRewritePipeline(instruction, modeLabel)
-									}
 									onRegisterPipeline={(trigger) => {
 										pipelineTriggerRef.current = trigger;
 									}}
@@ -345,11 +386,6 @@ export function EditorApp({
 				isOpen={isImportModalOpen}
 				onClose={() => setIsImportModalOpen(false)}
 				onImport={handleImport}
-			/>
-			<StylePresetModal
-				isOpen={isStylePresetModalOpen}
-				onClose={() => setIsStylePresetModalOpen(false)}
-				onPresetsUpdated={(updated) => setStylePresets(updated)}
 			/>
 			{activeDoc && (
 				<DistributionModal

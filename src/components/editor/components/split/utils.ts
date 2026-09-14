@@ -1,6 +1,22 @@
 import type { Editor } from "@tiptap/core";
-import { parseInlineMarkdownToNodes } from "../../markdown";
+import {
+	markdownToTiptapDoc,
+	parseInlineMarkdownToNodes,
+	renderBlock,
+	sanitizeTiptapJson,
+} from "../../markdown";
 import type { DocBlock } from "./types";
+
+/**
+ * Check whether a text string contains Markdown table format
+ */
+export function hasMarkdownTable(text?: string): boolean {
+	if (!text || !text.includes("|")) return false;
+	return (
+		/\|.+?\|\s*\n\s*\|[-: ]+?\|/.test(text) ||
+		(text.includes("|") && text.includes("---"))
+	);
+}
 
 /**
  * Parse top-level nodes of a TipTap editor document into structured blocks.
@@ -14,10 +30,13 @@ export function parseDocToBlocks(editor: Editor): DocBlock[] {
 		const isText = node.type === "paragraph" || node.type === "heading";
 		const isImage = node.type === "image";
 		const isVideo = node.type === "video";
+		const isTable = node.type === "table";
 
 		let originalText = "";
 		if (isText && Array.isArray(node.content)) {
 			originalText = node.content.map((c: any) => c.text || "").join("");
+		} else if (isTable) {
+			originalText = renderBlock(node as any, "");
 		}
 
 		if (isText && originalText.trim().length >= 2) {
@@ -30,6 +49,21 @@ export function parseDocToBlocks(editor: Editor): DocBlock[] {
 				originalText,
 				revisedText: "", // Starts empty for right-side streaming
 				status: "pending" as const,
+				textIndex: textCount,
+			};
+		}
+
+		if (isTable) {
+			textCount += 1;
+			return {
+				id: `block_${i}`,
+				type: "table" as const,
+				nodeType: "table",
+				attrs: { ...node.attrs, tableContent: node.content },
+				originalText,
+				revisedText: originalText,
+				aiRevisedText: originalText,
+				status: "done" as const,
 				textIndex: textCount,
 			};
 		}
@@ -73,31 +107,69 @@ export function parseDocToBlocks(editor: Editor): DocBlock[] {
 
 /**
  * Reassemble DocBlock list back into standard ProseMirror document JSON.
+ * Accurately parses block-level Markdown (such as tables, multiple headings, lists)
+ * into native ProseMirror nodes when accepted.
  */
 export function buildDocFromBlocks(blocks: DocBlock[]) {
-	return {
-		type: "doc",
-		content: blocks.map((b) => {
-			if (b.type === "text") {
-				const textToUse = b.revisedText || b.originalText;
-				const inlineNodes = textToUse
-					? parseInlineMarkdownToNodes(textToUse)
-					: [];
-				return {
-					type: b.nodeType,
-					attrs: b.attrs,
-					content:
-						inlineNodes.length > 0
-							? inlineNodes
-							: textToUse
-								? [{ type: "text", text: textToUse }]
-								: [],
-				};
+	const content: any[] = [];
+
+	for (const b of blocks) {
+		if (b.type === "text" || b.type === "table") {
+			const textToUse = b.revisedText || b.originalText;
+
+			// If text contains block-level markdown structures (tables, multi-line blocks),
+			// parse via markdownToTiptapDoc so true table and multi-paragraph nodes are preserved.
+			if (
+				textToUse &&
+				(hasMarkdownTable(textToUse) || textToUse.includes("\n\n"))
+			) {
+				const { nodes } = markdownToTiptapDoc(textToUse);
+				if (nodes && nodes.length > 0) {
+					content.push(...nodes);
+					continue;
+				}
 			}
-			return {
+
+			if (
+				b.type === "table" &&
+				(!b.revisedText || b.revisedText === b.originalText)
+			) {
+				content.push({
+					type: "table",
+					attrs: b.attrs,
+					content: b.attrs?.tableContent || [],
+				});
+				continue;
+			}
+
+			const inlineNodes = textToUse
+				? parseInlineMarkdownToNodes(textToUse)
+				: [];
+
+			content.push({
+				type: b.nodeType || "paragraph",
+				attrs: b.attrs,
+				content:
+					inlineNodes.length > 0
+						? inlineNodes
+						: textToUse
+							? [{ type: "text", text: textToUse }]
+							: [],
+			});
+		} else {
+			content.push({
 				type: b.nodeType,
 				attrs: b.attrs,
-			};
-		}),
+			});
+		}
+	}
+
+	const cleaned = content
+		.map(sanitizeTiptapJson)
+		.filter((n): n is NonNullable<typeof n> => Boolean(n));
+
+	return {
+		type: "doc",
+		content: cleaned.length > 0 ? cleaned : [{ type: "paragraph" }],
 	};
 }

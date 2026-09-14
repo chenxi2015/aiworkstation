@@ -43,7 +43,7 @@ function renderInlineGroup(children: JSONContent[] | undefined): string {
 	return (children ?? []).map(renderInline).join("");
 }
 
-function renderBlock(node: JSONContent, indent: string): string {
+export function renderBlock(node: JSONContent, indent: string): string {
 	switch (node.type) {
 		case "paragraph":
 			return `${indent}${renderInlineGroup(node.content)}`;
@@ -86,8 +86,20 @@ function renderBlock(node: JSONContent, indent: string): string {
 			// Render GFM table; first row = header, rest = body
 			const rows = node.content ?? [];
 			if (rows.length === 0) return "";
+			const renderCell = (cell: JSONContent) => {
+				const children = cell.content ?? [];
+				const cellText = children
+					.map((c) =>
+						c.type === "paragraph"
+							? renderInlineGroup(c.content)
+							: renderInline(c),
+					)
+					.join("<br/>")
+					.replace(/\|/g, "\\|");
+				return cellText || " ";
+			};
 			const renderRow = (row: JSONContent) =>
-				`| ${(row.content ?? []).map((cell) => renderInlineGroup(cell.content).replace(/\|/g, "\\|")).join(" | ")} |`;
+				`| ${(row.content ?? []).map(renderCell).join(" | ")} |`;
 			const [headerRow, ...bodyRows] = rows;
 			if (!headerRow) return "";
 			const colCount = (headerRow.content ?? []).length || 1;
@@ -179,11 +191,14 @@ export function parseInlineMarkdownToNodes(
 				);
 				break;
 			case "codespan":
-				result.push({
-					type: "text",
-					text: token.text,
-					marks: [...activeMarks, { type: "code" }],
-				});
+				if (token.text) {
+					// In ProseMirror/TipTap schema, code mark specifies `excludes: "_"` and cannot be combined with any other marks
+					result.push({
+						type: "text",
+						text: token.text,
+						marks: [{ type: "code" }],
+					});
+				}
 				break;
 			case "del":
 				result.push(
@@ -197,16 +212,18 @@ export function parseInlineMarkdownToNodes(
 				result.push(
 					...parseInlineMarkdownToNodes(token.tokens || [], [
 						...activeMarks,
-						{ type: "link", attrs: { href: token.href } },
+						{ type: "link", attrs: { href: token.href || "" } },
 					]),
 				);
 				break;
 			case "escape":
-				result.push({
-					type: "text",
-					text: token.text,
-					...(activeMarks.length > 0 ? { marks: [...activeMarks] } : {}),
-				});
+				if (token.text) {
+					result.push({
+						type: "text",
+						text: token.text,
+						...(activeMarks.length > 0 ? { marks: [...activeMarks] } : {}),
+					});
+				}
 				break;
 			case "br":
 				result.push({ type: "hardBreak" });
@@ -229,18 +246,68 @@ export function parseInlineMarkdownToNodes(
 	return result;
 }
 
+/**
+ * Recursively filters out any invalid text nodes (e.g. empty string text)
+ * and ensures ProseMirror schema conformity to prevent "RangeError: Empty text nodes are not allowed".
+ */
+export function sanitizeTiptapJson(node: JSONContent): JSONContent | null {
+	if (node.type === "text") {
+		if (!node.text || node.text.length === 0) {
+			return null;
+		}
+		// Code marks in ProseMirror exclude all other marks. Enforce singularity to prevent schema validation errors.
+		if (node.marks?.some((m) => m.type === "code")) {
+			return {
+				...node,
+				marks: [{ type: "code" }],
+			};
+		}
+		return node;
+	}
+
+	if (Array.isArray(node.content)) {
+		const cleanContent: JSONContent[] = [];
+		for (const child of node.content) {
+			const cleaned = sanitizeTiptapJson(child);
+			if (cleaned) {
+				cleanContent.push(cleaned);
+			}
+		}
+
+		// Ensure tableCell and tableHeader meet ProseMirror's `block+` requirement
+		if (
+			cleanContent.length === 0 &&
+			(node.type === "tableCell" || node.type === "tableHeader")
+		) {
+			cleanContent.push({ type: "paragraph" });
+		}
+
+		return {
+			...node,
+			...(cleanContent.length > 0
+				? { content: cleanContent }
+				: { content: undefined }),
+		};
+	}
+
+	return node;
+}
+
 function convertTokenToBlocks(token: Tokens.Generic): JSONContent[] {
 	switch (token.type) {
 		case "heading": {
 			const inlineContent = parseInlineMarkdownToNodes(token.tokens || []);
+			const content: JSONContent[] =
+				inlineContent.length > 0
+					? inlineContent
+					: token.text
+						? [{ type: "text", text: token.text }]
+						: [];
 			return [
 				{
 					type: "heading",
 					attrs: { level: Math.min(Math.max(token.depth, 1), 3) },
-					content:
-						inlineContent.length > 0
-							? inlineContent
-							: [{ type: "text", text: token.text }],
+					...(content.length > 0 ? { content } : {}),
 				},
 			];
 		}
@@ -289,13 +356,16 @@ function convertTokenToBlocks(token: Tokens.Generic): JSONContent[] {
 
 			if (blocks.length === 0) {
 				const content = parseInlineMarkdownToNodes(subTokens);
+				const finalContent: JSONContent[] =
+					content.length > 0
+						? content
+						: token.text
+							? [{ type: "text", text: token.text }]
+							: [];
 				return [
 					{
 						type: "paragraph",
-						content:
-							content.length > 0
-								? content
-								: [{ type: "text", text: token.text }],
+						...(finalContent.length > 0 ? { content: finalContent } : {}),
 					},
 				];
 			}
@@ -331,7 +401,9 @@ function convertTokenToBlocks(token: Tokens.Generic): JSONContent[] {
 								: [
 										{
 											type: "paragraph",
-											content: [{ type: "text", text: item.text }],
+											...(item.text
+												? { content: [{ type: "text", text: item.text }] }
+												: {}),
 										},
 									],
 					};
@@ -357,8 +429,12 @@ function convertTokenToBlocks(token: Tokens.Generic): JSONContent[] {
 			return [
 				{
 					type: "codeBlock",
-					attrs: { language: token.lang || "" },
-					content: [{ type: "text", text: token.text }],
+					attrs: {
+						language: token.lang ? token.lang.trim().split(/\s+/)[0] : "",
+					},
+					...(token.text
+						? { content: [{ type: "text", text: token.text }] }
+						: {}),
 				},
 			];
 		case "table": {
@@ -369,15 +445,18 @@ function convertTokenToBlocks(token: Tokens.Generic): JSONContent[] {
 					content: token.header.map(
 						(cell: { tokens?: Tokens.Generic[]; text: string }) => {
 							const cellInline = parseInlineMarkdownToNodes(cell.tokens || []);
+							const cellContent: JSONContent[] =
+								cellInline.length > 0
+									? cellInline
+									: cell.text
+										? [{ type: "text", text: cell.text }]
+										: [];
 							return {
 								type: "tableHeader",
 								content: [
 									{
 										type: "paragraph",
-										content:
-											cellInline.length > 0
-												? cellInline
-												: [{ type: "text", text: cell.text }],
+										...(cellContent.length > 0 ? { content: cellContent } : {}),
 									},
 								],
 							};
@@ -391,15 +470,18 @@ function convertTokenToBlocks(token: Tokens.Generic): JSONContent[] {
 					content: row.map(
 						(cell: { tokens?: Tokens.Generic[]; text: string }) => {
 							const cellInline = parseInlineMarkdownToNodes(cell.tokens || []);
+							const cellContent: JSONContent[] =
+								cellInline.length > 0
+									? cellInline
+									: cell.text
+										? [{ type: "text", text: cell.text }]
+										: [];
 							return {
 								type: "tableCell",
 								content: [
 									{
 										type: "paragraph",
-										content:
-											cellInline.length > 0
-												? cellInline
-												: [{ type: "text", text: cell.text }],
+										...(cellContent.length > 0 ? { content: cellContent } : {}),
 									},
 								],
 							};
@@ -445,13 +527,19 @@ export function markdownToTiptapDoc(markdownText: string): {
 
 	const normalized = markdownText.replace(/\r\n/g, "\n");
 	const tokens = marked.lexer(normalized);
-	const nodes: JSONContent[] = [];
+	const rawNodes: JSONContent[] = [];
 
 	for (const token of tokens) {
-		nodes.push(...convertTokenToBlocks(token));
+		rawNodes.push(...convertTokenToBlocks(token));
 	}
 
-	const finalNodes = nodes.length > 0 ? nodes : [{ type: "paragraph" }];
+	// Sanitize nodes recursively to eliminate empty text nodes or malformed table cells
+	const cleanedNodes = rawNodes
+		.map(sanitizeTiptapJson)
+		.filter((n): n is JSONContent => Boolean(n));
+
+	const finalNodes =
+		cleanedNodes.length > 0 ? cleanedNodes : [{ type: "paragraph" }];
 	const jsonString = JSON.stringify({
 		type: "doc",
 		content: finalNodes,

@@ -30,8 +30,6 @@ export interface RichTextEditorProps {
 	onEditorReady?: (editor: Editor | null) => void;
 	/** 点击顶部工具栏导入按钮回调 */
 	onOpenImport?: () => void;
-	/** 启动分屏改写对比视图 */
-	onOpenSplitRewrite?: (instruction?: string, modeLabel?: string) => void;
 	/** 暴露段落流水线触发器给父组件（用于 AI 侧边栏跨模块触发） */
 	onRegisterPipeline?: (
 		trigger: (instruction?: string) => Promise<void>,
@@ -52,7 +50,6 @@ export function RichTextEditor({
 	onBeforeAiApply,
 	onEditorReady,
 	onOpenImport,
-	onOpenSplitRewrite,
 	onRegisterPipeline,
 }: RichTextEditorProps) {
 	const [preview, setPreview] = useState(false);
@@ -122,7 +119,6 @@ export function RichTextEditor({
 				onInsertImageUrl={mediaUpload.promptInsertImageUrl}
 				onInsertVideoUrl={mediaUpload.promptInsertVideoUrl}
 				onOpenImport={onOpenImport}
-				onOpenSplitRewrite={onOpenSplitRewrite}
 			/>
 
 			{/* AI BubbleMenu — appears on text selection */}

@@ -19,15 +19,16 @@ export interface EditorRewriteStreamParams {
 function stripMetaChatter(text: string): string {
 	let cleaned = text.trim();
 	// Remove leading common AI preambles
-	cleaned = cleaned.replace(
-		/^(好的[，,！!]?|好的，我来为你.*?[：:\n]|根据你的要求[，,].*?[：:\n]|为您润色如下[：:\n]|你未附完整现稿.*?[：:\n]|我先按.*?压缩如下[：:\n])/i,
-		"",
-	).trim();
+	cleaned = cleaned
+		.replace(
+			/^(好的[，,！!]?|好的，我来为你.*?[：:\n]|根据你的要求[，,].*?[：:\n]|为您润色如下[：:\n]|你未附完整现稿.*?[：:\n]|我先按.*?压缩如下[：:\n])/i,
+			"",
+		)
+		.trim();
 	// Remove trailing meta notes like "如需全篇...请发来"
-	cleaned = cleaned.replace(
-		/(\n\s*(如需全篇|若需更多|以上是针对|如有其他需求).*$)/s,
-		"",
-	).trim();
+	cleaned = cleaned
+		.replace(/(\n\s*(如需全篇|若需更多|以上是针对|如有其他需求).*$)/s, "")
+		.trim();
 	return cleaned;
 }
 
@@ -106,17 +107,21 @@ export async function handleEditorRewriteStreamRequest(
 			}
 		}
 
-		const strictRules = `\n\n【输出铁律（恪守不渝）】：
-1. 你的任务是仅针对【当前段落】进行精细改写/润色/精简。
-2. 严禁输出任何问候、开场白、确认语、解释或前后缀说明（例如严禁输出“你未附完整现稿”、“好的”、“我为你优化如下”、“如需全篇请发来”等）！
-3. 直接输出改写后的正文段落内容，绝不要添加任何 Markdown 引用块包装或多余闲话！`;
+		const isSingleParagraph = Boolean(
+			params.paragraphIndex && params.totalParagraphs,
+		);
+
+		const strictRules = `\n\n【输出与配图保留铁律（恪守不渝）】：
+1. ${isSingleParagraph ? "你的任务是仅针对【当前段落】进行精细改写/润色/精简。" : "你的任务是对所提供的全文内容进行深度二创与改写。"}
+2. 【配图完整保留（最高优先级）】：原文中出现的任何 Markdown 图片标签（形如 \`![描述](URL)\`）或视频/媒体链接，必须 100% 完整保留其 URL 与语法！绝对严禁删除、忽略或篡改任何图片，请将图片合理地安排穿插在对应语义的段落之间。
+3. 严禁输出任何问候、开场白、确认语、解释或前后缀说明（例如严禁输出“好的”、“我为你优化如下”等）！
+4. 直接输出改写后的正文内容，绝不要添加任何 Markdown 引用块包装或多余闲话！`;
 
 		const baseHint =
 			params.systemHint ||
 			"你是一名专业中文写作助手。请对给定的一段正文进行精细润色与优化。保持原意与事实，提升修辞、逻辑连贯性与表达质感。";
 
-		const systemPrompt =
-			baseHint + presetPrompt + contextSection + strictRules;
+		const systemPrompt = baseHint + presetPrompt + contextSection + strictRules;
 
 		const stream = await chat({
 			adapter,

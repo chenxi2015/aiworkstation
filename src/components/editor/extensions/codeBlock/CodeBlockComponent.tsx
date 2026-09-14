@@ -78,7 +78,7 @@ export function CodeBlockComponent({
 	return (
 		<NodeViewWrapper className="code-block-node-view not-prose my-4 rounded-xl border border-zinc-800/80 bg-[#1e1e1e] text-zinc-100 shadow-md overflow-hidden group">
 			{/* Code Block Header */}
-			<div className="flex items-center justify-between px-3.5 py-1.5 bg-[#252526] border-b border-zinc-800/80 select-none text-xs font-mono text-zinc-400">
+			<div className="flex items-center justify-between h-9 px-3.5 bg-[#252526] border-b border-zinc-800/80 select-none text-xs font-mono text-zinc-400">
 				<div className="flex items-center gap-2">
 					<div className="flex items-center gap-1.5 mr-1.5">
 						<span className="w-2.5 h-2.5 rounded-full bg-[#ff5f56]/80 inline-block" />

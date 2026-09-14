@@ -69,6 +69,7 @@ export async function fetchDocumentVersions(
 
 export async function snapshotVersionRpc(params: {
 	documentId: number;
+	content?: string;
 	origin?: DocumentVersionOrigin;
 	note?: string;
 }): Promise<DocumentVersion> {

@@ -1,5 +1,5 @@
 import { Button, Tooltip } from "@heroui/react";
-import { History, MessageSquarePlus } from "lucide-react";
+import { History, MessageSquarePlus, PanelRightClose } from "lucide-react";
 import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { type ChatItem, useAiChat } from "../../../../hooks/ai/useAiChat";
 import { useItemFolderAssign } from "../../../../hooks/ai/useItemFolderAssign";
@@ -61,6 +61,7 @@ export interface ChatWithBookmarksPanelProps {
 		targetItemId?: string | number,
 	) => void;
 	onDataChanged?: () => void;
+	onCollapse?: () => void;
 	className?: string;
 }
 
@@ -81,6 +82,7 @@ export const ChatWithBookmarksPanel = forwardRef<
 		settings,
 		onNavigateToFolder,
 		onDataChanged,
+		onCollapse,
 		className = "",
 	},
 	ref,
@@ -316,6 +318,26 @@ export const ChatWithBookmarksPanel = forwardRef<
 								历史记录
 							</Tooltip.Content>
 						</Tooltip>
+
+						{onCollapse && (
+							<Tooltip>
+								<Tooltip.Trigger>
+									<Button
+										variant="ghost"
+										size="sm"
+										isIconOnly
+										className="h-7 w-7 p-0 text-muted hover:text-foreground hover:bg-surface-secondary/80 rounded-lg cursor-pointer transition-colors"
+										onPress={onCollapse}
+										aria-label="收起 AI 助手"
+									>
+										<PanelRightClose className="w-3.5 h-3.5" />
+									</Button>
+								</Tooltip.Trigger>
+								<Tooltip.Content className="text-xs py-1 px-2">
+									收起面板
+								</Tooltip.Content>
+							</Tooltip>
+						)}
 					</div>
 				</div>
 

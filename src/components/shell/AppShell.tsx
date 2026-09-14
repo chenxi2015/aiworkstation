@@ -1,4 +1,5 @@
 import { useRouter, useRouterState } from "@tanstack/react-router";
+import { PanelRightOpen } from "lucide-react";
 import {
 	createContext,
 	type ReactNode,
@@ -83,6 +84,9 @@ export interface AiPanelApi {
 	consumePendingNavigation: () => PendingFolderNavigation | null;
 	pageBridge: PageBridge | null;
 	registerPageBridge: (bridge: PageBridge | null) => void;
+	isCollapsed: boolean;
+	setCollapsed: (collapsed: boolean | ((prev: boolean) => boolean)) => void;
+	toggleCollapsed: () => void;
 }
 
 const AiPanelContext = createContext<AiPanelApi | null>(null);
@@ -101,6 +105,9 @@ const DEFAULT_AI_PANEL_API: AiPanelApi = {
 	consumePendingNavigation: () => null,
 	pageBridge: null,
 	registerPageBridge: () => {},
+	isCollapsed: false,
+	setCollapsed: () => {},
+	toggleCollapsed: () => {},
 };
 
 /** Global AI panel bridge: fallback to safe no-op when rendered outside AppShell to prevent crash */
@@ -145,6 +152,20 @@ export function AppShell({
 
 	const pathname = useRouterState({ select: (s) => s.location.pathname });
 	const activeModule = getModuleByRoute(pathname)?.code ?? "workbench";
+
+	const isEditorRoute = pathname.startsWith("/editor");
+	const [isCollapsed, setIsCollapsed] = useState<boolean>(() => isEditorRoute);
+
+	// Automatically collapse global AI panel when entering editor to release 100% canvas width
+	useEffect(() => {
+		if (isEditorRoute) {
+			setIsCollapsed(true);
+		}
+	}, [isEditorRoute]);
+
+	const toggleCollapsed = useCallback(() => {
+		setIsCollapsed((prev) => !prev);
+	}, []);
 
 	useEffect(() => {
 		workbenchContextActions.setActiveModule(activeModule);
@@ -228,8 +249,11 @@ export function AppShell({
 			},
 			pageBridge,
 			registerPageBridge: setPageBridge,
+			isCollapsed,
+			setCollapsed: setIsCollapsed,
+			toggleCollapsed,
 		}),
-		[pageBridge],
+		[pageBridge, isCollapsed, toggleCollapsed],
 	);
 
 	return (
@@ -250,10 +274,9 @@ export function AppShell({
 				}
 				onAttachToChat={(data) => dndHandlers?.onAttachToChat?.(data)}
 			>
-				<div className="app-shell h-screen flex overflow-hidden">
-					{/* 流式 SSR 占位：面板骨架在 DOM 中先于真实面板下发（order 靠右显示），
-					真实面板到达后由 CSS :has 自动隐藏，避免刷新时右侧边栏区域空白跳动 */}
-					<AiPanelSkeleton />
+				<div className="app-shell h-screen flex overflow-hidden relative">
+					{/* 流式 SSR 占位：仅在未折叠时渲染骨架屏 */}
+					{!isCollapsed && <AiPanelSkeleton />}
 					{/* Left Region: 当前路由页面（含各自的顶栏与内容） */}
 					<div className="order-1 flex-1 flex flex-col min-w-0 min-h-0">
 						{children}
@@ -261,7 +284,7 @@ export function AppShell({
 					{/* Right: 常驻 AI 搜索与知识问答中枢（全局单例，占满视口高度） */}
 					<ChatWithBookmarksPanel
 						ref={panelRef}
-						className="order-2"
+						className={isCollapsed ? "hidden" : "order-2"}
 						selectedFolder={scope.selectedFolder}
 						activeCategory={scope.activeCategory}
 						activeModule={activeModule}
@@ -271,7 +294,24 @@ export function AppShell({
 						settings={settings}
 						onNavigateToFolder={handleNavigateToFolder}
 						onDataChanged={handleDataChanged}
+						onCollapse={() => setIsCollapsed(true)}
 					/>
+
+					{/* Collapsed floating trigger tab on right edge */}
+					{isCollapsed && (
+						<button
+							type="button"
+							onClick={() => setIsCollapsed(false)}
+							className="fixed right-0 top-1/2 -translate-y-1/2 z-30 bg-surface/90 dark:bg-zinc-900/90 backdrop-blur-md border border-r-0 border-border hover:border-accent text-muted hover:text-foreground py-2.5 px-1 rounded-l-xl shadow-lg flex flex-col items-center gap-1.5 transition-all cursor-pointer group hover:bg-surface-secondary/80"
+							title="展开 AI 助手"
+							aria-label="展开 AI 助手"
+						>
+							<PanelRightOpen className="w-3.5 h-3.5 text-accent group-hover:scale-110 transition-transform" />
+							<span className="text-[10px] [writing-mode:vertical-lr] tracking-widest text-muted group-hover:text-foreground font-medium select-none">
+								AI助手
+							</span>
+						</button>
+					)}
 				</div>
 			</WorkbenchDndProvider>
 		</AiPanelContext.Provider>

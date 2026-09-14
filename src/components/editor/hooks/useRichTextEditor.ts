@@ -133,10 +133,18 @@ export function useRichTextEditor({
 					// 2.4 Markdown content -> convert to formatted rich text
 					const html = event.clipboardData?.getData("text/html");
 					if (shouldTreatAsMarkdown(text, html)) {
-						const { nodes } = markdownToTiptapDoc(text);
-						if (nodes.length > 0) {
+						try {
+							const { nodes } = markdownToTiptapDoc(text);
+							if (nodes.length > 0) {
+								event.preventDefault();
+								editorRef.current.chain().focus().insertContent(nodes).run();
+								return true;
+							}
+						} catch (err) {
+							console.error("Failed to insert parsed markdown nodes:", err);
+							// Fallback to inserting plain text if structured insertion encounters an unexpected error
 							event.preventDefault();
-							editorRef.current.chain().focus().insertContent(nodes).run();
+							editorRef.current.chain().focus().insertContent(text).run();
 							return true;
 						}
 					}

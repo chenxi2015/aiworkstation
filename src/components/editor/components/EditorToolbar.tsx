@@ -25,8 +25,6 @@ import {
 	Upload,
 	Video,
 } from "lucide-react";
-import { AiRewriteDropdown } from "./bubble/AiRewriteDropdown";
-import { DEFAULT_ACTIONS, getActionInstruction } from "./bubble/types";
 import { HeadingDropdown } from "./HeadingDropdown";
 
 interface ToolButtonProps {
@@ -75,7 +73,6 @@ export interface EditorToolbarProps {
 	onInsertImageUrl: () => void;
 	onInsertVideoUrl: () => void;
 	onOpenImport?: () => void;
-	onOpenSplitRewrite?: (instruction?: string, modeLabel?: string) => void;
 }
 
 /**
@@ -91,7 +88,6 @@ export function EditorToolbar({
 	onInsertImageUrl,
 	onInsertVideoUrl,
 	onOpenImport,
-	onOpenSplitRewrite,
 }: EditorToolbarProps) {
 	const setLink = () => {
 		const previousUrl = editor.getAttributes("link").href;
@@ -312,26 +308,6 @@ export function EditorToolbar({
 							导入
 						</button>
 					)}
-					<Divider />
-					{onOpenSplitRewrite && (
-						<AiRewriteDropdown
-							label="AI 改写比对"
-							title="选择全篇改写比对模式"
-							actions={DEFAULT_ACTIONS}
-							align="right"
-							buttonClassName="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-accent bg-accent/10 hover:bg-accent/20 rounded-md transition-colors cursor-pointer"
-							onSelectAction={(action) => {
-								const instruction = getActionInstruction(action);
-								onOpenSplitRewrite(instruction, action.label);
-							}}
-						/>
-					)}
-					<ToolButton
-						icon={Eye}
-						label="预览"
-						active={false}
-						onClick={onTogglePreview}
-					/>
 				</>
 			)}
 		</div>

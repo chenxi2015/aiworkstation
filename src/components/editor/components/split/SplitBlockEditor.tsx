@@ -1,5 +1,5 @@
 import { Check, Pencil, RotateCcw } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { DocBlock } from "./types";
 
 interface SplitBlockEditorProps {
@@ -23,13 +23,13 @@ export function SplitBlockEditor({
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 
 	// Auto-resize textarea height to match text content seamlessly
-	const adjustHeight = () => {
+	const adjustHeight = useCallback(() => {
 		const el = textareaRef.current;
 		if (el) {
 			el.style.height = "auto";
 			el.style.height = `${Math.max(el.scrollHeight, 40)}px`;
 		}
-	};
+	}, []);
 
 	useEffect(() => {
 		adjustHeight();
@@ -39,7 +39,7 @@ export function SplitBlockEditor({
 			const len = textareaRef.current.value.length;
 			textareaRef.current.setSelectionRange(len, len);
 		}
-	}, []);
+	}, [adjustHeight]);
 
 	const isModifiedFromAi =
 		Boolean(block.aiRevisedText) && block.revisedText !== block.aiRevisedText;

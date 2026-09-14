@@ -80,3 +80,129 @@ export function buildNodesFromDiff(
 	// Guarantee at least one node is returned
 	return paragraphs.length > 0 ? paragraphs : [schema.nodes.paragraph.create()];
 }
+
+const ADD_CLASS =
+	"no-underline bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-medium px-0.5 rounded mx-0.5";
+const DEL_CLASS =
+	"bg-danger/15 text-danger line-through font-medium px-0.5 rounded mx-0.5";
+
+/**
+ * Build rich markdown preserving layout (headings, tables, lists)
+ * while injecting inline <ins> or <del> highlight tags for diff view.
+ */
+export function buildHighlightedMarkdown(
+	baseMd: string,
+	targetMd: string,
+	role: "base" | "revised",
+): string {
+	if (!baseMd || !targetMd || baseMd.trim() === targetMd.trim()) {
+		return role === "base" ? baseMd : targetMd;
+	}
+
+	const chunks = diff.diffLines(baseMd, targetMd);
+	const result: string[] = [];
+
+	for (let i = 0; i < chunks.length; i++) {
+		const current = chunks[i];
+
+		if (!current.added && !current.removed) {
+			result.push(current.value);
+			continue;
+		}
+
+		if (role === "revised") {
+			if (current.added) {
+				const prev = chunks[i - 1];
+				// If immediately following a single-line removed chunk, do fine-grained word diff
+				if (prev && prev.removed && prev.count === 1 && current.count === 1) {
+					const wordDiffs = diff.diffWordsWithSpace(
+						prev.value.trimEnd(),
+						current.value.trimEnd(),
+					);
+					const lineHtml = wordDiffs
+						.map((w) => {
+							if (w.added) {
+								return `<ins class="${ADD_CLASS}">${w.value}</ins>`;
+							}
+							if (w.removed) return "";
+							return w.value;
+						})
+						.join("");
+					result.push(`${lineHtml}\n`);
+				} else {
+					// Multiple lines or block added
+					const lines = current.value.split("\n");
+					const processed = lines.map((line) => {
+						if (!line.trim()) return line;
+						if (line.trim().startsWith("|") && line.trim().endsWith("|")) {
+							// Table row: highlight cells while preserving pipe separators
+							return line
+								.split("|")
+								.map((cell) => {
+									const trimmed = cell.trim();
+									if (!trimmed || trimmed === "---" || trimmed.includes("---"))
+										return cell;
+									return ` <ins class="${ADD_CLASS}">${trimmed}</ins> `;
+								})
+								.join("|");
+						}
+						// Headings or regular lines
+						const headingMatch = line.match(/^(#{1,6}\s+)(.*)$/);
+						if (headingMatch) {
+							return `${headingMatch[1]}<ins class="${ADD_CLASS}">${headingMatch[2]}</ins>`;
+						}
+						return `<ins class="${ADD_CLASS}">${line}</ins>`;
+					});
+					result.push(processed.join("\n"));
+				}
+			}
+		} else {
+			// role === "base"
+			if (current.removed) {
+				const next = chunks[i + 1];
+				// If immediately followed by a single-line added chunk, do fine-grained word diff
+				if (next && next.added && next.count === 1 && current.count === 1) {
+					const wordDiffs = diff.diffWordsWithSpace(
+						current.value.trimEnd(),
+						next.value.trimEnd(),
+					);
+					const lineHtml = wordDiffs
+						.map((w) => {
+							if (w.removed) {
+								return `<del class="${DEL_CLASS}">${w.value}</del>`;
+							}
+							if (w.added) return "";
+							return w.value;
+						})
+						.join("");
+					result.push(`${lineHtml}\n`);
+				} else {
+					// Block removed
+					const lines = current.value.split("\n");
+					const processed = lines.map((line) => {
+						if (!line.trim()) return line;
+						if (line.trim().startsWith("|") && line.trim().endsWith("|")) {
+							return line
+								.split("|")
+								.map((cell) => {
+									const trimmed = cell.trim();
+									if (!trimmed || trimmed === "---" || trimmed.includes("---"))
+										return cell;
+									return ` <del class="${DEL_CLASS}">${trimmed}</del> `;
+								})
+								.join("|");
+						}
+						const headingMatch = line.match(/^(#{1,6}\s+)(.*)$/);
+						if (headingMatch) {
+							return `${headingMatch[1]}<del class="${DEL_CLASS}">${headingMatch[2]}</del>`;
+						}
+						return `<del class="${DEL_CLASS}">${line}</del>`;
+					});
+					result.push(processed.join("\n"));
+				}
+			}
+		}
+	}
+
+	return result.join("");
+}
