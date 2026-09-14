@@ -3,7 +3,6 @@ import {
 	markdownToTiptapDoc,
 	parseInlineMarkdownToNodes,
 	renderBlock,
-	sanitizeTiptapJson,
 } from "../../markdown";
 import type { DocBlock } from "./types";
 
@@ -117,11 +116,14 @@ export function buildDocFromBlocks(blocks: DocBlock[]) {
 		if (b.type === "text" || b.type === "table") {
 			const textToUse = b.revisedText || b.originalText;
 
-			// If text contains block-level markdown structures (tables, multi-line blocks),
-			// parse via markdownToTiptapDoc so true table and multi-paragraph nodes are preserved.
+			// If text contains block-level markdown structures (tables, multi-line blocks, lists),
+			// parse via markdownToTiptapDoc so true table, list, and multi-paragraph nodes are preserved.
 			if (
 				textToUse &&
-				(hasMarkdownTable(textToUse) || textToUse.includes("\n\n"))
+				(hasMarkdownTable(textToUse) ||
+					textToUse.includes("\n\n") ||
+					/(?:^|\n)\s*[-*+]\s+/m.test(textToUse) ||
+					/(?:^|\n)\s*\d+\.\s+/m.test(textToUse))
 			) {
 				const { nodes } = markdownToTiptapDoc(textToUse);
 				if (nodes && nodes.length > 0) {
@@ -163,13 +165,8 @@ export function buildDocFromBlocks(blocks: DocBlock[]) {
 			});
 		}
 	}
-
-	const cleaned = content
-		.map(sanitizeTiptapJson)
-		.filter((n): n is NonNullable<typeof n> => Boolean(n));
-
 	return {
 		type: "doc",
-		content: cleaned.length > 0 ? cleaned : [{ type: "paragraph" }],
+		content: content.length > 0 ? content : [{ type: "paragraph" }],
 	};
 }

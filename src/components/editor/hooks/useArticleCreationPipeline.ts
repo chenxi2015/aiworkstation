@@ -3,7 +3,7 @@ import type { Editor } from "@tiptap/core";
 import type React from "react";
 import { useCallback, useRef, useState } from "react";
 import { streamRewriteText } from "../../../services/api/editorClient";
-import { markdownToTiptapDoc } from "../markdown";
+import { markdownToHtml } from "../markdown";
 
 export interface ArticleCreationOptions {
 	editorRef: React.RefObject<Editor | null>;
@@ -48,14 +48,8 @@ export function useArticleCreationPipeline({
 			if (!editor) return;
 
 			try {
-				const { nodes } = markdownToTiptapDoc(text);
-				editor.commands.setContent(
-					{
-						type: "doc",
-						content: nodes.length > 0 ? nodes : [{ type: "paragraph" }],
-					},
-					{ emitUpdate: isFinal },
-				);
+				const html = markdownToHtml(text);
+				editor.commands.setContent(html || "<p></p>", { emitUpdate: isFinal });
 
 				// Keep scroll container following new lines during generation
 				const scrollEl = editor.view.dom.closest(".overflow-y-auto");

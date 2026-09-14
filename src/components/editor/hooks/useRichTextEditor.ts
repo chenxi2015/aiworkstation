@@ -8,7 +8,7 @@ import {
 	extractMultipleMediaUrls,
 	extractVideoUrl,
 } from "../importers";
-import { markdownToTiptapDoc } from "../markdown";
+import { markdownToHtml } from "../markdown";
 import {
 	extractMediaFiles,
 	getMediaFileKind,
@@ -130,19 +130,23 @@ export function useRichTextEditor({
 						return true;
 					}
 
-					// 2.4 Markdown content -> convert to formatted rich text
+					// 2.4 Markdown content -> convert to formatted rich text via native TipTap parseHTML
 					const html = event.clipboardData?.getData("text/html");
 					if (shouldTreatAsMarkdown(text, html)) {
 						try {
-							const { nodes } = markdownToTiptapDoc(text);
-							if (nodes.length > 0) {
+							const parsedHtml = markdownToHtml(text);
+							if (parsedHtml) {
 								event.preventDefault();
-								editorRef.current.chain().focus().insertContent(nodes).run();
+								editorRef.current
+									.chain()
+									.focus()
+									.insertContent(parsedHtml)
+									.run();
 								return true;
 							}
 						} catch (err) {
-							console.error("Failed to insert parsed markdown nodes:", err);
-							// Fallback to inserting plain text if structured insertion encounters an unexpected error
+							console.error("Failed to insert parsed markdown HTML:", err);
+							// Fallback to inserting plain text if unexpected error occurs
 							event.preventDefault();
 							editorRef.current.chain().focus().insertContent(text).run();
 							return true;
@@ -162,7 +166,14 @@ export function useRichTextEditor({
 				return false;
 			},
 		},
-		content: initialContent ? JSON.parse(initialContent) : "",
+		content: (() => {
+			if (!initialContent) return "";
+			try {
+				return JSON.parse(initialContent);
+			} catch {
+				return initialContent;
+			}
+		})(),
 		onUpdate: ({ editor: e }) => {
 			onChange(JSON.stringify(e.getJSON()), e.getText());
 		},
