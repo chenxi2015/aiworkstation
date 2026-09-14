@@ -1,6 +1,7 @@
 import type { Editor } from "@tiptap/react";
 import { Ban, Baseline, ChevronDown, Highlighter } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { stripMarkStyleColor } from "../utils/markStyleColor";
 
 const TEXT_COLORS = [
 	{ label: "默认黑", value: "#1f2329" },
@@ -71,18 +72,38 @@ export function ColorDropdown({
 
 	const applyColor = (value: string) => {
 		if (isText) {
-			editor.chain().focus().setColor(value).run();
+			editor
+				.chain()
+				.focus()
+				.setColor(value)
+				.command(stripMarkStyleColor("text"))
+				.run();
 		} else {
-			editor.chain().focus().setBackgroundColor(value).run();
+			editor
+				.chain()
+				.focus()
+				.setBackgroundColor(value)
+				.command(stripMarkStyleColor("background"))
+				.run();
 		}
 		setIsOpen(false);
 	};
 
 	const clearColor = () => {
 		if (isText) {
-			editor.chain().focus().unsetColor().run();
+			editor
+				.chain()
+				.focus()
+				.unsetColor()
+				.command(stripMarkStyleColor("text"))
+				.run();
 		} else {
-			editor.chain().focus().unsetBackgroundColor().run();
+			editor
+				.chain()
+				.focus()
+				.unsetBackgroundColor()
+				.command(stripMarkStyleColor("background"))
+				.run();
 		}
 		setIsOpen(false);
 	};

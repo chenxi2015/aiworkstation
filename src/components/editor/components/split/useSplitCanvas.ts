@@ -15,6 +15,7 @@ import {
 	markdownToTiptapDoc,
 	tiptapJsonToMarkdown,
 } from "../../markdown";
+import { normalizeAiGeneratedDocument } from "../../utils/aiOutputNormalizer";
 import {
 	buildHighlightedMarkdown,
 	computeDiffWordDelta,
@@ -429,7 +430,8 @@ export function useSplitCanvas({
 					{
 						onChunk: (_delta, fullText) => {
 							try {
-								const { nodes } = markdownToTiptapDoc(fullText);
+								const normalizedText = normalizeAiGeneratedDocument(fullText);
+								const { nodes } = markdownToTiptapDoc(normalizedText);
 								rightEditor.commands.setContent(
 									{
 										type: "doc",
@@ -437,8 +439,8 @@ export function useSplitCanvas({
 									},
 									{ emitUpdate: false },
 								);
-								setRightWordCount(fullText.length);
-								setDraftContent(fullText);
+								setRightWordCount(normalizedText.length);
+								setDraftContent(normalizedText);
 								if (rightScrollRef.current) {
 									rightScrollRef.current.scrollTop =
 										rightScrollRef.current.scrollHeight;
@@ -449,7 +451,8 @@ export function useSplitCanvas({
 						},
 						onDone: async (fullText) => {
 							try {
-								const { nodes } = markdownToTiptapDoc(fullText);
+								const normalizedText = normalizeAiGeneratedDocument(fullText);
+								const { nodes } = markdownToTiptapDoc(normalizedText);
 
 								// Scan and retain original images
 								const originalImages: Array<{ src: string; alt?: string }> = [];
@@ -501,9 +504,9 @@ export function useSplitCanvas({
 									{ emitUpdate: true },
 								);
 								setRightWordCount(
-									rightEditor.getText().length || fullText.length,
+									rightEditor.getText().length || normalizedText.length,
 								);
-								setDraftContent(fullText);
+								setDraftContent(normalizedText);
 							} catch (e) {
 								console.warn("[SplitCompareView] setContent done error:", e);
 							}

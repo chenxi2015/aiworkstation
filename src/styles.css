@@ -545,6 +545,14 @@ pre code {
 }
 
 /* 正文超链接：全局 a 重置会抹掉链接样式，这里为编辑器/预览内容恢复可见链接态 */
+.tiptap-editor strong,
+.doc-content-body strong {
+	/* Tailwind Typography（prose）会给 strong 直接设置 color: var(--tw-prose-bold)，
+	   作为元素自身规则会截断外层 <span style="color:...">（文字颜色）的继承，
+	   导致加粗文字无法换色。这里改回继承父级颜色。 */
+	color: inherit;
+}
+
 .tiptap-editor a,
 .doc-content-body a {
 	color: var(--accent);

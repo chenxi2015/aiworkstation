@@ -25,6 +25,7 @@ import { ColorDropdown } from "./ColorDropdown";
 import { HeadingDropdown } from "./HeadingDropdown";
 import { ListDropdown } from "./ListDropdown";
 import { SourceCodeModal } from "./SourceCodeModal";
+import { ThemeColorDropdown } from "./ThemeColorDropdown";
 import { UrlInputPopover } from "./UrlInputPopover";
 
 interface ToolButtonProps {
@@ -176,6 +177,7 @@ export function EditorToolbar({
 					<Divider />
 					<ColorDropdown editor={editor} mode="text" />
 					<ColorDropdown editor={editor} mode="background" />
+					<ThemeColorDropdown editor={editor} />
 					<Divider />
 					<AlignDropdown editor={editor} />
 					<Divider />
