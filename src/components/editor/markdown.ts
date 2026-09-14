@@ -10,7 +10,9 @@ import { generateJSON } from "@tiptap/html";
 import StarterKit from "@tiptap/starter-kit";
 import { renderToMarkdown } from "@tiptap/static-renderer";
 import { marked } from "marked";
+import { getStylePreservationExtensions } from "./extensions/stylePreservation.ts";
 import { SuggestionDiffExtensions } from "./extensions/suggestionDiff.ts";
+import { normalizeCodeCardDoc } from "./utils/codeCardNormalizer.ts";
 export type { JSONContent };
 
 /**
@@ -51,8 +53,9 @@ export const coreConversionExtensions = [
 		nested: true,
 		HTMLAttributes: { class: "task-list-item" },
 	}),
-	Image.configure({ inline: false }),
+	Image.configure({ inline: false, allowBase64: true }),
 	HeadlessVideo,
+	...getStylePreservationExtensions(),
 	...SuggestionDiffExtensions,
 ];
 
@@ -78,6 +81,14 @@ export function tiptapJsonToMarkdown(doc: JSONContent): string {
 			extensions: coreConversionExtensions,
 			options: {
 				nodeMapping: {
+					// 带样式容器（section/div）：序列化为 Markdown 时丢弃包裹层，保留子内容
+					styledContainer({ children }) {
+						return Array.isArray(children)
+							? children.join("")
+							: typeof children === "string"
+								? children
+								: "";
+					},
 					codeBlock({ node }) {
 						const lang = node.attrs?.language || "";
 						let rawText = node.textContent || "";
@@ -90,6 +101,16 @@ export function tiptapJsonToMarkdown(doc: JSONContent): string {
 								.replace(/&amp;/g, "&");
 						}
 						return `\n\`\`\`${lang}\n${rawText}\n\`\`\`\n`;
+					},
+				},
+				markMapping: {
+					// 内联样式标记（颜色/字号等）：Markdown 无法表达，直接透传文本
+					textStyle({ children }) {
+						return Array.isArray(children)
+							? children.join("")
+							: typeof children === "string"
+								? children
+								: "";
 					},
 				},
 			},
@@ -114,7 +135,7 @@ export function markdownToTiptapJson(markdown: string): JSONContent {
 		if (!json || !json.content || json.content.length === 0) {
 			return { type: "doc", content: [{ type: "paragraph" }] };
 		}
-		return json;
+		return normalizeCodeCardDoc(json);
 	} catch (err) {
 		console.warn(
 			"[markdownToTiptapJson] Error parsing HTML to TipTap JSON:",

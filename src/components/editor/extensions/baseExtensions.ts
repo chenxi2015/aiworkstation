@@ -7,10 +7,11 @@ import TaskItem from "@tiptap/extension-task-item";
 import TaskList from "@tiptap/extension-task-list";
 import TextAlign from "@tiptap/extension-text-align";
 import StarterKit from "@tiptap/starter-kit";
+import { VideoNode } from "../videoNode";
 import { CodeBlockWithHighlight } from "./CodeBlockWithHighlight";
 import { CustomImage } from "./CustomImage";
+import { getStylePreservationExtensions } from "./stylePreservation";
 import { SuggestionDiffExtensions } from "./suggestionDiff";
-import { VideoNode } from "../videoNode";
 
 /**
  * Returns standard base extensions shared across main editor, preview, and split compare views.
@@ -28,6 +29,8 @@ export function getEditorBaseExtensions(options?: { placeholder?: string }) {
 		}),
 		CodeBlockWithHighlight,
 		CustomImage.configure({
+			// 允许 data: base64 图片通过 HTML 解析，否则刷新加载时会被静默丢弃
+			allowBase64: true,
 			HTMLAttributes: {
 				referrerpolicy: "no-referrer",
 			},
@@ -55,6 +58,7 @@ export function getEditorBaseExtensions(options?: { placeholder?: string }) {
 		Placeholder.configure({
 			placeholder: options?.placeholder ?? "开始创作，输入「/」唤起快捷工具栏…",
 		}),
+		...getStylePreservationExtensions(),
 		...SuggestionDiffExtensions,
 	];
 }

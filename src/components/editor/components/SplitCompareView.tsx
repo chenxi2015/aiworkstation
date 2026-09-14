@@ -127,6 +127,9 @@ export function SplitCompareView(props: SplitCompareViewProps) {
 					onChangeCustomPrompt={setCustomPrompt}
 					onStartGenerate={() => handleStartGenerate()}
 					onStopGenerate={handleStopGenerate}
+					canAccept={canAccept}
+					onAccept={handleAccept}
+					onReject={onCancel}
 				/>
 			</div>
 		</div>

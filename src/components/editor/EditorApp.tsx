@@ -20,6 +20,7 @@ import { useEditorAiBridge } from "./hooks/useEditorAiBridge";
 import { ImportModal } from "./ImportModal";
 import { markdownToTiptapDoc } from "./markdown";
 import { RichTextEditor } from "./RichTextEditor";
+import { normalizeCodeCardHtml } from "./utils/codeCardNormalizer";
 
 export interface EditorAppProps {
 	unclassifiedCount: number;
@@ -66,6 +67,7 @@ export function EditorApp({
 		currentMarkdown,
 		currentHtml,
 		copyText,
+		copyHtml,
 		handleExportWord,
 		handleExportMarkdown,
 		handleExportHtml,
@@ -243,7 +245,7 @@ export function EditorApp({
 			) {
 				const { html } = pendingImportHtmlRef.current;
 				pendingImportHtmlRef.current = null;
-				editor.commands.setContent(html);
+				editor.commands.setContent(normalizeCodeCardHtml(html));
 			}
 		},
 		[activeId],
@@ -259,12 +261,13 @@ export function EditorApp({
 			html: string;
 			target: "new" | "insert";
 		}) => {
+			const normalizedHtml = normalizeCodeCardHtml(html);
 			if (target === "insert" && editorInstanceRef.current) {
-				editorInstanceRef.current.commands.insertContent(html);
+				editorInstanceRef.current.commands.insertContent(normalizedHtml);
 				return;
 			}
 			const doc = await handleInsertNewDocument(title);
-			pendingImportHtmlRef.current = { docId: doc.id, html };
+			pendingImportHtmlRef.current = { docId: doc.id, html: normalizedHtml };
 		},
 		[handleInsertNewDocument],
 	);
@@ -370,6 +373,7 @@ export function EditorApp({
 										)
 									}
 									onCopyText={copyText}
+									onCopyHtml={copyHtml}
 									onExportWord={handleExportWord}
 									onExportMarkdown={handleExportMarkdown}
 									onExportHtml={handleExportHtml}

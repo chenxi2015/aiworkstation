@@ -40,6 +40,13 @@ export async function exportToWordDocx(
 	);
 
 	if (container) {
+		// 展开 section/div 包裹层（公众号「优化样式」排版卡片），
+		// 让内部的 h2/p/pre/ul 等被逐个识别，而不是整卡坍缩成一个大段落
+		let wrapper = container.querySelector("section, div");
+		while (wrapper) {
+			wrapper.replaceWith(...Array.from(wrapper.childNodes));
+			wrapper = container.querySelector("section, div");
+		}
 		const childNodes = Array.from(container.children);
 		for (const el of childNodes) {
 			const tag = el.tagName.toLowerCase();
@@ -110,8 +117,25 @@ export async function exportToWordDocx(
 						}),
 					);
 				}
+			} else if (tag === "pre") {
+				// 代码块：保留换行，使用等宽字体
+				const runs = (el.textContent || "").split("\n").map(
+					(line, i) =>
+						new TextRun({
+							text: line,
+							font: "Consolas",
+							size: 20,
+							break: i > 0 ? 1 : undefined,
+						}),
+				);
+				paragraphs.push(
+					new Paragraph({
+						children: runs,
+						spacing: { before: 120, after: 120 },
+					}),
+				);
 			} else {
-				// 普通段落或预格式文本
+				// 普通段落
 				paragraphs.push(
 					new Paragraph({
 						text,

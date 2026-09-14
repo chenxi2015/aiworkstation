@@ -65,6 +65,39 @@ export function fileToDataUrl(file: File): Promise<string> {
 	});
 }
 
+const DATA_URL_EXT_MAP: Record<string, string> = {
+	"image/png": ".png",
+	"image/jpeg": ".jpg",
+	"image/gif": ".gif",
+	"image/webp": ".webp",
+	"image/svg+xml": ".svg",
+	"image/avif": ".avif",
+	"image/bmp": ".bmp",
+	"video/mp4": ".mp4",
+	"video/webm": ".webm",
+	"video/quicktime": ".mov",
+};
+
+/**
+ * Convert a data: URL (base64 or percent-encoded) back into a File
+ * so embedded media can be persisted as a real document asset
+ */
+export function dataUrlToFile(dataUrl: string): File {
+	const match = /^data:([^;,]+)?(;base64)?,([\s\S]*)$/.exec(dataUrl);
+	if (!match) throw new Error("Invalid data URL");
+	const mime = match[1] || "application/octet-stream";
+	const isBase64 = Boolean(match[2]);
+	const payload = match[3] ?? "";
+	const bytes = isBase64
+		? Uint8Array.from(atob(payload.replace(/\s/g, "")), (ch) =>
+				ch.charCodeAt(0),
+			)
+		: new TextEncoder().encode(decodeURIComponent(payload));
+	const ext = DATA_URL_EXT_MAP[mime] ?? ".bin";
+	const kind = mime.startsWith("video/") ? "video" : "image";
+	return new File([bytes], `${kind}_${Date.now()}${ext}`, { type: mime });
+}
+
 /**
  * Extract files from clipboard or drag dataTransfer with deduplication
  */

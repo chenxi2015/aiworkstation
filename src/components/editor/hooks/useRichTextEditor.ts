@@ -1,5 +1,6 @@
 import { type Editor, type Range, useEditor } from "@tiptap/react";
-import { useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { uploadAssetRpc } from "../../../services/api/editorClient";
 import type { SlashCommandMenuRef } from "../components/SlashCommandMenu";
 import { getEditorBaseExtensions } from "../extensions/baseExtensions";
 import { SlashCommands } from "../extensions/slashCommand";
@@ -8,12 +9,18 @@ import {
 	extractMultipleMediaUrls,
 	extractVideoUrl,
 } from "../importers";
-import { markdownToHtml, tiptapJsonToMarkdown } from "../markdown";
+import { markdownToHtml } from "../markdown";
 import {
+	dataUrlToFile,
 	extractMediaFiles,
 	getMediaFileKind,
 	shouldTreatAsMarkdown,
+	updateMediaSrc,
 } from "../utils/clipboard";
+import {
+	normalizeCodeCardDoc,
+	normalizeCodeCardHtml,
+} from "../utils/codeCardNormalizer";
 
 export interface SlashMenuState {
 	query: string;
@@ -46,6 +53,52 @@ export function useRichTextEditor({
 	const [slashMenu, setSlashMenu] = useState<SlashMenuState | null>(null);
 	const slashMenuRef = useRef<SlashCommandMenuRef>(null);
 	const editorRef = useRef<Editor | null>(null);
+	const base64ScanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const base64UploadingSrcsRef = useRef<Set<string>>(new Set());
+
+	// 内联 base64 媒体转存到当前文档资产目录，替换为 /api/files/... 本地 URL
+	const migrateBase64MediaToAssets = useCallback(() => {
+		const currentEditor = editorRef.current;
+		if (!currentEditor || currentEditor.isDestroyed) return;
+		const inflight = base64UploadingSrcsRef.current;
+		const targets: string[] = [];
+		currentEditor.state.doc.descendants((node) => {
+			if (node.type.name !== "image" && node.type.name !== "video") return;
+			const src = node.attrs.src;
+			if (
+				typeof src === "string" &&
+				src.startsWith("data:") &&
+				!inflight.has(src)
+			) {
+				targets.push(src);
+			}
+		});
+		for (const src of targets) {
+			inflight.add(src);
+			void (async () => {
+				try {
+					const file = dataUrlToFile(src);
+					const { url } = await uploadAssetRpc(docId, file);
+					const latestEditor = editorRef.current;
+					if (latestEditor && !latestEditor.isDestroyed) {
+						updateMediaSrc(latestEditor, src, url);
+					}
+				} catch (err) {
+					console.warn(
+						"[useRichTextEditor] base64 媒体转存失败，保留内联 data URL:",
+						err,
+					);
+				} finally {
+					inflight.delete(src);
+				}
+			})();
+		}
+	}, [docId]);
+
+	const scheduleBase64Migration = () => {
+		if (base64ScanTimerRef.current) clearTimeout(base64ScanTimerRef.current);
+		base64ScanTimerRef.current = setTimeout(migrateBase64MediaToAssets, 1200);
+	};
 
 	const editor = useEditor({
 		immediatelyRender: false,
@@ -153,6 +206,18 @@ export function useRichTextEditor({
 						}
 					}
 				}
+
+				// 3. Rich HTML (e.g. 公众号「优化样式」排版): 把自定义深色代码卡片还原为
+				//    独立完整的 <pre>，交给 TipTap 自带代码块卡片渲染，避免卡片套卡片
+				const richHtml = event.clipboardData?.getData("text/html");
+				if (richHtml && editorRef.current) {
+					const normalized = normalizeCodeCardHtml(richHtml);
+					if (normalized !== richHtml) {
+						event.preventDefault();
+						editorRef.current.chain().focus().insertContent(normalized).run();
+						return true;
+					}
+				}
 				return false;
 			},
 			handleDrop: (_view, event, _slice, moved) => {
@@ -169,18 +234,29 @@ export function useRichTextEditor({
 		content: (() => {
 			if (!initialContent) return "";
 			try {
-				const parsed = JSON.parse(initialContent);
-				const md = tiptapJsonToMarkdown(parsed);
-				return md ? (markdownToHtml(md) || parsed) : parsed;
+				// JSON 正文原样加载（仅做代码卡片归一化）：
+				// 完整保留 styledContainer 卡片与内联样式的排版效果。
+				// ⚠️ 切勿在此做 markdown 往返（tiptapJsonToMarkdown → markdownToHtml），
+				//    markdown 无法表达排版样式，往返会把整篇文章的样式全部洗掉。
+				return normalizeCodeCardDoc(JSON.parse(initialContent));
 			} catch {
+				// 历史遗留的 Markdown / 纯文本正文
 				return markdownToHtml(initialContent) || initialContent;
 			}
 		})(),
 		onUpdate: ({ editor: e }) => {
 			onChange(JSON.stringify(e.getJSON()), e.getText());
+			scheduleBase64Migration();
 		},
 		onTransaction: () => forceRender(),
 	});
+
+	// 打开含历史 base64 图片的文档时，自动转存一次
+	useEffect(() => {
+		if (!editor) return;
+		const timer = setTimeout(migrateBase64MediaToAssets, 1500);
+		return () => clearTimeout(timer);
+	}, [editor, migrateBase64MediaToAssets]);
 
 	editorRef.current = editor;
 	if (externalEditorRef) {

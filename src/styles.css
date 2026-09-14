@@ -851,39 +851,10 @@ blockquote::after {
 	opacity: 0.55 !important;
 }
 
-/* ============ TipTap 代码块与高亮（CodeBlockWithHighlight） ============ */
-.tiptap-editor .code-block-node-view {
-	margin: 1.4em 0 !important;
-	border: 1px solid rgba(255, 255, 255, 0.12) !important;
-	border-radius: 0.75rem !important;
-	background-color: #1e1e1e !important;
-	box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
-	overflow: hidden !important;
-}
-
-.tiptap-editor .code-block-node-view pre {
-	margin: 0 !important;
-	padding: 1rem 1.25rem !important;
-	background: #1e1e1e !important;
-	border: none !important;
-	border-radius: 0 !important;
-	color: #abb2bf !important;
-	overflow-x: auto !important;
-}
-
-.tiptap-editor .code-block-node-view pre code {
-	display: block !important;
-	background: transparent !important;
-	padding: 0 !important;
-	border: none !important;
-	border-radius: 0 !important;
-	font-size: 13px !important;
-	line-height: 1.65 !important;
-	font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
-	color: #abb2bf !important;
-	white-space: pre !important;
-}
-
+/* ============ TipTap 代码块语法高亮（CodeBlockWithHighlight） ============
+   卡片外观（圆角/边框/底色/内边距）由 CodeBlockComponent NodeView 的 Tailwind
+   类统一负责，这里只保留 ProseMirror Decorations 所需的 hljs 分词配色，
+   避免双层自定义样式互相打架。 */
 /* Atom One Dark 语法高亮分词配色 (兼容 TipTap ProseMirror Decorations) */
 .tiptap-editor .hljs-comment,
 .tiptap-editor .hljs-quote {

@@ -6,6 +6,7 @@ import {
 import { Check, Code2, Copy, Download, Eye, Maximize2 } from "lucide-react";
 import type React from "react";
 import { useMemo, useRef, useState } from "react";
+import { hasDarkBackgroundStyle } from "../../utils/codeCardNormalizer";
 import { lowlight, SUPPORTED_LANGUAGES } from "./codeHighlightUtils";
 import { MermaidPreview } from "./MermaidPreview";
 
@@ -16,6 +17,7 @@ export function CodeBlockComponent({
 	node,
 	updateAttributes,
 	editor,
+	getPos,
 }: NodeViewProps) {
 	const [copied, setCopied] = useState(false);
 	const rawLanguage = (node.attrs.language as string) || "";
@@ -74,6 +76,34 @@ export function CodeBlockComponent({
 			setTimeout(() => setCopied(false), 2000);
 		}
 	};
+
+	// 位于自定义深色排版卡片（如公众号「优化样式」HTML 解析出的 styledContainer）内时，
+	// 卡片外壳样式已由外层容器提供——裸渲染代码内容，不再叠加自带 mac 卡片，
+	// 避免"卡片套卡片"，自定义 HTML 效果原样呈现。
+	let inCustomCodeCard = false;
+	try {
+		const pos = getPos();
+		if (pos == null) throw new Error("no pos");
+		const $pos = editor.state.doc.resolve(pos);
+		inCustomCodeCard =
+			$pos.parent.type.name === "styledContainer" &&
+			hasDarkBackgroundStyle($pos.parent.attrs.style as string | null);
+	} catch {
+		inCustomCodeCard = false;
+	}
+
+	if (inCustomCodeCard) {
+		return (
+			<NodeViewWrapper className="code-block-node-view not-prose">
+				<pre className="m-0 bg-transparent overflow-x-auto text-[13px] leading-relaxed font-mono select-text text-zinc-200">
+					<NodeViewContent<"code">
+						as="code"
+						className={rawLanguage ? `language-${rawLanguage} hljs` : "hljs"}
+					/>
+				</pre>
+			</NodeViewWrapper>
+		);
+	}
 
 	return (
 		<NodeViewWrapper className="code-block-node-view not-prose my-4 rounded-xl border border-zinc-800/80 bg-[#1e1e1e] text-zinc-100 shadow-md overflow-hidden group">

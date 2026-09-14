@@ -28,6 +28,9 @@ import {
 	type ViewMode,
 } from "./types";
 
+/** 右栏草稿工作区的固定 ID：不属于版本列表，仅表示"未保存的当前草稿" */
+const DRAFT_VERSION_ID = "draft";
+
 export interface UseSplitCanvasOptions {
 	leftEditor: Editor;
 	docTitle?: string;
@@ -69,7 +72,9 @@ export function useSplitCanvas({
 		return markdownToHtml(initialBaseMarkdown);
 	}, [initialBaseMarkdown]);
 
-	// 2. Version State Pool (v0 base + v_draft initial practice clone + db snapshots + live iterations)
+	// 2. Version State Pool：只存放"已保存版本"（v0 基准 + 数据库快照 + 手动保存的新版本）。
+	// 右栏是未保存的草稿工作区，AI 生成 / 手动编辑都只写草稿，
+	// 只有点击「保存版本」才会把当前草稿沉淀为版本条目进入列表。
 	const [versions, setVersions] = useState<DocumentVersion[]>(() => {
 		const v0: DocumentVersion = {
 			id: "v0",
@@ -80,20 +85,16 @@ export function useSplitCanvas({
 			origin: "human",
 			isSavedToDb: true,
 		};
-		const vDraft: DocumentVersion = {
-			id: "v_draft",
-			label: "演练草稿 (副本)",
-			mode: "manual",
-			content: initialBaseMarkdown,
-			createdAt: Date.now(),
-			origin: "human",
-			isSavedToDb: false,
-		};
-		return [v0, vDraft];
+		return [v0];
 	});
 
+	// 草稿工作区内容（Markdown），与版本列表完全解耦
+	const [draftContent, setDraftContent] = useState<string>("");
+	const draftOriginRef = useRef<"human" | "ai">("human");
+	const draftActionRef = useRef<string>("手动精修");
+
 	const [leftVersionId, setLeftVersionId] = useState<string>("v0");
-	const [rightVersionId, setRightVersionId] = useState<string>("v_draft");
+	const [rightVersionId, setRightVersionId] = useState<string>(DRAFT_VERSION_ID);
 	const [diffViewMode, setDiffViewMode] = useState<ViewMode>("clean");
 	const [isSavingVersion, setIsSavingVersion] = useState(false);
 
@@ -150,13 +151,25 @@ export function useSplitCanvas({
 		[versions, leftVersionId],
 	);
 
-	const activeRightVersion = useMemo(
-		() =>
+	// 右栏当前内容模型：草稿工作区（未保存）或某个已保存版本
+	const activeRightVersion = useMemo<DocumentVersion>(() => {
+		if (rightVersionId === DRAFT_VERSION_ID) {
+			return {
+				id: DRAFT_VERSION_ID,
+				label: "当前草稿 (未保存)",
+				mode: "manual",
+				content: draftContent,
+				createdAt: 0,
+				origin: draftOriginRef.current,
+				isSavedToDb: false,
+			};
+		}
+		return (
 			versions.find((v) => v.id === rightVersionId) ||
 			versions[versions.length - 1] ||
-			versions[0],
-		[versions, rightVersionId],
-	);
+			versions[0]
+		);
+	}, [versions, rightVersionId, draftContent]);
 
 	// 3. Slash Menu state for Right TipTap Editor
 	const [slashMenu, setSlashMenu] = useState<SlashMenuState | null>(null);
@@ -170,7 +183,7 @@ export function useSplitCanvas({
 		immediatelyRender: false,
 	});
 
-	// 5. Right Editable Rich Text Editor instance initialized with normalized HTML clone
+	// 5. Right Editable Rich Text Editor instance (starts blank; AI generation or version selection fills it)
 	const rightEditor = useEditor({
 		extensions: [
 			...getEditorBaseExtensions({
@@ -212,7 +225,7 @@ export function useSplitCanvas({
 				},
 			}),
 		],
-		content: initialBaseHtml || leftEditor.getJSON(),
+		content: "",
 		editable: true,
 		immediatelyRender: false,
 	});
@@ -223,7 +236,7 @@ export function useSplitCanvas({
 	}, [activeLeftVersion?.content]);
 
 	const [rightWordCount, setRightWordCount] = useState<number>(() => {
-		return markdownToPlainText(initialBaseMarkdown).length;
+		return 0;
 	});
 
 	// Keep right word count in sync when active right version switches
@@ -240,55 +253,14 @@ export function useSplitCanvas({
 			const text = rightEditor.getText();
 			const md = tiptapJsonToMarkdown(rightEditor.getJSON()) || text;
 			setRightWordCount(markdownToPlainText(md).length);
-			// Update current version content in memory
-			setVersions((prev) => {
-				// If currently on v0 (immutable base), fork automatically to v_draft
-				if (rightVersionId === "v0") {
-					const hasDraft = prev.some((v) => v.id === "v_draft");
-					if (hasDraft) {
-						return prev.map((v) =>
-							v.id === "v_draft"
-								? {
-										...v,
-										content: md,
-										mode: "manual",
-										label: "演练草稿 (精修)",
-									}
-								: v,
-						);
-					}
-					return [
-						...prev,
-						{
-							id: "v_draft",
-							label: "演练草稿 (精修)",
-							mode: "manual",
-							content: md,
-							createdAt: Date.now(),
-							origin: "human",
-							isSavedToDb: false,
-						},
-					];
-				}
-
-				return prev.map((v) =>
-					v.id === rightVersionId
-						? {
-								...v,
-								content: md,
-								mode: v.mode === "original" ? "manual" : v.mode,
-								label:
-									v.label.includes("(精修)") || v.label.includes("草稿")
-										? v.label
-										: `${v.label} (精修)`,
-							}
-						: v,
-				);
-			});
-
-			if (rightVersionId === "v0") {
-				setRightVersionId("v_draft");
+			// 手动编辑只写入草稿工作区，不产生版本；
+			// 若正在查看某个已保存版本，一旦开始编辑就自动切回草稿（以当前内容为底）
+			if (rightVersionId !== DRAFT_VERSION_ID) {
+				draftOriginRef.current = "human";
+				draftActionRef.current = "手动精修";
+				setRightVersionId(DRAFT_VERSION_ID);
 			}
+			setDraftContent(md);
 		};
 		rightEditor.on("update", updateCount);
 		return () => {
@@ -393,28 +365,17 @@ export function useSplitCanvas({
 				activeLeftVersion?.content?.trim() || initialBaseMarkdown;
 			if (!baseContent) return;
 
-			// Create a new version entity in pool
-			const nextVerNum = versions.length;
-			const newVerId = `v${nextVerNum}`;
+			// 生成只写入草稿工作区，不直接产生版本条目；
+			// 版本由用户点击「保存版本」时显式沉淀
 			const actionTitle = preset
 				? preset.label
 				: promptExtra.trim()
 					? promptExtra.trim().slice(0, 10)
 					: "智能优化";
-			const label = `${newVerId}: ${actionTitle}${preset && promptExtra.trim() ? ` (${promptExtra.trim().slice(0, 10)})` : ""}`;
-			const newVer: DocumentVersion = {
-				id: newVerId,
-				label,
-				mode: mode || "rewrite",
-				content: "",
-				createdAt: Date.now(),
-				instruction: promptExtra,
-				origin: "ai",
-				isSavedToDb: false,
-			};
+			draftOriginRef.current = "ai";
+			draftActionRef.current = actionTitle;
 
-			setVersions((prev) => [...prev, newVer]);
-			setRightVersionId(newVerId);
+			setRightVersionId(DRAFT_VERSION_ID);
 			setIsStreaming(true);
 
 			const controller = new AbortController();
@@ -451,11 +412,7 @@ export function useSplitCanvas({
 									{ emitUpdate: false },
 								);
 								setRightWordCount(fullText.length);
-								setVersions((prev) =>
-									prev.map((v) =>
-										v.id === newVerId ? { ...v, content: fullText } : v,
-									),
-								);
+								setDraftContent(fullText);
 								if (rightScrollRef.current) {
 									rightScrollRef.current.scrollTop =
 										rightScrollRef.current.scrollHeight;
@@ -520,37 +477,7 @@ export function useSplitCanvas({
 								setRightWordCount(
 									rightEditor.getText().length || fullText.length,
 								);
-
-								// Auto-persist AI completed version to SQLite document_versions table
-								if (docId) {
-									try {
-										const savedVer = await snapshotVersionRpc({
-											documentId: docId,
-											content: JSON.stringify(rightEditor.getJSON()),
-											origin: "ai",
-											note: `${actionTitle}${preset && promptExtra ? ` (${promptExtra.slice(0, 12)})` : ""}`,
-										});
-										setVersions((prev) =>
-											prev.map((v) =>
-												v.id === newVerId
-													? {
-															...v,
-															content: fullText,
-															isSavedToDb: true,
-															dbVersionId: savedVer.id,
-															label: `${v.label} · 已落库`,
-														}
-													: v,
-											),
-										);
-										toast.success(`版本【${label}】已自动存入数据库！`);
-									} catch (err) {
-										console.warn(
-											"[SplitCompareView] Auto-save version DB error:",
-											err,
-										);
-									}
-								}
+								setDraftContent(fullText);
 							} catch (e) {
 								console.warn("[SplitCompareView] setContent done error:", e);
 							}
@@ -576,11 +503,9 @@ export function useSplitCanvas({
 			customPrompt,
 			activeLeftVersion,
 			initialBaseMarkdown,
-			versions.length,
 			stylePreset,
 			docTitle,
 			leftEditor,
-			docId,
 		],
 	);
 
@@ -614,7 +539,9 @@ export function useSplitCanvas({
 			if (!targetVer || !rightEditor) return;
 			try {
 				const html = markdownToHtml(targetVer.content);
-				rightEditor.commands.setContent(html || "<p></p>", { emitUpdate: true });
+				rightEditor.commands.setContent(html || "<p></p>", {
+					emitUpdate: true,
+				});
 				setRightWordCount(markdownToPlainText(targetVer.content).length);
 			} catch {
 				rightEditor.commands.setContent(targetVer.content);
@@ -780,14 +707,17 @@ export function useSplitCanvas({
 		isStreaming,
 	]);
 
-	// Check if right editor has substantial changes compared to original main base text
+	// Check if right canvas has substantial changes compared to the base text.
+	// 必须两侧都做纯文本归一化后再对比（右侧是编辑器纯文本，基准是 Markdown 源文本，
+	// 直接对比会因 Markdown 标记永远不等，导致首次进入就误判为"有改动"）。
 	const hasSubstantialChanges = useMemo(() => {
-		if (!rightEditor) return false;
-		const rightText = rightEditor.getText().trim();
-		if (!rightText) return false;
-		const baseText = initialBaseMarkdown.trim();
-		return rightText !== baseText;
-	}, [rightEditor, initialBaseMarkdown]);
+		const rightPlain = markdownToPlainText(
+			activeRightVersion?.content || "",
+		).trim();
+		if (!rightPlain) return false;
+		const basePlain = markdownToPlainText(initialBaseMarkdown).trim();
+		return rightPlain !== basePlain;
+	}, [activeRightVersion?.content, initialBaseMarkdown]);
 
 	const canAccept = hasSubstantialChanges && !isStreaming;
 	const canSaveAsNew = rightWordCount > 0 && !isStreaming;

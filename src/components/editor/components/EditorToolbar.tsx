@@ -25,6 +25,7 @@ import {
 	Upload,
 	Video,
 } from "lucide-react";
+import { ColorDropdown } from "./ColorDropdown";
 import { HeadingDropdown } from "./HeadingDropdown";
 
 interface ToolButtonProps {
@@ -164,16 +165,16 @@ export function EditorToolbar({
 						onClick={() => editor.chain().focus().toggleItalic().run()}
 					/>
 					<ToolButton
-						icon={UnderlineIcon}
-						label="下划线 (Cmd+U)"
-						active={editor.isActive("underline")}
-						onClick={() => editor.chain().focus().toggleUnderline().run()}
-					/>
-					<ToolButton
 						icon={Strikethrough}
 						label="删除线"
 						active={editor.isActive("strike")}
 						onClick={() => editor.chain().focus().toggleStrike().run()}
+					/>
+					<ToolButton
+						icon={UnderlineIcon}
+						label="下划线 (Cmd+U)"
+						active={editor.isActive("underline")}
+						onClick={() => editor.chain().focus().toggleUnderline().run()}
 					/>
 					<ToolButton
 						icon={Code}
@@ -181,6 +182,9 @@ export function EditorToolbar({
 						active={editor.isActive("code")}
 						onClick={() => editor.chain().focus().toggleCode().run()}
 					/>
+					<Divider />
+					<ColorDropdown editor={editor} mode="text" />
+					<ColorDropdown editor={editor} mode="background" />
 					<Divider />
 					<ToolButton
 						icon={AlignLeft}

@@ -32,6 +32,9 @@ export interface SplitRevisedColumnProps {
 	onChangeCustomPrompt: (prompt: string) => void;
 	onStartGenerate: () => void;
 	onStopGenerate: () => void;
+	canAccept?: boolean;
+	onAccept?: () => void;
+	onReject?: () => void;
 }
 
 /**
@@ -61,6 +64,9 @@ export function SplitRevisedColumn({
 	onChangeCustomPrompt,
 	onStartGenerate,
 	onStopGenerate,
+	canAccept,
+	onAccept,
+	onReject,
 }: SplitRevisedColumnProps) {
 	return (
 		<section className="flex-1 flex flex-col min-w-0 bg-surface dark:bg-background relative">
@@ -144,6 +150,9 @@ export function SplitRevisedColumn({
 				isStreaming={isStreaming}
 				onStartGenerate={onStartGenerate}
 				onStopGenerate={onStopGenerate}
+				canAccept={canAccept}
+				onAccept={onAccept}
+				onReject={onReject}
 			/>
 		</section>
 	);
