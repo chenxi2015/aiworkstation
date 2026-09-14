@@ -12,8 +12,8 @@ import type React from "react";
 import { PRESET_MODES, type SplitCanvasMode } from "./types";
 
 export interface SplitFloatingPromptDockProps {
-	selectedMode: SplitCanvasMode;
-	onSelectMode: (mode: SplitCanvasMode) => void;
+	selectedMode: SplitCanvasMode | null;
+	onSelectMode: (mode: SplitCanvasMode | null) => void;
 	customPrompt: string;
 	onChangeCustomPrompt: (prompt: string) => void;
 	isStreaming: boolean;
@@ -39,7 +39,7 @@ export function SplitFloatingPromptDock({
 	onStopGenerate,
 }: SplitFloatingPromptDockProps) {
 	const activePreset =
-		PRESET_MODES.find((m) => m.id === selectedMode) || PRESET_MODES[0];
+		PRESET_MODES.find((m) => m.id === selectedMode) || null;
 
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
 		if (e.key === "Enter" && !e.shiftKey) {
@@ -62,7 +62,7 @@ export function SplitFloatingPromptDock({
 								key={mode.id}
 								type="button"
 								disabled={isStreaming}
-								onClick={() => onSelectMode(mode.id)}
+								onClick={() => onSelectMode(isSelected ? null : mode.id)}
 								className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all shrink-0 cursor-pointer disabled:opacity-50 ${
 									isSelected
 										? "bg-accent text-accent-foreground shadow-xs"
@@ -87,7 +87,9 @@ export function SplitFloatingPromptDock({
 					placeholder={
 						isStreaming
 							? "AI 正在右侧生成并实时排版，请稍候..."
-							: `输入定制要求（当前模式：${activePreset.label} · ${activePreset.desc}）。按 Enter 开始生成，Shift+Enter 换行`
+							: activePreset
+								? `输入定制要求（当前模式：${activePreset.label} · ${activePreset.desc}）。按 Enter 开始生成，Shift+Enter 换行`
+								: "输入定制要求（可选上方预设或直接输入需求）。按 Enter 开始生成，Shift+Enter 换行"
 					}
 					className="w-full bg-transparent text-xs text-foreground placeholder:text-muted/60 outline-none resize-none leading-relaxed px-1"
 				/>
