@@ -385,6 +385,9 @@ export function useSplitCanvas({
 			const promptExtra =
 				instructionOverride !== undefined ? instructionOverride : customPrompt;
 
+			// Guard: require either a preset mode or custom instruction
+			if (!mode && !promptExtra.trim()) return;
+
 			// Base content to transform from currently selected left version
 			const baseContent =
 				activeLeftVersion?.content?.trim() || initialBaseMarkdown;

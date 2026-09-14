@@ -41,10 +41,12 @@ export function SplitFloatingPromptDock({
 	const activePreset =
 		PRESET_MODES.find((m) => m.id === selectedMode) || null;
 
+	const canGenerate = Boolean(selectedMode || customPrompt.trim());
+
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
 		if (e.key === "Enter" && !e.shiftKey) {
 			e.preventDefault();
-			if (!isStreaming) {
+			if (!isStreaming && canGenerate) {
 				onStartGenerate();
 			}
 		}
@@ -119,8 +121,9 @@ export function SplitFloatingPromptDock({
 					) : (
 						<button
 							type="button"
+							disabled={!canGenerate}
 							onClick={onStartGenerate}
-							className="flex items-center gap-1.5 px-3.5 py-1.5 bg-accent hover:bg-accent/90 text-accent-foreground font-medium text-xs rounded-xl transition-colors cursor-pointer shadow-xs active:scale-95"
+							className="flex items-center gap-1.5 px-3.5 py-1.5 bg-accent hover:bg-accent/90 text-accent-foreground font-medium text-xs rounded-xl transition-colors cursor-pointer shadow-xs active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-accent disabled:active:scale-100"
 						>
 							<Play className="w-3 h-3 fill-current" />
 							<span>开始生成</span>

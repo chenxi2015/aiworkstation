@@ -8,7 +8,7 @@ import {
 	extractMultipleMediaUrls,
 	extractVideoUrl,
 } from "../importers";
-import { markdownToHtml } from "../markdown";
+import { markdownToHtml, tiptapJsonToMarkdown } from "../markdown";
 import {
 	extractMediaFiles,
 	getMediaFileKind,
@@ -169,9 +169,11 @@ export function useRichTextEditor({
 		content: (() => {
 			if (!initialContent) return "";
 			try {
-				return JSON.parse(initialContent);
+				const parsed = JSON.parse(initialContent);
+				const md = tiptapJsonToMarkdown(parsed);
+				return md ? (markdownToHtml(md) || parsed) : parsed;
 			} catch {
-				return initialContent;
+				return markdownToHtml(initialContent) || initialContent;
 			}
 		})(),
 		onUpdate: ({ editor: e }) => {

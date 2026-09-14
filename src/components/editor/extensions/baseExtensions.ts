@@ -33,7 +33,11 @@ export function getEditorBaseExtensions(options?: { placeholder?: string }) {
 			},
 		}),
 		VideoNode,
-		Table.configure({ resizable: false }),
+		Table.configure({
+			resizable: true,
+			cellMinWidth: 80,
+			lastColumnResizable: true,
+		}),
 		TableRow,
 		TableHeader,
 		TableCell,
