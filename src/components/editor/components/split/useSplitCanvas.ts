@@ -10,8 +10,16 @@ import {
 import { getEditorBaseExtensions } from "../../extensions/baseExtensions";
 import { SlashCommands } from "../../extensions/slashCommand";
 import type { SlashMenuState } from "../../hooks/useRichTextEditor";
-import { markdownToTiptapDoc, tiptapJsonToMarkdown } from "../../markdown";
-import { buildHighlightedMarkdown } from "../../utils/diffHelper";
+import {
+	markdownToHtml,
+	markdownToTiptapDoc,
+	tiptapJsonToMarkdown,
+} from "../../markdown";
+import {
+	buildHighlightedMarkdown,
+	computeDiffWordDelta,
+	markdownToPlainText,
+} from "../../utils/diffHelper";
 import type { SlashCommandMenuRef } from "../SlashCommandMenu";
 import {
 	type DocumentVersion,
@@ -47,7 +55,7 @@ export function useSplitCanvas({
 	onAccept,
 	onSaveAsNewDocument,
 }: UseSplitCanvasOptions) {
-	// 1. Initial base markdown extracted from left TipTap editor
+	// 1. Initial base markdown and HTML extracted from left TipTap editor
 	const initialBaseMarkdown = useMemo(() => {
 		try {
 			const md = tiptapJsonToMarkdown(leftEditor.getJSON());
@@ -56,6 +64,10 @@ export function useSplitCanvas({
 			return leftEditor.getText().trim();
 		}
 	}, [leftEditor]);
+
+	const initialBaseHtml = useMemo(() => {
+		return markdownToHtml(initialBaseMarkdown);
+	}, [initialBaseMarkdown]);
 
 	// 2. Version State Pool (v0 base + v_draft initial practice clone + db snapshots + live iterations)
 	const [versions, setVersions] = useState<DocumentVersion[]>(() => {
@@ -150,15 +162,15 @@ export function useSplitCanvas({
 	const [slashMenu, setSlashMenu] = useState<SlashMenuState | null>(null);
 	const slashMenuRef = useRef<SlashCommandMenuRef>(null);
 
-	// 4. Left Read-only Rich Text Editor instance
+	// 4. Left Read-only Rich Text Editor instance (initialized with normalized HTML)
 	const leftPreviewEditor = useEditor({
 		extensions: getEditorBaseExtensions(),
-		content: leftEditor.getJSON(),
+		content: initialBaseHtml || leftEditor.getJSON(),
 		editable: false,
 		immediatelyRender: false,
 	});
 
-	// 5. Right Editable Rich Text Editor instance initialized with content clone
+	// 5. Right Editable Rich Text Editor instance initialized with normalized HTML clone
 	const rightEditor = useEditor({
 		extensions: [
 			...getEditorBaseExtensions({
@@ -200,46 +212,35 @@ export function useSplitCanvas({
 				},
 			}),
 		],
-		content: leftEditor.getJSON(),
+		content: initialBaseHtml || leftEditor.getJSON(),
 		editable: true,
 		immediatelyRender: false,
 	});
 
-	// Synchronize left editor when left version switches (protect v0 from unexpected overwrites)
-	const currentLeftLoadedIdRef = useRef<string>("v0");
-	useEffect(() => {
-		if (!leftPreviewEditor || !activeLeftVersion) return;
-		if (leftVersionId === "v0" && currentLeftLoadedIdRef.current === "v0") {
-			return;
-		}
-		currentLeftLoadedIdRef.current = leftVersionId;
-		try {
-			const { nodes } = markdownToTiptapDoc(activeLeftVersion.content);
-			leftPreviewEditor.commands.setContent(
-				{
-					type: "doc",
-					content: nodes.length > 0 ? nodes : [{ type: "paragraph" }],
-				},
-				{ emitUpdate: false },
-			);
-		} catch {
-			leftPreviewEditor.commands.setContent(activeLeftVersion.content);
-		}
-	}, [leftPreviewEditor, leftVersionId, activeLeftVersion]);
+	// Word counts tracking actual visible text length
+	const leftWordCount = useMemo(() => {
+		return markdownToPlainText(activeLeftVersion?.content || "").length;
+	}, [activeLeftVersion?.content]);
 
-	// Word counts and sync changes from right editor
-	const leftWordCount = activeLeftVersion?.content?.length || 0;
-	const [rightWordCount, setRightWordCount] = useState(
-		() => leftEditor.getText().length,
-	);
+	const [rightWordCount, setRightWordCount] = useState<number>(() => {
+		return markdownToPlainText(initialBaseMarkdown).length;
+	});
+
+	// Keep right word count in sync when active right version switches
+	useEffect(() => {
+		if (activeRightVersion?.content) {
+			setRightWordCount(markdownToPlainText(activeRightVersion.content).length);
+		}
+	}, [activeRightVersion?.content]);
 
 	useEffect(() => {
 		if (!rightEditor) return;
 		const updateCount = () => {
+			if (diffViewMode === "diff") return;
 			const text = rightEditor.getText();
-			setRightWordCount(text.length);
-			// Update current version content in memory
 			const md = tiptapJsonToMarkdown(rightEditor.getJSON()) || text;
+			setRightWordCount(markdownToPlainText(md).length);
+			// Update current version content in memory
 			setVersions((prev) => {
 				// If currently on v0 (immutable base), fork automatically to v_draft
 				if (rightVersionId === "v0") {
@@ -293,7 +294,7 @@ export function useSplitCanvas({
 		return () => {
 			rightEditor.off("update", updateCount);
 		};
-	}, [rightEditor, rightVersionId]);
+	}, [rightEditor, rightVersionId, diffViewMode]);
 
 	// AI Streaming & Mode states
 	const [selectedMode, setSelectedMode] = useState<SplitCanvasMode | null>(
@@ -609,17 +610,12 @@ export function useSplitCanvas({
 			const targetVer = versions.find((v) => v.id === versionId);
 			if (!targetVer || !rightEditor) return;
 			try {
-				const { nodes } = markdownToTiptapDoc(targetVer.content);
-				rightEditor.commands.setContent(
-					{
-						type: "doc",
-						content: nodes.length > 0 ? nodes : [{ type: "paragraph" }],
-					},
-					{ emitUpdate: true },
-				);
-				setRightWordCount(targetVer.content.length);
+				const html = markdownToHtml(targetVer.content);
+				rightEditor.commands.setContent(html || "<p></p>", { emitUpdate: true });
+				setRightWordCount(markdownToPlainText(targetVer.content).length);
 			} catch {
 				rightEditor.commands.setContent(targetVer.content);
+				setRightWordCount(markdownToPlainText(targetVer.content).length);
 			}
 		},
 		[versions, rightEditor],
@@ -698,7 +694,7 @@ export function useSplitCanvas({
 		await onSaveAsNewDocument(newTitle, md);
 	}, [rightEditor, docTitle, onSaveAsNewDocument]);
 
-	// Compute Diff Highlighting strings between left and right versions
+	// Compute Diff Highlighting strings and accurate word delta between left and right versions
 	const diffStrings = useMemo(() => {
 		if (diffViewMode !== "diff") {
 			return { leftHighlighted: "", rightHighlighted: "", diffDelta: 0 };
@@ -711,9 +707,75 @@ export function useSplitCanvas({
 			rightMd,
 			"revised",
 		);
-		const diffDelta = rightMd.length - leftMd.length;
+		const diffDelta = computeDiffWordDelta(leftMd, rightMd);
 		return { leftHighlighted, rightHighlighted, diffDelta };
 	}, [diffViewMode, activeLeftVersion, activeRightVersion]);
+
+	// Synchronize left & right editor contents between clean and diff highlighting modes
+	const lastAppliedModeRef = useRef<ViewMode>("clean");
+	const lastAppliedLeftVerRef = useRef<string>("v0");
+	const lastAppliedRightVerRef = useRef<string>("v_draft");
+
+	useEffect(() => {
+		if (isStreaming) return;
+
+		const modeChanged = lastAppliedModeRef.current !== diffViewMode;
+		const leftVerChanged = lastAppliedLeftVerRef.current !== leftVersionId;
+		const rightVerChanged = lastAppliedRightVerRef.current !== rightVersionId;
+
+		if (!modeChanged && !leftVerChanged && !rightVerChanged) {
+			return;
+		}
+
+		lastAppliedModeRef.current = diffViewMode;
+		lastAppliedLeftVerRef.current = leftVersionId;
+		lastAppliedRightVerRef.current = rightVersionId;
+
+		if (diffViewMode === "diff") {
+			// Diff mode: apply diff highlights and freeze right editor from manual typing
+			if (leftPreviewEditor && diffStrings.leftHighlighted) {
+				const html = markdownToHtml(diffStrings.leftHighlighted);
+				leftPreviewEditor.commands.setContent(html || "<p></p>", {
+					emitUpdate: false,
+				});
+			}
+			if (rightEditor && diffStrings.rightHighlighted) {
+				const html = markdownToHtml(diffStrings.rightHighlighted);
+				rightEditor.commands.setContent(html || "<p></p>", {
+					emitUpdate: false,
+				});
+				rightEditor.setEditable(false);
+			}
+		} else {
+			// Clean mode: restore clean rich text content and re-enable editing
+			if (leftPreviewEditor && activeLeftVersion) {
+				const html = markdownToHtml(activeLeftVersion.content);
+				leftPreviewEditor.commands.setContent(html || "<p></p>", {
+					emitUpdate: false,
+				});
+			}
+			if (rightEditor) {
+				if (activeRightVersion) {
+					const html = markdownToHtml(activeRightVersion.content);
+					rightEditor.commands.setContent(html || "<p></p>", {
+						emitUpdate: false,
+					});
+				}
+				rightEditor.setEditable(true);
+			}
+		}
+	}, [
+		diffViewMode,
+		leftVersionId,
+		rightVersionId,
+		diffStrings.leftHighlighted,
+		diffStrings.rightHighlighted,
+		activeLeftVersion,
+		activeRightVersion,
+		leftPreviewEditor,
+		rightEditor,
+		isStreaming,
+	]);
 
 	// Check if right editor has substantial changes compared to original main base text
 	const hasSubstantialChanges = useMemo(() => {

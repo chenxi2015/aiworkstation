@@ -10,7 +10,7 @@ import { generateJSON } from "@tiptap/html";
 import StarterKit from "@tiptap/starter-kit";
 import { renderToMarkdown } from "@tiptap/static-renderer";
 import { marked } from "marked";
-
+import { SuggestionDiffExtensions } from "./extensions/suggestionDiff.ts";
 export type { JSONContent };
 
 /**
@@ -53,6 +53,7 @@ export const coreConversionExtensions = [
 	}),
 	Image.configure({ inline: false }),
 	HeadlessVideo,
+	...SuggestionDiffExtensions,
 ];
 
 /**
@@ -75,6 +76,23 @@ export function tiptapJsonToMarkdown(doc: JSONContent): string {
 		const md = renderToMarkdown({
 			content: doc,
 			extensions: coreConversionExtensions,
+			options: {
+				nodeMapping: {
+					codeBlock({ node }) {
+						const lang = node.attrs?.language || "";
+						let rawText = node.textContent || "";
+						if (rawText.includes("&")) {
+							rawText = rawText
+								.replace(/&gt;/g, ">")
+								.replace(/&lt;/g, "<")
+								.replace(/&quot;/g, '"')
+								.replace(/&#39;/g, "'")
+								.replace(/&amp;/g, "&");
+						}
+						return `\n\`\`\`${lang}\n${rawText}\n\`\`\`\n`;
+					},
+				},
+			},
 		});
 		return (md || "").trim();
 	} catch (err) {

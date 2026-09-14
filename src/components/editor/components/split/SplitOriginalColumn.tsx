@@ -1,7 +1,6 @@
 import type { Editor } from "@tiptap/core";
 import { EditorContent } from "@tiptap/react";
 import type React from "react";
-import { SplitMarkdownBlock } from "./SplitMarkdownBlock";
 import { SplitVersionSelector } from "./SplitVersionSelector";
 import type { DocumentVersion, ViewMode } from "./types";
 
@@ -10,8 +9,8 @@ export interface SplitOriginalColumnProps {
 	versions: DocumentVersion[];
 	onSelectVersion: (id: string) => void;
 	wordCount: number;
-	diffViewMode: ViewMode;
-	highlightedMarkdown: string;
+	diffViewMode?: ViewMode;
+	highlightedMarkdown?: string;
 	editor: Editor | null;
 	scrollRef: React.RefObject<HTMLDivElement | null>;
 	onScroll: () => void;
@@ -19,16 +18,15 @@ export interface SplitOriginalColumnProps {
 
 /**
  * Left Column: Base Version
- * - Clean mode: Read-only TipTap rich text preview
- * - Diff mode: Red deletion highlights rendered via SplitMarkdownBlock
+ * - Unified TipTap rich-text rendering for both Clean mode and Diff mode
  */
 export function SplitOriginalColumn({
 	selectedVersionId,
 	versions,
 	onSelectVersion,
 	wordCount,
-	diffViewMode,
-	highlightedMarkdown,
+	diffViewMode: _diffViewMode,
+	highlightedMarkdown: _highlightedMarkdown,
 	editor,
 	scrollRef,
 	onScroll,
@@ -53,17 +51,10 @@ export function SplitOriginalColumn({
 				className="flex-1 overflow-y-auto px-8 py-6 pb-48 select-text"
 			>
 				<div className="max-w-2xl mx-auto">
-					{diffViewMode === "diff" ? (
-						<SplitMarkdownBlock
-							markdownText={highlightedMarkdown}
-							viewMode="diff"
-						/>
-					) : (
-						<EditorContent
-							editor={editor}
-							className="tiptap-editor prose prose-neutral dark:prose-invert max-w-none focus:outline-none"
-						/>
-					)}
+					<EditorContent
+						editor={editor}
+						className="tiptap-editor prose prose-neutral dark:prose-invert max-w-none focus:outline-none"
+					/>
 				</div>
 			</div>
 		</section>

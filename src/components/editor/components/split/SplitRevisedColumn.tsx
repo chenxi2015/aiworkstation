@@ -7,7 +7,6 @@ import {
 	type SlashCommandMenuRef,
 } from "../SlashCommandMenu";
 import { SplitFloatingPromptDock } from "./SplitFloatingPromptDock";
-import { SplitMarkdownBlock } from "./SplitMarkdownBlock";
 import { SplitVersionSelector } from "./SplitVersionSelector";
 import type { DocumentVersion, SplitCanvasMode, ViewMode } from "./types";
 
@@ -19,7 +18,7 @@ export interface SplitRevisedColumnProps {
 	diffDelta: number;
 	diffViewMode: ViewMode;
 	onChangeDiffViewMode: (mode: ViewMode) => void;
-	highlightedMarkdown: string;
+	highlightedMarkdown?: string;
 	editor: Editor | null;
 	isStreaming: boolean;
 	scrollRef: React.RefObject<HTMLDivElement | null>;
@@ -37,8 +36,7 @@ export interface SplitRevisedColumnProps {
 
 /**
  * Right Column: Draft Practice Canvas
- * - Clean mode: Full TipTap rich-text editing with Slash '/' command menu
- * - Diff mode: Green insertion highlights rendered via SplitMarkdownBlock
+ * - Unified TipTap rich-text rendering with suggestion marks for diff visualization
  * - Floating AI dock at bottom for continuous prompt revisions
  */
 export function SplitRevisedColumn({
@@ -49,7 +47,7 @@ export function SplitRevisedColumn({
 	diffDelta,
 	diffViewMode,
 	onChangeDiffViewMode,
-	highlightedMarkdown,
+	highlightedMarkdown: _highlightedMarkdown,
 	editor,
 	isStreaming,
 	scrollRef,
@@ -85,15 +83,17 @@ export function SplitRevisedColumn({
 				<div className="flex items-center gap-2">
 					{diffViewMode === "diff" && (
 						<>
-							<span
-								className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
-									diffDelta >= 0
-										? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-										: "bg-rose-500/15 text-rose-600 dark:text-rose-400"
-								}`}
-							>
-								{diffDelta >= 0 ? `+${diffDelta}` : diffDelta} 字
-							</span>
+							{diffDelta !== 0 && (
+								<span
+									className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
+										diffDelta > 0
+											? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+											: "bg-rose-500/15 text-rose-600 dark:text-rose-400"
+									}`}
+								>
+									{diffDelta > 0 ? `+${diffDelta}` : diffDelta} 字
+								</span>
+							)}
 							<button
 								type="button"
 								onClick={() => onChangeDiffViewMode("clean")}
@@ -116,17 +116,10 @@ export function SplitRevisedColumn({
 				className="flex-1 overflow-y-auto px-8 py-6 pb-48 select-text relative"
 			>
 				<div className="max-w-2xl mx-auto">
-					{diffViewMode === "diff" && !isStreaming ? (
-						<SplitMarkdownBlock
-							markdownText={highlightedMarkdown}
-							viewMode="diff"
-						/>
-					) : (
-						<EditorContent
-							editor={editor}
-							className="tiptap-editor prose prose-neutral dark:prose-invert max-w-none focus:outline-none"
-						/>
-					)}
+					<EditorContent
+						editor={editor}
+						className="tiptap-editor prose prose-neutral dark:prose-invert max-w-none focus:outline-none"
+					/>
 				</div>
 			</div>
 

@@ -87,8 +87,9 @@ const DEL_CLASS =
 	"bg-danger/15 text-danger line-through font-medium px-0.5 rounded mx-0.5";
 
 /**
- * Build rich markdown preserving layout (headings, tables, lists)
+ * Build rich markdown preserving layout (headings, tables, lists, code blocks, mermaid)
  * while injecting inline <ins> or <del> highlight tags for diff view.
+ * Strictly avoids polluting code blocks / mermaid diagrams with HTML tags to keep syntax 100% valid.
  */
 export function buildHighlightedMarkdown(
 	baseMd: string,
@@ -101,11 +102,20 @@ export function buildHighlightedMarkdown(
 
 	const chunks = diff.diffLines(baseMd, targetMd);
 	const result: string[] = [];
+	let inCodeBlock = false;
+
+	const isCodeFence = (line: string) => /^\s*(```|~~~)/.test(line);
 
 	for (let i = 0; i < chunks.length; i++) {
 		const current = chunks[i];
 
 		if (!current.added && !current.removed) {
+			const lines = current.value.split("\n");
+			for (const line of lines) {
+				if (isCodeFence(line)) {
+					inCodeBlock = !inCodeBlock;
+				}
+			}
 			result.push(current.value);
 			continue;
 		}
@@ -113,8 +123,16 @@ export function buildHighlightedMarkdown(
 		if (role === "revised") {
 			if (current.added) {
 				const prev = chunks[i - 1];
-				// If immediately following a single-line removed chunk, do fine-grained word diff
-				if (prev && prev.removed && prev.count === 1 && current.count === 1) {
+				// If immediately following a single-line removed chunk and NOT in a code block, do fine-grained word diff
+				if (
+					!inCodeBlock &&
+					prev &&
+					prev.removed &&
+					prev.count === 1 &&
+					current.count === 1 &&
+					!isCodeFence(current.value) &&
+					!isCodeFence(prev.value)
+				) {
 					const wordDiffs = diff.diffWordsWithSpace(
 						prev.value.trimEnd(),
 						current.value.trimEnd(),
@@ -132,7 +150,18 @@ export function buildHighlightedMarkdown(
 				} else {
 					// Multiple lines or block added
 					const lines = current.value.split("\n");
-					const processed = lines.map((line) => {
+					const processed = lines.map((line, idx) => {
+						if (idx === lines.length - 1 && !line) return line;
+
+						if (isCodeFence(line)) {
+							inCodeBlock = !inCodeBlock;
+							return line; // Keep code fence completely pure
+						}
+
+						if (inCodeBlock) {
+							return line; // Never inject HTML tags inside code blocks / mermaid diagrams
+						}
+
 						if (!line.trim()) return line;
 						if (line.trim().startsWith("|") && line.trim().endsWith("|")) {
 							// Table row: highlight cells while preserving pipe separators
@@ -160,8 +189,16 @@ export function buildHighlightedMarkdown(
 			// role === "base"
 			if (current.removed) {
 				const next = chunks[i + 1];
-				// If immediately followed by a single-line added chunk, do fine-grained word diff
-				if (next && next.added && next.count === 1 && current.count === 1) {
+				// If immediately followed by a single-line added chunk and NOT in a code block, do fine-grained word diff
+				if (
+					!inCodeBlock &&
+					next &&
+					next.added &&
+					next.count === 1 &&
+					current.count === 1 &&
+					!isCodeFence(current.value) &&
+					!isCodeFence(next.value)
+				) {
 					const wordDiffs = diff.diffWordsWithSpace(
 						current.value.trimEnd(),
 						next.value.trimEnd(),
@@ -179,7 +216,18 @@ export function buildHighlightedMarkdown(
 				} else {
 					// Block removed
 					const lines = current.value.split("\n");
-					const processed = lines.map((line) => {
+					const processed = lines.map((line, idx) => {
+						if (idx === lines.length - 1 && !line) return line;
+
+						if (isCodeFence(line)) {
+							inCodeBlock = !inCodeBlock;
+							return line; // Keep code fence completely pure
+						}
+
+						if (inCodeBlock) {
+							return line; // Never inject HTML tags inside code blocks / mermaid diagrams
+						}
+
 						if (!line.trim()) return line;
 						if (line.trim().startsWith("|") && line.trim().endsWith("|")) {
 							return line
@@ -205,4 +253,52 @@ export function buildHighlightedMarkdown(
 	}
 
 	return result.join("");
+}
+
+/**
+ * Extract clean visible text from Markdown string by stripping syntax tokens and extra formatting
+ */
+export function markdownToPlainText(md: string): string {
+	if (!md) return "";
+	return md
+		.replace(/!\[.*?\]\(.*?\)/g, "") // image syntax
+		.replace(/\[(.*?)\]\(.*?\)/g, "$1") // link syntax -> link text
+		.replace(/```[\s\S]*?```/g, "") // code fence blocks
+		.replace(/^#{1,6}\s+/gm, "") // headings
+		.replace(/(\*\*|__)(.*?)\1/g, "$2") // bold
+		.replace(/(\*|_)(.*?)\1/g, "$2") // italic
+		.replace(/~~(.*?)~~/g, "$1") // strikethrough
+		.replace(/^>\s+/gm, "") // blockquote
+		.replace(/^[-*+]\s+/gm, "") // list bullets
+		.replace(/^\d+\.\s+/gm, "") // list numbers
+		.replace(/<[^>]+>/g, ""); // inline html tags
+}
+
+/**
+ * Accurately compute diff delta (net added/removed visible words) between two Markdown versions.
+ * Excludes Markdown syntax tokens, whitespace and newlines from the count.
+ */
+export function computeDiffWordDelta(baseMd: string, targetMd: string): number {
+	if (!baseMd && !targetMd) return 0;
+	if (baseMd.trim() === targetMd.trim()) return 0;
+
+	const baseText = markdownToPlainText(baseMd);
+	const targetText = markdownToPlainText(targetMd);
+
+	if (baseText.trim() === targetText.trim()) return 0;
+
+	const changes = diff.diffWordsWithSpace(baseText, targetText);
+	let added = 0;
+	let removed = 0;
+
+	for (const change of changes) {
+		const visibleCount = change.value.replace(/[\r\n\t\s]+/g, "").length;
+		if (change.added) {
+			added += visibleCount;
+		} else if (change.removed) {
+			removed += visibleCount;
+		}
+	}
+
+	return added - removed;
 }

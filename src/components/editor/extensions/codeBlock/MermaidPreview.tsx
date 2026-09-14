@@ -285,11 +285,25 @@ export function MermaidPreview({
 	const [isRendering, setIsRendering] = useState<boolean>(false);
 	const baseId = useId().replace(/[^a-zA-Z0-9]/g, "");
 
-	const trimmedCode = useMemo(() => code.trim(), [code]);
+	// Defensively decode HTML entities (e.g., &gt; -> >, &amp; -> &) to avoid lexical errors with arrows
+	const cleanCode = useMemo(() => {
+		let res = code || "";
+		let prev = "";
+		while (res !== prev && /&(?:gt|lt|amp|quot|#39);/i.test(res)) {
+			prev = res;
+			res = res
+				.replace(/&gt;/gi, ">")
+				.replace(/&lt;/gi, "<")
+				.replace(/&quot;/gi, '"')
+				.replace(/&#39;/gi, "'")
+				.replace(/&amp;/gi, "&");
+		}
+		return res.trim();
+	}, [code]);
 
-	// Render mermaid whenever trimmedCode changes
+	// Render mermaid whenever cleanCode changes
 	useEffect(() => {
-		if (!trimmedCode) {
+		if (!cleanCode) {
 			setSvgHtml("");
 			setError(null);
 			return;
@@ -300,7 +314,7 @@ export function MermaidPreview({
 		setIsRendering(true);
 
 		mermaidInstance
-			.render(renderId, trimmedCode)
+			.render(renderId, cleanCode)
 			.then((result) => {
 				if (!isCurrent) return;
 				// Filter out duplicate measurement artifacts
@@ -322,7 +336,7 @@ export function MermaidPreview({
 		return () => {
 			isCurrent = false;
 		};
-	}, [trimmedCode, baseId]);
+	}, [cleanCode, baseId]);
 
 	// Expose SVG download function
 	const handleDownloadSvg = useCallback(() => {
@@ -356,7 +370,7 @@ export function MermaidPreview({
 		return () => window.removeEventListener("keydown", handleKeyDown);
 	}, [isFullscreen, onCloseFullscreen]);
 
-	if (!trimmedCode) {
+	if (!cleanCode) {
 		return (
 			<div className="flex flex-col items-center justify-center p-8 text-zinc-500 text-xs font-mono">
 				请输入 Mermaid 代码或由 AI 生成图表…
