@@ -116,8 +116,8 @@ export function RichTextEditor({
 				onTogglePreview={togglePreview}
 				onSelectLocalImages={mediaUpload.triggerSelectLocalImages}
 				onSelectLocalVideos={mediaUpload.triggerSelectLocalVideos}
-				onInsertImageUrl={mediaUpload.promptInsertImageUrl}
-				onInsertVideoUrl={mediaUpload.promptInsertVideoUrl}
+				onInsertImageUrl={mediaUpload.insertImageFromUrl}
+				onInsertVideoUrl={mediaUpload.insertVideoFromUrl}
 				onOpenImport={onOpenImport}
 			/>
 

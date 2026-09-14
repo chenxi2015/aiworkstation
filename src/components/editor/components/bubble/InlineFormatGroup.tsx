@@ -8,7 +8,10 @@ import {
 	Underline as UnderlineIcon,
 } from "lucide-react";
 import type React from "react";
+import { useState } from "react";
+import { ColorDropdown } from "../ColorDropdown";
 import { HeadingDropdown } from "../HeadingDropdown";
+import { UrlInputPopover } from "../UrlInputPopover";
 
 interface FormatToolButtonProps {
 	icon: React.ComponentType<{ className?: string }>;
@@ -52,6 +55,8 @@ export function InlineFormatGroup({
 	editor,
 	isDropUp = false,
 }: InlineFormatGroupProps) {
+	const [linkPopoverOpen, setLinkPopoverOpen] = useState(false);
+
 	const handleToggleBold = () => editor.chain().focus().toggleBold().run();
 	const handleToggleItalic = () => editor.chain().focus().toggleItalic().run();
 	const handleToggleUnderline = () =>
@@ -59,20 +64,14 @@ export function InlineFormatGroup({
 	const handleToggleStrike = () => editor.chain().focus().toggleStrike().run();
 	const handleToggleCode = () => editor.chain().focus().toggleCode().run();
 
-	const handleToggleLink = () => {
-		const previousUrl = editor.getAttributes("link").href;
-		const url = window.prompt("输入链接地址", previousUrl || "");
-		if (url === null) return;
-		if (url.trim() === "") {
-			editor.chain().focus().extendMarkRange("link").unsetLink().run();
-		} else {
-			editor
-				.chain()
-				.focus()
-				.extendMarkRange("link")
-				.setLink({ href: url.trim() })
-				.run();
-		}
+	const previousLinkUrl: string | undefined = editor.getAttributes("link").href;
+
+	const applyLink = (url: string) => {
+		editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
+	};
+
+	const removeLink = () => {
+		editor.chain().focus().extendMarkRange("link").unsetLink().run();
 	};
 
 	return (
@@ -109,12 +108,26 @@ export function InlineFormatGroup({
 				active={editor.isActive("code")}
 				onClick={handleToggleCode}
 			/>
-			<FormatToolButton
-				icon={LinkIcon}
-				label="超链接"
-				active={editor.isActive("link")}
-				onClick={handleToggleLink}
-			/>
+			<div className="relative inline-block">
+				<FormatToolButton
+					icon={LinkIcon}
+					label="超链接"
+					active={editor.isActive("link") || linkPopoverOpen}
+					onClick={() => setLinkPopoverOpen((prev) => !prev)}
+				/>
+				<UrlInputPopover
+					isOpen={linkPopoverOpen}
+					placeholder="粘贴链接…"
+					initialValue={previousLinkUrl || ""}
+					openUrl={previousLinkUrl || undefined}
+					onRemove={previousLinkUrl ? removeLink : undefined}
+					onSubmit={applyLink}
+					onClose={() => setLinkPopoverOpen(false)}
+					isDropUp={isDropUp}
+				/>
+			</div>
+			<div className="w-px h-3.5 bg-border/80 mx-0.5 shrink-0" />
+			<ColorDropdown editor={editor} mode="text" isDropUp={isDropUp} />
 		</div>
 	);
 }

@@ -68,9 +68,25 @@ export function useSplitCanvas({
 		}
 	}, [leftEditor]);
 
-	const initialBaseHtml = useMemo(() => {
-		return markdownToHtml(initialBaseMarkdown);
-	}, [initialBaseMarkdown]);
+	// 基准内容的原始 TipTap JSON：用于双栏渲染，避免 Markdown 往返丢失排版样式
+	const initialBaseJson = useMemo<JSONContent>(() => {
+		return leftEditor.getJSON();
+	}, [leftEditor]);
+
+	// 渲染版本内容到编辑器：有原始 JSON 直接用 JSON，否则走 Markdown → HTML
+	const applyVersionContent = useCallback(
+		(targetEditor: Editor, version: DocumentVersion, emitUpdate = false) => {
+			if (version.contentJson) {
+				targetEditor.commands.setContent(version.contentJson, {
+					emitUpdate,
+				});
+				return;
+			}
+			const html = markdownToHtml(version.content);
+			targetEditor.commands.setContent(html || "<p></p>", { emitUpdate });
+		},
+		[],
+	);
 
 	// 2. Version State Pool：只存放"已保存版本"（v0 基准 + 数据库快照 + 手动保存的新版本）。
 	// 右栏是未保存的草稿工作区，AI 生成 / 手动编辑都只写草稿，
@@ -81,6 +97,7 @@ export function useSplitCanvas({
 			label: "v0: 当前正文 (Base)",
 			mode: "original",
 			content: initialBaseMarkdown,
+			contentJson: initialBaseJson,
 			createdAt: Date.now(),
 			origin: "human",
 			isSavedToDb: true,
@@ -94,7 +111,8 @@ export function useSplitCanvas({
 	const draftActionRef = useRef<string>("手动精修");
 
 	const [leftVersionId, setLeftVersionId] = useState<string>("v0");
-	const [rightVersionId, setRightVersionId] = useState<string>(DRAFT_VERSION_ID);
+	const [rightVersionId, setRightVersionId] =
+		useState<string>(DRAFT_VERSION_ID);
 	const [diffViewMode, setDiffViewMode] = useState<ViewMode>("clean");
 	const [isSavingVersion, setIsSavingVersion] = useState(false);
 
@@ -106,9 +124,16 @@ export function useSplitCanvas({
 			if (!isMounted || !dbVers || dbVers.length === 0) return;
 			const mappedDbVersions: DocumentVersion[] = dbVers.map((dv) => {
 				let contentMd = "";
+				let contentJson: JSONContent | undefined;
 				try {
 					const parsed = JSON.parse(dv.content);
 					contentMd = tiptapJsonToMarkdown(parsed) || dv.content;
+					if (
+						parsed &&
+						(parsed.type === "doc" || Array.isArray(parsed.content))
+					) {
+						contentJson = parsed;
+					}
 				} catch {
 					contentMd = dv.content;
 				}
@@ -123,6 +148,7 @@ export function useSplitCanvas({
 					label: `v${dv.version}: ${dv.note || (dv.origin === "ai" ? "AI 改写" : "历史快照")}${dateStr ? ` (${dateStr})` : ""}`,
 					mode: dv.origin === "ai" ? "rewrite" : "manual",
 					content: contentMd,
+					contentJson,
 					createdAt: dv.createdAt
 						? new Date(dv.createdAt).getTime()
 						: Date.now(),
@@ -178,7 +204,7 @@ export function useSplitCanvas({
 	// 4. Left Read-only Rich Text Editor instance (initialized with normalized HTML)
 	const leftPreviewEditor = useEditor({
 		extensions: getEditorBaseExtensions(),
-		content: initialBaseHtml || leftEditor.getJSON(),
+		content: initialBaseJson,
 		editable: false,
 		immediatelyRender: false,
 	});
@@ -538,17 +564,14 @@ export function useSplitCanvas({
 			const targetVer = versions.find((v) => v.id === versionId);
 			if (!targetVer || !rightEditor) return;
 			try {
-				const html = markdownToHtml(targetVer.content);
-				rightEditor.commands.setContent(html || "<p></p>", {
-					emitUpdate: true,
-				});
+				applyVersionContent(rightEditor, targetVer, true);
 				setRightWordCount(markdownToPlainText(targetVer.content).length);
 			} catch {
 				rightEditor.commands.setContent(targetVer.content);
 				setRightWordCount(markdownToPlainText(targetVer.content).length);
 			}
 		},
-		[versions, rightEditor],
+		[versions, rightEditor, applyVersionContent],
 	);
 
 	// Manually save current active version to SQLite document_versions
@@ -679,17 +702,11 @@ export function useSplitCanvas({
 		} else {
 			// Clean mode: restore clean rich text content and re-enable editing
 			if (leftPreviewEditor && activeLeftVersion) {
-				const html = markdownToHtml(activeLeftVersion.content);
-				leftPreviewEditor.commands.setContent(html || "<p></p>", {
-					emitUpdate: false,
-				});
+				applyVersionContent(leftPreviewEditor, activeLeftVersion);
 			}
 			if (rightEditor) {
 				if (activeRightVersion) {
-					const html = markdownToHtml(activeRightVersion.content);
-					rightEditor.commands.setContent(html || "<p></p>", {
-						emitUpdate: false,
-					});
+					applyVersionContent(rightEditor, activeRightVersion);
 				}
 				rightEditor.setEditable(true);
 			}
@@ -705,6 +722,7 @@ export function useSplitCanvas({
 		leftPreviewEditor,
 		rightEditor,
 		isStreaming,
+		applyVersionContent,
 	]);
 
 	// Check if right canvas has substantial changes compared to the base text.

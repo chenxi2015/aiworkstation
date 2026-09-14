@@ -1,4 +1,4 @@
-import type { Editor } from "@tiptap/core";
+import type { Editor, JSONContent } from "@tiptap/core";
 
 export type SplitCanvasMode =
 	| "spin" // 二创洗稿
@@ -69,6 +69,8 @@ export interface DocumentVersion {
 	label: string; // 'v0: 当前正文 (Base)', 'v1: 深度二创版', 'v2: 手动精修'
 	mode: SplitCanvasMode;
 	content: string; // Markdown text
+	/** 原始 TipTap JSON（如有）：渲染时优先使用，避免 Markdown 往返丢失对齐/颜色/高亮/容器等样式 */
+	contentJson?: JSONContent;
 	createdAt: number; // Timestamp
 	instruction?: string; // Prompt remark that produced this version
 	dbVersionId?: number; // Related database document_versions.id

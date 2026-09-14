@@ -1,18 +1,13 @@
 import type { Editor } from "@tiptap/react";
 import {
-	AlignCenter,
-	AlignLeft,
-	AlignRight,
 	Bold,
 	Code,
 	Code2,
 	Eye,
+	FileCode2,
 	ImagePlus,
 	Italic,
 	Link,
-	List,
-	ListOrdered,
-	ListTodo,
 	Minus,
 	PencilLine,
 	Quote,
@@ -21,12 +16,16 @@ import {
 	Table as TableIcon,
 	Underline as UnderlineIcon,
 	Undo2,
-	Unlink,
 	Upload,
 	Video,
 } from "lucide-react";
+import { useState } from "react";
+import { AlignDropdown } from "./AlignDropdown";
 import { ColorDropdown } from "./ColorDropdown";
 import { HeadingDropdown } from "./HeadingDropdown";
+import { ListDropdown } from "./ListDropdown";
+import { SourceCodeModal } from "./SourceCodeModal";
+import { UrlInputPopover } from "./UrlInputPopover";
 
 interface ToolButtonProps {
 	icon: typeof Bold;
@@ -71,10 +70,12 @@ export interface EditorToolbarProps {
 	onTogglePreview: () => void;
 	onSelectLocalImages: () => void;
 	onSelectLocalVideos: () => void;
-	onInsertImageUrl: () => void;
-	onInsertVideoUrl: () => void;
+	onInsertImageUrl: (url: string) => void;
+	onInsertVideoUrl: (url: string) => void;
 	onOpenImport?: () => void;
 }
+
+type UrlPopoverKind = "link" | "image" | "video" | null;
 
 /**
  * Editor top formatting and action toolbar
@@ -90,27 +91,17 @@ export function EditorToolbar({
 	onInsertVideoUrl,
 	onOpenImport,
 }: EditorToolbarProps) {
-	const setLink = () => {
-		const previousUrl = editor.getAttributes("link").href;
-		const url = window.prompt("URL", previousUrl);
-		if (url === null) return;
-		if (url === "") {
-			editor.chain().focus().extendMarkRange("link").unsetLink().run();
-			return;
-		}
+	const [urlPopover, setUrlPopover] = useState<UrlPopoverKind>(null);
+	const [sourceModalOpen, setSourceModalOpen] = useState(false);
+
+	const previousLinkUrl: string | undefined = editor.getAttributes("link").href;
+
+	const applyLink = (url: string) => {
 		editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
 	};
 
-	const handleAlign = (alignment: "left" | "center" | "right") => {
-		if (
-			editor.isActive("image") ||
-			editor.isActive("video") ||
-			!editor.state.selection.empty
-		) {
-			editor.commands.setTextAlign(alignment);
-		} else {
-			editor.chain().focus().setTextAlign(alignment).run();
-		}
+	const removeLink = () => {
+		editor.chain().focus().extendMarkRange("link").unsetLink().run();
 	};
 
 	return (
@@ -186,51 +177,9 @@ export function EditorToolbar({
 					<ColorDropdown editor={editor} mode="text" />
 					<ColorDropdown editor={editor} mode="background" />
 					<Divider />
-					<ToolButton
-						icon={AlignLeft}
-						label="居左对齐"
-						active={editor.isActive({ textAlign: "left" })}
-						onClick={() => handleAlign("left")}
-					/>
-					<ToolButton
-						icon={AlignCenter}
-						label="居中对齐"
-						active={editor.isActive({ textAlign: "center" })}
-						onClick={() =>
-							handleAlign(
-								editor.isActive({ textAlign: "center" }) ? "left" : "center",
-							)
-						}
-					/>
-					<ToolButton
-						icon={AlignRight}
-						label="居右对齐"
-						active={editor.isActive({ textAlign: "right" })}
-						onClick={() =>
-							handleAlign(
-								editor.isActive({ textAlign: "right" }) ? "left" : "right",
-							)
-						}
-					/>
+					<AlignDropdown editor={editor} />
 					<Divider />
-					<ToolButton
-						icon={List}
-						label="无序列表"
-						active={editor.isActive("bulletList")}
-						onClick={() => editor.chain().focus().toggleBulletList().run()}
-					/>
-					<ToolButton
-						icon={ListOrdered}
-						label="有序列表"
-						active={editor.isActive("orderedList")}
-						onClick={() => editor.chain().focus().toggleOrderedList().run()}
-					/>
-					<ToolButton
-						icon={ListTodo}
-						label="任务待办清单"
-						active={editor.isActive("taskList")}
-						onClick={() => editor.chain().focus().toggleTaskList().run()}
-					/>
+					<ListDropdown editor={editor} />
 					<ToolButton
 						icon={Quote}
 						label="引用"
@@ -261,19 +210,25 @@ export function EditorToolbar({
 						}
 					/>
 					<Divider />
-					<ToolButton
-						icon={Link}
-						label="插入链接"
-						active={editor.isActive("link")}
-						onClick={setLink}
-					/>
-					{editor.isActive("link") && (
+					<div className="relative inline-block">
 						<ToolButton
-							icon={Unlink}
-							label="取消链接"
-							onClick={() => editor.chain().focus().unsetLink().run()}
+							icon={Link}
+							label="插入链接"
+							active={editor.isActive("link") || urlPopover === "link"}
+							onClick={() =>
+								setUrlPopover((prev) => (prev === "link" ? null : "link"))
+							}
 						/>
-					)}
+						<UrlInputPopover
+							isOpen={urlPopover === "link"}
+							placeholder="粘贴链接…"
+							initialValue={previousLinkUrl || ""}
+							openUrl={previousLinkUrl || undefined}
+							onRemove={previousLinkUrl ? removeLink : undefined}
+							onSubmit={applyLink}
+							onClose={() => setUrlPopover(null)}
+						/>
+					</div>
 					<Divider />
 					<ToolButton
 						icon={ImagePlus}
@@ -287,20 +242,48 @@ export function EditorToolbar({
 						disabled={uploading}
 						onClick={onSelectLocalVideos}
 					/>
-					<button
-						type="button"
-						onClick={onInsertImageUrl}
-						className="px-2 py-1 text-xs text-muted hover:text-foreground hover:bg-muted/10 rounded-md transition-colors cursor-pointer"
-					>
-						外链图片
-					</button>
-					<button
-						type="button"
-						onClick={onInsertVideoUrl}
-						className="px-2 py-1 text-xs text-muted hover:text-foreground hover:bg-muted/10 rounded-md transition-colors cursor-pointer"
-					>
-						外链视频
-					</button>
+					<div className="relative inline-block">
+						<button
+							type="button"
+							onClick={() =>
+								setUrlPopover((prev) => (prev === "image" ? null : "image"))
+							}
+							className={`px-2 py-1 text-xs rounded-md transition-colors cursor-pointer ${
+								urlPopover === "image"
+									? "bg-accent/15 text-accent font-medium"
+									: "text-muted hover:text-foreground hover:bg-muted/10"
+							}`}
+						>
+							外链图片
+						</button>
+						<UrlInputPopover
+							isOpen={urlPopover === "image"}
+							placeholder="粘贴图片 URL…"
+							onSubmit={onInsertImageUrl}
+							onClose={() => setUrlPopover(null)}
+						/>
+					</div>
+					<div className="relative inline-block">
+						<button
+							type="button"
+							onClick={() =>
+								setUrlPopover((prev) => (prev === "video" ? null : "video"))
+							}
+							className={`px-2 py-1 text-xs rounded-md transition-colors cursor-pointer ${
+								urlPopover === "video"
+									? "bg-accent/15 text-accent font-medium"
+									: "text-muted hover:text-foreground hover:bg-muted/10"
+							}`}
+						>
+							外链视频
+						</button>
+						<UrlInputPopover
+							isOpen={urlPopover === "video"}
+							placeholder="粘贴视频 URL…"
+							onSubmit={onInsertVideoUrl}
+							onClose={() => setUrlPopover(null)}
+						/>
+					</div>
 					{onOpenImport && (
 						<button
 							type="button"
@@ -312,6 +295,17 @@ export function EditorToolbar({
 							导入
 						</button>
 					)}
+					<Divider />
+					<ToolButton
+						icon={FileCode2}
+						label="查看源代码"
+						onClick={() => setSourceModalOpen(true)}
+					/>
+					<SourceCodeModal
+						editor={editor}
+						isOpen={sourceModalOpen}
+						onClose={() => setSourceModalOpen(false)}
+					/>
 				</>
 			)}
 		</div>

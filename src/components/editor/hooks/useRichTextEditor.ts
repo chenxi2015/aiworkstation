@@ -4,6 +4,7 @@ import { uploadAssetRpc } from "../../../services/api/editorClient";
 import type { SlashCommandMenuRef } from "../components/SlashCommandMenu";
 import { getEditorBaseExtensions } from "../extensions/baseExtensions";
 import { SlashCommands } from "../extensions/slashCommand";
+import { sanitizeOverlayStylesInDoc } from "../extensions/stylePreservation";
 import {
 	extractImageUrl,
 	extractMultipleMediaUrls,
@@ -238,7 +239,10 @@ export function useRichTextEditor({
 				// 完整保留 styledContainer 卡片与内联样式的排版效果。
 				// ⚠️ 切勿在此做 markdown 往返（tiptapJsonToMarkdown → markdownToHtml），
 				//    markdown 无法表达排版样式，往返会把整篇文章的样式全部洗掉。
-				return normalizeCodeCardDoc(JSON.parse(initialContent));
+			// JSON 正文原样加载（仅做代码卡片归一化 + 浮层样式清理）
+			return sanitizeOverlayStylesInDoc(
+				normalizeCodeCardDoc(JSON.parse(initialContent)),
+			);
 			} catch {
 				// 历史遗留的 Markdown / 纯文本正文
 				return markdownToHtml(initialContent) || initialContent;

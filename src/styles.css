@@ -544,6 +544,28 @@ pre code {
 	min-height: 50vh;
 }
 
+/* 正文超链接：全局 a 重置会抹掉链接样式，这里为编辑器/预览内容恢复可见链接态 */
+.tiptap-editor a,
+.doc-content-body a {
+	color: var(--accent);
+	text-decoration: underline;
+	text-decoration-thickness: 1px;
+	text-underline-offset: 3px;
+	text-decoration-color: color-mix(in oklab, var(--accent) 45%, transparent);
+	border-radius: 2px;
+	cursor: pointer;
+	transition:
+		color 150ms ease,
+		text-decoration-color 150ms ease,
+		background-color 150ms ease;
+}
+
+.tiptap-editor a:hover,
+.doc-content-body a:hover {
+	text-decoration-color: var(--accent);
+	background-color: color-mix(in oklab, var(--accent) 10%, transparent);
+}
+
 /* Placeholder 提示（@tiptap/extension-placeholder） */
 .tiptap-editor .ProseMirror p.is-editor-empty:first-child::before {
 	content: attr(data-placeholder);

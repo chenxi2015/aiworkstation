@@ -96,26 +96,24 @@ export function useEditorMediaUpload({
 		videoInputRef.current?.click();
 	};
 
-	const promptInsertImageUrl = () => {
+	const insertImageFromUrl = (url: string) => {
 		const currentEditor = editorRef.current;
 		if (!currentEditor) return;
-		const url = window.prompt("图片 URL");
-		if (url?.trim()) {
-			currentEditor.chain().focus().setImage({ src: url.trim() }).run();
-		}
+		const src = url.trim();
+		if (!src) return;
+		currentEditor.chain().focus().setImage({ src }).run();
 	};
 
-	const promptInsertVideoUrl = () => {
+	const insertVideoFromUrl = (url: string) => {
 		const currentEditor = editorRef.current;
 		if (!currentEditor) return;
-		const url = window.prompt("视频 URL");
-		if (url?.trim()) {
-			currentEditor
-				.chain()
-				.focus()
-				.insertContent({ type: "video", attrs: { src: url.trim() } })
-				.run();
-		}
+		const src = url.trim();
+		if (!src) return;
+		currentEditor
+			.chain()
+			.focus()
+			.insertContent({ type: "video", attrs: { src } })
+			.run();
 	};
 
 	return {
@@ -125,7 +123,7 @@ export function useEditorMediaUpload({
 		insertAndUploadMediaFiles,
 		triggerSelectLocalImages,
 		triggerSelectLocalVideos,
-		promptInsertImageUrl,
-		promptInsertVideoUrl,
+		insertImageFromUrl,
+		insertVideoFromUrl,
 	};
 }
