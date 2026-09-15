@@ -46,7 +46,10 @@ export interface UseDocumentManagerReturn {
 	handleSnapshot: (note?: string) => Promise<void>;
 	handleBeforeAiApply: () => Promise<void>;
 	handleAiGenerate: (prompt: string) => Promise<string>;
-	handleInsertNewDocument: (title: string) => Promise<EditorDocument>;
+	handleInsertNewDocument: (
+		title: string,
+		options?: { activate?: boolean },
+	) => Promise<EditorDocument>;
 	reloadDocuments: () => Promise<EditorDocument[]>;
 	flushSave: () => Promise<void>;
 }
@@ -278,12 +281,17 @@ export function useDocumentManager(): UseDocumentManagerReturn {
 	}, [switchDocument]);
 
 	const handleInsertNewDocument = useCallback(
-		async (title: string) => {
-			await switchDocument(null);
+		async (title: string, options?: { activate?: boolean }) => {
+			const activate = options?.activate ?? true;
+			if (activate) {
+				await switchDocument(null);
+			}
 			const doc = await createDocumentRpc({ title: title || "导入文档" });
 			setDocuments((prev) => [doc, ...prev]);
-			setActiveId(doc.id);
-			setSaveState("idle");
+			if (activate) {
+				setActiveId(doc.id);
+				setSaveState("idle");
+			}
 			return doc;
 		},
 		[switchDocument],

@@ -181,16 +181,22 @@ export function EditorApp({
 					type: "doc",
 					content: nodes.length > 0 ? nodes : [{ type: "paragraph" }],
 				};
-				const newDoc = await handleInsertNewDocument(title);
-				pendingImportHtmlRef.current = null;
-				await updateDocumentRpc({
-					id: newDoc.id,
-					title,
-					content: JSON.stringify(docJson),
-					contentText: markdown,
-				});
-				await reloadDocuments();
-				await switchDocument(newDoc.id);
+			// 先建文档但不激活：避免编辑器以空 initialContent 挂载
+			// （useEditor 仅在创建时读取一次 initialContent，之后 prop 更新无效）
+			const newDoc = await handleInsertNewDocument(title, {
+				activate: false,
+			});
+			pendingImportHtmlRef.current = null;
+			await updateDocumentRpc({
+				id: newDoc.id,
+				title,
+				content: JSON.stringify(docJson),
+				contentText: markdown,
+			});
+			// 先把含正文的新文档同步进本地 state，再切换激活，
+			// 保证 RichTextEditor 首次挂载即拿到完整内容
+			await reloadDocuments();
+			await switchDocument(newDoc.id);
 				setSplitSession(null);
 				toast.success(`已成功将该版本另存为新文档《${title}》！`);
 			} catch (err: unknown) {

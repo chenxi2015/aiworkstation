@@ -2,10 +2,10 @@ import { toast } from "@heroui/react";
 import TextAlign from "@tiptap/extension-text-align";
 import { renderToHTMLString } from "@tiptap/static-renderer/pm/html-string";
 import { useCallback, useMemo } from "react";
-import { exportToPdfPrint, exportToWordDocx } from "../exporters";
+import { exportToPdf, exportToWordDocx } from "../exporters";
 import { coreConversionExtensions, tiptapJsonToMarkdown } from "../markdown";
-import { normalizeCodeCardDoc } from "../utils/codeCardNormalizer";
 import type { EditorDocument } from "../types";
+import { normalizeCodeCardDoc } from "../utils/codeCardNormalizer";
 
 /**
  * Extensions set for export rendering。
@@ -132,9 +132,18 @@ ${currentHtml}
 		[],
 	);
 
-	const handleExportWord = useCallback(() => {
+	const handleExportWord = useCallback(async () => {
 		if (!activeDoc) return;
-		exportToWordDocx(activeDoc.title, currentHtml || activeDoc.contentText);
+		try {
+			await exportToWordDocx(
+				activeDoc.title,
+				currentHtml || activeDoc.contentText,
+			);
+			toast.success("Word 文档已导出");
+		} catch (e) {
+			console.error("Failed to export docx", e);
+			toast.danger("导出 Word 失败，请重试");
+		}
 	}, [activeDoc, currentHtml]);
 
 	const handleExportMarkdown = useCallback(() => {
@@ -155,9 +164,16 @@ ${currentHtml}
 		);
 	}, [activeDoc, buildHtmlDocument, downloadFile]);
 
-	const handleExportPdf = useCallback(() => {
+	const handleExportPdf = useCallback(async () => {
 		if (!activeDoc) return;
-		exportToPdfPrint(activeDoc.title, currentHtml || activeDoc.contentText);
+		toast.info("正在生成 PDF，请稍候…");
+		try {
+			await exportToPdf(activeDoc.title, currentHtml || activeDoc.contentText);
+			toast.success("PDF 已导出");
+		} catch (e) {
+			console.error("Failed to export pdf", e);
+			toast.danger("导出 PDF 失败，请重试");
+		}
 	}, [activeDoc, currentHtml]);
 
 	return {

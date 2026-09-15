@@ -140,13 +140,13 @@ export function EditorActionBar({
 						</Dropdown.Item>
 						<Dropdown.Item
 							id="copy-html"
-							textValue="复制为 HTML"
+							textValue="复制到公众号"
 							onAction={onCopyHtml}
 						>
 							<div className="flex items-center gap-2 w-full py-0.5">
 								<Code className="w-3.5 h-3.5 text-muted shrink-0" />
 								<div className="flex flex-col">
-									<span className="text-xs font-medium">复制为 HTML</span>
+									<span className="text-xs font-medium">复制到公众号</span>
 									<span className="text-[10px] text-muted">
 										富文本格式，可直接粘贴到公众号/飞书
 									</span>
@@ -219,15 +219,15 @@ export function EditorActionBar({
 						</Dropdown.Item>
 						<Dropdown.Item
 							id="export-pdf"
-							textValue="PDF / 打印"
+							textValue="PDF 文档 (.pdf)"
 							onAction={onExportPdf}
 						>
 							<div className="flex items-center gap-2 w-full py-0.5">
 								<Printer className="w-3.5 h-3.5 text-muted shrink-0" />
 								<div className="flex flex-col">
-									<span className="text-xs font-medium">PDF / 打印</span>
+									<span className="text-xs font-medium">PDF 文档 (.pdf)</span>
 									<span className="text-[10px] text-muted">
-										唤起打印预览，可另存为 PDF
+										直接导出排版好的 PDF 文件
 									</span>
 								</div>
 							</div>
