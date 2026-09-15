@@ -8,6 +8,8 @@ export interface SplitVersionSelectorProps {
 	versions: DocumentVersion[];
 	onSelectVersion: (versionId: string) => void;
 	disabled?: boolean;
+	/** 当 selectedVersionId 不在 versions 列表中（如右栏草稿工作区）时显示的回退标签 */
+	fallbackLabel?: string;
 }
 
 const MODE_TAGS: Record<string, { text: string; bg: string; textCol: string }> =
@@ -60,13 +62,15 @@ export function SplitVersionSelector({
 	versions,
 	onSelectVersion,
 	disabled = false,
+	fallbackLabel,
 }: SplitVersionSelectorProps) {
 	const [isOpen, setIsOpen] = useState(false);
 
-	const activeVersion =
-		versions.find((v) => v.id === selectedVersionId) || versions[0];
-	const tag =
-		MODE_TAGS[activeVersion?.mode || "original"] || MODE_TAGS.original;
+	// 注意：不要回退到 versions[0]，否则右栏草稿会被误标为 "v0: 当前正文 (Base)"
+	const activeVersion = versions.find((v) => v.id === selectedVersionId);
+	const tag = activeVersion
+		? MODE_TAGS[activeVersion.mode || "original"] || MODE_TAGS.original
+		: null;
 
 	return (
 		<div className="relative inline-block text-left">
@@ -79,13 +83,15 @@ export function SplitVersionSelector({
 			>
 				<span className="text-muted font-normal">{labelPrefix}:</span>
 				<span className="font-semibold text-foreground max-w-[120px] truncate">
-					{activeVersion?.label || selectedVersionId}
+					{activeVersion?.label || fallbackLabel || selectedVersionId}
 				</span>
-				<span
-					className={`text-[10px] px-1.5 py-0.5 rounded font-normal ${tag.bg} ${tag.textCol}`}
-				>
-					{tag.text}
-				</span>
+				{tag && (
+					<span
+						className={`text-[10px] px-1.5 py-0.5 rounded font-normal ${tag.bg} ${tag.textCol}`}
+					>
+						{tag.text}
+					</span>
+				)}
 				<ChevronDown className="w-3 h-3 text-muted" />
 			</button>
 

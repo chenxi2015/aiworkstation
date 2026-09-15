@@ -1,3 +1,4 @@
+import { EditorMediaContext } from "../extensions/MediaNodeView";
 import { SplitCompareHeader } from "./split/SplitCompareHeader";
 import { SplitOriginalColumn } from "./split/SplitOriginalColumn";
 import { SplitRevisedColumn } from "./split/SplitRevisedColumn";
@@ -90,48 +91,50 @@ export function SplitCompareView(props: SplitCompareViewProps) {
 			/>
 
 			{/* Main Split Body: Left 50% vs Right 50% */}
-			<div className="flex-1 min-h-0 flex overflow-hidden relative">
-				{/* Left Column: Base Version */}
-				<SplitOriginalColumn
-					selectedVersionId={leftVersionId}
-					versions={versions}
-					onSelectVersion={setLeftVersionId}
-					wordCount={leftWordCount}
-					diffViewMode={diffViewMode}
-					highlightedMarkdown={diffStrings.leftHighlighted}
-					editor={leftPreviewEditor}
-					scrollRef={leftScrollRef}
-					onScroll={handleLeftScroll}
-				/>
+			<EditorMediaContext.Provider value={{ docId }}>
+				<div className="flex-1 min-h-0 flex overflow-hidden relative">
+					{/* Left Column: Base Version */}
+					<SplitOriginalColumn
+						selectedVersionId={leftVersionId}
+						versions={versions}
+						onSelectVersion={setLeftVersionId}
+						wordCount={leftWordCount}
+						diffViewMode={diffViewMode}
+						highlightedMarkdown={diffStrings.leftHighlighted}
+						editor={leftPreviewEditor}
+						scrollRef={leftScrollRef}
+						onScroll={handleLeftScroll}
+					/>
 
-				{/* Right Column: Draft Practice Canvas */}
-				<SplitRevisedColumn
-					selectedVersionId={rightVersionId}
-					versions={versions}
-					onSelectVersion={handleSelectRightVersion}
-					wordCount={rightWordCount}
-					diffDelta={diffStrings.diffDelta}
-					diffViewMode={diffViewMode}
-					onChangeDiffViewMode={setDiffViewMode}
-					highlightedMarkdown={diffStrings.rightHighlighted}
-					editor={rightEditor}
-					isStreaming={isStreaming}
-					scrollRef={rightScrollRef}
-					onScroll={handleRightScroll}
-					slashMenu={slashMenu}
-					slashMenuRef={slashMenuRef}
-					onCloseSlashMenu={() => setSlashMenu(null)}
-					selectedMode={selectedMode}
-					onSelectMode={setSelectedMode}
-					customPrompt={customPrompt}
-					onChangeCustomPrompt={setCustomPrompt}
-					onStartGenerate={() => handleStartGenerate()}
-					onStopGenerate={handleStopGenerate}
-					canAccept={canAccept}
-					onAccept={handleAccept}
-					onReject={onCancel}
-				/>
-			</div>
+					{/* Right Column: Draft Practice Canvas */}
+					<SplitRevisedColumn
+						selectedVersionId={rightVersionId}
+						versions={versions}
+						onSelectVersion={handleSelectRightVersion}
+						wordCount={rightWordCount}
+						diffDelta={diffStrings.diffDelta}
+						diffViewMode={diffViewMode}
+						onChangeDiffViewMode={setDiffViewMode}
+						highlightedMarkdown={diffStrings.rightHighlighted}
+						editor={rightEditor}
+						isStreaming={isStreaming}
+						scrollRef={rightScrollRef}
+						onScroll={handleRightScroll}
+						slashMenu={slashMenu}
+						slashMenuRef={slashMenuRef}
+						onCloseSlashMenu={() => setSlashMenu(null)}
+						selectedMode={selectedMode}
+						onSelectMode={setSelectedMode}
+						customPrompt={customPrompt}
+						onChangeCustomPrompt={setCustomPrompt}
+						onStartGenerate={() => handleStartGenerate()}
+						onStopGenerate={handleStopGenerate}
+						canAccept={canAccept}
+						onAccept={handleAccept}
+						onReject={onCancel}
+					/>
+				</div>
+			</EditorMediaContext.Provider>
 		</div>
 	);
 }

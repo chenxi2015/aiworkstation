@@ -42,9 +42,106 @@ function looksLikeHtmlPayload(text: string): boolean {
  * 归一化 AI 生成的整篇文本：
  * - Case 1：整篇（或附短导语/短结尾）被单个 ```html 类围栏包裹 → 拆包取围栏内容
  * - Case 2：短导语 + 后续以 <div>/<section> 开头的裸 HTML 主体 → 去掉导语
+ * - Case 3：混排——主体已是裸 HTML 排版，个别段落被单独包进围栏 → 逐个拆包
  * 不满足条件时原样返回，绝不动正常文章（如正文里合法存在的 ```sql 代码块）。
  * 流式场景安全：围栏未闭合时按"剩余内容即围栏体"处理，随流推进自我修正。
  */
+
+/** 一个围栏块在原文中的位置与内容（闭围栏缺失时按流式末尾处理） */
+interface FenceBlock {
+	start: number; // 开围栏行起始 offset
+	end: number; // 闭围栏行结束 offset（未闭合时为 raw.length）
+	lang: string;
+	inner: string;
+}
+
+const FENCE_OPEN_LINE_REGEX = /^[ \t]*(`{3,}|~{3,})([A-Za-z0-9_-]*)[ \t]*$/;
+
+/** 逐行扫描围栏块，支持流式场景下末尾未闭合的围栏 */
+function findFenceBlocks(raw: string): FenceBlock[] {
+	const blocks: FenceBlock[] = [];
+	const lines = raw.split("\n");
+	const lineOffsets: number[] = [];
+	let offset = 0;
+	for (const line of lines) {
+		lineOffsets.push(offset);
+		offset += line.length + 1;
+	}
+	let i = 0;
+	while (i < lines.length) {
+		const openMatch = FENCE_OPEN_LINE_REGEX.exec(lines[i]);
+		if (!openMatch) {
+			i++;
+			continue;
+		}
+		const markerChar = openMatch[1][0];
+		const minLen = openMatch[1].length;
+		const closeRe = new RegExp(
+			`^[ \\t]*${markerChar}{${minLen},}[ \\t]*$`,
+		);
+		let j = i + 1;
+		while (j < lines.length && !closeRe.test(lines[j])) j++;
+		const closed = j < lines.length;
+		const innerStart = lineOffsets[i] + lines[i].length + 1;
+		const innerEnd = closed ? lineOffsets[j] : raw.length;
+		blocks.push({
+			start: lineOffsets[i],
+			end: closed ? lineOffsets[j] + lines[j].length : raw.length,
+			lang: (openMatch[2] || "").toLowerCase(),
+			inner: raw.slice(innerStart, innerEnd),
+		});
+		i = closed ? j + 1 : lines.length;
+	}
+	return blocks;
+}
+
+/**
+ * 判断围栏内部是否像 HTML 片段（混排模式专用，阈值比 looksLikeHtmlPayload 宽松：
+ * 前提已经是"围栏之外的主体是 HTML 排版"，此时以块级标签开头的围栏内容几乎
+ * 可以断定是被误包裹的排版片段，单段落（2 个标签）也要拆）。
+ */
+function looksLikeHtmlFragment(text: string): boolean {
+	const trimmed = text.trim();
+	if (trimmed.length < 20) return false;
+	if (!HTML_BLOCK_START_REGEX.test(trimmed)) return false;
+	return countHtmlTags(trimmed) >= 2;
+}
+
+/**
+ * Case 3 混排拆包：AI 排版输出主体已是裸 HTML，但个别段落被单独包进 ``` 围栏。
+ * 仅当"围栏之外的内容本身就像 HTML 排版"时才拆，避免误伤正文里合法的 HTML 代码示例。
+ */
+function unwrapMixedHtmlFences(raw: string): string {
+	const blocks = findFenceBlocks(raw);
+	if (blocks.length === 0) return raw;
+
+	let remainder = "";
+	let cursor = 0;
+	for (const block of blocks) {
+		remainder += raw.slice(cursor, block.start);
+		cursor = block.end;
+	}
+	remainder += raw.slice(cursor);
+
+	const remainderIsHtmlTypeset =
+		HTML_BLOCK_START_REGEX.test(remainder.trim()) ||
+		(/<(div|section|article|main|header|footer|p|h[1-6]|table|figure|blockquote|ul|ol)\b/i.test(
+			remainder,
+		) &&
+			countHtmlTags(remainder) >= 4);
+	if (!remainderIsHtmlTypeset) return raw;
+
+	let result = raw;
+	for (let k = blocks.length - 1; k >= 0; k--) {
+		const block = blocks[k];
+		const langOk = block.lang === "" || HTML_FENCE_LANGS.has(block.lang);
+		if (langOk && looksLikeHtmlFragment(block.inner)) {
+			result = result.slice(0, block.start) + block.inner.trim() + result.slice(block.end);
+		}
+	}
+	return result;
+}
+
 export function normalizeAiGeneratedDocument(raw: string): string {
 	if (!raw) return raw;
 
@@ -74,7 +171,7 @@ export function normalizeAiGeneratedDocument(raw: string): string {
 			after.length <= MAX_WRAPPER_META_CHARS &&
 			inner.length > before.length + after.length
 		) {
-			return inner;
+			return unwrapMixedHtmlFences(inner);
 		}
 	}
 
@@ -89,9 +186,9 @@ export function normalizeAiGeneratedDocument(raw: string): string {
 			looksLikeHtmlPayload(htmlPart) &&
 			htmlPart.length > before.length * 2
 		) {
-			return htmlPart.trim();
+			return unwrapMixedHtmlFences(htmlPart.trim());
 		}
 	}
 
-	return raw;
+	return unwrapMixedHtmlFences(raw);
 }

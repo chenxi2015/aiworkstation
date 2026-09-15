@@ -108,6 +108,10 @@ export function useSplitCanvas({
 
 	// 草稿工作区内容（Markdown），与版本列表完全解耦
 	const [draftContent, setDraftContent] = useState<string>("");
+	// 草稿工作区的原始 TipTap JSON：渲染优先使用，避免 Markdown 往返丢失排版样式
+	const [draftContentJson, setDraftContentJson] = useState<JSONContent | null>(
+		null,
+	);
 	const draftOriginRef = useRef<"human" | "ai">("human");
 	const draftActionRef = useRef<string>("手动精修");
 
@@ -186,6 +190,7 @@ export function useSplitCanvas({
 				label: "当前草稿 (未保存)",
 				mode: "manual",
 				content: draftContent,
+				contentJson: draftContentJson ?? undefined,
 				createdAt: 0,
 				origin: draftOriginRef.current,
 				isSavedToDb: false,
@@ -196,7 +201,7 @@ export function useSplitCanvas({
 			versions[versions.length - 1] ||
 			versions[0]
 		);
-	}, [versions, rightVersionId, draftContent]);
+	}, [versions, rightVersionId, draftContent, draftContentJson]);
 
 	// 3. Slash Menu state for Right TipTap Editor
 	const [slashMenu, setSlashMenu] = useState<SlashMenuState | null>(null);
@@ -280,6 +285,7 @@ export function useSplitCanvas({
 			const text = rightEditor.getText();
 			const md = tiptapJsonToMarkdown(rightEditor.getJSON()) || text;
 			setRightWordCount(markdownToPlainText(md).length);
+			setDraftContentJson(rightEditor.getJSON());
 			// 手动编辑只写入草稿工作区，不产生版本；
 			// 若正在查看某个已保存版本，一旦开始编辑就自动切回草稿（以当前内容为底）
 			if (rightVersionId !== DRAFT_VERSION_ID) {
@@ -432,15 +438,16 @@ export function useSplitCanvas({
 							try {
 								const normalizedText = normalizeAiGeneratedDocument(fullText);
 								const { nodes } = markdownToTiptapDoc(normalizedText);
-								rightEditor.commands.setContent(
-									{
-										type: "doc",
-										content: nodes.length > 0 ? nodes : [{ type: "paragraph" }],
-									},
-									{ emitUpdate: false },
-								);
+								const docJson: JSONContent = {
+									type: "doc",
+									content: nodes.length > 0 ? nodes : [{ type: "paragraph" }],
+								};
+								rightEditor.commands.setContent(docJson, {
+									emitUpdate: false,
+								});
 								setRightWordCount(normalizedText.length);
 								setDraftContent(normalizedText);
+								setDraftContentJson(docJson);
 								if (rightScrollRef.current) {
 									rightScrollRef.current.scrollTop =
 										rightScrollRef.current.scrollHeight;
@@ -493,20 +500,21 @@ export function useSplitCanvas({
 									}
 								}
 
-								rightEditor.commands.setContent(
-									{
-										type: "doc",
-										content:
-											finalNodes.length > 0
-												? finalNodes
-												: [{ type: "paragraph" }],
-									},
-									{ emitUpdate: true },
-								);
+								const finalDocJson: JSONContent = {
+									type: "doc",
+									content:
+										finalNodes.length > 0
+											? finalNodes
+											: [{ type: "paragraph" }],
+								};
+								rightEditor.commands.setContent(finalDocJson, {
+									emitUpdate: true,
+								});
 								setRightWordCount(
 									rightEditor.getText().length || normalizedText.length,
 								);
 								setDraftContent(normalizedText);
+								setDraftContentJson(finalDocJson);
 							} catch (e) {
 								console.warn("[SplitCompareView] setContent done error:", e);
 							}
@@ -567,10 +575,13 @@ export function useSplitCanvas({
 			const targetVer = versions.find((v) => v.id === versionId);
 			if (!targetVer || !rightEditor) return;
 			try {
-				applyVersionContent(rightEditor, targetVer, true);
+				// emitUpdate=false：仅浏览版本不触发 update 监听，避免把草稿工作区覆盖成所看版本
+				applyVersionContent(rightEditor, targetVer, false);
 				setRightWordCount(markdownToPlainText(targetVer.content).length);
 			} catch {
-				rightEditor.commands.setContent(targetVer.content);
+				rightEditor.commands.setContent(targetVer.content, {
+					emitUpdate: false,
+				});
 				setRightWordCount(markdownToPlainText(targetVer.content).length);
 			}
 		},

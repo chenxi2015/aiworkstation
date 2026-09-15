@@ -81,6 +81,22 @@ export function tiptapJsonToMarkdown(doc: JSONContent): string {
 			extensions: coreConversionExtensions,
 			options: {
 				nodeMapping: {
+					// static-renderer 默认 heading 直接把 children 数组插值进模板字符串，
+					// 多个内联子节点会被 Array.toString() 用逗号拼接（产生孤立的 ","），这里覆盖修正
+					heading({ node, children }) {
+						const level = Number(node.attrs?.level) || 1;
+						const text = Array.isArray(children)
+							? children.join("")
+							: typeof children === "string"
+								? children
+								: "";
+						return `${"#".repeat(level)} ${text}\n`;
+					},
+					// 换行序列化为 <br>：标题/段落内换行在 Markdown 重新解析时能还原为 hardBreak，
+					// 避免纯 \n 把一个标题拆成 标题+段落 两个块
+					hardBreak() {
+						return "<br>";
+					},
 					// 带样式容器（section/div）：序列化为 Markdown 时丢弃包裹层，保留子内容
 					styledContainer({ children }) {
 						return Array.isArray(children)

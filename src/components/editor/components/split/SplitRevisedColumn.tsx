@@ -84,6 +84,7 @@ export function SplitRevisedColumn({
 						versions={versions}
 						onSelectVersion={onSelectVersion}
 						disabled={isStreaming}
+						fallbackLabel="当前草稿 (未保存)"
 					/>
 				</div>
 				<div className="flex items-center gap-2">
