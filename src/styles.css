@@ -991,3 +991,28 @@ blockquote::after {
 		page-break-inside: avoid !important;
 	}
 }
+
+/* Collapsed AI assistant edge tab: breathing glow to keep it noticeable */
+@theme {
+	--animate-ai-tab-breathe: ai-tab-breathe 2.6s ease-in-out infinite;
+}
+
+@keyframes ai-tab-breathe {
+	0%,
+	100% {
+		box-shadow:
+			0 0 0 0 color-mix(in oklab, var(--accent) 35%, transparent),
+			0 10px 24px -8px color-mix(in oklab, var(--accent) 60%, transparent);
+	}
+	50% {
+		box-shadow:
+			0 0 0 7px color-mix(in oklab, var(--accent) 0%, transparent),
+			0 10px 30px -6px color-mix(in oklab, var(--accent) 85%, transparent);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.animate-ai-tab-breathe {
+		animation: none;
+	}
+}

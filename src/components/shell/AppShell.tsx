@@ -302,12 +302,12 @@ export function AppShell({
 						<button
 							type="button"
 							onClick={() => setIsCollapsed(false)}
-							className="fixed right-0 top-1/2 -translate-y-1/2 z-30 bg-surface/90 dark:bg-zinc-900/90 backdrop-blur-md border border-r-0 border-border hover:border-accent text-muted hover:text-foreground py-2.5 px-1 rounded-l-xl shadow-lg flex flex-col items-center gap-1.5 transition-all cursor-pointer group hover:bg-surface-secondary/80"
+							className="fixed right-0 top-1/2 -translate-y-[calc(100%+3.5rem)] z-30 bg-accent border border-r-0 border-accent/70 py-3 px-1.5 rounded-l-xl shadow-lg shadow-accent/30 flex flex-col items-center gap-1.5 transition-all duration-300 cursor-pointer group hover:px-2.5 hover:bg-accent/90 animate-ai-tab-breathe"
 							title="展开 AI 助手"
 							aria-label="展开 AI 助手"
 						>
-							<PanelRightOpen className="w-3.5 h-3.5 text-accent group-hover:scale-110 transition-transform" />
-							<span className="text-[10px] [writing-mode:vertical-lr] tracking-widest text-muted group-hover:text-foreground font-medium select-none">
+							<PanelRightOpen className="w-4 h-4 text-accent-foreground group-hover:scale-110 transition-transform" />
+							<span className="text-[10px] [writing-mode:vertical-lr] tracking-widest text-accent-foreground/90 group-hover:text-accent-foreground font-semibold select-none">
 								AI助手
 							</span>
 						</button>

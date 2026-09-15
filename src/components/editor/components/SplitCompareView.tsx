@@ -61,6 +61,10 @@ export function SplitCompareView(props: SplitCompareViewProps) {
 		rightScrollRef,
 		handleLeftScroll,
 		handleRightScroll,
+		isRightAtTop,
+		isRightAtBottom,
+		scrollRightToTop,
+		scrollRightToBottom,
 	} = useSplitCanvas({
 		leftEditor,
 		docTitle,
@@ -120,6 +124,10 @@ export function SplitCompareView(props: SplitCompareViewProps) {
 						isStreaming={isStreaming}
 						scrollRef={rightScrollRef}
 						onScroll={handleRightScroll}
+						isAtTop={isRightAtTop}
+						isAtBottom={isRightAtBottom}
+						onScrollToTop={scrollRightToTop}
+						onScrollToBottom={scrollRightToBottom}
 						slashMenu={slashMenu}
 						slashMenuRef={slashMenuRef}
 						onCloseSlashMenu={() => setSlashMenu(null)}

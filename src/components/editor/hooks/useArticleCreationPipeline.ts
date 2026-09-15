@@ -48,12 +48,20 @@ export function useArticleCreationPipeline({
 			if (!editor) return;
 
 			try {
+				// Measure follow intent before content changes: only keep following
+				// the stream when the user is already near the bottom (AI assistant style)
+				const scrollEl = editor.view.dom.closest(".overflow-y-auto");
+				const shouldFollow = scrollEl
+					? scrollEl.scrollHeight -
+							scrollEl.scrollTop -
+							scrollEl.clientHeight <=
+						80
+					: false;
+
 				const html = markdownToHtml(text);
 				editor.commands.setContent(html || "<p></p>", { emitUpdate: isFinal });
 
-				// Keep scroll container following new lines during generation
-				const scrollEl = editor.view.dom.closest(".overflow-y-auto");
-				if (scrollEl) {
+				if (shouldFollow && scrollEl) {
 					scrollEl.scrollTop = scrollEl.scrollHeight;
 				}
 			} catch (err) {
@@ -124,9 +132,10 @@ export function useArticleCreationPipeline({
 
 			const systemHint = `你是一名顶级资深专栏作家与研究员。请根据用户给出的文章标题与创作要求，直接创作一篇深度长文。
 【格式排版铁律】：
-1. 采用规范的 Markdown 格式排版（包含各级标题 # / ## / ###、加粗、引用、列表等）；
+1. 采用规范的 Markdown 格式排版（加粗、引用、列表等），结构标题一律使用 ## / ### 等二级及以下标题；
 2. 严禁输出任何问候语、开场白、确认语（例如严禁输出“好的”、“我为你撰写如下”等）或尾部闲话；
-3. 直接输出文章正文内容，保持文字质感饱满、论证严密、文风契合。`;
+3. 文章标题已由文档标题承载，正文开头严禁以一级标题（# ...）重复输出文章标题，第一行直接就是正文；
+4. 直接输出文章正文内容，保持文字质感饱满、论证严密、文风契合。`;
 
 			try {
 				await streamRewriteText(

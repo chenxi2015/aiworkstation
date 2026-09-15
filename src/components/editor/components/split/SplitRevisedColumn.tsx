@@ -1,5 +1,6 @@
 import type { Editor } from "@tiptap/core";
 import { EditorContent } from "@tiptap/react";
+import { ArrowDown, ArrowUp } from "lucide-react";
 import type React from "react";
 import type { SlashMenuState } from "../../hooks/useRichTextEditor";
 import {
@@ -23,6 +24,10 @@ export interface SplitRevisedColumnProps {
 	isStreaming: boolean;
 	scrollRef: React.RefObject<HTMLDivElement | null>;
 	onScroll: () => void;
+	isAtTop?: boolean;
+	isAtBottom?: boolean;
+	onScrollToTop?: () => void;
+	onScrollToBottom?: () => void;
 	slashMenu: SlashMenuState | null;
 	slashMenuRef: React.RefObject<SlashCommandMenuRef | null>;
 	onCloseSlashMenu: () => void;
@@ -55,6 +60,10 @@ export function SplitRevisedColumn({
 	isStreaming,
 	scrollRef,
 	onScroll,
+	isAtTop = true,
+	isAtBottom = false,
+	onScrollToTop,
+	onScrollToBottom,
 	slashMenu,
 	slashMenuRef,
 	onCloseSlashMenu,
@@ -155,6 +164,33 @@ export function SplitRevisedColumn({
 				onAccept={onAccept}
 				onReject={onReject}
 			/>
+
+			{/* Floating quick scroll arrows (top / bottom) on the right edge —
+				always visible, disabled when already at the respective edge */}
+			{(onScrollToTop || onScrollToBottom) && (
+				<div className="absolute right-3 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-2">
+					<button
+						type="button"
+						onClick={onScrollToTop}
+						disabled={isAtTop}
+						className="flex items-center justify-center w-8 h-8 rounded-full bg-neutral-800/90 dark:bg-neutral-700/90 text-white shadow-lg border border-white/15 backdrop-blur-xs transition-all duration-200 enabled:hover:bg-neutral-900 dark:enabled:hover:bg-neutral-600 enabled:active:scale-90 enabled:cursor-pointer enabled:hover:scale-105 disabled:opacity-40 disabled:cursor-not-allowed"
+						title="回到顶部"
+						aria-label="回到顶部"
+					>
+						<ArrowUp className="w-4 h-4 stroke-[2.5]" />
+					</button>
+					<button
+						type="button"
+						onClick={onScrollToBottom}
+						disabled={isAtBottom}
+						className="flex items-center justify-center w-8 h-8 rounded-full bg-neutral-800/90 dark:bg-neutral-700/90 text-white shadow-lg border border-white/15 backdrop-blur-xs transition-all duration-200 enabled:hover:bg-neutral-900 dark:enabled:hover:bg-neutral-600 enabled:active:scale-90 enabled:cursor-pointer enabled:hover:scale-105 disabled:opacity-40 disabled:cursor-not-allowed"
+						title="滚动到底部"
+						aria-label="滚动到底部"
+					>
+						<ArrowDown className="w-4 h-4 stroke-[2.5]" />
+					</button>
+				</div>
+			)}
 		</section>
 	);
 }

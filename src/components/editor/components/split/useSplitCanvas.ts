@@ -320,6 +320,56 @@ export function useSplitCanvas({
 	const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const abortControllerRef = useRef<AbortController | null>(null);
 	const hasAutoTriggeredRef = useRef(false);
+	// Right column scroll-follow state (AI assistant style: only stick to
+	// bottom while the user has not scrolled up)
+	const isRightAtBottomRef = useRef(true);
+	const isRightSmoothScrollingRef = useRef(false);
+	const [isRightAtTop, setIsRightAtTop] = useState(true);
+	const [isRightAtBottom, setIsRightAtBottom] = useState(false);
+
+	const trackRightScrollPosition = useCallback(() => {
+		const right = rightScrollRef.current;
+		if (!right || isRightSmoothScrollingRef.current) return;
+		const distanceToBottom =
+			right.scrollHeight - right.scrollTop - right.clientHeight;
+		const atBottom = distanceToBottom <= 80;
+		isRightAtBottomRef.current = atBottom;
+		setIsRightAtTop(right.scrollTop <= 2);
+		setIsRightAtBottom(atBottom);
+	}, []);
+
+	const scrollRightToTop = useCallback(() => {
+		const right = rightScrollRef.current;
+		if (!right) return;
+		isRightAtBottomRef.current = false;
+		setIsRightAtTop(true);
+		setIsRightAtBottom(false);
+		isRightSmoothScrollingRef.current = true;
+		right.scrollTo({ top: 0, behavior: "smooth" });
+		setTimeout(() => {
+			isRightSmoothScrollingRef.current = false;
+		}, 500);
+	}, []);
+
+	const scrollRightToBottom = useCallback(() => {
+		const right = rightScrollRef.current;
+		if (!right) return;
+		isRightAtBottomRef.current = true;
+		setIsRightAtTop(false);
+		setIsRightAtBottom(true);
+		isRightSmoothScrollingRef.current = true;
+		right.scrollTo({ top: right.scrollHeight, behavior: "smooth" });
+		setTimeout(() => {
+			isRightSmoothScrollingRef.current = false;
+		}, 500);
+	}, []);
+
+	// Re-sync arrow disabled states when the content or version changes
+	// without any scroll event (initial load, version switch, stream start)
+	// biome-ignore lint/correctness/useExhaustiveDependencies: intentionally re-run when editor/version/stream state changes
+	useEffect(() => {
+		trackRightScrollPosition();
+	}, [trackRightScrollPosition, rightEditor, rightVersionId, isStreaming]);
 
 	// Synchronized smooth scrolling between columns
 	const handleLeftScroll = useCallback(() => {
@@ -346,6 +396,7 @@ export function useSplitCanvas({
 	}, []);
 
 	const handleRightScroll = useCallback(() => {
+		trackRightScrollPosition();
 		if (isScrollingRef.current === "left") return;
 		isScrollingRef.current = "right";
 		if (leftScrollRef.current && rightScrollRef.current) {
@@ -366,7 +417,7 @@ export function useSplitCanvas({
 		scrollTimeoutRef.current = setTimeout(() => {
 			isScrollingRef.current = null;
 		}, 60);
-	}, []);
+	}, [trackRightScrollPosition]);
 
 	// Stop AI generation
 	const handleStopGenerate = useCallback(() => {
@@ -411,6 +462,14 @@ export function useSplitCanvas({
 			setRightVersionId(DRAFT_VERSION_ID);
 			setIsStreaming(true);
 
+			// Decide stream-follow from the actual current position, so a user
+			// reading at the top is never yanked to the bottom
+			const right = rightScrollRef.current;
+			if (right) {
+				isRightAtBottomRef.current =
+					right.scrollHeight - right.scrollTop - right.clientHeight <= 80;
+			}
+
 			const controller = new AbortController();
 			abortControllerRef.current = controller;
 
@@ -448,9 +507,11 @@ export function useSplitCanvas({
 								setRightWordCount(normalizedText.length);
 								setDraftContent(normalizedText);
 								setDraftContentJson(docJson);
-								if (rightScrollRef.current) {
-									rightScrollRef.current.scrollTop =
-										rightScrollRef.current.scrollHeight;
+								// AI assistant style follow: only stick to bottom while the
+								// user has not scrolled up to read earlier content
+								const scrollEl = rightScrollRef.current;
+								if (scrollEl && isRightAtBottomRef.current) {
+									scrollEl.scrollTop = scrollEl.scrollHeight;
 								}
 							} catch (e) {
 								console.warn("[SplitCompareView] setContent chunk error:", e);
@@ -802,5 +863,11 @@ export function useSplitCanvas({
 		rightScrollRef,
 		handleLeftScroll,
 		handleRightScroll,
+
+		// Right column scroll-follow UI
+		isRightAtTop,
+		isRightAtBottom,
+		scrollRightToTop,
+		scrollRightToBottom,
 	};
 }
