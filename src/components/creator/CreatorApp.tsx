@@ -15,6 +15,12 @@ export interface CreatorAppProps {
 	unclassifiedCount: number;
 	navLayout?: NavLayoutEntry[];
 	folders: Folder[];
+	/** 深链：初始 Tab（默认素材库） */
+	initialTab?: CreatorTab;
+	/** 深链：直接打开该草稿的编辑抽屉 */
+	initialDraftId?: number;
+	/** 深链：初始选中素材 */
+	initialMaterialId?: number;
 }
 
 type CreatorTab = "workbench" | "materials" | "drafts";
@@ -32,14 +38,19 @@ export function CreatorApp({
 	unclassifiedCount,
 	navLayout,
 	folders,
+	initialTab,
+	initialDraftId,
+	initialMaterialId,
 }: CreatorAppProps) {
 	const { actionProps, modals } = useWorkbenchQuickActions({ folders });
-	const [activeTab, setActiveTab] = useState<CreatorTab>("materials");
+	const [activeTab, setActiveTab] = useState<CreatorTab>(
+		initialTab ?? "materials",
+	);
 	const [materials, setMaterials] = useState<Material[]>([]);
 	const [drafts, setDrafts] = useState<DraftWithMaterial[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [selectedMaterialId, setSelectedMaterialId] = useState<number | null>(
-		null,
+		initialMaterialId ?? null,
 	);
 
 	const reload = useCallback(async () => {
@@ -144,7 +155,12 @@ export function CreatorApp({
 					/>
 				)}
 				{activeTab === "drafts" && (
-					<DraftsTab drafts={drafts} loading={loading} onChanged={reload} />
+					<DraftsTab
+						drafts={drafts}
+						loading={loading}
+						onChanged={reload}
+						initialEditDraftId={initialDraftId}
+					/>
 				)}
 			</main>
 			{modals}

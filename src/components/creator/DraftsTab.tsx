@@ -6,7 +6,7 @@ import {
 } from "@dnd-kit/react";
 import { Button, Tooltip, toast } from "@heroui/react";
 import { Copy, Download, Loader2, Pencil, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
 	exportDraftRpc,
 	updateDraftStatusRpc,
@@ -24,6 +24,8 @@ interface DraftsTabProps {
 	drafts: DraftWithMaterial[];
 	loading: boolean;
 	onChanged: () => Promise<void>;
+	/** 深链：数据就绪后直接打开该草稿的编辑抽屉 */
+	initialEditDraftId?: number;
 }
 
 const LANES: Array<{ status: DraftStatus; label: string; hint: string }> = [
@@ -62,10 +64,26 @@ interface DraftDragData {
  * 卡片拖到目标列即完成状态流转（不再占用卡片按钮位）；
  * 未 approved 的草稿不允许导出（UI 禁用 + 服务端状态机双重拦截）。
  */
-export function DraftsTab({ drafts, loading, onChanged }: DraftsTabProps) {
+export function DraftsTab({
+	drafts,
+	loading,
+	onChanged,
+	initialEditDraftId,
+}: DraftsTabProps) {
 	const [editing, setEditing] = useState<DraftWithMaterial | null>(null);
 	const [busyId, setBusyId] = useState<number | null>(null);
 	const [discarding, setDiscarding] = useState<DraftWithMaterial | null>(null);
+
+	// 深链直开：草稿加载完成后自动打开指定草稿的编辑抽屉（一次性）
+	const autoOpenedRef = useRef(false);
+	useEffect(() => {
+		if (autoOpenedRef.current || loading || !initialEditDraftId) return;
+		const target = drafts.find((draft) => draft.id === initialEditDraftId);
+		if (target) {
+			autoOpenedRef.current = true;
+			setEditing(target);
+		}
+	}, [drafts, loading, initialEditDraftId]);
 
 	const byStatus = useMemo(() => {
 		const map = new Map<DraftStatus, DraftWithMaterial[]>();

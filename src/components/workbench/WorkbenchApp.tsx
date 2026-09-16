@@ -1,5 +1,6 @@
 import { toast } from "@heroui/react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { BookmarksSearch } from "../../routes/bookmarks";
 import { useWorkbenchData } from "../../hooks/useWorkbenchData";
 import { useWorkbenchModals } from "../../hooks/useWorkbenchModals";
 import {
@@ -38,6 +39,8 @@ export interface WorkbenchAppProps {
 	fixedCategory?: string;
 	/** 是否显示分类筛选条（书签模块开启） */
 	showCategoryFilter?: boolean;
+	/** 深链定位参数（书签路由 search）：分类/文件夹/书签定位、死链弹窗直开 */
+	deepLink?: BookmarksSearch;
 }
 
 /**
@@ -51,6 +54,7 @@ export function WorkbenchApp({
 	initialData,
 	fixedCategory,
 	showCategoryFilter = false,
+	deepLink,
 }: WorkbenchAppProps) {
 	// 1. Data, Sync and CRUD Business Logic (Hydrated with Route Loader Data)
 	const {
@@ -112,7 +116,44 @@ export function WorkbenchApp({
 		setIsSyncModalOpen,
 		setIsAIClassifyModalOpen,
 		setIsSettingsModalOpen,
+		setIsDeadLinksModalOpen,
 	} = modalsState;
+
+	// 深链定位（一次性消费）：从工作台仪表盘等入口直达分类/文件夹/书签/死链弹窗
+	const deepLinkHandledRef = useRef(false);
+	useEffect(() => {
+		if (!deepLink || deepLinkHandledRef.current) return;
+		deepLinkHandledRef.current = true;
+		if (deepLink.deadlinks) {
+			setIsDeadLinksModalOpen(true);
+		}
+		if (deepLink.item) {
+			const itemId = deepLink.item;
+			const hostFolder = folders.find((folder) =>
+				folder.items.some(
+					(entry) =>
+						(entry.id !== undefined && String(entry.id) === itemId) ||
+						entry.url === itemId,
+				),
+			);
+			if (hostFolder) {
+				handleNavigateFromSearch(hostFolder.id, undefined, itemId);
+			} else {
+				// 不在任何文件夹 → 落在未分类缓冲池并高亮
+				handleNavigateFromSearch(null, UNCLASSIFIED_CATEGORY, itemId);
+			}
+		} else if (typeof deepLink.folder === "number") {
+			handleNavigateFromSearch(deepLink.folder);
+		} else if (deepLink.category) {
+			handleCategoryChange(sanitizeBookmarkFilter(deepLink.category));
+		}
+	}, [
+		deepLink,
+		folders,
+		handleNavigateFromSearch,
+		handleCategoryChange,
+		setIsDeadLinksModalOpen,
+	]);
 
 	// Intro / download modal shown when AI Collector extension is missing
 	const [isIntroModalOpen, setIsIntroModalOpen] = useState(false);
@@ -252,6 +293,8 @@ export function WorkbenchApp({
 						unclassified={filteredUnclassified}
 						totalCount={unclassified.length}
 						folders={folders}
+						highlightItemId={highlightItemId}
+						onHighlightClear={clearHighlightItem}
 						onOpenAIClassify={() => setIsAIClassifyModalOpen(true)}
 						onClearUnclassified={handleClearUnclassified}
 						onDeleteItem={(item) =>

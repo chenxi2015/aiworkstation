@@ -6,6 +6,8 @@ export interface UnclassifiedWorkspaceProps {
 	unclassified: WorkbenchItem[];
 	totalCount: number;
 	folders: Folder[];
+	highlightItemId?: string | number | null;
+	onHighlightClear?: () => void;
 	onOpenAIClassify: () => void;
 	onClearUnclassified: () => void;
 	onDeleteItem: (item: WorkbenchItem) => void;
@@ -19,6 +21,8 @@ export function UnclassifiedWorkspace({
 	unclassified,
 	totalCount,
 	folders,
+	highlightItemId,
+	onHighlightClear,
 	onOpenAIClassify,
 	onClearUnclassified,
 	onDeleteItem,
@@ -47,6 +51,8 @@ export function UnclassifiedWorkspace({
 			<UnclassifiedView
 				unclassified={unclassified}
 				folders={folders}
+				highlightItemId={highlightItemId}
+				onHighlightClear={onHighlightClear}
 				onOpenAIClassify={onOpenAIClassify}
 				onClearUnclassified={onClearUnclassified}
 				onDeleteItem={onDeleteItem}

@@ -9,6 +9,8 @@ import type { Folder as WorkbenchFolder, WorkbenchItem } from "../types";
 export interface UnclassifiedViewProps {
 	unclassified: WorkbenchItem[];
 	folders?: WorkbenchFolder[];
+	highlightItemId?: string | number | null;
+	onHighlightClear?: () => void;
 	onOpenAIClassify: () => void;
 	onDeleteItem: (item: WorkbenchItem) => void;
 	onMoveItem?: (item: WorkbenchItem, targetFolderId: number) => void;
@@ -24,15 +26,58 @@ const SCROLL_BATCH_SIZE = 40;
 export function UnclassifiedView({
 	unclassified,
 	folders = [],
+	highlightItemId,
+	onHighlightClear,
 	onOpenAIClassify,
 	onDeleteItem,
 	onMoveItem,
 	onClearUnclassified,
 }: UnclassifiedViewProps) {
 	const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
+	// 深链定位目标条目（滚动 + 脉冲高亮，与 FolderItemList 同一约定）
+	const [activeHighlightId, setActiveHighlightId] = useState<
+		string | number | null
+	>(null);
 	// Progressive rendering states for 2000+ items
 	const [visibleCount, setVisibleCount] = useState(INITIAL_BATCH_SIZE);
 	const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+	// 定位高亮：找到目标条目，确保已渲染，滚动到视口并短暂高亮
+	useEffect(() => {
+		if (!highlightItemId) return;
+		const targetIndex = unclassified.findIndex(
+			(item) =>
+				(item.id !== undefined &&
+					item.id !== null &&
+					String(item.id) === String(highlightItemId)) ||
+				item.url === highlightItemId,
+		);
+		if (targetIndex === -1) {
+			onHighlightClear?.();
+			return;
+		}
+		const targetItem = unclassified[targetIndex];
+		const matchKey = targetItem.id ?? targetItem.url ?? null;
+		setActiveHighlightId(matchKey);
+		if (targetIndex >= visibleCount) {
+			setVisibleCount(targetIndex + SCROLL_BATCH_SIZE);
+		}
+		const scrollTimer = setTimeout(() => {
+			const el = document.querySelector(
+				`[data-item-key="${CSS.escape(String(matchKey))}"]`,
+			);
+			el?.scrollIntoView({ behavior: "smooth", block: "center" });
+		}, 120);
+		const clearTimer = setTimeout(() => {
+			setActiveHighlightId(null);
+			onHighlightClear?.();
+		}, 3000);
+		return () => {
+			clearTimeout(scrollTimer);
+			clearTimeout(clearTimer);
+		};
+		// biome-ignore lint/correctness/useExhaustiveDependencies: visibleCount 只读不写依赖，避免循环
+	}, [highlightItemId, unclassified, onHighlightClear]);
 
 	// Reset visible count when unclassified list length changes meaningfully
 	// biome-ignore lint/correctness/useExhaustiveDependencies: reset pagination when dataset size changes
@@ -134,47 +179,58 @@ export function UnclassifiedView({
 				{/* Unclassified Items Grid: 5 to 6 cards per row on larger screens */}
 				<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2.5">
 					{visibleItems.map((item, idx) => (
-						<WorkbenchItemCard
+						<div
 							key={item.id || idx}
-							item={item}
-							index={idx}
-							otherFolders={folders}
-							showMoveDropdown={Boolean(folders.length > 0 && onMoveItem)}
-							showTypeBadge={false}
-							onDeleteItem={onDeleteItem}
-							onMoveItem={onMoveItem}
-							footerExtra={
-								<div className="flex items-center justify-between gap-1.5 text-[10px] text-muted w-full min-w-0 pr-0.5">
-									<span
-										className="truncate max-w-[120px] inline-flex items-center gap-1 opacity-80"
-										title={
-											item.folderName
-												? `原书签目录: ${item.folderName}`
-												: item.url
-										}
-									>
-										{item.folderName ? (
-											<>
-												<Folder className="w-2.5 h-2.5 opacity-60 shrink-0" />
-												<span className="truncate">{item.folderName}</span>
-											</>
-										) : (
-											<span className="truncate text-[10px] opacity-70 font-mono">
-												{extractDomain(item.url) || item.url}
+							data-item-key={String(item.id ?? item.url ?? idx)}
+							className={`rounded-2xl transition-all duration-500 ${
+								activeHighlightId !== null &&
+								(String(item.id) === String(activeHighlightId) ||
+									item.url === activeHighlightId)
+									? "ring-2 ring-accent bg-accent/10 shadow-sm scale-[1.03]"
+									: ""
+							}`}
+						>
+							<WorkbenchItemCard
+								item={item}
+								index={idx}
+								otherFolders={folders}
+								showMoveDropdown={Boolean(folders.length > 0 && onMoveItem)}
+								showTypeBadge={false}
+								onDeleteItem={onDeleteItem}
+								onMoveItem={onMoveItem}
+								footerExtra={
+									<div className="flex items-center justify-between gap-1.5 text-[10px] text-muted w-full min-w-0 pr-0.5">
+										<span
+											className="truncate max-w-[120px] inline-flex items-center gap-1 opacity-80"
+											title={
+												item.folderName
+													? `原书签目录: ${item.folderName}`
+													: item.url
+											}
+										>
+											{item.folderName ? (
+												<>
+													<Folder className="w-2.5 h-2.5 opacity-60 shrink-0" />
+													<span className="truncate">{item.folderName}</span>
+												</>
+											) : (
+												<span className="truncate text-[10px] opacity-70 font-mono">
+													{extractDomain(item.url) || item.url}
+												</span>
+											)}
+										</span>
+										{item.createdAt && (
+											<span
+												className="shrink-0 text-[10px] text-muted/70"
+												title={`同步时间: ${item.createdAt}`}
+											>
+												{item.createdAt}
 											</span>
 										)}
-									</span>
-									{item.createdAt && (
-										<span
-											className="shrink-0 text-[10px] text-muted/70"
-											title={`同步时间: ${item.createdAt}`}
-										>
-											{item.createdAt}
-										</span>
-									)}
-								</div>
-							}
-						/>
+									</div>
+								}
+							/>
+						</div>
 					))}
 				</div>
 
