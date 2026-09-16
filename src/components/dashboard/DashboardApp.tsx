@@ -65,9 +65,9 @@ export function DashboardApp({
 	const { actionProps, modals } = useWorkbenchQuickActions({ folders });
 	const [editing, setEditing] = useState(false);
 	// 已保存布局（落库的那份）；编辑态下的改动只进 draftLayout，点「完成」才持久化
-	const [committedLayout, setCommittedLayout] = useState<WorkbenchLayoutEntry[]>(
-		() => settings.workbenchLayout ?? defaultLayout(),
-	);
+	const [committedLayout, setCommittedLayout] = useState<
+		WorkbenchLayoutEntry[]
+	>(() => settings.workbenchLayout ?? defaultLayout());
 	const [draftLayout, setDraftLayout] = useState<WorkbenchLayoutEntry[] | null>(
 		null,
 	);
@@ -104,12 +104,9 @@ export function DashboardApp({
 		setEditing(false);
 	}, []);
 
-	const updateDraftLayout = useCallback(
-		(next: WorkbenchLayoutEntry[]) => {
-			setDraftLayout(next);
-		},
-		[],
-	);
+	const updateDraftLayout = useCallback((next: WorkbenchLayoutEntry[]) => {
+		setDraftLayout(next);
+	}, []);
 
 	// 拖拽换位：sortable 乐观排序在拖拽中已移动 DOM，dragend 按 visible 顺序提交，
 	// 隐藏的 widget 保持在原相对位置追加到队尾（约定与 WorkbenchDnd 的文件夹排序一致）
@@ -178,10 +175,10 @@ export function DashboardApp({
 								{greeting}，欢迎回到工作台
 							</h1>
 							<p className="text-[11px] text-muted mt-0.5">
-							{dateLabel} ·{" "}
-							{editing
-								? "拖拽卡片自由换位，点「完成」保存，点「取消」复原"
-								: "跨模块汇总 · 自由组合你的关注面板"}
+								{dateLabel} ·{" "}
+								{editing
+									? "拖拽卡片自由换位，点「完成」保存，点「取消」复原"
+									: "跨模块汇总 · 自由组合你的关注面板"}
 							</p>
 						</div>
 						<div className="hidden sm:flex items-center gap-2 shrink-0">

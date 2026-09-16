@@ -59,9 +59,10 @@ export function UnclassifiedView({
 		const targetItem = unclassified[targetIndex];
 		const matchKey = targetItem.id ?? targetItem.url ?? null;
 		setActiveHighlightId(matchKey);
-		if (targetIndex >= visibleCount) {
-			setVisibleCount(targetIndex + SCROLL_BATCH_SIZE);
-		}
+		// 确保目标条目已渲染（渐进渲染只展示前 visibleCount 条）
+		setVisibleCount((prev) =>
+			targetIndex >= prev ? targetIndex + SCROLL_BATCH_SIZE : prev,
+		);
 		const scrollTimer = setTimeout(() => {
 			const el = document.querySelector(
 				`[data-item-key="${CSS.escape(String(matchKey))}"]`,
@@ -76,7 +77,6 @@ export function UnclassifiedView({
 			clearTimeout(scrollTimer);
 			clearTimeout(clearTimer);
 		};
-		// biome-ignore lint/correctness/useExhaustiveDependencies: visibleCount 只读不写依赖，避免循环
 	}, [highlightItemId, unclassified, onHighlightClear]);
 
 	// Reset visible count when unclassified list length changes meaningfully
@@ -184,8 +184,10 @@ export function UnclassifiedView({
 							data-item-key={String(item.id ?? item.url ?? idx)}
 							className={`rounded-2xl transition-all duration-500 ${
 								activeHighlightId !== null &&
-								(String(item.id) === String(activeHighlightId) ||
-									item.url === activeHighlightId)
+								(
+									String(item.id) === String(activeHighlightId) ||
+										item.url === activeHighlightId
+								)
 									? "ring-2 ring-accent bg-accent/10 shadow-sm scale-[1.03]"
 									: ""
 							}`}

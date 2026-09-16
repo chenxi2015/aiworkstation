@@ -25,9 +25,7 @@ export const Route = createFileRoute("/bookmarks")({
 				? search.folder
 				: undefined,
 		item:
-			typeof search.item === "string" && search.item
-				? search.item
-				: undefined,
+			typeof search.item === "string" && search.item ? search.item : undefined,
 		deadlinks: search.deadlinks === true ? true : undefined,
 	}),
 	loader: workbenchLoader,

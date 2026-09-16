@@ -1,6 +1,5 @@
 import { toast } from "@heroui/react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { BookmarksSearch } from "../../routes/bookmarks";
 import { useWorkbenchData } from "../../hooks/useWorkbenchData";
 import { useWorkbenchModals } from "../../hooks/useWorkbenchModals";
 import {
@@ -11,6 +10,7 @@ import {
 	sanitizeBookmarkFilter,
 	UNCLASSIFIED_CATEGORY,
 } from "../../modules/registry";
+import type { BookmarksSearch } from "../../routes/bookmarks";
 import { WorkbenchStorageService } from "../../services/workbenchStorage";
 import { FolderDetailPanel } from "./FolderDetailPanel";
 import { useWorkbenchAiBridge } from "./hooks/useWorkbenchAiBridge";
