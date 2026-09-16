@@ -1,5 +1,6 @@
 import {
 	Blocks,
+	CalendarDays,
 	FolderOpen,
 	Gauge,
 	Inbox,
@@ -40,7 +41,8 @@ export type WidgetTone =
 	| "emerald"
 	| "indigo"
 	| "cyan"
-	| "teal";
+	| "teal"
+	| "rose";
 
 export const WORKBENCH_WIDGETS: readonly WidgetDef[] = [
 	{
@@ -96,6 +98,14 @@ export const WORKBENCH_WIDGETS: readonly WidgetDef[] = [
 		icon: Gauge,
 		defaultWide: true,
 		tone: "teal",
+	},
+	{
+		id: "activity-calendar",
+		label: "活动日历",
+		description: "按日热点：收藏/素材/二创/创作的当日任务",
+		icon: CalendarDays,
+		defaultWide: true,
+		tone: "rose",
 	},
 ] as const;
 

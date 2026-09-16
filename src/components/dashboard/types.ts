@@ -39,6 +39,26 @@ export interface SkillRecent {
 	dirPath: string;
 }
 
+/** 活动日历的事件类型：收藏 / 素材 / 二创草稿 / 创作文档 */
+export type ActivityKind = "bookmark" | "material" | "draft" | "document";
+
+/** 某一天的一条活动记录（深链回所属模块） */
+export interface ActivityEvent {
+	kind: ActivityKind;
+	/** 书签为 string id，其余为 number id */
+	id: string | number;
+	title: string;
+}
+
+/** 活动日历按日聚合（date 为 YYYY-MM-DD） */
+export interface ActivityDay {
+	date: string;
+	total: number;
+	counts: Record<ActivityKind, number>;
+	/** 当日事件明细（按时间倒序，服务端截断） */
+	events: ActivityEvent[];
+}
+
 /** 跨模块聚合的工作台首页数据（getWorkbenchSummary 返回） */
 export interface WorkbenchSummary {
 	bookmarks: {
@@ -73,6 +93,10 @@ export interface WorkbenchSummary {
 		/** 最近一次死链巡检发现的疑似失效链接数（无巡检记录为 null） */
 		deadLinks: number | null;
 		lastScanAt?: string;
+	};
+	/** 活动日历：最近若干个月的按日聚合（收藏/素材/草稿/文档） */
+	activity: {
+		days: ActivityDay[];
 	};
 	generatedAt: string;
 }

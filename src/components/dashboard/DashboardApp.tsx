@@ -19,6 +19,7 @@ import type {
 } from "../workbench/types";
 import type { WorkbenchSummary } from "./types";
 import { WidgetCard } from "./WidgetCard";
+import { ActivityCalendarWidget } from "./widgets/ActivityCalendarWidget";
 import { CreatorPipelineWidget } from "./widgets/CreatorPipelineWidget";
 import { EditorRecentWidget } from "./widgets/EditorRecentWidget";
 import { FolderShortcutsWidget } from "./widgets/FolderShortcutsWidget";
@@ -46,6 +47,7 @@ const WIDGET_COMPONENTS: Record<
 	"folder-shortcuts": FolderShortcutsWidget,
 	"skills-overview": SkillsOverviewWidget,
 	insights: InsightsWidget,
+	"activity-calendar": ActivityCalendarWidget,
 };
 
 function defaultLayout(): WorkbenchLayoutEntry[] {

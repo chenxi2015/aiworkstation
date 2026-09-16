@@ -42,6 +42,10 @@ const TONE_STYLES: Record<WidgetTone, { chip: string; link: string }> = {
 		chip: "bg-teal-100 text-teal-600 dark:bg-teal-400/15 dark:text-teal-300",
 		link: "hover:text-teal-600 dark:hover:text-teal-300",
 	},
+	rose: {
+		chip: "bg-rose-100 text-rose-600 dark:bg-rose-400/15 dark:text-rose-300",
+		link: "hover:text-rose-600 dark:hover:text-rose-300",
+	},
 };
 
 export interface WidgetCardEditControls {
@@ -83,7 +87,7 @@ export function WidgetCard({
 	return (
 		<Card
 			ref={ref as React.Ref<HTMLDivElement>}
-			className={`${widget.wide ? "md:col-span-2" : ""} ${
+			className={`min-w-0 ${widget.wide ? "md:col-span-2" : ""} ${
 				editing
 					? "border-dashed border-accent/60 cursor-grab active:cursor-grabbing"
 					: ""

@@ -1,5 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import type {
+	ActivityDay,
+	ActivityEvent,
+	ActivityKind,
 	DocumentSummary,
 	DraftSummary,
 	FolderShortcut,
@@ -65,6 +68,90 @@ function countRows(sql: string): number {
 	return row?.n ?? 0;
 }
 
+/** 活动日历聚合范围：最近 26 周（约半年），与 GitHub 热点图的半年视图对齐 */
+const ACTIVITY_DAYS = 183;
+/** 单日事件明细上限（日历卡片只展示前几条的预览体量） */
+const ACTIVITY_EVENTS_PER_DAY = 8;
+
+const ACTIVITY_COUNT_QUERIES: Record<ActivityKind, string> = {
+	bookmark: `SELECT date(created_at) AS d, COUNT(*) AS n FROM bookmarks
+    WHERE date(created_at) >= date('now', ?) GROUP BY d`,
+	material: `SELECT date(created_at) AS d, COUNT(*) AS n FROM materials
+    WHERE date(created_at) >= date('now', ?) GROUP BY d`,
+	draft: `SELECT date(created_at) AS d, COUNT(*) AS n FROM drafts
+    WHERE date(created_at) >= date('now', ?) GROUP BY d`,
+	// 文档按「最后被编辑」归类：反映当天的创作动作而非建档时间
+	document: `SELECT date(COALESCE(updated_at, created_at)) AS d, COUNT(*) AS n FROM documents
+    WHERE date(COALESCE(updated_at, created_at)) >= date('now', ?) GROUP BY d`,
+};
+
+const ACTIVITY_EVENT_QUERIES: Record<ActivityKind, string> = {
+	bookmark: `SELECT id, title, date(created_at) AS d, created_at AS ts FROM bookmarks
+    WHERE date(created_at) >= date('now', ?) ORDER BY created_at DESC`,
+	material: `SELECT id, title, date(created_at) AS d, created_at AS ts FROM materials
+    WHERE date(created_at) >= date('now', ?) ORDER BY created_at DESC`,
+	draft: `SELECT d.id AS id, m.title AS title, date(d.created_at) AS d, d.created_at AS ts
+    FROM drafts d LEFT JOIN materials m ON m.id = d.material_id
+    WHERE date(d.created_at) >= date('now', ?) ORDER BY d.created_at DESC`,
+	document: `SELECT id, title, date(COALESCE(updated_at, created_at)) AS d,
+      COALESCE(updated_at, created_at) AS ts FROM documents
+    WHERE date(COALESCE(updated_at, created_at)) >= date('now', ?) ORDER BY ts DESC`,
+};
+
+/** 按日聚合四类实体的活动量与事件明细（收藏/素材/草稿/文档），日历 widget 数据源 */
+function queryActivity(): ActivityDay[] {
+	const db = getDb();
+	const range = `-${ACTIVITY_DAYS} days`;
+	const days = new Map<string, ActivityDay>();
+	const getDay = (date: string): ActivityDay => {
+		let day = days.get(date);
+		if (!day) {
+			day = {
+				date,
+				total: 0,
+				counts: { bookmark: 0, material: 0, draft: 0, document: 0 },
+				events: [],
+			};
+			days.set(date, day);
+		}
+		return day;
+	};
+
+	for (const kind of Object.keys(ACTIVITY_COUNT_QUERIES) as ActivityKind[]) {
+		const rows = db.prepare(ACTIVITY_COUNT_QUERIES[kind]).all(range) as Array<{
+			d: string;
+			n: number;
+		}>;
+		for (const row of rows) {
+			const day = getDay(row.d);
+			day.counts[kind] = row.n;
+			day.total += row.n;
+		}
+	}
+
+	for (const kind of Object.keys(ACTIVITY_EVENT_QUERIES) as ActivityKind[]) {
+		const rows = db.prepare(ACTIVITY_EVENT_QUERIES[kind]).all(range) as Array<{
+			id: string | number;
+			title: string | null;
+			d: string;
+		}>;
+		for (const row of rows) {
+			const day = days.get(row.d);
+			if (!day || day.events.length >= ACTIVITY_EVENTS_PER_DAY) continue;
+			const event: ActivityEvent = {
+				kind,
+				id: row.id,
+				title:
+					row.title ||
+					(kind === "draft" ? `草稿 #${row.id}` : `未命名 #${row.id}`),
+			};
+			day.events.push(event);
+		}
+	}
+
+	return [...days.values()].sort((a, b) => b.date.localeCompare(a.date));
+}
+
 /**
  * Server Function: 工作台仪表盘跨模块汇总（一次调用聚合书签/文件夹/自媒体/创作/Skills/巡检）
  */
@@ -82,6 +169,7 @@ export const getWorkbenchSummary = createServerFn({ method: "GET" }).handler(
 			editor: { total: 0, recent: [] },
 			skills: { available: false, total: 0, rootCount: 0, recent: [] },
 			health: { deadLinks: null },
+			activity: { days: [] },
 			generatedAt: new Date().toISOString(),
 		};
 
@@ -166,6 +254,12 @@ export const getWorkbenchSummary = createServerFn({ method: "GET" }).handler(
 			}
 		} catch (err) {
 			console.warn("[getWorkbenchSummary] health error:", err);
+		}
+
+		try {
+			summary.activity.days = queryActivity();
+		} catch (err) {
+			console.warn("[getWorkbenchSummary] activity error:", err);
 		}
 
 		return summary;
