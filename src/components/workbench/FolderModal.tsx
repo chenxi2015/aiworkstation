@@ -76,7 +76,6 @@ export function FolderModal({
 		for (const c of categories) {
 			if (c && c !== "未分类") set.add(c);
 		}
-		set.add("工作台");
 		for (const f of folders) {
 			if (f.category && f.category !== "未分类") {
 				set.add(f.category);
@@ -122,7 +121,7 @@ export function FolderModal({
 					defaultParentId != null
 						? folders.find((f) => f.id === defaultParentId)
 						: undefined;
-				setCategory(parent?.category || defaultCategory || "工作台");
+				setCategory(parent?.category || defaultCategory || "bookmarks");
 				setDesc("");
 				setColor("");
 				setParentId(parent?.id ?? null);
@@ -136,7 +135,7 @@ export function FolderModal({
 		if (parentId != null) {
 			return `folder:${parentId}`;
 		}
-		return `root:${category || defaultCategory || "工作台"}`;
+		return `root:${category || defaultCategory || "bookmarks"}`;
 	}, [parentId, category, defaultCategory]);
 
 	const handleParentChange = (key: unknown) => {

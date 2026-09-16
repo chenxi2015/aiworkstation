@@ -9,6 +9,7 @@ import {
 	DEFAULT_SETTINGS,
 	WorkbenchStorageService,
 } from "../../services/workbenchStorage";
+import { ALL_CATEGORY, sanitizeBookmarkFilter } from "../../modules/registry";
 
 export interface InitialWorkbenchData {
 	folders?: Folder[];
@@ -72,9 +73,9 @@ export function useWorkbenchStorageSync(initialData?: InitialWorkbenchData) {
 		if (initialData?.initialCategory) {
 			return initialData.initialCategory;
 		}
-		// 2. Client fallback from cookie/storage
+		// 2. Client fallback from cookie/storage（历史模块分类值统一清洗为「全部」）
 		const stored = getStoredActiveCategory();
-		if (stored) return stored as Category;
+		if (stored) return sanitizeBookmarkFilter(stored) as Category;
 
 		// 3. Fallback to unclassified if no folders exist but items exist
 		if (
@@ -85,7 +86,7 @@ export function useWorkbenchStorageSync(initialData?: InitialWorkbenchData) {
 		) {
 			return "未分类";
 		}
-		return "工作台";
+		return ALL_CATEGORY;
 	});
 
 	// Keep a ref to the latest activeCategory to avoid stale closures in reloadFromDb

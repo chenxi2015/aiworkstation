@@ -51,7 +51,8 @@ export const MODULES: readonly ModuleDef[] = [
 		label: "工作台",
 		route: "/workbench",
 		icon: LayoutGrid,
-		description: "个人工作首页：快捷入口、待整理与功能卡片的可自定义组合。",
+		description:
+			"跨模块汇总首页：信息卡片自由组合的可自定义仪表盘，不再是文件夹分类。",
 		aliases: ["工作台"],
 	},
 	{

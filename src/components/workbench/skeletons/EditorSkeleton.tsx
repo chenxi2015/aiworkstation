@@ -72,7 +72,7 @@ export function EditorCanvasSkeleton() {
 					</div>
 
 					{/* Blockquote / Callout card placeholder */}
-					<div className="p-4 rounded-xl border-l-4 border-accent/40 bg-surface-secondary/20 space-y-2">
+					<div className="p-4 border-l-4 border-accent/40 bg-surface-secondary/20 space-y-2">
 						<Skeleton className="h-3 w-3/4 rounded" />
 						<Skeleton className="h-3 w-1/2 rounded" />
 					</div>

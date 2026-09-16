@@ -29,8 +29,8 @@ const ModuleTabItem = memo(function ModuleTabItem({
 	unclassifiedCount,
 }: ModuleTabItemProps) {
 	const Icon = module.icon;
-	// 书签模块是聚合视图，不接受「改分类」拖放
-	const droppable = module.code !== "bookmarks";
+	// 书签模块是聚合视图、工作台是仪表盘，均不拥有文件夹分类，不接受「改分类」拖放
+	const droppable = module.code !== "bookmarks" && module.code !== "workbench";
 	const { ref, isDropTarget } = useDroppable({
 		id: categoryDropId(module.code),
 		disabled: !droppable,

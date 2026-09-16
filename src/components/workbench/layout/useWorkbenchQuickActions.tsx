@@ -28,9 +28,9 @@ export function useWorkbenchQuickActions({ folders }: { folders: Folder[] }) {
 	const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 	const [isIntroModalOpen, setIsIntroModalOpen] = useState(false);
 
-	// 与 useWorkbenchNavigation.dynamicCategories 保持一致的分类集合
+	// 与 useWorkbenchNavigation.dynamicCategories 保持一致的分类集合（工作台不再是分类，不再种子化）
 	const categories = useMemo(() => {
-		const cats = new Set<string>(["工作台"]);
+		const cats = new Set<string>();
 		for (const f of folders) {
 			const cat = f.category?.trim();
 			if (cat && cat !== "未分类") cats.add(cat);

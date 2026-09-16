@@ -22,7 +22,8 @@ export function useItemFolderAssign(options?: UseItemFolderAssignOptions) {
 	>(new Set());
 	const [isCreateMode, setIsCreateMode] = useState<boolean>(false);
 	const [newFolderName, setNewFolderName] = useState<string>("");
-	const [newFolderCategory, setNewFolderCategory] = useState<string>("工作台");
+	const [newFolderCategory, setNewFolderCategory] =
+		useState<string>("bookmarks");
 	const [folderFilterQuery, setFolderFilterQuery] = useState<string>("");
 	const [isProcessingMove, setIsProcessingMove] = useState<boolean>(false);
 
@@ -165,7 +166,7 @@ export function useItemFolderAssign(options?: UseItemFolderAssignOptions) {
 				// 1. Create new folder in DB
 				const updatedFolders = await WorkbenchStorageService.saveFolderToDb({
 					name: trimmedName,
-					category: newFolderCategory || "工作台",
+					category: newFolderCategory || "bookmarks",
 					desc: `由 AI 问答/搜索结果快捷归类创建，包含 ${assigningItems.length} 个书签`,
 				});
 

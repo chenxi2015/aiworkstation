@@ -4,7 +4,11 @@ import type {
 	Folder,
 	WorkbenchItem,
 } from "../../components/workbench/types";
-import { ALL_CATEGORY, matchesCategory } from "../../modules/registry";
+import {
+	ALL_CATEGORY,
+	matchesCategory,
+	sanitizeBookmarkFilter,
+} from "../../modules/registry";
 import {
 	getStoredActiveCategory,
 	saveActiveCategory,
@@ -36,10 +40,10 @@ export function useWorkbenchNavigation({
 	const [selectedFolderId, setSelectedFolderId] = useState<number | null>(
 		() => {
 			if (!initialFolders || initialFolders.length === 0) return null;
-			let initCat: string = initialCategory || "工作台";
+			let initCat: string = initialCategory || ALL_CATEGORY;
 			if (typeof window !== "undefined" && !initialCategory) {
 				const stored = getStoredActiveCategory();
-				if (stored) initCat = stored;
+				if (stored) initCat = sanitizeBookmarkFilter(stored);
 			} else if (
 				!initialCategory &&
 				initialFolders.length === 0 &&
@@ -65,10 +69,9 @@ export function useWorkbenchNavigation({
 		string | number | null
 	>(null);
 
-	// Dynamic Category Tabs: '工作台' is root category, others dynamically extracted from database folders
+	// Dynamic Category Tabs: extracted from database folders（工作台已升级为仪表盘，不再是文件夹分类）
 	const dynamicCategories = useMemo(() => {
 		const cats = new Set<string>();
-		cats.add("工作台");
 		for (const f of folders) {
 			const cat = f.category?.trim();
 			if (cat && cat !== "未分类") {

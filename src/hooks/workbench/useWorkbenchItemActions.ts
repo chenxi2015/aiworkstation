@@ -137,7 +137,7 @@ export function useWorkbenchItemActions({
 			setUnclassified(updatedUnclassified);
 			void router.invalidate();
 			if (updatedFolders.length > 0) {
-				setActiveCategory(updatedFolders[0].category || "工作台");
+				setActiveCategory(updatedFolders[0].category || "bookmarks");
 				setSelectedFolderId(updatedFolders[0].id);
 			}
 		},

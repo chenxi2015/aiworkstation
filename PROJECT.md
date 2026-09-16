@@ -25,7 +25,7 @@
 
   | code | label | route | 定位 |
   |---|---|---|---|
-  | `workbench` | 工作台 | `/workbench`（`/` 重定向至此） | 首页，后续进化为可自定义组合的仪表盘 |
+  | `workbench` | 工作台 | `/workbench`（`/` 重定向至此） | 跨模块汇总首页：可自定义组合的 widget 仪表盘（不再是文件夹分类） |
   | `bookmarks` | 书签 | `/bookmarks` | 全部书签库 + 未分类缓冲池，分类在此作为筛选维度 |
   | `creator` | 自媒体 | `/creator` | 采集 → 二创 → 审稿 → 发布工作流 |
   | `learn` | 学习 | `/learn` | 学习资源聚合 |
@@ -39,6 +39,23 @@
 - **导航可自定义**：顺序/显隐存 `settings.navLayout`（key=`workbench_settings` 的 JSON 内），
   渲染 = 注册表 merge 用户布局，未配置的模块按默认顺序追加
 - **DnD 约定**：拖文件夹到模块 tab = 把 category 改为该模块 code；拖到分类筛选 chip = 改为该分组
+  （工作台与书签两个 tab 不接受拖放：前者是仪表盘不拥有分类，后者是聚合视图）
+
+## 工作台仪表盘（定案 2026-09）
+
+**工作台是后面几个导航的跨模块汇总，不是文件夹网格。** 文件夹形式只能表达"一组书签"，
+表达不了异构模块的状态（待审稿数、最近文档、Skills 变更、死链巡检等），因此工作台采用
+自由组合的 widget 仪表盘：
+
+- **Widget 注册表（约定大于配置）**：`src/modules/widgetRegistry.ts`，每个 widget 有稳定 id、
+  label、icon、默认宽窄与所属模块 code。新增 widget = 注册表加一行 + `src/components/dashboard/widgets/` 建一个组件
+- **布局持久化**：顺序/显隐/宽窄存 `settings.workbenchLayout`，渲染 = 注册表 merge 用户布局
+  （与 `navLayout` 同一约定）；页面内「自定义布局」进入编辑态，卡片 DnD 自由拖拽换位（复用
+  `@dnd-kit/react` sortable，与文件夹网格同一套基建），支持宽窄切换、隐藏/恢复
+- **汇总数据**：`getWorkbenchSummary`（`src/server/functions/dashboard.ts`）一次调用跨表聚合
+  （bookmarks/folders/materials/drafts/documents/skills 扫描/死链巡检），各段独立 try/catch 容错
+- **存量迁移**：`category='workbench'/'工作台'` 的文件夹在启动时幂等归并到 `bookmarks`
+  （`src/server/db/schema.ts`）；"工作台" 保留为 workbench 模块的历史别名，不再作为文件夹分类使用
 
 ## 总体架构（已定案，勿随意推翻）
 
@@ -113,7 +130,8 @@
 
 ```
 src/routes/            # 工作台 UI（文件夹网格、详情侧栏、未分类、设置）
-src/modules/           # 模块注册表（导航 code/label/route 单一事实源，见「导航与模块约定」）
+src/modules/           # 模块注册表 + widget 注册表（导航与仪表盘的单一事实源）
+src/components/dashboard/ # 工作台仪表盘：WidgetCard 外壳 + widgets/ 各卡片组件
 src/server/functions/  # server functions：workbench / search(embedding) / rag / models
 src/server/db/         # better-sqlite3 + 原生 SQL schema 与迁移
 src/server/ai/tools/   # ReAct Agent 的 10 个书签/文件夹/统计与批量归集 Tool

@@ -1,16 +1,31 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { WorkbenchApp, WorkbenchSkeleton } from "../components/workbench";
+import { DashboardApp } from "../components/dashboard/DashboardApp";
+import { ModuleSkeleton } from "../components/workbench/skeletons";
+import { getWorkbenchSummary } from "../server/functions/dashboard";
 import { workbenchLoader } from "./-workbenchLoader";
 
 export const Route = createFileRoute("/workbench")({
-	loader: workbenchLoader,
-	pendingComponent: WorkbenchSkeleton,
+	loader: async () => {
+		const [base, summary] = await Promise.all([
+			workbenchLoader(),
+			getWorkbenchSummary(),
+		]);
+		return { ...base, summary };
+	},
+	pendingComponent: ModuleSkeleton,
 	pendingMs: 200,
 	component: WorkbenchPage,
 });
 
-/** 工作台模块：锁定 category=workbench 的文件夹视图（后续进化为可自定义仪表盘） */
+/** 工作台模块：跨模块汇总的可自定义仪表盘（widget 注册表见 src/modules/widgetRegistry.ts） */
 function WorkbenchPage() {
-	const initialData = Route.useLoaderData();
-	return <WorkbenchApp initialData={initialData} fixedCategory="workbench" />;
+	const { settings, unclassified, folders, summary } = Route.useLoaderData();
+	return (
+		<DashboardApp
+			settings={settings}
+			unclassified={unclassified}
+			folders={folders}
+			summary={summary}
+		/>
+	);
 }

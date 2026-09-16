@@ -9,7 +9,7 @@ export function initSchema(db: SqliteDatabase): void {
     CREATE TABLE IF NOT EXISTS folders (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
-      category TEXT NOT NULL DEFAULT '工作台',
+      category TEXT NOT NULL DEFAULT 'bookmarks',
       parent_id INTEGER DEFAULT NULL,
       description TEXT DEFAULT '',
       color TEXT DEFAULT '',
@@ -223,6 +223,13 @@ export function initSchema(db: SqliteDatabase): void {
 		db.exec(
 			"CREATE INDEX IF NOT EXISTS idx_materials_folder_id ON materials(folder_id)",
 		);
+
+		// 工作台升级为跨模块仪表盘后不再是文件夹分类（2026-09 定案）：
+		// 存量 category='workbench'/'工作台' 的文件夹一次性归并到书签模块（幂等，可随启动重复执行）
+		db.exec(
+			"UPDATE folders SET category = 'bookmarks' WHERE category IN ('workbench', '工作台')",
+		);
+
 		if (!bookmarkColNames.has("payload")) {
 			db.exec("ALTER TABLE bookmarks ADD COLUMN payload TEXT DEFAULT ''");
 		}

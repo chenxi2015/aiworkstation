@@ -258,10 +258,10 @@ export class BookmarkRepository {
 					if (folderRow) {
 						folderId = folderRow.id;
 					} else {
-						// "未分类" 是缓冲池伪分类，不能落为文件夹分类
+						// "未分类" 是缓冲池伪分类，不能落为文件夹分类；缺省归入书签模块
 						const folderCategory =
 							!res.category || res.category === "未分类"
-								? "工作台"
+								? "bookmarks"
 								: res.category;
 						const ins = insertFolderStmt.run(
 							res.folderName,
