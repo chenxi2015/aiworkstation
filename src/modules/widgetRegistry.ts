@@ -29,7 +29,18 @@ export interface WidgetDef {
 	defaultWide?: boolean;
 	/** 所属模块 code：卡片提供「进入模块」跳转；无则为纯信息卡 */
 	moduleCode?: string;
+	/** 色彩身份（卡片图标/高亮的柔和配色，见 WidgetCard 的 TONE_STYLES） */
+	tone: WidgetTone;
 }
+
+export type WidgetTone =
+	| "amber"
+	| "sky"
+	| "violet"
+	| "emerald"
+	| "indigo"
+	| "cyan"
+	| "teal";
 
 export const WORKBENCH_WIDGETS: readonly WidgetDef[] = [
 	{
@@ -37,6 +48,7 @@ export const WORKBENCH_WIDGETS: readonly WidgetDef[] = [
 		label: "待整理",
 		description: "未分类缓冲池：新采集内容等待归位",
 		icon: Inbox,
+		tone: "amber",
 	},
 	{
 		id: "recent-bookmarks",
@@ -44,6 +56,7 @@ export const WORKBENCH_WIDGETS: readonly WidgetDef[] = [
 		description: "全库最新入库的书签",
 		icon: Sparkles,
 		defaultWide: true,
+		tone: "sky",
 	},
 	{
 		id: "creator-pipeline",
@@ -51,6 +64,7 @@ export const WORKBENCH_WIDGETS: readonly WidgetDef[] = [
 		description: "素材 → 二创 → 审稿的流水线状态",
 		icon: Megaphone,
 		moduleCode: "creator",
+		tone: "violet",
 	},
 	{
 		id: "editor-recent",
@@ -58,12 +72,14 @@ export const WORKBENCH_WIDGETS: readonly WidgetDef[] = [
 		description: "最近编辑的创作台文档",
 		icon: PenLine,
 		moduleCode: "editor",
+		tone: "emerald",
 	},
 	{
 		id: "folder-shortcuts",
 		label: "常用文件夹",
 		description: "按内容量排序的文件夹速览",
 		icon: FolderOpen,
+		tone: "indigo",
 	},
 	{
 		id: "skills-overview",
@@ -71,6 +87,7 @@ export const WORKBENCH_WIDGETS: readonly WidgetDef[] = [
 		description: "本机 skills 目录集合状态",
 		icon: Blocks,
 		moduleCode: "skills",
+		tone: "cyan",
 	},
 	{
 		id: "insights",
@@ -78,6 +95,7 @@ export const WORKBENCH_WIDGETS: readonly WidgetDef[] = [
 		description: "知识资产统计、向量覆盖与死链巡检",
 		icon: Gauge,
 		defaultWide: true,
+		tone: "teal",
 	},
 ] as const;
 

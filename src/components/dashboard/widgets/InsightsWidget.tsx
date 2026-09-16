@@ -9,17 +9,36 @@ export function InsightsWidget({ summary }: DashboardWidgetProps) {
 			? Math.round((bookmarks.embedded / bookmarks.total) * 100)
 			: 0;
 	const stats = [
-		{ label: "书签总数", value: String(bookmarks.total) },
-		{ label: "文件夹", value: String(folders.total) },
-		{ label: "向量覆盖", value: `${coverage}%` },
+		{
+			label: "书签总数",
+			value: String(bookmarks.total),
+			tone: "bg-sky-50 dark:bg-sky-400/10 text-sky-600 dark:text-sky-300",
+		},
+		{
+			label: "文件夹",
+			value: String(folders.total),
+			tone: "bg-indigo-50 dark:bg-indigo-400/10 text-indigo-600 dark:text-indigo-300",
+		},
+		{
+			label: "向量覆盖",
+			value: `${coverage}%`,
+			tone: "bg-teal-50 dark:bg-teal-400/10 text-teal-600 dark:text-teal-300",
+		},
 		{
 			label: "待整理",
 			value: String(bookmarks.unclassified),
+			tone: bookmarks.unclassified
+				? "bg-amber-50 dark:bg-amber-400/10 text-amber-600 dark:text-amber-300"
+				: "bg-surface-secondary/60 text-foreground",
 			warn: bookmarks.unclassified > 0,
 		},
 		{
 			label: "疑似死链",
 			value: health.deadLinks === null ? "未巡检" : String(health.deadLinks),
+			tone:
+				(health.deadLinks ?? 0) > 0
+					? "bg-rose-50 dark:bg-rose-400/10 text-rose-600 dark:text-rose-300"
+					: "bg-surface-secondary/60 text-foreground",
 			warn: (health.deadLinks ?? 0) > 0,
 		},
 	];
@@ -29,14 +48,10 @@ export function InsightsWidget({ summary }: DashboardWidgetProps) {
 				{stats.map((stat) => (
 					<div
 						key={stat.label}
-						className="rounded-lg bg-surface px-2.5 py-2 text-center"
+						className={`rounded-xl px-2 py-2.5 text-center ${stat.tone}`}
 					>
-						<div
-							className={`text-base font-bold font-mono ${stat.warn ? "text-warning" : "text-foreground"}`}
-						>
-							{stat.value}
-						</div>
-						<div className="text-[10px] text-muted">{stat.label}</div>
+						<div className="text-base font-bold font-mono">{stat.value}</div>
+						<div className="text-[10px] text-muted mt-0.5">{stat.label}</div>
 					</div>
 				))}
 			</div>

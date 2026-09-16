@@ -21,31 +21,36 @@ export function RecentBookmarksWidget({ summary }: DashboardWidgetProps) {
 		);
 	}
 	return (
-		<ul className="divide-y divide-border/60">
+		<ul className="-mx-2">
 			{recent.map((item) => (
-				<li key={item.id} className="py-1.5 first:pt-0 last:pb-0">
+				<li key={item.id}>
 					<a
 						href={item.url}
 						target="_blank"
 						rel="noreferrer"
-						className="flex items-center gap-2 group min-w-0"
+						className="flex items-center gap-2.5 group min-w-0 px-2 py-1.5 rounded-lg hover:bg-sky-50 dark:hover:bg-sky-400/10 transition-colors"
 					>
 						{item.favicon ? (
 							<img
 								src={item.favicon}
 								alt=""
-								className="w-3.5 h-3.5 rounded-sm shrink-0"
+								className="w-6 h-6 rounded-md bg-surface-secondary p-1 shrink-0"
 							/>
 						) : (
-							<span className="w-3.5 h-3.5 rounded-sm bg-accent-soft text-accent text-[9px] font-bold flex items-center justify-center shrink-0">
+							<span className="w-6 h-6 rounded-md bg-sky-100 text-sky-600 dark:bg-sky-400/15 dark:text-sky-300 text-[11px] font-bold flex items-center justify-center shrink-0">
 								{item.title.slice(0, 1)}
 							</span>
 						)}
-						<span className="text-xs text-foreground truncate group-hover:text-accent transition-colors">
-							{item.title}
+						<span className="min-w-0 flex-1">
+							<span className="block text-xs text-foreground truncate group-hover:text-sky-600 dark:group-hover:text-sky-300 transition-colors">
+								{item.title}
+							</span>
+							<span className="block text-[10px] text-muted truncate font-mono">
+								{hostOf(item.url)}
+							</span>
 						</span>
-						<span className="ml-auto text-[10px] text-muted shrink-0 font-mono">
-							{hostOf(item.url)} · {formatRelativeTime(item.createdAt)}
+						<span className="text-[10px] text-muted shrink-0">
+							{formatRelativeTime(item.createdAt)}
 						</span>
 					</a>
 				</li>

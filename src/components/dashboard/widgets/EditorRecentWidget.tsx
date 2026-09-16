@@ -1,4 +1,8 @@
-import { documentStatusLabel, formatRelativeTime } from "../format";
+import {
+	documentStatusLabel,
+	documentStatusTone,
+	formatRelativeTime,
+} from "../format";
 import type { DashboardWidgetProps } from "./widgetProps";
 
 /** 创作文档：最近编辑的创作台文档 */
@@ -22,8 +26,12 @@ export function EditorRecentWidget({ summary }: DashboardWidgetProps) {
 						<span className="text-foreground truncate" title={doc.title}>
 							{doc.title}
 						</span>
-						<span className="ml-auto text-muted shrink-0">
-							{documentStatusLabel(doc.status)} ·{" "}
+						<span
+							className={`ml-auto px-1.5 py-0.5 rounded-md text-[9px] font-medium shrink-0 ${documentStatusTone(doc.status)}`}
+						>
+							{documentStatusLabel(doc.status)}
+						</span>
+						<span className="text-muted shrink-0 text-[10px]">
 							{formatRelativeTime(doc.updatedAt)}
 						</span>
 					</li>

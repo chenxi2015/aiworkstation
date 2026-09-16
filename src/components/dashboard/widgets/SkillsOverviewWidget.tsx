@@ -12,8 +12,8 @@ export function SkillsOverviewWidget({ summary }: DashboardWidgetProps) {
 	}
 	return (
 		<div className="flex flex-col gap-2 h-full">
-			<div className="flex items-baseline gap-2">
-				<span className="text-3xl font-bold font-mono text-foreground">
+			<div className="flex items-baseline gap-2 rounded-xl bg-cyan-50 dark:bg-cyan-400/10 px-3 py-2">
+				<span className="text-3xl font-bold font-mono text-cyan-600 dark:text-cyan-300">
 					{skills.total}
 				</span>
 				<span className="text-[11px] text-muted">
@@ -27,7 +27,7 @@ export function SkillsOverviewWidget({ summary }: DashboardWidgetProps) {
 						{skills.recentNames.map((name) => (
 							<li
 								key={name}
-								className="px-1.5 py-0.5 rounded bg-surface text-[10px] text-foreground font-mono"
+								className="px-1.5 py-0.5 rounded-md bg-surface-secondary text-[10px] text-foreground font-mono"
 							>
 								{name}
 							</li>

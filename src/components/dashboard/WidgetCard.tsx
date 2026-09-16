@@ -9,7 +9,49 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { getModuleByCode } from "../../modules/registry";
-import type { ResolvedWidget } from "../../modules/widgetRegistry";
+import type { ResolvedWidget, WidgetTone } from "../../modules/widgetRegistry";
+
+/** widget 色彩身份：图标 chip + 悬停描边的柔和配色（亮/暗双模式） */
+const TONE_STYLES: Record<
+	WidgetTone,
+	{ chip: string; hoverRing: string; link: string }
+> = {
+	amber: {
+		chip: "bg-amber-100 text-amber-600 dark:bg-amber-400/15 dark:text-amber-300",
+		hoverRing: "hover:border-amber-300 dark:hover:border-amber-400/40",
+		link: "hover:text-amber-600 dark:hover:text-amber-300",
+	},
+	sky: {
+		chip: "bg-sky-100 text-sky-600 dark:bg-sky-400/15 dark:text-sky-300",
+		hoverRing: "hover:border-sky-300 dark:hover:border-sky-400/40",
+		link: "hover:text-sky-600 dark:hover:text-sky-300",
+	},
+	violet: {
+		chip: "bg-violet-100 text-violet-600 dark:bg-violet-400/15 dark:text-violet-300",
+		hoverRing: "hover:border-violet-300 dark:hover:border-violet-400/40",
+		link: "hover:text-violet-600 dark:hover:text-violet-300",
+	},
+	emerald: {
+		chip: "bg-emerald-100 text-emerald-600 dark:bg-emerald-400/15 dark:text-emerald-300",
+		hoverRing: "hover:border-emerald-300 dark:hover:border-emerald-400/40",
+		link: "hover:text-emerald-600 dark:hover:text-emerald-300",
+	},
+	indigo: {
+		chip: "bg-indigo-100 text-indigo-600 dark:bg-indigo-400/15 dark:text-indigo-300",
+		hoverRing: "hover:border-indigo-300 dark:hover:border-indigo-400/40",
+		link: "hover:text-indigo-600 dark:hover:text-indigo-300",
+	},
+	cyan: {
+		chip: "bg-cyan-100 text-cyan-600 dark:bg-cyan-400/15 dark:text-cyan-300",
+		hoverRing: "hover:border-cyan-300 dark:hover:border-cyan-400/40",
+		link: "hover:text-cyan-600 dark:hover:text-cyan-300",
+	},
+	teal: {
+		chip: "bg-teal-100 text-teal-600 dark:bg-teal-400/15 dark:text-teal-300",
+		hoverRing: "hover:border-teal-300 dark:hover:border-teal-400/40",
+		link: "hover:text-teal-600 dark:hover:text-teal-300",
+	},
+};
 
 export interface WidgetCardEditControls {
 	onToggleWide: () => void;
@@ -40,6 +82,7 @@ export function WidgetCard({
 	const module = widget.moduleCode
 		? getModuleByCode(widget.moduleCode)
 		: undefined;
+	const tone = TONE_STYLES[widget.tone];
 	const { ref, isDragging } = useSortable({
 		id: widget.id,
 		index,
@@ -49,16 +92,22 @@ export function WidgetCard({
 	return (
 		<section
 			ref={ref as React.Ref<HTMLElement>}
-			className={`rounded-xl border border-border bg-surface-secondary/40 flex flex-col overflow-hidden ${
+			className={`rounded-2xl border bg-surface flex flex-col overflow-hidden transition-colors duration-200 ${
 				widget.wide ? "md:col-span-2" : ""
-			} ${editing ? "border-dashed border-accent/60 cursor-grab active:cursor-grabbing" : ""} ${
-				isDragging ? "opacity-60 shadow-lg ring-1 ring-accent/60 z-10" : ""
-			}`}
+			} ${
+				editing
+					? "border-dashed border-accent/60 cursor-grab active:cursor-grabbing"
+					: `border-border/70 ${tone.hoverRing} `
+			} ${isDragging ? "opacity-60 ring-1 ring-accent/60 z-10" : ""}`}
 		>
-			<header className="flex items-center gap-2 px-4 pt-3 pb-2 shrink-0">
-				<Icon className="w-4 h-4 text-accent shrink-0" />
+			<header className="flex items-center gap-2.5 px-4 pt-3.5 pb-2.5 shrink-0">
+				<span
+					className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${tone.chip}`}
+				>
+					<Icon className="w-4 h-4" />
+				</span>
 				<div className="min-w-0 flex-1">
-					<h3 className="text-xs font-semibold text-foreground leading-tight">
+					<h3 className="text-[13px] font-semibold text-foreground leading-tight">
 						{widget.label}
 					</h3>
 					<p className="text-[10px] text-muted truncate">
@@ -97,7 +146,7 @@ export function WidgetCard({
 				) : module ? (
 					<Link
 						to={module.route}
-						className="flex items-center gap-1 text-[10px] text-muted hover:text-accent transition-colors shrink-0"
+						className={`flex items-center gap-1 px-2 py-1 rounded-full bg-surface-secondary/70 text-[10px] font-medium text-muted transition-colors shrink-0 ${tone.link}`}
 					>
 						{module.label}
 						<ArrowUpRight className="w-3 h-3" />

@@ -1,6 +1,6 @@
 import { DragDropProvider, type DragEndEvent } from "@dnd-kit/react";
 import { isSortable } from "@dnd-kit/react/sortable";
-import { Eye, LayoutGrid, X } from "lucide-react";
+import { Eye, X } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import {
 	getWidgetById,
@@ -112,8 +112,34 @@ export function DashboardApp({
 
 	const widgetProps: DashboardWidgetProps = { summary, unclassified };
 
+	const now = new Date();
+	const hour = now.getHours();
+	const greeting =
+		hour < 6
+			? "夜深了"
+			: hour < 9
+				? "早上好"
+				: hour < 12
+					? "上午好"
+					: hour < 14
+						? "中午好"
+						: hour < 18
+							? "下午好"
+							: "晚上好";
+	const dateLabel = now.toLocaleDateString("zh-CN", {
+		month: "long",
+		day: "numeric",
+		weekday: "long",
+	});
+	const heroStats = [
+		{ label: "收藏", value: summary.bookmarks.total },
+		{ label: "待整理", value: summary.bookmarks.unclassified },
+		{ label: "待审稿", value: summary.creator.draftsPending },
+		{ label: "文档", value: summary.editor.total },
+	];
+
 	return (
-		<div className="h-screen bg-surface dark:bg-background text-foreground flex flex-col overflow-hidden">
+		<div className="h-screen bg-surface-secondary/60 dark:bg-background text-foreground flex flex-col overflow-hidden">
 			<WorkbenchHeader
 				unclassifiedCount={unclassified.length}
 				navLayout={settings.navLayout}
@@ -121,23 +147,38 @@ export function DashboardApp({
 			/>
 			<main className="flex-1 overflow-y-auto">
 				<div className="max-w-7xl mx-auto px-6 py-6">
-					<div className="flex items-center gap-3 mb-5">
-						<LayoutGrid className="w-4.5 h-4.5 text-accent" />
+					<div className="mb-5 rounded-2xl border border-border/60 bg-gradient-to-r from-accent/8 via-sky-50/80 to-surface dark:from-accent/15 dark:via-surface dark:to-surface px-5 py-4 flex items-center gap-4">
 						<div className="flex-1 min-w-0">
-							<h1 className="text-base font-bold text-foreground">工作台</h1>
-							<p className="text-[11px] text-muted">
+							<h1 className="text-lg font-bold text-foreground">
+								{greeting}，欢迎回到工作台
+							</h1>
+							<p className="text-[11px] text-muted mt-0.5">
+								{dateLabel} ·{" "}
 								{editing
 									? "拖拽卡片自由换位，可切换宽窄或隐藏"
 									: "跨模块汇总 · 自由组合你的关注面板"}
 							</p>
 						</div>
+						<div className="hidden sm:flex items-center gap-2 shrink-0">
+							{heroStats.map((stat) => (
+								<div
+									key={stat.label}
+									className="px-3 py-1.5 rounded-xl bg-surface/80 dark:bg-surface-secondary/60 border border-border/50 text-center"
+								>
+									<div className="text-sm font-bold font-mono text-foreground leading-tight">
+										{stat.value}
+									</div>
+									<div className="text-[9px] text-muted">{stat.label}</div>
+								</div>
+							))}
+						</div>
 						<button
 							type="button"
 							onClick={() => setEditing((v) => !v)}
-							className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+							className={`px-3.5 py-2 rounded-full text-xs font-medium transition-all cursor-pointer shrink-0 ${
 								editing
 									? "bg-accent text-accent-foreground"
-									: "bg-surface-secondary text-muted hover:text-foreground"
+									: "bg-surface border border-border/70 text-muted hover:text-foreground hover:border-accent/50 hover:text-accent"
 							}`}
 						>
 							{editing ? "完成" : "自定义布局"}

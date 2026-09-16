@@ -13,24 +13,24 @@ export function FolderShortcutsWidget({ summary }: DashboardWidgetProps) {
 		);
 	}
 	return (
-		<ul className="space-y-1">
+		<ul className="-mx-2">
 			{top.map((folder) => (
 				<li key={folder.id}>
 					<Link
 						to="/bookmarks"
-						className="flex items-center gap-2 group min-w-0 py-0.5"
+						className="flex items-center gap-2 group min-w-0 px-2 py-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-400/10 transition-colors"
 					>
 						<span
-							className="w-2 h-2 rounded-full shrink-0"
+							className="w-2.5 h-2.5 rounded-full shrink-0 ring-2 ring-surface"
 							style={{ backgroundColor: folder.color || "var(--accent)" }}
 						/>
-						<span className="text-xs text-foreground truncate group-hover:text-accent transition-colors">
+						<span className="text-xs text-foreground truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-300 transition-colors">
 							{folder.name}
 						</span>
 						<span className="text-[10px] text-muted shrink-0">
 							{resolveCategoryLabel(folder.category)}
 						</span>
-						<span className="ml-auto text-[10px] text-muted font-mono shrink-0">
+						<span className="ml-auto px-1.5 py-0.5 rounded-md bg-surface-secondary text-[10px] text-muted font-mono shrink-0">
 							{folder.itemCount} 条
 						</span>
 					</Link>

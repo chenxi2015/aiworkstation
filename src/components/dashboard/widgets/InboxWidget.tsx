@@ -7,9 +7,19 @@ export function InboxWidget({ unclassified }: DashboardWidgetProps) {
 	const count = unclassified.length;
 	return (
 		<div className="flex flex-col gap-2 h-full">
-			<div className="flex items-baseline gap-2">
+			<div
+				className={`flex items-baseline gap-2 rounded-xl px-3 py-2 ${
+					count > 0
+						? "bg-amber-50 dark:bg-amber-400/10"
+						: "bg-emerald-50 dark:bg-emerald-400/10"
+				}`}
+			>
 				<span
-					className={`text-3xl font-bold font-mono ${count > 0 ? "text-accent" : "text-foreground"}`}
+					className={`text-3xl font-bold font-mono ${
+						count > 0
+							? "text-amber-600 dark:text-amber-300"
+							: "text-emerald-600 dark:text-emerald-300"
+					}`}
 				>
 					{count}
 				</span>
@@ -35,7 +45,7 @@ export function InboxWidget({ unclassified }: DashboardWidgetProps) {
 			)}
 			<Link
 				to="/bookmarks"
-				className="mt-auto inline-flex items-center gap-1 text-[11px] font-medium text-accent hover:underline shrink-0"
+				className="mt-auto inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 hover:text-amber-700 dark:text-amber-300 dark:hover:text-amber-200 shrink-0"
 			>
 				去书签模块整理
 				<ArrowRight className="w-3 h-3" />
