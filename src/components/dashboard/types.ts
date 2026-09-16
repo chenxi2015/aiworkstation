@@ -33,6 +33,12 @@ export interface DocumentSummary {
 	updatedAt?: string;
 }
 
+/** 最近变更的 skill 摘要（dirPath 用于深链定位详情面板） */
+export interface SkillRecent {
+	name: string;
+	dirPath: string;
+}
+
 /** 跨模块聚合的工作台首页数据（getWorkbenchSummary 返回） */
 export interface WorkbenchSummary {
 	bookmarks: {
@@ -61,7 +67,7 @@ export interface WorkbenchSummary {
 		available: boolean;
 		total: number;
 		rootCount: number;
-		recentNames: string[];
+		recent: SkillRecent[];
 	};
 	health: {
 		/** 最近一次死链巡检发现的疑似失效链接数（无巡检记录为 null） */

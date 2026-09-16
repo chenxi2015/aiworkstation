@@ -1,8 +1,9 @@
 import { Link } from "@tanstack/react-router";
+import { MapPin } from "lucide-react";
 import { formatRelativeTime, hostOf } from "../format";
 import type { DashboardWidgetProps } from "./widgetProps";
 
-/** 最近收藏：全库最新入库的书签列表，点击直达原文 */
+/** 最近收藏：全库最新入库的书签列表，点击直达原文，图钉可定位到书签库 */
 export function RecentBookmarksWidget({ summary }: DashboardWidgetProps) {
 	const recent = summary.bookmarks.recent;
 	if (recent.length === 0) {
@@ -24,35 +25,46 @@ export function RecentBookmarksWidget({ summary }: DashboardWidgetProps) {
 		<ul className="-mx-2">
 			{recent.map((item) => (
 				<li key={item.id}>
-					<a
-						href={item.url}
-						target="_blank"
-						rel="noreferrer"
-						className="flex items-center gap-2.5 group min-w-0 px-2 py-1.5 rounded-lg hover:bg-sky-50 dark:hover:bg-sky-400/10 transition-colors"
-					>
-						{item.favicon ? (
-							<img
-								src={item.favicon}
-								alt=""
-								className="w-6 h-6 rounded-md bg-surface-secondary p-1 shrink-0"
-							/>
-						) : (
-							<span className="w-6 h-6 rounded-md bg-sky-100 text-sky-600 dark:bg-sky-400/15 dark:text-sky-300 text-[11px] font-bold flex items-center justify-center shrink-0">
-								{item.title.slice(0, 1)}
+					<div className="flex items-center gap-1 group min-w-0 px-2 py-1.5 rounded-lg hover:bg-sky-50 dark:hover:bg-sky-400/10 transition-colors">
+						<a
+							href={item.url}
+							target="_blank"
+							rel="noreferrer"
+							className="flex items-center gap-2.5 min-w-0 flex-1"
+							title={`打开原文：${item.title}`}
+						>
+							{item.favicon ? (
+								<img
+									src={item.favicon}
+									alt=""
+									className="w-6 h-6 rounded-md bg-surface-secondary p-1 shrink-0"
+								/>
+							) : (
+								<span className="w-6 h-6 rounded-md bg-sky-100 text-sky-600 dark:bg-sky-400/15 dark:text-sky-300 text-[11px] font-bold flex items-center justify-center shrink-0">
+									{item.title.slice(0, 1)}
+								</span>
+							)}
+							<span className="min-w-0 flex-1">
+								<span className="block text-xs text-foreground truncate group-hover:text-sky-600 dark:group-hover:text-sky-300 transition-colors">
+									{item.title}
+								</span>
+								<span className="block text-[10px] text-muted truncate font-mono">
+									{hostOf(item.url)}
+								</span>
 							</span>
-						)}
-						<span className="min-w-0 flex-1">
-							<span className="block text-xs text-foreground truncate group-hover:text-sky-600 dark:group-hover:text-sky-300 transition-colors">
-								{item.title}
-							</span>
-							<span className="block text-[10px] text-muted truncate font-mono">
-								{hostOf(item.url)}
-							</span>
-						</span>
+						</a>
+						<Link
+							to="/bookmarks"
+							search={{ item: item.id }}
+							title="在书签库中定位"
+							className="p-1 rounded-md text-muted/0 group-hover:text-muted hover:!text-sky-600 dark:hover:!text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-400/20 transition-colors shrink-0"
+						>
+							<MapPin className="w-3 h-3" />
+						</Link>
 						<span className="text-[10px] text-muted shrink-0">
 							{formatRelativeTime(item.createdAt)}
 						</span>
-					</a>
+					</div>
 				</li>
 			))}
 		</ul>

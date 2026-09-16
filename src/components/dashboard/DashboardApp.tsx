@@ -64,9 +64,14 @@ export function DashboardApp({
 }: DashboardAppProps) {
 	const { actionProps, modals } = useWorkbenchQuickActions({ folders });
 	const [editing, setEditing] = useState(false);
-	const [layout, setLayout] = useState<WorkbenchLayoutEntry[]>(
+	// 已保存布局（落库的那份）；编辑态下的改动只进 draftLayout，点「完成」才持久化
+	const [committedLayout, setCommittedLayout] = useState<WorkbenchLayoutEntry[]>(
 		() => settings.workbenchLayout ?? defaultLayout(),
 	);
+	const [draftLayout, setDraftLayout] = useState<WorkbenchLayoutEntry[] | null>(
+		null,
+	);
+	const layout = draftLayout ?? committedLayout;
 
 	const widgets = useMemo(() => resolveWorkbenchLayout(layout), [layout]);
 	const hiddenWidgets = useMemo(
@@ -78,12 +83,32 @@ export function DashboardApp({
 		[layout],
 	);
 
-	const persistLayout = useCallback(
+	const handleToggleEditing = useCallback(() => {
+		if (editing) {
+			// 完成 = 保存草稿并落库
+			if (draftLayout) {
+				setCommittedLayout(draftLayout);
+				saveSettings({ ...settings, workbenchLayout: draftLayout });
+			}
+			setDraftLayout(null);
+			setEditing(false);
+		} else {
+			setDraftLayout(committedLayout);
+			setEditing(true);
+		}
+	}, [editing, draftLayout, committedLayout, settings]);
+
+	// 取消 = 丢弃草稿，恢复到已保存布局
+	const handleCancelEditing = useCallback(() => {
+		setDraftLayout(null);
+		setEditing(false);
+	}, []);
+
+	const updateDraftLayout = useCallback(
 		(next: WorkbenchLayoutEntry[]) => {
-			setLayout(next);
-			saveSettings({ ...settings, workbenchLayout: next });
+			setDraftLayout(next);
 		},
-		[settings],
+		[],
 	);
 
 	// 拖拽换位：sortable 乐观排序在拖拽中已移动 DOM，dragend 按 visible 顺序提交，
@@ -99,13 +124,13 @@ export function DashboardApp({
 			if (index >= visible.length) return;
 			const reordered = arrayMove(visible, initialIndex, index);
 			const hidden = layout.filter((entry) => !entry.visible);
-			persistLayout([...reordered, ...hidden]);
+			updateDraftLayout([...reordered, ...hidden]);
 		},
-		[layout, persistLayout],
+		[layout, updateDraftLayout],
 	);
 
 	const patchWidget = (id: string, patch: Partial<WorkbenchLayoutEntry>) => {
-		persistLayout(
+		updateDraftLayout(
 			layout.map((entry) => (entry.id === id ? { ...entry, ...patch } : entry)),
 		);
 	};
@@ -153,10 +178,10 @@ export function DashboardApp({
 								{greeting}，欢迎回到工作台
 							</h1>
 							<p className="text-[11px] text-muted mt-0.5">
-								{dateLabel} ·{" "}
-								{editing
-									? "拖拽卡片自由换位，可切换宽窄或隐藏"
-									: "跨模块汇总 · 自由组合你的关注面板"}
+							{dateLabel} ·{" "}
+							{editing
+								? "拖拽卡片自由换位，点「完成」保存，点「取消」复原"
+								: "跨模块汇总 · 自由组合你的关注面板"}
 							</p>
 						</div>
 						<div className="hidden sm:flex items-center gap-2 shrink-0">
@@ -172,9 +197,18 @@ export function DashboardApp({
 								</div>
 							))}
 						</div>
+						{editing && (
+							<button
+								type="button"
+								onClick={handleCancelEditing}
+								className="px-3.5 py-2 rounded-full text-xs font-medium transition-all cursor-pointer shrink-0 bg-surface border border-border/70 text-muted hover:text-foreground"
+							>
+								取消
+							</button>
+						)}
 						<button
 							type="button"
-							onClick={() => setEditing((v) => !v)}
+							onClick={handleToggleEditing}
 							className={`px-3.5 py-2 rounded-full text-xs font-medium transition-all cursor-pointer shrink-0 ${
 								editing
 									? "bg-accent text-accent-foreground"
@@ -224,7 +258,7 @@ export function DashboardApp({
 							))}
 							<button
 								type="button"
-								onClick={() => persistLayout(defaultLayout())}
+								onClick={() => updateDraftLayout(defaultLayout())}
 								className="ml-auto inline-flex items-center gap-1 text-[11px] text-muted hover:text-danger cursor-pointer"
 							>
 								<X className="w-3 h-3" />

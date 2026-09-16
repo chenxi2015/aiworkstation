@@ -1,7 +1,7 @@
 import { toast } from "@heroui/react";
 import type { Editor } from "@tiptap/react";
 import { FileText, Sparkles, Square } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { NavLayoutEntry } from "../../modules/registry";
 import { updateDocumentRpc } from "../../services/api/editorClient";
 import { useWorkbenchQuickActions } from "../workbench/layout/useWorkbenchQuickActions";
@@ -26,6 +26,8 @@ export interface EditorAppProps {
 	unclassifiedCount: number;
 	navLayout?: NavLayoutEntry[];
 	folders: Folder[];
+	/** 深链：文档就绪后直接打开指定文档 */
+	initialDocId?: number;
 }
 
 /**
@@ -38,6 +40,7 @@ export function EditorApp({
 	unclassifiedCount,
 	navLayout,
 	folders,
+	initialDocId,
 }: EditorAppProps) {
 	const { actionProps, modals } = useWorkbenchQuickActions({ folders });
 	const docManager = useDocumentManager();
@@ -62,6 +65,16 @@ export function EditorApp({
 		handleInsertNewDocument,
 		reloadDocuments,
 	} = docManager;
+
+	// 深链直开：文档列表加载完成后切到指定文档（一次性）
+	const initialDocHandledRef = useRef(false);
+	useEffect(() => {
+		if (initialDocHandledRef.current || !initialDocId || loading) return;
+		if (documents.some((doc) => doc.id === initialDocId)) {
+			initialDocHandledRef.current = true;
+			void switchDocument(initialDocId);
+		}
+	}, [initialDocId, loading, documents, switchDocument]);
 
 	const {
 		currentMarkdown,

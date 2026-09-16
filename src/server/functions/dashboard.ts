@@ -80,7 +80,7 @@ export const getWorkbenchSummary = createServerFn({ method: "GET" }).handler(
 				recentDrafts: [],
 			},
 			editor: { total: 0, recent: [] },
-			skills: { available: false, total: 0, rootCount: 0, recentNames: [] },
+			skills: { available: false, total: 0, rootCount: 0, recent: [] },
 			health: { deadLinks: null },
 			generatedAt: new Date().toISOString(),
 		};
@@ -150,7 +150,9 @@ export const getWorkbenchSummary = createServerFn({ method: "GET" }).handler(
 				available: true,
 				total: overview.skills.length,
 				rootCount: overview.roots.filter((r) => r.exists).length,
-				recentNames: sorted.slice(0, 5).map((s) => s.name),
+				recent: sorted
+					.slice(0, 5)
+					.map((s) => ({ name: s.name, dirPath: s.dirPath })),
 			};
 		} catch (err) {
 			console.warn("[getWorkbenchSummary] skills error:", err);

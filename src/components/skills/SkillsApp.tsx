@@ -1,5 +1,5 @@
 import { Blocks, FolderOpen, RefreshCw, Search } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { NavLayoutEntry } from "../../modules/registry";
 import { fetchSkillsOverview } from "../../services/api/skillsClient";
 import { useWorkbenchQuickActions } from "../workbench/layout/useWorkbenchQuickActions";
@@ -13,6 +13,8 @@ export interface SkillsAppProps {
 	unclassifiedCount: number;
 	navLayout?: NavLayoutEntry[];
 	folders: Folder[];
+	/** 深链：扫描完成后直接打开该 skill（dirPath）的详情面板 */
+	initialSkillPath?: string;
 }
 
 const ALL_ROOTS = "__all__";
@@ -26,6 +28,7 @@ export function SkillsApp({
 	unclassifiedCount,
 	navLayout,
 	folders,
+	initialSkillPath,
 }: SkillsAppProps) {
 	const { actionProps, modals } = useWorkbenchQuickActions({ folders });
 	const [overview, setOverview] = useState<SkillsOverview | null>(null);
@@ -45,6 +48,21 @@ export function SkillsApp({
 	useEffect(() => {
 		load(false);
 	}, [load]);
+
+	// 深链直开：概览加载完成后按 dirPath 定位并打开详情面板（一次性）
+	const initialSkillHandledRef = useRef(false);
+	useEffect(() => {
+		if (initialSkillHandledRef.current || !initialSkillPath || !overview) {
+			return;
+		}
+		const target = overview.skills.find(
+			(skill) => skill.dirPath === initialSkillPath,
+		);
+		if (target) {
+			initialSkillHandledRef.current = true;
+			setSelected(target);
+		}
+	}, [initialSkillPath, overview]);
 
 	const filtered = useMemo(() => {
 		const skills = overview?.skills ?? [];

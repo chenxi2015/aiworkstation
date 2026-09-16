@@ -45,7 +45,7 @@ export const editorPrompt: ModulePromptDefinition = {
 5. **标题策划**：列出 3~5 个备选及推荐指数，调用 \`update_document_title\` 完成替换。`,
 	toolGuidelines: `## 创作模块工具速查
 
-| 工具 | 用途 | 备注 |
+| 工具名 | 用途 | 备注 |
 |------|------|------|
 | \`trigger_document_create\` | 从零新建并撰写文章 | 传 title, prompt, stylePreset |
 | \`trigger_paragraph_rewrite\` | 全文逐段流式改写/洗稿 | 仅整篇重构时使用 |

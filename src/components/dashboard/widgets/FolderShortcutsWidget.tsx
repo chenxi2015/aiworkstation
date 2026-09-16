@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { resolveCategoryLabel } from "../../../modules/registry";
 import type { DashboardWidgetProps } from "./widgetProps";
 
-/** 常用文件夹：按内容量排序的文件夹速览，点击去书签模块浏览 */
+/** 常用文件夹：按内容量排序的文件夹速览，点击直达书签模块对应文件夹 */
 export function FolderShortcutsWidget({ summary }: DashboardWidgetProps) {
 	const top = summary.folders.top;
 	if (top.length === 0) {
@@ -18,6 +18,8 @@ export function FolderShortcutsWidget({ summary }: DashboardWidgetProps) {
 				<li key={folder.id}>
 					<Link
 						to="/bookmarks"
+						search={{ folder: folder.id }}
+						title={`打开文件夹「${folder.name}」`}
 						className="flex items-center gap-2 group min-w-0 px-2 py-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-400/10 transition-colors"
 					>
 						<span

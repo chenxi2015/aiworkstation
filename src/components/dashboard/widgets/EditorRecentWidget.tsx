@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import {
 	documentStatusLabel,
 	documentStatusTone,
@@ -5,7 +6,7 @@ import {
 } from "../format";
 import type { DashboardWidgetProps } from "./widgetProps";
 
-/** 创作文档：最近编辑的创作台文档 */
+/** 创作文档：最近编辑的创作台文档，点击直接打开该文档 */
 export function EditorRecentWidget({ summary }: DashboardWidgetProps) {
 	const { total, recent } = summary.editor;
 	if (recent.length === 0) {
@@ -17,23 +18,36 @@ export function EditorRecentWidget({ summary }: DashboardWidgetProps) {
 	}
 	return (
 		<div className="flex flex-col gap-2 h-full">
-			<div className="text-[11px] text-muted">
+			<Link
+				to="/editor"
+				className="text-[11px] text-muted hover:text-emerald-600 dark:hover:text-emerald-300 transition-colors w-fit"
+			>
 				共 <span className="font-mono text-foreground">{total}</span> 篇文档
-			</div>
+			</Link>
 			<ul className="space-y-1.5 min-h-0 overflow-hidden">
 				{recent.map((doc) => (
-					<li key={doc.id} className="flex items-center gap-2 text-[11px]">
-						<span className="text-foreground truncate" title={doc.title}>
-							{doc.title}
-						</span>
-						<span
-							className={`ml-auto px-1.5 py-0.5 rounded-md text-[9px] font-medium shrink-0 ${documentStatusTone(doc.status)}`}
+					<li key={doc.id}>
+						<Link
+							to="/editor"
+							search={{ doc: doc.id }}
+							title={`打开文档：${doc.title}`}
+							className="flex items-center gap-2 text-[11px] rounded-lg px-1.5 -mx-1.5 py-0.5 hover:bg-emerald-50 dark:hover:bg-emerald-400/10 transition-colors group"
 						>
-							{documentStatusLabel(doc.status)}
-						</span>
-						<span className="text-muted shrink-0 text-[10px]">
-							{formatRelativeTime(doc.updatedAt)}
-						</span>
+							<span
+								className="text-foreground truncate group-hover:text-emerald-600 dark:group-hover:text-emerald-300 transition-colors"
+								title={doc.title}
+							>
+								{doc.title}
+							</span>
+							<span
+								className={`ml-auto px-1.5 py-0.5 rounded-md text-[9px] font-medium shrink-0 ${documentStatusTone(doc.status)}`}
+							>
+								{documentStatusLabel(doc.status)}
+							</span>
+							<span className="text-muted shrink-0 text-[10px]">
+								{formatRelativeTime(doc.updatedAt)}
+							</span>
+						</Link>
 					</li>
 				))}
 			</ul>
