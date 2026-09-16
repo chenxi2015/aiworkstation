@@ -86,6 +86,8 @@ export const MERGE_HOLD_RADIUS_PX = 32;
 export function arrayMove<T>(list: T[], from: number, to: number): T[] {
 	const next = list.slice();
 	const [moved] = next.splice(from, 1);
+	// 越界下标 splice 会取出 undefined，绝不能把它插回数组（下游 for...of 会读到空洞）
+	if (moved === undefined) return list.slice();
 	next.splice(to, 0, moved);
 	return next;
 }

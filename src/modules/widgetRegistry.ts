@@ -139,15 +139,41 @@ export function resolveWorkbenchLayout(
 	const ordered: ResolvedWidget[] = [];
 	const seen = new Set<string>();
 	for (const entry of layout) {
-		if (!entry.visible) continue;
+		// 防御：持久化/拖拽产生的脏数据（空位、null）直接跳过，不阻断渲染
+		if (!entry) continue;
 		const def = getWidgetById(entry.id);
 		if (def && !seen.has(def.id)) {
-			ordered.push(toResolved(def, entry.wide));
+			// 隐藏的 widget 也标记 seen：保持隐藏，防止被末尾兜底逻辑重新追加成可见
 			seen.add(def.id);
+			if (entry.visible) ordered.push(toResolved(def, entry.wide));
 		}
 	}
 	for (const def of WORKBENCH_WIDGETS) {
 		if (!seen.has(def.id)) ordered.push(toResolved(def));
 	}
 	return ordered;
+}
+
+/**
+ * 归一化布局为「全量有序列表」：丢弃注册表已移除的脏 id，
+ * 追加注册表新增 widget（默认可见、跟随注册表默认宽窄）。
+ *
+ * 编辑态的拖拽下标按渲染列表（= 该列表中 visible 项的顺序）计算，
+ * 因此进入编辑前必须先归一化 —— 否则新增 widget 不在已存布局里，
+ * 渲染时被兜底追加到队尾，下标与布局数组错位，拖拽结果无法正确保存。
+ */
+export function normalizeWorkbenchLayout(
+	saved?: WorkbenchLayoutEntry[],
+): WorkbenchLayoutEntry[] {
+	const normalized: WorkbenchLayoutEntry[] = [];
+	const seen = new Set<string>();
+	for (const entry of saved ?? []) {
+		if (!entry || seen.has(entry.id) || !getWidgetById(entry.id)) continue;
+		seen.add(entry.id);
+		normalized.push({ id: entry.id, visible: entry.visible, wide: entry.wide });
+	}
+	for (const def of WORKBENCH_WIDGETS) {
+		if (!seen.has(def.id)) normalized.push({ id: def.id, visible: true });
+	}
+	return normalized;
 }

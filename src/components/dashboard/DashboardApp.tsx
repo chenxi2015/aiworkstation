@@ -4,6 +4,7 @@ import { Eye, X } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import {
 	getWidgetById,
+	normalizeWorkbenchLayout,
 	resolveWorkbenchLayout,
 	WORKBENCH_WIDGETS,
 	type WorkbenchLayoutEntry,
@@ -66,10 +67,10 @@ export function DashboardApp({
 }: DashboardAppProps) {
 	const { actionProps, modals } = useWorkbenchQuickActions({ folders });
 	const [editing, setEditing] = useState(false);
-	// 已保存布局（落库的那份）；编辑态下的改动只进 draftLayout，点「完成」才持久化
+	// 已保存布局（落库的那份）；归一化为全量列表，保证编辑态拖拽下标与渲染列表对齐
 	const [committedLayout, setCommittedLayout] = useState<
 		WorkbenchLayoutEntry[]
-	>(() => settings.workbenchLayout ?? defaultLayout());
+	>(() => normalizeWorkbenchLayout(settings.workbenchLayout));
 	const [draftLayout, setDraftLayout] = useState<WorkbenchLayoutEntry[] | null>(
 		null,
 	);
@@ -118,9 +119,12 @@ export function DashboardApp({
 			const { source } = event.operation;
 			if (!source || !isSortable(source)) return;
 			const { initialIndex, index } = source.sortable;
-			if (initialIndex === index || initialIndex < 0 || index < 0) return;
+			if (initialIndex === index) return;
+			// 下标必须是落在可见列表内的有限整数，异常拖拽事件直接忽略
+			if (!Number.isInteger(initialIndex) || !Number.isInteger(index)) return;
 			const visible = layout.filter((entry) => entry.visible);
-			if (index >= visible.length) return;
+			if (initialIndex < 0 || index < 0) return;
+			if (initialIndex >= visible.length || index >= visible.length) return;
 			const reordered = arrayMove(visible, initialIndex, index);
 			const hidden = layout.filter((entry) => !entry.visible);
 			updateDraftLayout([...reordered, ...hidden]);

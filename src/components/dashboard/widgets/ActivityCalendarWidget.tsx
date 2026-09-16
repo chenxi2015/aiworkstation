@@ -18,24 +18,24 @@ const KIND_META: Record<
 > = {
 	bookmark: {
 		label: "收藏",
-		dot: "bg-sky-400",
+		dot: "bg-sky-600 dark:bg-sky-400",
 		badge: "bg-sky-100 text-sky-700 dark:bg-sky-400/15 dark:text-sky-300",
 	},
 	material: {
 		label: "素材",
-		dot: "bg-amber-400",
+		dot: "bg-amber-600 dark:bg-amber-400",
 		badge:
 			"bg-amber-100 text-amber-700 dark:bg-amber-400/15 dark:text-amber-300",
 	},
 	draft: {
 		label: "二创",
-		dot: "bg-violet-400",
+		dot: "bg-violet-600 dark:bg-violet-400",
 		badge:
 			"bg-violet-100 text-violet-700 dark:bg-violet-400/15 dark:text-violet-300",
 	},
 	document: {
 		label: "创作",
-		dot: "bg-emerald-400",
+		dot: "bg-emerald-700 dark:bg-emerald-300",
 		badge:
 			"bg-emerald-100 text-emerald-700 dark:bg-emerald-400/15 dark:text-emerald-300",
 	},
@@ -100,6 +100,8 @@ export function ActivityCalendarWidget({ summary }: DashboardWidgetProps) {
 
 	const [selected, setSelected] = useState<CalendarDate | null>(todayDate);
 	const [focused, setFocused] = useState<CalendarDate>(todayDate);
+	/** 已展开「全部事件」的日期（换日期自动收回预览态） */
+	const [expandedFor, setExpandedFor] = useState<string | null>(null);
 
 	const goToday = () => {
 		setSelected(todayDate);
@@ -111,6 +113,13 @@ export function ActivityCalendarWidget({ summary }: DashboardWidgetProps) {
 	const selectedLabel = selected
 		? `${selected.month}月${selected.day}日`
 		: "未选择日期";
+	const expanded = expandedFor === selectedStr;
+	/** 预览态只显示前几条，点「其余 N 条」展开后在面板内滚动 */
+	const PREVIEW_COUNT = 8;
+	const visibleEvents =
+		selectedDay && !expanded
+			? selectedDay.events.slice(0, PREVIEW_COUNT)
+			: (selectedDay?.events ?? []);
 
 	return (
 		<div className="flex flex-col gap-3 h-full">
@@ -175,12 +184,16 @@ export function ActivityCalendarWidget({ summary }: DashboardWidgetProps) {
 														{formattedDate}
 													</span>
 													{day && (
-														<span className="flex gap-0.5">
+														<span
+															className={`flex gap-[3px] items-center rounded-full px-[3px] py-[2px] ${
+																isSelected ? "" : "bg-white/80 dark:bg-black/35"
+															}`}
+														>
 															{KIND_ORDER.filter((k) => day.counts[k] > 0).map(
 																(k) => (
 																	<span
 																		key={k}
-																		className={`w-1 h-1 rounded-full ${
+																		className={`w-[5px] h-[5px] rounded-full ${
 																			isSelected
 																				? "bg-accent-foreground"
 																				: KIND_META[k].dot
@@ -201,7 +214,7 @@ export function ActivityCalendarWidget({ summary }: DashboardWidgetProps) {
 				</I18nProvider>
 
 				{/* 当日任务明细 */}
-				<div className="flex-1 min-w-0 min-h-0 flex flex-col rounded-xl border border-border/50 bg-surface/60 dark:bg-surface-secondary/30">
+				<div className="flex-1 min-w-0 min-h-0 max-h-80 flex flex-col rounded-xl border border-border/50 bg-surface/60 dark:bg-surface-secondary/30">
 					<div className="flex items-center gap-2 px-3 py-2 border-b border-border/40 shrink-0">
 						<span className="text-xs font-semibold">{selectedLabel}</span>
 						{selectedDay ? (
@@ -221,9 +234,9 @@ export function ActivityCalendarWidget({ summary }: DashboardWidgetProps) {
 							<span className="text-[10px] text-muted">无记录</span>
 						)}
 					</div>
-					{selectedDay && selectedDay.events.length > 0 ? (
+					{selectedDay && visibleEvents.length > 0 ? (
 						<ul className="flex-1 min-h-0 overflow-y-auto px-2 py-1.5 space-y-0.5">
-							{selectedDay.events.map((event) => {
+							{visibleEvents.map((event) => {
 								const meta = KIND_META[event.kind];
 								const link = eventLink(event.kind, event.id);
 								return (
@@ -249,17 +262,35 @@ export function ActivityCalendarWidget({ summary }: DashboardWidgetProps) {
 									</li>
 								);
 							})}
-							{selectedDay.total > selectedDay.events.length && (
+							{!expanded &&
+								selectedDay.events.length > visibleEvents.length && (
+									<li>
+										<button
+											type="button"
+											onClick={() => setExpandedFor(selectedStr)}
+											className="w-full px-1.5 py-1 rounded-md text-[10px] text-accent hover:bg-surface-secondary cursor-pointer transition-colors"
+										>
+											… 展开其余{" "}
+											{selectedDay.events.length - visibleEvents.length} 条
+										</button>
+									</li>
+								)}
+							{expanded && selectedDay.total > selectedDay.events.length && (
 								<li className="px-1.5 py-1 text-[10px] text-muted">
-									… 其余 {selectedDay.total - selectedDay.events.length} 条略
+									… 另有 {selectedDay.total - selectedDay.events.length}{" "}
+									条未加载（单日最多加载 50 条明细）
 								</li>
 							)}
 						</ul>
 					) : (
-						<p className="flex-1 min-h-24 flex items-center justify-center gap-1.5 text-[11px] text-muted">
-							<Inbox className="w-3.5 h-3.5" />
-							当天没有收藏、素材、二创或创作记录
-						</p>
+						<div className="flex-1 min-h-24 flex flex-col items-center justify-center gap-2 p-4 text-center select-none">
+							<div className="w-8 h-8 rounded-full bg-surface-secondary flex items-center justify-center text-muted/70">
+								<Inbox className="w-4 h-4" />
+							</div>
+							<p className="text-[11px] text-muted">
+								当天没有收藏、素材、二创或创作记录
+							</p>
+						</div>
 					)}
 				</div>
 			</div>

@@ -70,8 +70,8 @@ function countRows(sql: string): number {
 
 /** 活动日历聚合范围：最近 26 周（约半年），与 GitHub 热点图的半年视图对齐 */
 const ACTIVITY_DAYS = 183;
-/** 单日事件明细上限（日历卡片只展示前几条的预览体量） */
-const ACTIVITY_EVENTS_PER_DAY = 8;
+/** 单日事件明细上限（日历面板可展开滚动查看；批量导入日可能上千条，仍需封顶控制载荷） */
+const ACTIVITY_EVENTS_PER_DAY = 50;
 
 const ACTIVITY_COUNT_QUERIES: Record<ActivityKind, string> = {
 	bookmark: `SELECT date(created_at) AS d, COUNT(*) AS n FROM bookmarks
