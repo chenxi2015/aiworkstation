@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { DashboardApp } from "../components/dashboard/DashboardApp";
-import { ModuleSkeleton } from "../components/workbench/skeletons";
+import { DashboardSkeleton } from "../components/workbench/skeletons";
 import { getWorkbenchSummary } from "../server/functions/dashboard";
 import { workbenchLoader } from "./-workbenchLoader";
 
@@ -12,7 +12,7 @@ export const Route = createFileRoute("/workbench")({
 		]);
 		return { ...base, summary };
 	},
-	pendingComponent: ModuleSkeleton,
+	pendingComponent: DashboardSkeleton,
 	pendingMs: 200,
 	component: WorkbenchPage,
 });
