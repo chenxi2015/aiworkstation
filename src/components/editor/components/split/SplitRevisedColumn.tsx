@@ -40,6 +40,8 @@ export interface SplitRevisedColumnProps {
 	canAccept?: boolean;
 	onAccept?: () => void;
 	onReject?: () => void;
+	/** 右侧 AI Agent 面板展开时隐藏 Dock 输入入口，仅保留流式状态 */
+	dockInputVisible?: boolean;
 }
 
 /**
@@ -76,6 +78,7 @@ export function SplitRevisedColumn({
 	canAccept,
 	onAccept,
 	onReject,
+	dockInputVisible = true,
 }: SplitRevisedColumnProps) {
 	return (
 		<section className="flex-1 flex flex-col min-w-0 bg-surface dark:bg-background relative">
@@ -163,6 +166,7 @@ export function SplitRevisedColumn({
 				canAccept={canAccept}
 				onAccept={onAccept}
 				onReject={onReject}
+				inputVisible={dockInputVisible}
 			/>
 
 			{/* Floating quick scroll arrows (top / bottom) on the right edge —

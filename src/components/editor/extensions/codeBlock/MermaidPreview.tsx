@@ -29,27 +29,34 @@ interface MermaidPreviewProps {
 	onDownloadSvgReady?: (handler: () => void) => void;
 }
 
-// Dedicated Mermaid instance with dark mode and transparent background
+// Dedicated Mermaid instance with a light, clean "AI-feel" theme and transparent background
 const mermaidPlugin = createMermaidPlugin({
 	config: {
 		startOnLoad: false,
-		theme: "dark",
-		darkMode: true,
+		theme: "base",
+		darkMode: false,
 		securityLevel: "loose",
 		fontFamily:
 			"ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
 		themeVariables: {
-			darkMode: true,
+			darkMode: false,
 			background: "transparent",
-			mainBkg: "#27272a",
-			nodeBorder: "#3f3f46",
-			primaryColor: "#2563eb",
-			primaryTextColor: "#f4f4f5",
-			primaryBorderColor: "#3b82f6",
-			lineColor: "#94a3b8",
-			secondaryColor: "#1e293b",
-			tertiaryColor: "#09090b",
-			textColor: "#f4f4f5",
+			mainBkg: "#ffffff",
+			nodeBorder: "#c7d2fe",
+			primaryColor: "#eef2ff",
+			primaryTextColor: "#334155",
+			primaryBorderColor: "#c7d2fe",
+			lineColor: "#b6bdd0",
+			secondaryColor: "#f5f3ff",
+			secondaryTextColor: "#334155",
+			secondaryBorderColor: "#ddd6fe",
+			tertiaryColor: "#f8fafc",
+			tertiaryTextColor: "#334155",
+			tertiaryBorderColor: "#e2e8f0",
+			clusterBkg: "#f8fafc",
+			clusterBorder: "#e2e8f0",
+			edgeLabelBackground: "#ffffff",
+			textColor: "#334155",
 			fontFamily: "ui-sans-serif, system-ui, sans-serif",
 			fontSize: "13px",
 		},
@@ -187,10 +194,20 @@ function DiagramViewport({
 			style={{ overscrollBehavior: "contain" }}
 			className={`relative w-full overflow-hidden select-none ${
 				isFullscreen
-					? "flex-1 w-full h-full bg-[#0d0d10] cursor-grab active:cursor-grabbing"
-					: "h-[280px] bg-[#1a1a1a]/60 cursor-grab active:cursor-grabbing rounded-b-xl"
+					? "flex-1 w-full h-full bg-[#fafbfe] cursor-grab active:cursor-grabbing"
+					: "h-[280px] bg-gradient-to-br from-[#f6f7fb] via-white to-[#f4f6fc] cursor-grab active:cursor-grabbing rounded-b-xl"
 			}`}
 		>
+			{/* Subtle dot-grid canvas backdrop */}
+			<div
+				className="absolute inset-0 pointer-events-none"
+				style={{
+					backgroundImage:
+						"radial-gradient(circle, rgba(148,163,184,0.28) 1px, transparent 1px)",
+					backgroundSize: "22px 22px",
+				}}
+			/>
+
 			{/* Draggable & Zoomable Canvas */}
 			<div
 				className="w-full h-full flex items-center justify-center pointer-events-none transition-transform duration-75 ease-out"
@@ -206,12 +223,12 @@ function DiagramViewport({
 			</div>
 
 			{/* Floating Controls Capsule */}
-			<div className="absolute right-3 bottom-3 flex items-center gap-1 p-1 rounded-lg bg-zinc-900/85 backdrop-blur-md border border-zinc-700/60 shadow-lg text-zinc-300 z-10">
+			<div className="absolute right-3 bottom-3 flex items-center gap-1 p-1 rounded-full bg-white/90 backdrop-blur-md border border-zinc-200/90 shadow-[0_2px_10px_rgba(15,23,42,0.08)] text-zinc-500 z-10">
 				<button
 					type="button"
 					onClick={handleZoomIn}
 					title="放大图表 (也可使用鼠标滚轮)"
-					className="p-1.5 rounded hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 transition-colors cursor-pointer"
+					className="p-1.5 rounded-full hover:bg-zinc-100 text-zinc-500 hover:text-zinc-800 transition-colors cursor-pointer"
 				>
 					<ZoomIn className="w-3.5 h-3.5" />
 				</button>
@@ -219,7 +236,7 @@ function DiagramViewport({
 					type="button"
 					onClick={handleZoomOut}
 					title="缩小图表 (也可使用鼠标滚轮)"
-					className="p-1.5 rounded hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 transition-colors cursor-pointer"
+					className="p-1.5 rounded-full hover:bg-zinc-100 text-zinc-500 hover:text-zinc-800 transition-colors cursor-pointer"
 				>
 					<ZoomOut className="w-3.5 h-3.5" />
 				</button>
@@ -227,20 +244,20 @@ function DiagramViewport({
 					type="button"
 					onClick={handleReset}
 					title={`复位比例 (${Math.round(scale * 100)}%) - 也可双击画布复位`}
-					className="px-1.5 py-0.5 rounded hover:bg-zinc-800 text-[11px] font-mono text-zinc-300 hover:text-zinc-100 transition-colors flex items-center gap-1 cursor-pointer"
+					className="px-1.5 py-0.5 rounded-full hover:bg-zinc-100 text-[11px] font-mono text-zinc-500 hover:text-zinc-800 transition-colors flex items-center gap-1 cursor-pointer"
 				>
 					<RotateCcw className="w-3 h-3" />
 					<span>{Math.round(scale * 100)}%</span>
 				</button>
 
-				<div className="w-[1px] h-3.5 bg-zinc-700 mx-0.5" />
+				<div className="w-[1px] h-3.5 bg-zinc-200 mx-0.5" />
 
 				{onDownloadSvg && (
 					<button
 						type="button"
 						onClick={onDownloadSvg}
 						title="下载为 SVG 矢量图"
-						className="p-1.5 rounded hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 transition-colors cursor-pointer"
+						className="p-1.5 rounded-full hover:bg-zinc-100 text-zinc-500 hover:text-zinc-800 transition-colors cursor-pointer"
 					>
 						<Download className="w-3.5 h-3.5" />
 					</button>
@@ -251,7 +268,7 @@ function DiagramViewport({
 						type="button"
 						onClick={onOpenFullscreen}
 						title="全屏放大查看"
-						className="p-1.5 rounded hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 transition-colors cursor-pointer"
+						className="p-1.5 rounded-full hover:bg-zinc-100 text-zinc-500 hover:text-zinc-800 transition-colors cursor-pointer"
 					>
 						<Maximize2 className="w-3.5 h-3.5" />
 					</button>
@@ -262,7 +279,7 @@ function DiagramViewport({
 						type="button"
 						onClick={onCloseFullscreen}
 						title="退出全屏 (ESC)"
-						className="p-1.5 rounded hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 transition-colors cursor-pointer"
+						className="p-1.5 rounded-full hover:bg-zinc-100 text-zinc-500 hover:text-zinc-800 transition-colors cursor-pointer"
 					>
 						<X className="w-3.5 h-3.5" />
 					</button>

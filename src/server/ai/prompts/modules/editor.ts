@@ -18,12 +18,15 @@ export const editorPrompt: ModulePromptDefinition = {
 | 配图 / 插入段落 / 插入图表 / 加 Mermaid | \`insert_document_block\` | trigger_paragraph_rewrite |
 | 润色 / 修改 / 纠错某一段 | \`edit_document_paragraph\` | trigger_paragraph_rewrite |
 | 起标题 / 改标题 | \`update_document_title\` | — |
-| 绘制架构图 / 流程图 / 时序图 | \`generate_mermaid_diagram\` | — |
+| 绘制架构图 / 流程图 / 时序图（逻辑关系类图形） | \`generate_mermaid_diagram\` | — |
+| 数据对比 / 趋势 / 占比做成可视化图表 | \`generate_data_chart\` | — |
 
 **关键规则**：
 - \`trigger_paragraph_rewrite\` 仅在用户明确要求「整篇」洗稿/重构时触发，任何局部操作（配图、插段、改段）严禁使用。
 - 新建文章时，先在回复中给出结构构思与亮点剖析，再调用工具。
 - 全篇洗稿时，先输出审稿意见与重构策略，再调用工具。
+- 图表工具分流：**数据类**（数值对比、趋势、占比、多维评分）用 \`generate_data_chart\`；**逻辑类**（流程、架构、时序、状态）用 \`generate_mermaid_diagram\`，两者不可混用。
+- 调用 \`generate_data_chart\` 前，先从素材或上下文中核实数据来源；数据为估算时，必须在图表前后的行文中注明口径。
 
 ## 多媒体资产守恒规则
 
@@ -52,7 +55,8 @@ export const editorPrompt: ModulePromptDefinition = {
 | \`insert_document_block\` | 局部插图/插段/插 Mermaid | 传 targetAnchor, position, blockType, content |
 | \`edit_document_paragraph\` | 定向段落修改/精修 | 传 targetParagraphSnippet, newParagraphContent |
 | \`update_document_title\` | 修改文档标题 | — |
-| \`generate_mermaid_diagram\` | 绘制架构/流程/时序图 | 自动插入正文 |
+| \`generate_mermaid_diagram\` | 绘制架构/流程/时序图（逻辑类） | 自动插入正文 |
+| \`generate_data_chart\` | 生成数据图表（柱状/折线/面积/饼图/雷达） | 传 chartType, categories, series，自动插入正文 |
 | \`read_document\` | 读取文档正文 | 省略 documentId 读取当前活跃文档 |
 | \`list_documents\` | 检索文档列表 | 查找历史草稿 |
 | \`web_search\` | 联网搜索全网资料 | 查证论据、了解行业动态 |

@@ -25,6 +25,11 @@ export interface SplitFloatingPromptDockProps {
 	canAccept?: boolean;
 	onAccept?: () => void;
 	onReject?: () => void;
+	/**
+	 * 是否展示输入胶囊与审核条。右侧完整 AI Agent 面板展开时传 false：
+	 * 浮动 Dock 退化为纯流式状态指示（含停止按钮），避免两个 AI 入口并存
+	 */
+	inputVisible?: boolean;
 }
 
 const MODE_ICONS: Record<string, React.ReactNode> = {
@@ -52,6 +57,7 @@ export function SplitFloatingPromptDock({
 	canAccept,
 	onAccept,
 	onReject,
+	inputVisible = true,
 }: SplitFloatingPromptDockProps) {
 	const [menuOpen, setMenuOpen] = useState(false);
 	const [reviewDismissed, setReviewDismissed] = useState(false);
@@ -95,7 +101,11 @@ export function SplitFloatingPromptDock({
 		}
 	};
 
-	const showReviewBar = !isStreaming && canAccept && !reviewDismissed;
+	const showReviewBar =
+		inputVisible && !isStreaming && canAccept && !reviewDismissed;
+
+	// 面板展开时代理输入入口：非流式期间整个 Dock 退场
+	if (!inputVisible && !isStreaming) return null;
 
 	return (
 		<div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-30 w-[min(560px,92%)] select-none">

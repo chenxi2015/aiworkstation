@@ -430,15 +430,15 @@ export const insertDocumentBlockInputSchema = z.object({
 		.default("after")
 		.describe("相对于锚点的位置：before(前) / after(后) / append(文章末尾)"),
 	blockType: z
-		.enum(["paragraph", "image", "mermaid", "heading", "blockquote"])
+		.enum(["paragraph", "image", "mermaid", "chart", "heading", "blockquote"])
 		.default("paragraph")
 		.describe(
-			"插入的块类型：paragraph(普通段落) / image(图片) / mermaid(架构/流程图) / heading(小标题) / blockquote(引述)",
+			"插入的块类型：paragraph(普通段落) / image(图片) / mermaid(架构/流程图) / chart(数据图表) / heading(小标题) / blockquote(引述)",
 		),
 	content: z
 		.string()
 		.describe(
-			"要插入的具体内容。如果是图片可传入 URL 或 ![alt](url)；如果是 mermaid 可传入 mermaid 代码或 ```mermaid 代码块；如果是段落传入 Markdown 文本",
+			"要插入的具体内容。如果是图片可传入 URL 或 ![alt](url)；如果是 mermaid 可传入 mermaid 代码或 ```mermaid 代码块；如果是 chart 可传入图表 spec JSON 或 ```chart 代码块；如果是段落传入 Markdown 文本",
 		),
 	caption: z.string().optional().describe("可选的图片说明、图注或标题"),
 	snapshotNote: z
@@ -496,6 +496,10 @@ export function executeInsertDocumentBlock(
 	} else if (blockType === "mermaid") {
 		if (!rawMarkdown.startsWith("```mermaid")) {
 			rawMarkdown = `\`\`\`mermaid\n${rawMarkdown}\n\`\`\``;
+		}
+	} else if (blockType === "chart") {
+		if (!rawMarkdown.startsWith("```chart")) {
+			rawMarkdown = `\`\`\`chart\n${rawMarkdown}\n\`\`\``;
 		}
 	} else if (blockType === "heading" && !rawMarkdown.startsWith("#")) {
 		rawMarkdown = `### ${rawMarkdown}`;
@@ -587,7 +591,7 @@ export function executeInsertDocumentBlock(
 export const insertDocumentBlockToolDef = toolDefinition({
 	name: "insert_document_block",
 	description:
-		"在当前文档的指定位置（如某段话前/后或文末）精确插入新段落、插图、Mermaid 架构图/流程图、小标题或引用。当用户要求配图、补充某段分析、加图表或插内容时必须调用此工具，绝不要调用 trigger_paragraph_rewrite 全篇重写！",
+		"在当前文档的指定位置（如某段话前/后或文末）精确插入新段落、插图、Mermaid 架构图/流程图、数据图表（chart）、小标题或引用。当用户要求配图、补充某段分析、加图表或插内容时必须调用此工具，绝不要调用 trigger_paragraph_rewrite 全篇重写！数据图表优先使用 generate_data_chart 工具。",
 	inputSchema: insertDocumentBlockInputSchema,
 });
 

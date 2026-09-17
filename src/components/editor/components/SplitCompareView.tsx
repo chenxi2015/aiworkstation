@@ -1,3 +1,4 @@
+import { useAiPanel } from "../../shell/AppShell";
 import { EditorMediaContext } from "../extensions/MediaNodeView";
 import { SplitCompareHeader } from "./split/SplitCompareHeader";
 import { SplitOriginalColumn } from "./split/SplitOriginalColumn";
@@ -16,6 +17,9 @@ export type { SplitCompareViewProps };
  * - Floating AI dock at bottom right for continuous generation
  */
 export function SplitCompareView(props: SplitCompareViewProps) {
+	// 右侧完整 AI Agent 面板展开时，浮动 Dock 输入入口退场（简化版对话 → 完整 Agent 二选一）
+	const { isCollapsed: isAiPanelCollapsed } = useAiPanel();
+
 	const {
 		leftEditor,
 		docTitle,
@@ -140,6 +144,7 @@ export function SplitCompareView(props: SplitCompareViewProps) {
 						canAccept={canAccept}
 						onAccept={handleAccept}
 						onReject={onCancel}
+						dockInputVisible={isAiPanelCollapsed}
 					/>
 				</div>
 			</EditorMediaContext.Provider>

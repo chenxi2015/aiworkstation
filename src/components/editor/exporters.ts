@@ -16,6 +16,42 @@ const EXPORT_FONT_STACK =
 	'-apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
 
 /**
+ * 把 HTML 里的图表节点（div[data-chart]）离屏渲染成 PNG 图片替换：
+ * docx / html-to-image 都不认识 canvas，导出前必须转成静态图。
+ */
+async function embedChartsAsImages(htmlContent: string): Promise<string> {
+	if (!htmlContent.includes("data-chart")) return htmlContent;
+	const parser = new DOMParser();
+	const docDom = parser.parseFromString(
+		`<div>${htmlContent}</div>`,
+		"text/html",
+	);
+	const container = docDom.body.firstElementChild;
+	if (!container) return htmlContent;
+
+	const chartNodes = Array.from(container.querySelectorAll("div[data-chart]"));
+	if (chartNodes.length === 0) return htmlContent;
+
+	const { parseChartSpec, renderChartToDataURL } = await import(
+		"./extensions/chart/chartSpec"
+	);
+	for (const el of chartNodes) {
+		try {
+			const spec = parseChartSpec(el.getAttribute("data-spec"));
+			const dataUrl = await renderChartToDataURL(spec);
+			const img = docDom.createElement("img");
+			img.src = dataUrl;
+			img.style.cssText = "max-width: 100%; display: block; margin: 8px auto;";
+			el.replaceWith(img);
+		} catch {
+			// 渲染失败时移除占位，避免导出残留空容器
+			el.remove();
+		}
+	}
+	return container.innerHTML;
+}
+
+/**
  * 导出前预处理 HTML：
  * 1. unwrapContainers 时展开 section/div 包裹层（docx 无法识别嵌套卡片，需要摊平成
  *    h2/p/pre/ul 等基础标签；PDF 走 html2canvas 位图渲染，必须保留包裹层的内联样式）
@@ -60,7 +96,9 @@ export async function exportToWordDocx(
 	htmlContent: string,
 ): Promise<void> {
 	const safeTitle = title || "未命名文档";
-	const bodyHtml = preprocessHtmlForExport(htmlContent);
+	const bodyHtml = preprocessHtmlForExport(
+		await embedChartsAsImages(htmlContent),
+	);
 	const fullHtml = `<h1>${safeTitle}</h1>${bodyHtml}`;
 
 	// @turbodocx/html-to-docx 的浏览器构建在返回值检测处引用了裸 global，
@@ -93,9 +131,10 @@ export async function exportToPdf(
 	htmlContent: string,
 ): Promise<void> {
 	const safeTitle = title || "未命名文档";
-	const bodyHtml = preprocessHtmlForExport(htmlContent, {
-		unwrapContainers: false,
-	});
+	const bodyHtml = preprocessHtmlForExport(
+		await embedChartsAsImages(htmlContent),
+		{ unwrapContainers: false },
+	);
 
 	// 离屏元素会被浏览器跳过绘制导致空白输出，因此用全屏白底覆盖层
 	// 临时盖住页面渲染，生成完成后移除

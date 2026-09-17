@@ -10,6 +10,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { VideoNode } from "../videoNode";
 import { CodeBlockWithHighlight } from "./CodeBlockWithHighlight";
 import { CustomImage } from "./CustomImage";
+import { ChartNode } from "./chart/ChartNode";
 import { getStylePreservationExtensions } from "./stylePreservation";
 import { SuggestionDiffExtensions } from "./suggestionDiff";
 
@@ -36,6 +37,7 @@ export function getEditorBaseExtensions(options?: { placeholder?: string }) {
 			},
 		}),
 		VideoNode,
+		ChartNode,
 		Table.configure({
 			resizable: true,
 			cellMinWidth: 80,

@@ -4,6 +4,10 @@
  * Integrated into agentRunner when module === 'editor'.
  */
 import {
+	executeGenerateDataChart,
+	generateDataChartToolDef,
+} from "./tools/chartTool.ts";
+import {
 	editDocumentParagraphToolDef,
 	executeEditDocumentParagraph,
 	executeInsertDocumentBlock,
@@ -26,6 +30,7 @@ import {
 } from "./tools/mermaidTool.ts";
 import type { BookmarkToolHooks } from "./tools/types.ts";
 
+export * from "./tools/chartTool.ts";
 export * from "./tools/documentTools.ts";
 export * from "./tools/mermaidTool.ts";
 
@@ -107,6 +112,15 @@ export function createEditorServerTools(
 				"generate_mermaid_diagram",
 				args,
 				() => executeGenerateMermaidDiagram({ ...args, activeDocumentId }),
+				hooks,
+			),
+		),
+		// Data chart (bar/line/pie...) generation and insertion into document
+		generateDataChartToolDef.server((args) =>
+			wrapExecution(
+				"generate_data_chart",
+				args,
+				() => executeGenerateDataChart({ ...args, activeDocumentId }),
 				hooks,
 			),
 		),

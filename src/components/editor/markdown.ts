@@ -37,6 +37,40 @@ const HeadlessVideo = Node.create({
 });
 
 /**
+ * Headless Chart node definition for HTML/Markdown roundtrip serialization without React runtime.
+ * 与 ChartNode 属性结构保持一致（spec 为 JSON 字符串）。
+ */
+const HeadlessChart = Node.create({
+	name: "chart",
+	group: "block",
+	atom: true,
+	addAttributes() {
+		return {
+			spec: {
+				default: null,
+				parseHTML: (element) => element.getAttribute("data-spec"),
+				renderHTML: (attributes) =>
+					attributes.spec ? { "data-spec": attributes.spec } : {},
+			},
+			height: {
+				default: 320,
+				parseHTML: (element) =>
+					Number(element.getAttribute("data-height")) || 320,
+				renderHTML: (attributes) => ({
+					"data-height": String(attributes.height ?? 320),
+				}),
+			},
+		};
+	},
+	parseHTML() {
+		return [{ tag: "div[data-chart]" }];
+	},
+	renderHTML({ HTMLAttributes }) {
+		return ["div", mergeAttributes(HTMLAttributes, { "data-chart": "" })];
+	},
+});
+
+/**
  * Shared core extensions for TipTap schema and AST conversion (works isomorphically in Browser and Node.js)
  */
 export const coreConversionExtensions = [
@@ -55,9 +89,25 @@ export const coreConversionExtensions = [
 	}),
 	Image.configure({ inline: false, allowBase64: true }),
 	HeadlessVideo,
+	HeadlessChart,
 	...getStylePreservationExtensions(),
 	...SuggestionDiffExtensions,
 ];
+
+/**
+ * 把 language=chart 的代码块节点转换为 chart 节点
+ * （```chart 围栏代码块是图表的 Markdown 载体，见 tiptapJsonToMarkdown 的 nodeMapping）
+ */
+function convertChartCodeBlocks(node: JSONContent): JSONContent {
+	if (node.type === "codeBlock" && node.attrs?.language === "chart") {
+		const specText = node.content?.map((c) => c.text ?? "").join("") ?? "";
+		return { type: "chart", attrs: { spec: specText.trim(), height: 320 } };
+	}
+	if (node.content) {
+		return { ...node, content: node.content.map(convertChartCodeBlocks) };
+	}
+	return node;
+}
 
 /**
  * Converts Markdown text into clean HTML using marked with GFM support
@@ -81,6 +131,12 @@ export function tiptapJsonToMarkdown(doc: JSONContent): string {
 			extensions: coreConversionExtensions,
 			options: {
 				nodeMapping: {
+					// 图表序列化为 ```chart 围栏代码块，内容为 spec JSON，保证 Markdown 往返
+					chart({ node }) {
+						const spec =
+							typeof node.attrs?.spec === "string" ? node.attrs.spec : "";
+						return `\n\`\`\`chart\n${spec}\n\`\`\`\n`;
+					},
 					// static-renderer 默认 heading 直接把 children 数组插值进模板字符串，
 					// 多个内联子节点会被 Array.toString() 用逗号拼接（产生孤立的 ","），这里覆盖修正
 					heading({ node, children }) {
@@ -147,7 +203,9 @@ export function markdownToTiptapJson(markdown: string): JSONContent {
 	}
 	const html = markdownToHtml(markdown);
 	try {
-		const json = generateJSON(html, coreConversionExtensions);
+		const json = convertChartCodeBlocks(
+			generateJSON(html, coreConversionExtensions),
+		);
 		if (!json || !json.content || json.content.length === 0) {
 			return { type: "doc", content: [{ type: "paragraph" }] };
 		}

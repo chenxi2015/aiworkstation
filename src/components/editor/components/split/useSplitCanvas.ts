@@ -319,7 +319,8 @@ export function useSplitCanvas({
 	const isScrollingRef = useRef<"left" | "right" | null>(null);
 	const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const abortControllerRef = useRef<AbortController | null>(null);
-	const hasAutoTriggeredRef = useRef(false);
+	// 记录已自动触发的指令指纹：防止重复触发，但允许分栏已打开时 AI 下发新指令再次生成
+	const autoTriggeredKeyRef = useRef<string | null>(null);
 	// Right column scroll-follow state (AI assistant style: only stick to
 	// bottom while the user has not scrolled up)
 	const isRightAtBottomRef = useRef(true);
@@ -479,7 +480,7 @@ export function useSplitCanvas({
 					? `${preset.defaultHint}\n\n【用户补充的特别要求】：\n${promptExtra.trim()}`
 					: preset.defaultHint;
 			} else if (promptExtra.trim()) {
-				fullHint = `你是一名专业中文内容创作与编辑助手。请根据以下用户提出的明确要求，对正文进行深度针对性改写与优化：\n\n【用户明确要求】：\n${promptExtra.trim()}\n\n【配图保留铁律】：原文中若包含任何 Markdown 图片（形如 \`![说明](URL)\`）或多媒体，必须完整保留其链接并合理安排在改写后对应段落之间，严禁删除任何图片！直接输出改写优化后的全篇正文，不要包含任何前缀、问候或说明。`;
+				fullHint = `你是一名专业中文内容创作与编辑助手。请根据以下用户提出的明确要求，对正文进行深度针对性改写与优化：\n\n【用户明确要求】：\n${promptExtra.trim()}\n\n【输出形态契约（最高优先级）】：你的输出将直接渲染进富文本编辑器，只能二选一并全篇统一：A. 纯 Markdown 正文（默认，正文严禁出现任何 HTML 标签）；B. 仅当用户明确要求"网页排版/美化样式/HTML 排版"时，输出纯裸 HTML 排版文档（以 <section>/<div> 开头，通篇无 Markdown 语法、无代码围栏）。严禁 Markdown 散文与 HTML 片段混排，严禁用 \`\`\` 围栏包裹任何排版内容。\n\n【配图保留铁律】：原文中若包含任何 Markdown 图片（形如 \`![说明](URL)\`）或多媒体，必须完整保留其链接并合理安排在改写后对应段落之间，严禁删除任何图片！直接输出改写优化后的全篇正文，不要包含任何前缀、问候或说明。`;
 			} else {
 				fullHint = `你是一名资深文字编辑与内容优化大师。请对以下正文进行全面精细化润色与提升：纠正错别字、病句，优化行文结构与表达质感，提升逻辑流畅性。【配图保留铁律】：原文中若包含任何 Markdown 图片（形如 \`![说明](URL)\`）或多媒体，必须完整保留其链接并合理安排在对应段落中，严禁删除任何图片！直接输出优化后的全篇正文，不要包含任何前缀、问候或说明。`;
 			}
@@ -495,7 +496,10 @@ export function useSplitCanvas({
 					{
 						onChunk: (_delta, fullText) => {
 							try {
-								const normalizedText = normalizeAiGeneratedDocument(fullText);
+								const normalizedText = normalizeAiGeneratedDocument(
+									fullText,
+									baseContent,
+								);
 								const { nodes } = markdownToTiptapDoc(normalizedText);
 								const docJson: JSONContent = {
 									type: "doc",
@@ -519,7 +523,10 @@ export function useSplitCanvas({
 						},
 						onDone: async (fullText) => {
 							try {
-								const normalizedText = normalizeAiGeneratedDocument(fullText);
+								const normalizedText = normalizeAiGeneratedDocument(
+									fullText,
+									baseContent,
+								);
 								const { nodes } = markdownToTiptapDoc(normalizedText);
 
 								// Scan and retain original images
@@ -609,16 +616,21 @@ export function useSplitCanvas({
 
 	// Auto-trigger if opened with instruction
 	useEffect(() => {
-		if (hasAutoTriggeredRef.current) return;
-		if (instruction || modeLabel) {
-			hasAutoTriggeredRef.current = true;
-			const targetMode = modeLabel
-				? PRESET_MODES.find((m) => m.label === modeLabel)?.id || null
-				: null;
-			setSelectedMode(targetMode);
-			void handleStartGenerate(targetMode, instruction);
-		}
-	}, [instruction, modeLabel, handleStartGenerate]);
+		if (!instruction && !modeLabel) return;
+		// 右侧编辑器以 immediatelyRender: false 延迟创建，首帧仍为 null；
+		// 必须等实例就绪后再触发，否则 handleStartGenerate 静默 return 且不再重试
+		if (!rightEditor) return;
+		const triggerKey = `${modeLabel ?? ""}::${instruction ?? ""}`;
+		if (autoTriggeredKeyRef.current === triggerKey) return;
+		autoTriggeredKeyRef.current = triggerKey;
+		const targetMode = modeLabel
+			? PRESET_MODES.find((m) => m.label === modeLabel)?.id || null
+			: null;
+		setSelectedMode(targetMode);
+		// AI 指令直接用于本轮生成，清空输入框避免长文残留在 Dock 里
+		setCustomPrompt("");
+		void handleStartGenerate(targetMode, instruction);
+	}, [instruction, modeLabel, rightEditor, handleStartGenerate]);
 
 	// Clean up streaming on unmount
 	useEffect(() => {

@@ -72,6 +72,7 @@
     "clsx": "^2.1.1",
     "dayjs": "^1.11.23",
     "diff": "^9.0.0",
+    "echarts": "^6.1.0",
     "happy-dom": "^20.14.5",
     "highlight.js": "^11.12.0",
     "html-to-image": "^1.11.13",

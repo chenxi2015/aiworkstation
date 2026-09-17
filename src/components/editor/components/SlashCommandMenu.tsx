@@ -1,5 +1,6 @@
 import type { Editor, Range } from "@tiptap/core";
 import {
+	ChartColumn,
 	Code2,
 	CornerDownLeft,
 	Heading1,
@@ -66,14 +67,18 @@ export const SlashCommandMenu = forwardRef<
 				title: "正文",
 				description: "普通段落文本",
 				icon: Pilcrow,
-				keywords: ["p", "paragraph", "text", "zhengwen", "zw", "正文", "段落", "普通文本"],
+				keywords: [
+					"p",
+					"paragraph",
+					"text",
+					"zhengwen",
+					"zw",
+					"正文",
+					"段落",
+					"普通文本",
+				],
 				command: ({ editor, range }) => {
-					editor
-						.chain()
-						.focus()
-						.deleteRange(range)
-						.setParagraph()
-						.run();
+					editor.chain().focus().deleteRange(range).setParagraph().run();
 				},
 			},
 			{
@@ -173,6 +178,26 @@ export const SlashCommandMenu = forwardRef<
 						.deleteRange(range)
 						.insertTable({ rows: 3, cols: 3, withHeaderRow: true })
 						.run();
+				},
+			},
+			{
+				id: "chart",
+				title: "图表",
+				description: "插入柱状图 / 折线图 / 饼图等数据图表",
+				icon: ChartColumn,
+				keywords: [
+					"chart",
+					"graph",
+					"tubiao",
+					"tb",
+					"图表",
+					"柱状图",
+					"折线图",
+					"饼图",
+					"数据",
+				],
+				command: ({ editor, range }) => {
+					editor.chain().focus().deleteRange(range).insertChart().run();
 				},
 			},
 			{

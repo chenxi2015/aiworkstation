@@ -4,6 +4,7 @@ import type React from "react";
 import { useCallback, useRef, useState } from "react";
 import { streamRewriteText } from "../../../services/api/editorClient";
 import { markdownToHtml } from "../markdown";
+import { normalizeAiGeneratedDocument } from "../utils/aiOutputNormalizer";
 
 export interface ArticleCreationOptions {
 	editorRef: React.RefObject<Editor | null>;
@@ -58,7 +59,7 @@ export function useArticleCreationPipeline({
 						80
 					: false;
 
-				const html = markdownToHtml(text);
+				const html = markdownToHtml(normalizeAiGeneratedDocument(text));
 				editor.commands.setContent(html || "<p></p>", { emitUpdate: isFinal });
 
 				if (shouldFollow && scrollEl) {
@@ -133,7 +134,7 @@ export function useArticleCreationPipeline({
 			const systemHint = `你是一名顶级资深专栏作家与研究员。请根据用户给出的文章标题与创作要求，直接创作一篇深度长文。
 【格式排版铁律】：
 1. 采用规范的 Markdown 格式排版（加粗、引用、列表等），结构标题一律使用 ## / ### 等二级及以下标题；
-2. 严禁输出任何问候语、开场白、确认语（例如严禁输出“好的”、“我为你撰写如下”等）或尾部闲话；
+2. 输出形态全篇统一为纯 Markdown：正文任何位置严禁出现 HTML 标签，严禁用 \`\`\` 代码围栏包裹任何排版内容（真正的代码示例除外）；严禁输出任何问候语、开场白、确认语（例如严禁输出“好的”、“我为你撰写如下”等）或尾部闲话；
 3. 文章标题已由文档标题承载，正文开头严禁以一级标题（# ...）重复输出文章标题，第一行直接就是正文；
 4. 直接输出文章正文内容，保持文字质感饱满、论证严密、文风契合。`;
 

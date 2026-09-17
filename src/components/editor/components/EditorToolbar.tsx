@@ -1,6 +1,7 @@
 import type { Editor } from "@tiptap/react";
 import {
 	Bold,
+	ChartColumn,
 	Code,
 	Code2,
 	Eye,
@@ -210,6 +211,12 @@ export function EditorToolbar({
 								.insertTable({ rows: 3, cols: 3, withHeaderRow: true })
 								.run()
 						}
+					/>
+					<ToolButton
+						icon={ChartColumn}
+						label="插入图表"
+						active={editor.isActive("chart")}
+						onClick={() => editor.chain().focus().insertChart().run()}
 					/>
 					<Divider />
 					<div className="relative inline-block">

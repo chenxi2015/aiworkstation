@@ -10,6 +10,18 @@ export {
 } from "./CodeBlockWithHighlight";
 // Custom image extension
 export { CustomImage } from "./CustomImage";
+// Chart extensions
+export { ChartEditModal } from "./chart/ChartEditModal";
+export { ChartNode } from "./chart/ChartNode";
+export { ChartNodeView } from "./chart/ChartNodeView";
+export {
+	CHART_TYPE_OPTIONS,
+	type ChartSpec,
+	type ChartType,
+	DEFAULT_CHART_SPEC,
+	parseChartSpec,
+	serializeChartSpec,
+} from "./chart/chartSpec";
 export {
 	downloadFileToDisk,
 	EditorMediaContext,

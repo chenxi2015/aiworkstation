@@ -87,6 +87,7 @@ import {
 } from "./webSearchTool.ts";
 
 export * from "./addTagsToBookmarksTool.ts";
+export * from "./chartTool.ts";
 export * from "./crawlWebpageViaExtensionTool.ts";
 export * from "./createFolderTool.ts";
 export * from "./createTagsTool.ts";
