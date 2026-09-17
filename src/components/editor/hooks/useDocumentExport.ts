@@ -2,7 +2,12 @@ import { toast } from "@heroui/react";
 import TextAlign from "@tiptap/extension-text-align";
 import { renderToHTMLString } from "@tiptap/static-renderer/pm/html-string";
 import { useCallback, useMemo } from "react";
-import { exportToPdf, exportToWordDocx } from "../exporters";
+import {
+	embedRichBlocksAsImages,
+	embedRichBlocksInDoc,
+	exportToPdf,
+	exportToWordDocx,
+} from "../exporters";
 import { coreConversionExtensions, tiptapJsonToMarkdown } from "../markdown";
 import type { EditorDocument } from "../types";
 import { normalizeCodeCardDoc } from "../utils/codeCardNormalizer";
@@ -26,37 +31,79 @@ export interface UseDocumentExportOptions {
 	contentText: string;
 }
 
+/** 文档里是否含图表/Mermaid 等需要离屏渲染为图片的富媒体块 */
+function hasRichBlocks(docJsonString: string | undefined): boolean {
+	if (!docJsonString) return false;
+	return (
+		docJsonString.includes('"type":"chart"') ||
+		docJsonString.includes('"language":"mermaid"')
+	);
+}
+
 export function useDocumentExport({
 	activeDoc,
 	contentText,
 }: UseDocumentExportOptions) {
 	// biome-ignore lint/correctness/useExhaustiveDependencies: contentText triggers update
-	const currentMarkdown = useMemo(() => {
-		if (!activeDoc?.content) return "";
+	const parsedDoc = useMemo(() => {
+		if (!activeDoc?.content) return null;
 		try {
-			return tiptapJsonToMarkdown(
-				normalizeCodeCardDoc(JSON.parse(activeDoc.content)),
-			);
+			return normalizeCodeCardDoc(JSON.parse(activeDoc.content));
 		} catch {
-			return "";
+			return null;
 		}
 	}, [activeDoc?.content, contentText]);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: contentText triggers update
+	const currentMarkdown = useMemo(() => {
+		if (!parsedDoc) return "";
+		try {
+			return tiptapJsonToMarkdown(parsedDoc);
+		} catch {
+			return "";
+		}
+	}, [parsedDoc]);
+
 	const currentHtml = useMemo(() => {
-		if (!activeDoc?.content) return "";
+		if (!parsedDoc) return "";
 		try {
 			return renderToHTMLString({
-				content: normalizeCodeCardDoc(JSON.parse(activeDoc.content)),
+				content: parsedDoc,
 				extensions: EXPORT_EXTENSIONS,
 			});
 		} catch {
 			return "";
 		}
-	}, [activeDoc?.content, contentText]);
+	}, [parsedDoc]);
 
-	const buildHtmlDocument = useCallback(() => {
+	/**
+	 * 图表节点（ECharts canvas）与 Mermaid 代码块在导出目标里无法渲染，
+	 * 统一离屏渲染为高清 PNG 嵌入；Mermaid 按 viewBox 固有尺寸放大位图化，避免小图模糊。
+	 */
+	const buildEmbeddedHtml = useCallback(async (): Promise<string> => {
+		if (!currentHtml) return "";
+		if (!hasRichBlocks(activeDoc?.content)) return currentHtml;
+		try {
+			return await embedRichBlocksAsImages(currentHtml);
+		} catch {
+			return currentHtml;
+		}
+	}, [currentHtml, activeDoc?.content]);
+
+	/** Markdown 无法表达图表：chart/mermaid 节点替换为高清 PNG 图片后再序列化 */
+	const buildEmbeddedMarkdown = useCallback(async (): Promise<string> => {
+		if (!parsedDoc) return "";
+		if (!hasRichBlocks(activeDoc?.content)) return currentMarkdown;
+		try {
+			const embedded = await embedRichBlocksInDoc(parsedDoc);
+			return tiptapJsonToMarkdown(embedded);
+		} catch {
+			return currentMarkdown;
+		}
+	}, [parsedDoc, currentMarkdown, activeDoc?.content]);
+
+	const buildHtmlDocument = useCallback(async () => {
 		const title = activeDoc?.title || "未命名文档";
+		const bodyHtml = await buildEmbeddedHtml();
 		return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -76,10 +123,10 @@ pre { background: #f6f8fa; padding: 16px; border-radius: 8px; overflow-x: auto; 
 </style>
 </head>
 <body>
-${currentHtml}
+${bodyHtml}
 </body>
 </html>`;
-	}, [activeDoc?.title, currentHtml]);
+	}, [activeDoc?.title, buildEmbeddedHtml]);
 
 	const copyText = useCallback(async (text: string, label = "内容") => {
 		try {
@@ -94,7 +141,9 @@ ${currentHtml}
 	/** 复制富文本 HTML 到剪贴板（text/html + text/plain 双格式，可直接粘贴到公众号等编辑器） */
 	const copyHtml = useCallback(async () => {
 		const title = activeDoc?.title || "未命名文档";
-		const html = currentHtml;
+		const rich = hasRichBlocks(activeDoc?.content);
+		if (rich) toast.info("正在将图表渲染为图片…");
+		const html = await buildEmbeddedHtml();
 		if (!html) {
 			toast.danger("HTML 内容为空，无法复制");
 			return;
@@ -117,7 +166,16 @@ ${currentHtml}
 			console.error("Failed to copy HTML", e);
 			toast.danger("复制 HTML 失败，请重试");
 		}
-	}, [activeDoc, currentHtml, contentText]);
+	}, [activeDoc, buildEmbeddedHtml, contentText]);
+
+	/** 复制 Markdown（图表/Mermaid 渲染为高清图片嵌入） */
+	const copyMarkdown = useCallback(async () => {
+		if (!activeDoc) return;
+		const rich = hasRichBlocks(activeDoc.content);
+		if (rich) toast.info("正在将图表渲染为图片…");
+		const markdown = await buildEmbeddedMarkdown();
+		await copyText(markdown, "Markdown");
+	}, [activeDoc, buildEmbeddedMarkdown, copyText]);
 
 	const downloadFile = useCallback(
 		(filename: string, content: string, mime: string) => {
@@ -148,20 +206,26 @@ ${currentHtml}
 
 	const handleExportMarkdown = useCallback(() => {
 		if (!activeDoc) return;
-		downloadFile(
-			`${activeDoc.title || "未命名文档"}.md`,
-			currentMarkdown,
-			"text/markdown",
-		);
-	}, [activeDoc, currentMarkdown, downloadFile]);
+		const rich = hasRichBlocks(activeDoc.content);
+		if (rich) toast.info("正在将图表渲染为图片…");
+		void buildEmbeddedMarkdown().then((markdown) => {
+			downloadFile(
+				`${activeDoc.title || "未命名文档"}.md`,
+				markdown,
+				"text/markdown",
+			);
+		});
+	}, [activeDoc, buildEmbeddedMarkdown, downloadFile]);
 
 	const handleExportHtml = useCallback(() => {
 		if (!activeDoc) return;
-		downloadFile(
-			`${activeDoc.title || "未命名文档"}.html`,
-			buildHtmlDocument(),
-			"text/html",
-		);
+		void buildHtmlDocument().then((html) => {
+			downloadFile(
+				`${activeDoc.title || "未命名文档"}.html`,
+				html,
+				"text/html",
+			);
+		});
 	}, [activeDoc, buildHtmlDocument, downloadFile]);
 
 	const handleExportPdf = useCallback(async () => {
@@ -182,6 +246,7 @@ ${currentHtml}
 		buildHtmlDocument,
 		copyText,
 		copyHtml,
+		copyMarkdown,
 		downloadFile,
 		handleExportWord,
 		handleExportMarkdown,

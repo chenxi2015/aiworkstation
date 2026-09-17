@@ -81,6 +81,7 @@ export function EditorApp({
 		currentHtml,
 		copyText,
 		copyHtml,
+		copyMarkdown,
 		handleExportWord,
 		handleExportMarkdown,
 		handleExportHtml,
@@ -382,7 +383,6 @@ export function EditorApp({
 									saveState={saveState}
 									savedAt={savedAt}
 									contentText={contentText}
-									currentMarkdown={currentMarkdown}
 									onSnapshot={() => void handleSnapshot()}
 									onToggleFinalized={() =>
 										void handleStatusChange(
@@ -392,6 +392,7 @@ export function EditorApp({
 										)
 									}
 									onCopyText={copyText}
+									onCopyMarkdown={copyMarkdown}
 									onCopyHtml={copyHtml}
 									onExportWord={handleExportWord}
 									onExportMarkdown={handleExportMarkdown}

@@ -1,4 +1,3 @@
-import { createMermaidPlugin } from "@streamdown/mermaid";
 import {
 	AlertCircle,
 	Download,
@@ -10,15 +9,9 @@ import {
 	ZoomOut,
 } from "lucide-react";
 import type React from "react";
-import {
-	useCallback,
-	useEffect,
-	useId,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { renderMermaidToSvg } from "../../utils/mermaidRenderer";
 
 interface MermaidPreviewProps {
 	code: string;
@@ -28,42 +21,6 @@ interface MermaidPreviewProps {
 	onOpenFullscreen?: () => void;
 	onDownloadSvgReady?: (handler: () => void) => void;
 }
-
-// Dedicated Mermaid instance with a light, clean "AI-feel" theme and transparent background
-const mermaidPlugin = createMermaidPlugin({
-	config: {
-		startOnLoad: false,
-		theme: "base",
-		darkMode: false,
-		securityLevel: "loose",
-		fontFamily:
-			"ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
-		themeVariables: {
-			darkMode: false,
-			background: "transparent",
-			mainBkg: "#ffffff",
-			nodeBorder: "#c7d2fe",
-			primaryColor: "#eef2ff",
-			primaryTextColor: "#334155",
-			primaryBorderColor: "#c7d2fe",
-			lineColor: "#b6bdd0",
-			secondaryColor: "#f5f3ff",
-			secondaryTextColor: "#334155",
-			secondaryBorderColor: "#ddd6fe",
-			tertiaryColor: "#f8fafc",
-			tertiaryTextColor: "#334155",
-			tertiaryBorderColor: "#e2e8f0",
-			clusterBkg: "#f8fafc",
-			clusterBorder: "#e2e8f0",
-			edgeLabelBackground: "#ffffff",
-			textColor: "#334155",
-			fontFamily: "ui-sans-serif, system-ui, sans-serif",
-			fontSize: "13px",
-		},
-	},
-});
-
-const mermaidInstance = mermaidPlugin.getMermaid();
 
 /**
  * Safely extracts the primary SVG from Mermaid's render output,
@@ -81,8 +38,22 @@ function extractPrimarySvg(rawHtml: string): string {
 }
 
 /**
- * Interactive viewport supporting wheel zoom and mouse drag pan
+ * Interactive viewport supporting wheel zoom and drag pan.
+ *
+ * 性能与交互要点：
+ * - 变换状态放在 ref 里、直接写 DOM style，拖拽/滚轮不触发 React 重渲染（之前每次
+ *   mousemove 都 setState + 75ms transition，导致拖动明显卡顿）
+ * - 滚轮以光标为锚点缩放（focal-point zoom）
+ * - 缩放通过修改 SVG 元素的显示宽度实现（矢量重排），而不是 CSS transform scale——
+ *   后者是在已栅格化的合成层上拉伸，放大会模糊；改尺寸则任何倍率都清晰
  */
+
+// 缩小保留下限避免彻底丢失；放大上限同时受倍率与像素宽度约束
+// （SVG 按显示尺寸重栅格化，超过 ~16000px 浏览器层渲染会异常）
+const MIN_ZOOM_SCALE = 0.05;
+const MAX_ZOOM_SCALE = 30;
+const MAX_ZOOM_WIDTH_PX = 16000;
+
 function DiagramViewport({
 	svgHtml,
 	isFullscreen = false,
@@ -96,29 +67,84 @@ function DiagramViewport({
 	onOpenFullscreen?: () => void;
 	onDownloadSvg?: () => void;
 }) {
-	const [scale, setScale] = useState(1);
-	const [position, setPosition] = useState({ x: 0, y: 0 });
-	const [isDragging, setIsDragging] = useState(false);
-	const dragStartRef = useRef({ x: 0, y: 0 });
 	const containerRef = useRef<HTMLDivElement>(null);
+	const panRef = useRef<HTMLDivElement>(null);
 	const contentRef = useRef<HTMLDivElement>(null);
+	const scaleLabelRef = useRef<HTMLSpanElement>(null);
+	const baseSizeRef = useRef<{ width: number; height: number } | null>(null);
+	const viewRef = useRef({ scale: 1, x: 0, y: 0 });
+	const dragRef = useRef<{
+		pointerId: number;
+		startX: number;
+		startY: number;
+		baseX: number;
+		baseY: number;
+	} | null>(null);
+
+	const applyTransform = useCallback((animate = false) => {
+		const el = panRef.current;
+		if (!el) return;
+		const { scale, x, y } = viewRef.current;
+		el.style.transition = animate ? "transform 180ms ease-out" : "none";
+		// 平移走 transform（合成层位移，无重绘开销）
+		el.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+		// 缩放改 SVG 显示尺寸：矢量内容按新尺寸重排栅格化，任意倍率都清晰
+		const svgEl = contentRef.current?.querySelector("svg");
+		const base = baseSizeRef.current;
+		if (svgEl && base) {
+			svgEl.style.width = `${Math.round(base.width * scale)}px`;
+		}
+		if (scaleLabelRef.current) {
+			scaleLabelRef.current.textContent = `${Math.round(scale * 100)}%`;
+		}
+	}, []);
+
+	/** 以屏幕上某个点为锚点缩放（锚点下的内容保持不动） */
+	const zoomAt = useCallback(
+		(clientX: number, clientY: number, factor: number) => {
+			const container = containerRef.current;
+			if (!container) return;
+			const view = viewRef.current;
+			const base = baseSizeRef.current;
+			// 像素宽度上限折算为倍率上限，防止超大 SVG 栅格化失败
+			const scaleCap = base
+				? Math.min(MAX_ZOOM_SCALE, MAX_ZOOM_WIDTH_PX / base.width)
+				: MAX_ZOOM_SCALE;
+			const next = Math.min(
+				scaleCap,
+				Math.max(MIN_ZOOM_SCALE, view.scale * factor),
+			);
+			if (next === view.scale) return;
+			const rect = container.getBoundingClientRect();
+			// 内容经 flex 居中，变换原点即容器中心
+			const centerX = rect.left + rect.width / 2;
+			const centerY = rect.top + rect.height / 2;
+			const ratio = next / view.scale;
+			view.x = clientX - centerX - (clientX - centerX - view.x) * ratio;
+			view.y = clientY - centerY - (clientY - centerY - view.y) * ratio;
+			view.scale = next;
+			applyTransform();
+		},
+		[applyTransform],
+	);
+
+	const zoomFromCenter = useCallback(
+		(factor: number) => {
+			const rect = containerRef.current?.getBoundingClientRect();
+			if (!rect) return;
+			zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, factor);
+		},
+		[zoomAt],
+	);
 
 	// Reset view
 	const handleReset = useCallback(() => {
-		setScale(1);
-		setPosition({ x: 0, y: 0 });
-	}, []);
+		viewRef.current = { scale: 1, x: 0, y: 0 };
+		applyTransform(true);
+	}, [applyTransform]);
 
-	// Zoom controls
-	const handleZoomIn = useCallback(() => {
-		setScale((prev) => Math.min(prev * 1.25, 5));
-	}, []);
-
-	const handleZoomOut = useCallback(() => {
-		setScale((prev) => Math.max(prev * 0.8, 0.2));
-	}, []);
-
-	// Native non-passive wheel listener to strictly prevent browser page zoom
+	// Native non-passive wheel listener to strictly prevent browser page zoom.
+	// exp 衰减系数让触控板双指捏合/滚轮都平滑连续。
 	useEffect(() => {
 		const container = containerRef.current;
 		if (!container) return;
@@ -126,52 +152,83 @@ function DiagramViewport({
 		const handleNativeWheel = (e: WheelEvent) => {
 			e.preventDefault();
 			e.stopPropagation();
-			const zoomFactor = e.deltaY < 0 ? 1.15 : 0.85;
-			setScale((prev) => Math.min(Math.max(prev * zoomFactor, 0.2), 5));
+			zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * 0.0022));
 		};
 
 		container.addEventListener("wheel", handleNativeWheel, { passive: false });
 		return () => {
 			container.removeEventListener("wheel", handleNativeWheel);
 		};
-	}, []);
+	}, [zoomAt]);
 
-	// Drag to pan (prevent text selection & stop bubble to editor)
-	const handleMouseDown = (e: React.MouseEvent) => {
+	// Drag to pan via Pointer Events（pointer capture 保证拖出容器也不中断）
+	const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
 		if (e.button !== 0) return; // Primary button only
 		e.preventDefault();
 		e.stopPropagation();
-		setIsDragging(true);
-		dragStartRef.current = {
-			x: e.clientX - position.x,
-			y: e.clientY - position.y,
+		e.currentTarget.setPointerCapture(e.pointerId);
+		const view = viewRef.current;
+		dragRef.current = {
+			pointerId: e.pointerId,
+			startX: e.clientX,
+			startY: e.clientY,
+			baseX: view.x,
+			baseY: view.y,
 		};
 	};
 
-	const handleMouseMove = (e: React.MouseEvent) => {
-		if (!isDragging) return;
+	const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+		const drag = dragRef.current;
+		if (!drag || e.pointerId !== drag.pointerId) return;
 		e.preventDefault();
 		e.stopPropagation();
-		setPosition({
-			x: e.clientX - dragStartRef.current.x,
-			y: e.clientY - dragStartRef.current.y,
-		});
+		const view = viewRef.current;
+		view.x = drag.baseX + (e.clientX - drag.startX);
+		view.y = drag.baseY + (e.clientY - drag.startY);
+		applyTransform();
 	};
 
-	const handleMouseUp = (e: React.MouseEvent) => {
-		if (isDragging) {
-			e.preventDefault();
-			e.stopPropagation();
-			setIsDragging(false);
-		}
+	const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+		if (!dragRef.current) return;
+		e.preventDefault();
+		e.stopPropagation();
+		dragRef.current = null;
 	};
 
-	// Inject cleaned SVG into DOM ref
+	// Inject cleaned SVG into DOM ref（新图复位视角）
 	useEffect(() => {
-		if (contentRef.current) {
-			contentRef.current.innerHTML = svgHtml;
+		const host = contentRef.current;
+		if (host) {
+			host.innerHTML = svgHtml;
+			const svgEl = host.querySelector("svg");
+			if (svgEl) {
+				// 记录固有尺寸（viewBox 优先），作为缩放的基准宽度
+				const vb = svgEl.viewBox?.baseVal;
+				baseSizeRef.current =
+					vb && vb.width > 0 && vb.height > 0
+						? { width: vb.width, height: vb.height }
+						: null;
+				// mermaid 默认 width="100%" + max-width 内联样式，会限制放大，全部解除
+				svgEl.removeAttribute("width");
+				svgEl.style.maxWidth = "none";
+				svgEl.style.height = "auto";
+				if (!baseSizeRef.current) {
+					// 极少数无 viewBox 的 svg：按当前布局尺寸作为基准
+					const rect = svgEl.getBoundingClientRect();
+					if (rect.width > 0 && rect.height > 0) {
+						baseSizeRef.current = {
+							width: rect.width,
+							height: rect.height,
+						};
+					}
+				}
+			} else {
+				baseSizeRef.current = null;
+			}
 		}
-	}, [svgHtml]);
+		viewRef.current = { scale: 1, x: 0, y: 0 };
+		applyTransform();
+	}, [svgHtml, applyTransform]);
 
 	return (
 		// biome-ignore lint/a11y/noStaticElementInteractions: Diagram viewport interactive canvas
@@ -179,10 +236,10 @@ function DiagramViewport({
 		<div
 			ref={containerRef}
 			contentEditable={false}
-			onMouseDown={handleMouseDown}
-			onMouseMove={handleMouseMove}
-			onMouseUp={handleMouseUp}
-			onMouseLeave={handleMouseUp}
+			onPointerDown={handlePointerDown}
+			onPointerMove={handlePointerMove}
+			onPointerUp={handlePointerUp}
+			onPointerCancel={handlePointerUp}
 			onDoubleClick={(e) => {
 				e.preventDefault();
 				e.stopPropagation();
@@ -191,7 +248,7 @@ function DiagramViewport({
 			onClick={(e) => {
 				e.stopPropagation();
 			}}
-			style={{ overscrollBehavior: "contain" }}
+			style={{ overscrollBehavior: "contain", touchAction: "none" }}
 			className={`relative w-full overflow-hidden select-none ${
 				isFullscreen
 					? "flex-1 w-full h-full bg-[#fafbfe] cursor-grab active:cursor-grabbing"
@@ -210,11 +267,9 @@ function DiagramViewport({
 
 			{/* Draggable & Zoomable Canvas */}
 			<div
-				className="w-full h-full flex items-center justify-center pointer-events-none transition-transform duration-75 ease-out"
-				style={{
-					transform: `translate3d(${position.x}px, ${position.y}px, 0) scale(${scale})`,
-					transformOrigin: "center center",
-				}}
+				ref={panRef}
+				className="w-full h-full flex items-center justify-center pointer-events-none"
+				style={{ transformOrigin: "center center", willChange: "transform" }}
 			>
 				<div
 					ref={contentRef}
@@ -226,7 +281,7 @@ function DiagramViewport({
 			<div className="absolute right-3 bottom-3 flex items-center gap-1 p-1 rounded-full bg-white/90 backdrop-blur-md border border-zinc-200/90 shadow-[0_2px_10px_rgba(15,23,42,0.08)] text-zinc-500 z-10">
 				<button
 					type="button"
-					onClick={handleZoomIn}
+					onClick={() => zoomFromCenter(1.25)}
 					title="放大图表 (也可使用鼠标滚轮)"
 					className="p-1.5 rounded-full hover:bg-zinc-100 text-zinc-500 hover:text-zinc-800 transition-colors cursor-pointer"
 				>
@@ -234,7 +289,7 @@ function DiagramViewport({
 				</button>
 				<button
 					type="button"
-					onClick={handleZoomOut}
+					onClick={() => zoomFromCenter(0.8)}
 					title="缩小图表 (也可使用鼠标滚轮)"
 					className="p-1.5 rounded-full hover:bg-zinc-100 text-zinc-500 hover:text-zinc-800 transition-colors cursor-pointer"
 				>
@@ -243,11 +298,11 @@ function DiagramViewport({
 				<button
 					type="button"
 					onClick={handleReset}
-					title={`复位比例 (${Math.round(scale * 100)}%) - 也可双击画布复位`}
+					title="复位比例 - 也可双击画布复位"
 					className="px-1.5 py-0.5 rounded-full hover:bg-zinc-100 text-[11px] font-mono text-zinc-500 hover:text-zinc-800 transition-colors flex items-center gap-1 cursor-pointer"
 				>
 					<RotateCcw className="w-3 h-3" />
-					<span>{Math.round(scale * 100)}%</span>
+					<span ref={scaleLabelRef}>100%</span>
 				</button>
 
 				<div className="w-[1px] h-3.5 bg-zinc-200 mx-0.5" />
@@ -300,8 +355,6 @@ export function MermaidPreview({
 	const [svgHtml, setSvgHtml] = useState<string>("");
 	const [error, setError] = useState<string | null>(null);
 	const [isRendering, setIsRendering] = useState<boolean>(false);
-	const baseId = useId().replace(/[^a-zA-Z0-9]/g, "");
-
 	// Defensively decode HTML entities (e.g., &gt; -> >, &amp; -> &) to avoid lexical errors with arrows
 	const cleanCode = useMemo(() => {
 		let res = code || "";
@@ -327,24 +380,19 @@ export function MermaidPreview({
 		}
 
 		let isCurrent = true;
-		const renderId = `mermaid-${baseId}-${Date.now().toString(36)}`;
 		setIsRendering(true);
 
-		mermaidInstance
-			.render(renderId, cleanCode)
-			.then((result) => {
+		renderMermaidToSvg(cleanCode)
+			.then((svg) => {
 				if (!isCurrent) return;
 				// Filter out duplicate measurement artifacts
-				const cleanSvg = extractPrimarySvg(result.svg);
+				const cleanSvg = extractPrimarySvg(svg);
 				setSvgHtml(cleanSvg);
 				setError(null);
 				setIsRendering(false);
 			})
 			.catch((err) => {
 				if (!isCurrent) return;
-				const orphan = document.getElementById(`d${renderId}`);
-				if (orphan) orphan.remove();
-
 				const errMsg = err instanceof Error ? err.message : String(err);
 				setError(errMsg);
 				setIsRendering(false);
@@ -353,7 +401,7 @@ export function MermaidPreview({
 		return () => {
 			isCurrent = false;
 		};
-	}, [cleanCode, baseId]);
+	}, [cleanCode]);
 
 	// Expose SVG download function
 	const handleDownloadSvg = useCallback(() => {

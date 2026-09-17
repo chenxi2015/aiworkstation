@@ -1,3 +1,5 @@
+import type { JSONContent } from "@tiptap/core";
+
 /**
  * 触发浏览器端文件下载辅助函数
  */
@@ -16,11 +18,19 @@ const EXPORT_FONT_STACK =
 	'-apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
 
 /**
- * 把 HTML 里的图表节点（div[data-chart]）离屏渲染成 PNG 图片替换：
- * docx / html-to-image 都不认识 canvas，导出前必须转成静态图。
+ * 把 HTML 里的富媒体块离屏渲染成高清 PNG 图片替换：
+ * - div[data-chart]（ECharts 图表节点）——docx / html-to-image 都不认识 canvas
+ * - pre > code.language-mermaid（Mermaid 代码块）——导出目标无法渲染 mermaid 源码
  */
-async function embedChartsAsImages(htmlContent: string): Promise<string> {
-	if (!htmlContent.includes("data-chart")) return htmlContent;
+export async function embedRichBlocksAsImages(
+	htmlContent: string,
+): Promise<string> {
+	if (
+		!htmlContent.includes("data-chart") &&
+		!htmlContent.includes("language-mermaid")
+	) {
+		return htmlContent;
+	}
 	const parser = new DOMParser();
 	const docDom = parser.parseFromString(
 		`<div>${htmlContent}</div>`,
@@ -48,7 +58,84 @@ async function embedChartsAsImages(htmlContent: string): Promise<string> {
 			el.remove();
 		}
 	}
+
+	// Mermaid 代码块 → 高清 PNG（按 viewBox 固有尺寸放大渲染，避免小图模糊）
+	const mermaidBlocks = Array.from(
+		container.querySelectorAll("pre > code.language-mermaid"),
+	);
+	if (mermaidBlocks.length > 0) {
+		const { renderMermaidToPngDataURL } = await import(
+			"./utils/mermaidRenderer"
+		);
+		for (const codeEl of mermaidBlocks) {
+			const pre = codeEl.parentElement;
+			if (!pre) continue;
+			try {
+				const dataUrl = await renderMermaidToPngDataURL(
+					codeEl.textContent || "",
+				);
+				const img = docDom.createElement("img");
+				img.src = dataUrl;
+				img.alt = "Mermaid 图表";
+				img.style.cssText =
+					"max-width: 100%; display: block; margin: 8px auto;";
+				pre.replaceWith(img);
+			} catch {
+				// 渲染失败保留原始代码块，导出内容不丢失
+			}
+		}
+	}
 	return container.innerHTML;
+}
+
+/**
+ * 遍历 TipTap 文档 JSON，把 chart 节点与 mermaid 代码块替换为高清 PNG 图片节点，
+ * 供 Markdown 导出/复制使用（Markdown 无法表达图表，只能嵌图）。
+ * 渲染失败的节点保留原样，保证内容不丢失。
+ */
+export async function embedRichBlocksInDoc(
+	node: JSONContent,
+): Promise<JSONContent> {
+	if (node.type === "chart") {
+		try {
+			const { parseChartSpec, renderChartToDataURL } = await import(
+				"./extensions/chart/chartSpec"
+			);
+			const spec = parseChartSpec(node.attrs?.spec);
+			const dataUrl = await renderChartToDataURL(spec);
+			return {
+				type: "image",
+				attrs: { src: dataUrl, alt: spec.title || "图表" },
+			};
+		} catch {
+			return node;
+		}
+	}
+	if (
+		node.type === "codeBlock" &&
+		String(node.attrs?.language || "").toLowerCase() === "mermaid"
+	) {
+		const code = node.content?.map((c) => c.text ?? "").join("") ?? "";
+		try {
+			const { renderMermaidToPngDataURL } = await import(
+				"./utils/mermaidRenderer"
+			);
+			const dataUrl = await renderMermaidToPngDataURL(code);
+			return {
+				type: "image",
+				attrs: { src: dataUrl, alt: "Mermaid 图表" },
+			};
+		} catch {
+			return node;
+		}
+	}
+	if (node.content) {
+		return {
+			...node,
+			content: await Promise.all(node.content.map(embedRichBlocksInDoc)),
+		};
+	}
+	return node;
 }
 
 /**
@@ -97,7 +184,7 @@ export async function exportToWordDocx(
 ): Promise<void> {
 	const safeTitle = title || "未命名文档";
 	const bodyHtml = preprocessHtmlForExport(
-		await embedChartsAsImages(htmlContent),
+		await embedRichBlocksAsImages(htmlContent),
 	);
 	const fullHtml = `<h1>${safeTitle}</h1>${bodyHtml}`;
 
@@ -132,7 +219,7 @@ export async function exportToPdf(
 ): Promise<void> {
 	const safeTitle = title || "未命名文档";
 	const bodyHtml = preprocessHtmlForExport(
-		await embedChartsAsImages(htmlContent),
+		await embedRichBlocksAsImages(htmlContent),
 		{ unwrapContainers: false },
 	);
 

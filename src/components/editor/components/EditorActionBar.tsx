@@ -20,10 +20,10 @@ export interface EditorActionBarProps {
 	saveState: SaveState;
 	savedAt: string | null;
 	contentText: string;
-	currentMarkdown: string;
 	onSnapshot: () => void;
 	onToggleFinalized: () => void;
 	onCopyText: (text: string, label: string) => void;
+	onCopyMarkdown: () => void;
 	onCopyHtml: () => void;
 	onExportWord: () => void;
 	onExportMarkdown: () => void;
@@ -38,10 +38,10 @@ export function EditorActionBar({
 	saveState,
 	savedAt,
 	contentText,
-	currentMarkdown,
 	onSnapshot,
 	onToggleFinalized,
 	onCopyText,
+	onCopyMarkdown,
 	onCopyHtml,
 	onExportWord,
 	onExportMarkdown,
@@ -126,7 +126,7 @@ export function EditorActionBar({
 						<Dropdown.Item
 							id="copy-markdown"
 							textValue="复制 Markdown"
-							onAction={() => onCopyText(currentMarkdown, "Markdown")}
+							onAction={onCopyMarkdown}
 						>
 							<div className="flex items-center gap-2 w-full py-0.5">
 								<Copy className="w-3.5 h-3.5 text-muted shrink-0" />
