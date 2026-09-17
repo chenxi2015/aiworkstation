@@ -30,12 +30,14 @@ interface ScopeVisualStrategy {
 const SCOPE_STRATEGIES: Record<string, ScopeVisualStrategy> = {
 	folder: {
 		Icon: FolderIcon,
-		style: "bg-accent/10 text-accent border-accent/30 hover:bg-accent/20",
+		style:
+			"bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30 hover:bg-blue-500/20",
 		typeName: "文件夹",
 	},
 	document: {
 		Icon: FileText,
-		style: "bg-accent/10 text-accent border-accent/30 hover:bg-accent/20",
+		style:
+			"bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30 hover:bg-blue-500/20",
 		typeName: "文档",
 	},
 	material: {
@@ -48,7 +50,8 @@ const SCOPE_STRATEGIES: Record<string, ScopeVisualStrategy> = {
 
 const DEFAULT_STRATEGY: ScopeVisualStrategy = {
 	Icon: Layers,
-	style: "bg-accent/10 text-accent border-accent/30 hover:bg-accent/20",
+	style:
+		"bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30 hover:bg-blue-500/20",
 	typeName: "上下文",
 };
 

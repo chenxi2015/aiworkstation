@@ -74,6 +74,11 @@ import {
 	reorderFoldersInputSchema,
 	reorderFoldersToolDef,
 } from "./reorderFoldersTool.ts";
+import {
+	executeReadSkillResource,
+	readSkillResourceInputSchema,
+	readSkillResourceToolDef,
+} from "./skillResourceTool.ts";
 import type { BookmarkToolHooks, ToolExecutionResult } from "./types.ts";
 import {
 	executeUpdateFolder,
@@ -142,7 +147,10 @@ export async function wrapExecution<TArgs>(
 /**
  * Server Tools Factory: Create executable server tools with injected execution hooks
  */
-export function createBookmarkServerTools(hooks?: BookmarkToolHooks) {
+export function createBookmarkServerTools(
+	hooks?: BookmarkToolHooks,
+	activeSkillDir?: string,
+) {
 	return [
 		queryBookmarksToolDef.server((args) =>
 			wrapExecution(
@@ -232,6 +240,14 @@ export function createBookmarkServerTools(hooks?: BookmarkToolHooks) {
 				"crawl_webpage_via_extension",
 				args,
 				() => executeCrawlWebpageViaExtension(args),
+				hooks,
+			),
+		),
+		readSkillResourceToolDef.server((args) =>
+			wrapExecution(
+				"read_skill_resource",
+				args,
+				() => executeReadSkillResource(args, activeSkillDir),
 				hooks,
 			),
 		),
@@ -346,6 +362,11 @@ export async function executeBookmarkToolCall(
 		case "crawl_webpage_via_extension":
 			result = await executeCrawlWebpageViaExtension(
 				crawlWebpageViaExtensionInputSchema.parse(parsedArgs),
+			);
+			break;
+		case "read_skill_resource":
+			result = await executeReadSkillResource(
+				readSkillResourceInputSchema.parse(parsedArgs),
 			);
 			break;
 		case "web_search":

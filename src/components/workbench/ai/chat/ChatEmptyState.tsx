@@ -316,27 +316,27 @@ export const ChatEmptyState = memo(function ChatEmptyState({
 								className="w-full text-left flex items-start gap-3.5 py-2.5 px-3 rounded-xl hover:bg-surface-secondary/70 dark:hover:bg-neutral-800/60 cursor-pointer transition-colors group active:scale-[0.99]"
 							>
 								{/* Clean line-art icon */}
-								<div className="mt-0.5 text-foreground/80 group-hover:text-accent transition-colors shrink-0">
+								<div className="mt-0.5 text-foreground/80 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors shrink-0">
 									<ItemIcon className="w-4.5 h-4.5 stroke-[1.8]" />
 								</div>
 
 								{/* Content area */}
 								<div className="flex-1 min-w-0">
 									<div className="flex items-center justify-between gap-1.5">
-										<div className="text-xs font-semibold text-foreground group-hover:text-accent transition-colors flex items-center gap-1.5">
+										<div className="text-xs font-semibold text-foreground group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors flex items-center gap-1.5">
 											<span>{item.title}</span>
 											{item.badge && (
-												<span className="text-[10px] font-normal px-1.5 py-0.2 rounded-full bg-accent/10 text-accent border border-accent/20">
+												<span className="text-[10px] font-normal px-1.5 py-0.2 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
 													{item.badge}
 												</span>
 											)}
 										</div>
 										{item.actionText ? (
-											<span className="text-[11px] text-accent font-medium flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform shrink-0">
+											<span className="text-[11px] text-blue-600 dark:text-blue-400 font-medium flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform shrink-0">
 												{item.actionText}
 											</span>
 										) : (
-											<ArrowUpRight className="w-3.5 h-3.5 text-muted/30 group-hover:text-accent opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all shrink-0" />
+											<ArrowUpRight className="w-3.5 h-3.5 text-muted/30 group-hover:text-blue-600 dark:group-hover:text-blue-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all shrink-0" />
 										)}
 									</div>
 									<div className="text-[11.5px] text-muted leading-relaxed mt-1.5 line-clamp-2">
@@ -353,7 +353,7 @@ export const ChatEmptyState = memo(function ChatEmptyState({
 					<button
 						type="button"
 						onClick={() => setIsExpanded((prev) => !prev)}
-						className="w-full py-2.5 px-4 bg-accent/6 hover:bg-accent/12 dark:bg-accent/10 dark:hover:bg-accent/15 text-accent text-xs font-medium border-t border-border/50 flex items-center justify-center gap-1 transition-colors cursor-pointer"
+						className="w-full py-2.5 px-4 bg-blue-500/5 hover:bg-blue-500/10 dark:bg-blue-500/10 dark:hover:bg-blue-500/15 text-blue-600 dark:text-blue-400 text-xs font-medium border-t border-border/50 flex items-center justify-center gap-1 transition-colors cursor-pointer"
 					>
 						<span>
 							{isExpanded ? "收起示例" : `查看全部 ${allItems.length} 个示例 ↗`}

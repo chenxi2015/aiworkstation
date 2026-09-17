@@ -22,7 +22,7 @@
 [data-theme="light"],
 [data-theme="default"] {
   /* Theme Colors (Light Mode) */
-  --accent: oklch(62.04% 0.1950 253.83);
+  --accent: oklch(55.0% 0.22 262.0);
   --accent-foreground: oklch(99.11% 0 0);
   --background: oklch(97.02% 0.0015 253.83);
   --border: oklch(90.00% 0.0015 253.83);
@@ -34,7 +34,7 @@
   --field-border: transparent;
   --field-foreground: oklch(21.03% 0.0015 253.83);
   --field-placeholder: oklch(55.17% 0.0030 253.83);
-  --focus: oklch(62.04% 0.1950 253.83);
+  --focus: oklch(55.0% 0.22 262.0);
   --foreground: oklch(21.03% 0.0015 253.83);
   --muted: oklch(55.17% 0.0030 253.83);
   --overlay: oklch(100.00% 0.0004 253.83);
@@ -67,7 +67,7 @@
 [data-theme="dark"] {
   color-scheme: dark;
   /* Theme Colors (Dark Mode) */
-  --accent: oklch(62.04% 0.1950 253.83);
+  --accent: oklch(62.0% 0.20 262.0);
   --accent-foreground: oklch(99.11% 0 0);
   --background: oklch(12.00% 0.0015 253.83);
   --border: oklch(28.00% 0.0015 253.83);
@@ -79,7 +79,7 @@
   --field-border: transparent;
   --field-foreground: oklch(99.11% 0.0015 253.83);
   --field-placeholder: oklch(70.50% 0.0030 253.83);
-  --focus: oklch(62.04% 0.1950 253.83);
+  --focus: oklch(62.0% 0.20 262.0);
   --foreground: oklch(99.11% 0.0015 253.83);
   --muted: oklch(70.50% 0.0030 253.83);
   --overlay: oklch(21.03% 0.0030 253.83);
@@ -582,6 +582,33 @@ pre code {
 	float: left;
 	height: 0;
 	pointer-events: none;
+}
+
+/* ============ AI 助手内联聊天输入框（紧凑型，文字与药丸绝对一平） ============ */
+.chat-inline-editor .ProseMirror {
+	outline: none;
+	min-height: 20px;
+	max-height: 120px;
+	line-height: 20px;
+	font-size: 12px;
+	padding: 0;
+	margin: 0;
+}
+
+.chat-inline-editor .ProseMirror p {
+	margin: 0;
+	padding: 0;
+	line-height: 20px;
+}
+
+.chat-inline-editor .ProseMirror p.is-editor-empty:first-child::before {
+	content: attr(data-placeholder);
+	color: var(--muted);
+	opacity: 0.5;
+	float: left;
+	height: 0;
+	pointer-events: none;
+	line-height: 20px;
 }
 
 .tiptap-editor img {

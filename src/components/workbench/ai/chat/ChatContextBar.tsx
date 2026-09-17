@@ -1,5 +1,5 @@
 import { toast } from "@heroui/react";
-import { FileText, Folder as FolderIcon, Globe, Tag, X } from "lucide-react";
+import { Box, FileText, Folder as FolderIcon, Globe, Tag, X } from "lucide-react";
 import { memo } from "react";
 import type { ChatContextItem } from "../../../../types/chatContext";
 import type { Category } from "../../types";
@@ -28,8 +28,9 @@ export const ChatContextBar = memo(function ChatContextBar({
 	onNavigateToFolder,
 	className = "",
 }: ChatContextBarProps) {
-	if (!items || items.length === 0) return null;
 	const { openPreview } = useImagePreview();
+
+	if (!items || items.length === 0) return null;
 
 	const handleItemClick = (item: ChatContextItem) => {
 		if (item.type === "image" && item.thumbnail) {
@@ -69,7 +70,7 @@ export const ChatContextBar = memo(function ChatContextBar({
 					return (
 						<div
 							key={item.id}
-							className="group/pill relative flex items-center gap-1 pl-1.5 pr-1 py-0.5 rounded-lg bg-surface-secondary/80 hover:bg-surface-secondary border border-border/70 hover:border-accent/40 text-xs transition-all max-w-[200px]"
+							className="group/pill relative flex items-center gap-1.5 pl-1.5 pr-1 py-0.5 rounded-lg bg-surface-secondary/80 hover:bg-surface-secondary dark:bg-zinc-800/80 dark:hover:bg-zinc-800 border border-border/70 dark:border-zinc-700/60 hover:border-accent/40 text-xs transition-all max-w-[200px]"
 						>
 							{/* Clickable pill body button */}
 							<button
@@ -83,13 +84,13 @@ export const ChatContextBar = memo(function ChatContextBar({
 								}`}
 								title={tooltipText}
 							>
-								{/* Leading Icon / Thumbnail */}
-								<div className="shrink-0 flex items-center justify-center">
+								{/* Leading Icon / Thumbnail Container */}
+								<div className="shrink-0 flex items-center justify-center w-5 h-5 rounded-md bg-surface/90 dark:bg-zinc-700/60 border border-border/40">
 									{item.type === "image" && item.thumbnail ? (
 										<img
 											src={item.thumbnail}
 											alt={item.title}
-											className="w-4 h-4 rounded object-cover border border-border/60"
+											className="w-full h-full rounded-md object-cover"
 										/>
 									) : item.type === "bookmark" ? (
 										item.icon ? (
@@ -103,24 +104,26 @@ export const ChatContextBar = memo(function ChatContextBar({
 												}}
 											/>
 										) : (
-											<Globe className="w-3.5 h-3.5 text-accent shrink-0" />
+											<Globe className="w-3.5 h-3.5 text-blue-500 shrink-0" />
 										)
 									) : item.type === "folder" ? (
-										<FolderIcon className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+										<FolderIcon className="w-3.5 h-3.5 text-amber-500 fill-amber-500/20 shrink-0" />
 									) : item.type === "tag" ? (
 										<Tag className="w-3.5 h-3.5 text-violet-500 shrink-0" />
+									) : (item.type as string) === "skill" ? (
+										<Box className="w-3.5 h-3.5 text-blue-500 shrink-0" />
 									) : (
 										<FileText className="w-3.5 h-3.5 text-muted shrink-0" />
 									)}
 								</div>
 
 								{/* Label and Subtitle */}
-								<div className="flex flex-col min-w-0 pr-0.5 leading-none">
-									<span className="truncate font-medium text-[11px] text-foreground/90 group-hover/pill:text-foreground">
+								<div className="flex flex-col min-w-0 pr-0.5 justify-center leading-tight">
+									<span className="truncate font-medium text-[11px] text-foreground group-hover/pill:text-accent transition-colors">
 										{item.title}
 									</span>
 									{item.subtitle && (
-										<span className="truncate text-[9px] text-muted/70 mt-0.5">
+										<span className="truncate text-[9px] text-muted/70 font-normal">
 											{item.subtitle}
 										</span>
 									)}
@@ -134,7 +137,7 @@ export const ChatContextBar = memo(function ChatContextBar({
 									e.stopPropagation();
 									onRemove(item.id);
 								}}
-								className="w-4 h-4 rounded-full flex items-center justify-center text-muted/70 hover:text-danger hover:bg-danger/10 transition-colors cursor-pointer shrink-0 ml-0.5"
+								className="w-4 h-4 rounded-full flex items-center justify-center text-muted/60 hover:text-danger hover:bg-danger/10 transition-colors cursor-pointer shrink-0 ml-auto"
 								aria-label={`移除 ${item.title}`}
 							>
 								<X className="w-2.5 h-2.5" />

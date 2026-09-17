@@ -157,7 +157,7 @@ function formatStepAction(step: AgentStep): StepActionMeta {
 		case "reorder_folders":
 			return {
 				Icon: ArrowUpDown,
-				iconColor: "text-sky-500 dark:text-sky-400",
+				iconColor: "text-blue-500 dark:text-blue-400",
 				title: "保存并更新文件夹展示排列",
 			};
 		case "remove_bookmarks_from_folder":

@@ -7,7 +7,8 @@ export type ChatContextType =
 	| "tag"
 	| "image"
 	| "file"
-	| "document";
+	| "document"
+	| "skill";
 
 export interface ChatContextItem {
 	/** Unique identifier for keying in UI and state */

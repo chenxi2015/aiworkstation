@@ -69,7 +69,7 @@ export async function prepareRagAgentContext(
 	// Active material (injected via Creator/Store) for creator module
 	const activeMaterialPrompt = resolveActiveMaterialPrompt(activeMaterialId);
 	const { attachmentsPrompt, draggedDocumentPrompt } =
-		resolveAttachmentsPrompt(contextItems);
+		await resolveAttachmentsPrompt(contextItems, params.question);
 
 	const documentContextPrompt = activeDocumentPrompt || draggedDocumentPrompt;
 	const combinedContextPrompt =

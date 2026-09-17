@@ -12,6 +12,12 @@ import {
 } from "lucide-react";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
+import { SkillSelectedBadge } from "../../../common/slash/SkillSelectedBadge";
+import { SlashSkillMenu } from "../../../common/slash/SlashSkillMenu";
+import {
+	type SlashItem,
+	useSlashSkills,
+} from "../../../common/slash/useSlashSkills";
 import { PRESET_MODES, type SplitCanvasMode } from "./types";
 
 export interface SplitFloatingPromptDockProps {
@@ -42,7 +48,7 @@ const MODE_ICONS: Record<string, React.ReactNode> = {
 
 /**
  * Floating AI prompt dock (TipTap AI Toolkit "Agent editor" 风格):
- * - 胶囊输入条：快捷操作菜单 + 预设模式 chip + 圆形发送按钮
+ * - 胶囊输入条：快捷操作菜单 + 预设模式 chip + 选定 Skill badge + 圆形发送按钮
  * - 流式生成中：三点跳动 + 状态文案 + 圆形停止按钮
  * - 生成完毕待采纳：Reject / Accept 审核胶囊
  */
@@ -60,8 +66,17 @@ export function SplitFloatingPromptDock({
 	const menuRef = useRef<HTMLDivElement>(null);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+	// Slash Command / Skill Menu (/ slash) state
+	const [slashQuery, setSlashQuery] = useState<string | null>(null);
+	const [slashSelectedIndex, setSlashSelectedIndex] = useState<number>(0);
+	const [selectedSkills, setSelectedSkills] = useState<SlashItem[]>([]);
+
+	const { filteredItems: slashCandidates } = useSlashSkills(slashQuery);
+
 	const activePreset = PRESET_MODES.find((m) => m.id === selectedMode) || null;
-	const canGenerate = Boolean(selectedMode || customPrompt.trim());
+	const canGenerate = Boolean(
+		selectedMode || selectedSkills.length > 0 || customPrompt.trim(),
+	);
 
 	// 点击外部关闭快捷操作菜单
 	useEffect(() => {
@@ -82,12 +97,97 @@ export function SplitFloatingPromptDock({
 		el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
 	};
 
+	const handleSelectSlash = (item: SlashItem) => {
+		const el = textareaRef.current;
+		const cursor = el?.selectionStart ?? customPrompt.length;
+		const textBeforeCursor = customPrompt.slice(0, cursor);
+		const slashIndex = textBeforeCursor.lastIndexOf("/");
+
+		let nextVal = customPrompt;
+		if (slashIndex !== -1) {
+			nextVal = customPrompt.slice(0, slashIndex) + customPrompt.slice(cursor);
+		}
+
+		setSelectedSkills((prev) => {
+			if (prev.some((s) => s.id === item.id || s.name === item.name))
+				return prev;
+			return [...prev, item];
+		});
+		onChangeCustomPrompt(nextVal);
+		setSlashQuery(null);
+		setTimeout(() => {
+			el?.focus();
+			autoGrow();
+		}, 50);
+	};
+
+	const handleRemoveSkill = (id: string) => {
+		setSelectedSkills((prev) => prev.filter((s) => s.id !== id));
+	};
+
+	const handleStartGenerate = () => {
+		if (!canGenerate || isStreaming) return;
+		setMenuOpen(false);
+		setSlashQuery(null);
+		if (selectedSkills.length > 0) {
+			const skillsHeader = selectedSkills
+				.map((s) => `[Skill: ${s.name}]`)
+				.join("\n");
+			const fullPrompt = customPrompt.trim()
+				? `${skillsHeader}\n\n${customPrompt.trim()}`
+				: skillsHeader;
+			onChangeCustomPrompt(fullPrompt);
+			setSelectedSkills([]);
+			setTimeout(() => {
+				onStartGenerate();
+			}, 0);
+		} else {
+			onStartGenerate();
+		}
+	};
+
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+		if (slashQuery !== null && slashCandidates.length > 0) {
+			if (e.key === "ArrowDown") {
+				e.preventDefault();
+				setSlashSelectedIndex((prev) =>
+					prev + 1 < slashCandidates.length ? prev + 1 : 0,
+				);
+				return;
+			}
+			if (e.key === "ArrowUp") {
+				e.preventDefault();
+				setSlashSelectedIndex((prev) =>
+					prev - 1 >= 0 ? prev - 1 : slashCandidates.length - 1,
+				);
+				return;
+			}
+			if ((e.key === "Enter" || e.key === "Tab") && !e.shiftKey) {
+				e.preventDefault();
+				const target = slashCandidates[slashSelectedIndex];
+				if (target) {
+					handleSelectSlash(target);
+				}
+				return;
+			}
+			if (e.key === "Escape") {
+				e.preventDefault();
+				setSlashQuery(null);
+				return;
+			}
+		}
+
+		// Backspace on empty input removes the last selected skill
+		if (e.key === "Backspace" && !customPrompt && selectedSkills.length > 0) {
+			e.preventDefault();
+			setSelectedSkills((prev) => prev.slice(0, -1));
+			return;
+		}
+
 		if (e.key === "Enter" && !e.shiftKey) {
 			e.preventDefault();
 			if (!isStreaming && canGenerate) {
-				setMenuOpen(false);
-				onStartGenerate();
+				handleStartGenerate();
 			}
 		}
 	};
@@ -97,7 +197,6 @@ export function SplitFloatingPromptDock({
 
 	return (
 		<div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-30 w-[min(560px,92%)] select-none">
-
 			{isStreaming ? (
 				/* 流式状态胶囊（对应参考图 Using AI toolkit） */
 				<div className="flex items-center gap-3 px-5 py-3 rounded-full bg-surface/95 dark:bg-zinc-900/95 backdrop-blur-xl border border-border/80 shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200">
@@ -164,13 +263,25 @@ export function SplitFloatingPromptDock({
 						</div>
 					)}
 
-					<div className="flex items-end gap-1.5 pl-2 pr-1.5 py-1.5 rounded-[26px] bg-surface/95 dark:bg-zinc-900/95 backdrop-blur-xl border border-border/80 shadow-xl transition-all focus-within:border-accent/60 focus-within:ring-2 focus-within:ring-accent/15">
+					{/* Slash commands & skills dropdown menu */}
+					<SlashSkillMenu
+						isOpen={slashQuery !== null}
+						query={slashQuery || ""}
+						items={slashCandidates}
+						selectedIndex={slashSelectedIndex}
+						onSelectIndexChange={setSlashSelectedIndex}
+						onSelect={handleSelectSlash}
+						onClose={() => setSlashQuery(null)}
+						className="inset-x-0"
+					/>
+
+					<div className="flex flex-wrap items-center gap-1.5 pl-2 pr-1.5 py-1.5 rounded-[26px] bg-surface/95 dark:bg-zinc-900/95 backdrop-blur-xl border border-border/80 shadow-xl transition-all focus-within:border-accent/60 focus-within:ring-2 focus-within:ring-accent/15">
 						{/* 快捷操作触发按钮 */}
 						<button
 							type="button"
 							onClick={() => setMenuOpen((prev) => !prev)}
 							title="AI 快捷操作"
-							className={`p-2 mb-0.5 rounded-full transition-colors cursor-pointer shrink-0 ${
+							className={`p-2 rounded-full transition-colors cursor-pointer shrink-0 ${
 								menuOpen || activePreset
 									? "text-accent bg-accent/10"
 									: "text-muted hover:text-accent hover:bg-accent/10"
@@ -181,7 +292,7 @@ export function SplitFloatingPromptDock({
 
 						{/* 已选预设 chip */}
 						{activePreset && (
-							<span className="mb-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent/15 text-accent text-[11px] font-medium shrink-0">
+							<span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent/15 text-accent text-[11px] font-medium shrink-0">
 								{activePreset.label}
 								<button
 									type="button"
@@ -194,31 +305,64 @@ export function SplitFloatingPromptDock({
 							</span>
 						)}
 
+						{/* 选定 Skills 标签（多选） */}
+						{selectedSkills.map((skill) => (
+							<SkillSelectedBadge
+								key={skill.id}
+								name={skill.name}
+								onRemove={() => handleRemoveSkill(skill.id)}
+							/>
+						))}
+
 						<textarea
 							ref={textareaRef}
 							rows={1}
 							value={customPrompt}
 							onChange={(e) => {
-								onChangeCustomPrompt(e.target.value);
+								const val = e.target.value;
+								onChangeCustomPrompt(val);
 								autoGrow();
+
+								const cursor = e.target.selectionStart ?? val.length;
+								const textBeforeCursor = val.slice(0, cursor);
+
+								// Check slash menu trigger (/)
+								const lastSlashIndex = textBeforeCursor.lastIndexOf("/");
+								if (
+									lastSlashIndex !== -1 &&
+									(lastSlashIndex === 0 ||
+										/\s/.test(textBeforeCursor[lastSlashIndex - 1]))
+								) {
+									const query = textBeforeCursor.slice(lastSlashIndex + 1);
+									if (
+										!query.includes("\n") &&
+										!query.includes(" ") &&
+										query.length <= 30
+									) {
+										setSlashQuery(query);
+										setSlashSelectedIndex(0);
+										setMenuOpen(false);
+										return;
+									}
+								}
+								setSlashQuery(null);
 							}}
 							onKeyDown={handleKeyDown}
 							placeholder={
-								activePreset
-									? `补充要求（当前：${activePreset.label}），Enter 发送…`
-									: "询问 AI 或描述修改要求，Enter 发送…"
+								selectedSkills.length > 0
+									? "输入修改要求，Enter 发送…"
+									: activePreset
+										? `补充要求（当前：${activePreset.label}），Enter 发送…`
+										: "询问 AI 或描述修改要求，输入 / 读取 Skills…"
 							}
-							className="flex-1 min-w-0 bg-transparent text-xs text-foreground placeholder:text-muted/60 outline-none resize-none leading-relaxed py-2 max-h-[120px]"
+							className="flex-1 min-w-[120px] bg-transparent text-xs text-foreground placeholder:text-muted/60 outline-none resize-none h-6 min-h-6 leading-6 py-0 my-0 max-h-[120px]"
 						/>
 
 						{/* 圆形发送按钮 */}
 						<button
 							type="button"
 							disabled={!canGenerate}
-							onClick={() => {
-								setMenuOpen(false);
-								onStartGenerate();
-							}}
+							onClick={handleStartGenerate}
 							title="开始生成"
 							className={`p-2 mb-0.5 rounded-full transition-all shrink-0 ${
 								canGenerate

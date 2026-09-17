@@ -2,12 +2,13 @@ import { Button, Tooltip } from "@heroui/react";
 import { History, MessageSquarePlus, PanelRightClose } from "lucide-react";
 import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { type ChatItem, useAiChat } from "../../../../hooks/ai/useAiChat";
-import { useItemFolderAssign } from "../../../../hooks/ai/useItemFolderAssign";
 import { useChatScope } from "../../../../hooks/ai/useChatScope";
+import { useItemFolderAssign } from "../../../../hooks/ai/useItemFolderAssign";
 import { getAiContribution } from "../../../../modules/ai-contributions";
 import { getModuleByCode } from "../../../../modules/registry";
 import { workbenchContextStore } from "../../../../stores/workbenchContextStore";
 import type { ChatContextItem } from "../../../../types/chatContext";
+import { fetchSkillDetail } from "../../../../services/api/skillsClient";
 import type { PageBridge } from "../../../../types/pageBridge";
 import { AiAssistantLogoIcon } from "../../Icons";
 import type {
@@ -63,6 +64,40 @@ export interface ChatWithBookmarksPanelProps {
 	onDataChanged?: () => void;
 	onCollapse?: () => void;
 	className?: string;
+}
+
+/**
+ * Load SKILL.md content for skill-type context items.
+ * Non-skill items are passed through unchanged.
+ */
+async function resolveSkillContextItems(
+	items: ChatContextItem[],
+): Promise<ChatContextItem[]> {
+	const resolved: ChatContextItem[] = [];
+	for (const item of items) {
+		if (item.type === "skill" && item.data?.dirPath && !item.data?.content) {
+			try {
+				const detail = await fetchSkillDetail(
+					item.data.dirPath as string,
+				);
+				if (detail?.markdown) {
+					resolved.push({
+						...item,
+						subtitle: "已加载技能指南 (SKILL.md)",
+						data: {
+							...item.data,
+							content: detail.markdown,
+						},
+					});
+					continue;
+				}
+			} catch (err) {
+				console.warn("[ChatWithBookmarksPanel] Error loading skill:", err);
+			}
+		}
+		resolved.push(item);
+	}
+	return resolved;
 }
 
 /**
@@ -425,7 +460,18 @@ export const ChatWithBookmarksPanel = forwardRef<
 						hasMessages={messages.length > 0}
 						inputRef={inputRef}
 						onChangeInput={setInput}
-						onSend={() => handleSendPrompt()}
+						onSend={async (extraContextItems) => {
+							// Resolve skill content before sending
+							let resolvedItems = extraContextItems;
+							if (extraContextItems && extraContextItems.length > 0) {
+								resolvedItems = await resolveSkillContextItems(extraContextItems);
+							}
+							handleSendPrompt(undefined, {
+								contextItems: resolvedItems
+									? [...contextItems, ...resolvedItems]
+									: undefined,
+							});
+						}}
 						onStop={stopChat}
 						onOpenHistory={() => setIsHistoryOpen(true)}
 						onNewChat={createNewChat}

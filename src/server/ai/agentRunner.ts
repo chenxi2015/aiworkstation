@@ -128,11 +128,24 @@ export async function runAgentStream(
 	);
 	const shouldIncludeFsTools = module !== "editor" || hasFileAttachment;
 
+	// Resolve active skill if present in context items
+	const activeSkillItem = (params.contextItems || []).find(
+		(item) =>
+			(item.type as string) === "skill" ||
+			item.id.startsWith("skill_") ||
+			item.data?.dirPath ||
+			item.data?.skillName,
+	);
+	const activeSkillDir =
+		(activeSkillItem?.data?.dirPath as string) ||
+		(activeSkillItem?.data?.skillName as string) ||
+		activeSkillItem?.title;
+
 	const allTools = [
-		...createBookmarkServerTools(toolHooks),
+		...createBookmarkServerTools(toolHooks, activeSkillDir),
 		...(shouldIncludeFsTools ? createFsServerTools(toolHooks) : []),
-		// Inject editor-specific tools when user is in the editor module
-		...(module === "editor"
+		// Inject editor-specific tools when user is in the editor module or editing an active document
+		...(module === "editor" || Boolean(activeDocumentId)
 			? createEditorServerTools(toolHooks, activeDocumentId)
 			: []),
 	];

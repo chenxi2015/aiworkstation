@@ -77,6 +77,8 @@ function cleanHtmlContent(rawHtml: string): {
 	};
 }
 
+import { tryInterceptSkillUrl } from "../../services/skillsScanner.ts";
+
 /**
  * Executes webpage fetching and content extraction
  */
@@ -88,6 +90,18 @@ export async function executeReadWebpage(
 		return {
 			toolName: "read_webpage_content",
 			summary: `抓取失败：无效的 URL 地址「${rawUrl}」`,
+			items: [],
+			references: [],
+			isMutation: false,
+		};
+	}
+
+	// Defense-in-depth: intercept attempts to fetch local skill documents via web fetcher
+	const localIntercept = await tryInterceptSkillUrl(rawUrl);
+	if (localIntercept) {
+		return {
+			toolName: "read_webpage_content",
+			summary: localIntercept,
 			items: [],
 			references: [],
 			isMutation: false,

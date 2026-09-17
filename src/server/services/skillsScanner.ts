@@ -17,9 +17,12 @@ import type {
  */
 
 const DEFAULT_SKILL_ROOTS: ReadonlyArray<{ label: string; path: string }> = [
+	{ label: "Antigravity", path: "~/.gemini/config/skills" },
+	{ label: "Builtin", path: "~/.gemini/antigravity-ide/builtin/skills" },
 	{ label: "Codex", path: "~/.codex/skills" },
 	{ label: "Agents", path: "~/.agents/skills" },
 	{ label: "Claude", path: "~/.claude/skills" },
+	{ label: "Workspace", path: ".agents/skills" },
 ];
 
 const OVERVIEW_CACHE_MS = 60_000;
@@ -31,7 +34,8 @@ let overviewCache: { data: SkillsOverview; at: number } | null = null;
 function expandHome(p: string): string {
 	if (p === "~") return os.homedir();
 	if (p.startsWith("~/")) return path.join(os.homedir(), p.slice(2));
-	return p;
+	if (path.isAbsolute(p)) return p;
+	return path.resolve(process.cwd(), p);
 }
 
 /** 轻量 frontmatter 解析：只支持顶层 key: value 与 metadata: 下的一级缩进字段 */
@@ -236,4 +240,220 @@ export async function readSkillDetail(dirPath: string): Promise<SkillDetail> {
 	await listFiles(dirPath, "", files);
 	if (files.length >= MAX_DETAIL_FILES) truncated = true;
 	return { skill, markdown, files: files.sort(), truncated };
+}
+
+export interface SkillContextBundle {
+	skillName: string;
+	dirPath: string;
+	skillMd: string;
+	inlinedFiles: Array<{ path: string; content: string }>;
+	allFiles: string[];
+}
+
+/**
+ * Find skill directory by absolute path or name/dirName
+ */
+export async function resolveSkillDir(
+	dirPathOrName: string,
+): Promise<string | null> {
+	if (!dirPathOrName) return null;
+	const overview = await scanSkillsOverview();
+	const trimmed = dirPathOrName.trim();
+	const normalized = trimmed.toLowerCase();
+
+	const found = overview.skills.find(
+		(s) =>
+			s.dirPath === trimmed ||
+			s.name.toLowerCase() === normalized ||
+			s.dirName.toLowerCase() === normalized,
+	);
+	if (found) return found.dirPath;
+
+	// Check direct absolute path exists
+	if (path.isAbsolute(trimmed)) {
+		try {
+			const stat = await fs.stat(trimmed);
+			if (stat.isDirectory()) return trimmed;
+		} catch {
+			// not a valid directory
+		}
+	}
+	return null;
+}
+
+/**
+ * Safely read a resource file inside a skill directory
+ */
+export async function readSkillResourceFile(
+	skillDirPathOrName: string,
+	relativePath: string,
+): Promise<{
+	success: boolean;
+	content?: string;
+	error?: string;
+	filePath?: string;
+}> {
+	const dirPath = await resolveSkillDir(skillDirPathOrName);
+	if (!dirPath) {
+		return {
+			success: false,
+			error: `Skill directory not found: ${skillDirPathOrName}`,
+		};
+	}
+
+	// Normalize and prevent path traversal
+	const cleanRelPath = path
+		.normalize(relativePath)
+		.replace(/^(\.\.[/\\])+/, "");
+	const targetPath = path.resolve(dirPath, cleanRelPath);
+
+	if (!targetPath.startsWith(dirPath)) {
+		return { success: false, error: "Access denied: Path traversal detected" };
+	}
+
+	try {
+		const stat = await fs.stat(targetPath);
+		if (!stat.isFile()) {
+			return { success: false, error: `Path is not a file: ${cleanRelPath}` };
+		}
+		const content = await fs.readFile(targetPath, "utf8");
+		return { success: true, content, filePath: cleanRelPath };
+	} catch (err: unknown) {
+		const msg = err instanceof Error ? err.message : String(err);
+		return { success: false, error: `Failed to read file: ${msg}` };
+	}
+}
+
+/**
+ * Load complete local skill bundle for AI context injection in a fully generic way.
+ * - Inlines SKILL.md
+ * - Automatically discovers and inlines lightweight index/reference markdown files within a safe token budget (<= 64KB)
+ * - If user query mentions keywords matching any sub-file basename, prioritizes inlining that file
+ * - Provides full relative file manifest so LLM can read remaining files via read_skill_resource tool
+ */
+export async function loadSkillContextBundle(
+	dirPathOrName: string,
+	userQuery = "",
+): Promise<SkillContextBundle | null> {
+	const dirPath = await resolveSkillDir(dirPathOrName);
+	if (!dirPath) return null;
+
+	let skillDetail: SkillDetail;
+	try {
+		skillDetail = await readSkillDetail(dirPath);
+	} catch {
+		return null;
+	}
+
+	const skillMd = skillDetail.markdown || "";
+	const allFiles = skillDetail.files || [];
+	const inlinedFiles: Array<{ path: string; content: string }> = [];
+
+	// Find all candidate markdown files (excluding root SKILL.md which is already loaded)
+	const candidateMdFiles = allFiles.filter(
+		(f) =>
+			f.endsWith(".md") &&
+			f.toLowerCase() !== "skill.md" &&
+			!f.toLowerCase().endsWith("/skill.md"),
+	);
+
+	// Rank candidate files generically:
+	// 1. Files whose basename matches words in userQuery
+	// 2. Index / summary / guide / config files (matching generic naming conventions)
+	// 3. Files in references/ or docs/
+	const queryLower = userQuery.toLowerCase();
+	const scoredFiles = candidateMdFiles.map((relPath) => {
+		let score = 0;
+		const baseName = path.basename(relPath, ".md").toLowerCase();
+		const tokens = baseName.split(/[-_.]/).filter((t) => t.length >= 2);
+
+		// Match user query words against filename tokens
+		if (tokens.some((t) => queryLower.includes(t))) {
+			score += 50;
+		}
+
+		// Generic documentation index/overview indicators
+		if (
+			/index|overview|summary|guide|spec|schema|common|main/i.test(baseName)
+		) {
+			score += 30;
+		}
+
+		// Prefer files under references/ or docs/
+		if (relPath.startsWith("references/") || relPath.startsWith("docs/")) {
+			score += 10;
+		}
+
+		return { relPath, score };
+	});
+
+	// Sort by score descending
+	scoredFiles.sort((a, b) => b.score - a.score);
+
+	// Inline candidate files within safe token budget (up to 64KB total across all inlined files)
+	const MAX_INLINED_BYTES = 64 * 1024;
+	let currentBytes = 0;
+
+	for (const { relPath } of scoredFiles) {
+		if (currentBytes >= MAX_INLINED_BYTES) break;
+
+		const res = await readSkillResourceFile(dirPath, relPath);
+		if (res.success && res.content) {
+			const contentBytes = Buffer.byteLength(res.content, "utf8");
+			if (
+				currentBytes + contentBytes <= MAX_INLINED_BYTES ||
+				inlinedFiles.length === 0
+			) {
+				inlinedFiles.push({ path: relPath, content: res.content });
+				currentBytes += contentBytes;
+			}
+		}
+	}
+
+	return {
+		skillName: skillDetail.skill.name,
+		dirPath,
+		skillMd,
+		inlinedFiles,
+		allFiles,
+	};
+}
+
+/**
+ * Check if a URL looks like an attempt to fetch a skill resource from GitHub/raw.
+ * If so, intercepts and returns the local file content if found.
+ */
+export async function tryInterceptSkillUrl(
+	url: string,
+): Promise<string | null> {
+	if (!url || !/github(usercontent)?\.com/i.test(url)) return null;
+
+	try {
+		const parsed = new URL(url);
+		const pathname = decodeURIComponent(parsed.pathname);
+
+		// Match relative markdown file target, e.g. references/theme-index.md or SKILL.md
+		const fileMatch = pathname.match(
+			/(?:references\/[^/]+\.md|SKILL\.md|[^/]+\.md)$/i,
+		);
+		if (!fileMatch) return null;
+
+		const targetFile = fileMatch[0];
+
+		const overview = await scanSkillsOverview();
+		for (const skill of overview.skills) {
+			const skillKey = skill.dirName.toLowerCase();
+			const cleanKey = skillKey.replace(/[-_]/g, "");
+			const pathLower = pathname.toLowerCase();
+			if (pathLower.includes(skillKey) || pathLower.includes(cleanKey)) {
+				const res = await readSkillResourceFile(skill.dirPath, targetFile);
+				if (res.success && res.content) {
+					return `[系统保护：已拦截外网爬虫请求，直接从本地读取]\n检测到正在尝试通过网络抓取本地技能「${skill.name}」的文档 [${targetFile}]。该技能已完整安装于本地，已直接从本地磁盘载入内容：\n\n${res.content}`;
+				}
+			}
+		}
+	} catch {
+		// Ignore URL parsing errors
+	}
+	return null;
 }

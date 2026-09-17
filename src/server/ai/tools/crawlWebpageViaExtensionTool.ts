@@ -138,6 +138,8 @@ async function fallbackToNativeFetch(
 	};
 }
 
+import { tryInterceptSkillUrl } from "../../services/skillsScanner.ts";
+
 /**
  * Dispatches a silent crawl job to the AI Collector extension: the extension
  * background worker opens a hidden tab with the user's real browser session
@@ -151,6 +153,18 @@ export async function executeCrawlWebpageViaExtension(
 		return {
 			toolName: "crawl_webpage_via_extension",
 			summary: `抓取失败：无效的 URL 地址「${rawUrl}」`,
+			items: [],
+			references: [],
+			isMutation: false,
+		};
+	}
+
+	// Defense-in-depth: intercept attempts to fetch local skill documents via web crawler
+	const localIntercept = await tryInterceptSkillUrl(rawUrl);
+	if (localIntercept) {
+		return {
+			toolName: "crawl_webpage_via_extension",
+			summary: localIntercept,
 			items: [],
 			references: [],
 			isMutation: false,

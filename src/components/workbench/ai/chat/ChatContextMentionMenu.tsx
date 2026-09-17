@@ -42,7 +42,7 @@ function HighlightText({ text, query }: { text: string; query: string }) {
 		return regex.test(part) ? (
 			<mark
 				key={key}
-				className="bg-accent/20 text-accent font-semibold px-0.5 rounded not-italic"
+				className="bg-blue-500/15 text-blue-600 dark:text-blue-400 font-semibold px-0.5 rounded not-italic"
 			>
 				{part}
 			</mark>
@@ -92,7 +92,7 @@ export const ChatContextMentionMenu = memo(function ChatContextMentionMenu({
 
 	return (
 		<div
-			className={`absolute bottom-full left-0 right-0 mb-2 z-40 bg-surface/95 backdrop-blur-md border border-border/80 rounded-2xl shadow-lg p-1.5 flex flex-col gap-0.5 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-150 ${className}`}
+			className={`absolute bottom-full inset-x-3 mb-2 z-40 bg-surface/95 dark:bg-zinc-900/95 backdrop-blur-md border border-border/80 dark:border-zinc-800 rounded-2xl shadow-xl dark:shadow-2xl p-1.5 flex flex-col gap-0.5 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-150 ${className}`}
 		>
 			<div className="flex items-center justify-between px-2 py-1 text-[10px] text-muted font-medium border-b border-border/40 mb-1">
 				<span>引用到上下文 (方向键选择 · Enter 确认)</span>
@@ -137,7 +137,7 @@ export const ChatContextMentionMenu = memo(function ChatContextMentionMenu({
 							onMouseEnter={() => onSelectIndexChange(idx)}
 							className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-left transition-all cursor-pointer select-none ${
 								isSelected
-									? "bg-accent/10 text-accent border border-accent/30"
+									? "bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300 border border-blue-500/20"
 									: "hover:bg-surface-secondary text-foreground/80 hover:text-foreground border border-transparent"
 							}`}
 						>
@@ -154,7 +154,7 @@ export const ChatContextMentionMenu = memo(function ChatContextMentionMenu({
 										}}
 									/>
 								) : (
-									<Globe className="w-3.5 h-3.5 text-accent shrink-0" />
+									<Globe className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 shrink-0" />
 								)}
 							</div>
 
@@ -171,7 +171,7 @@ export const ChatContextMentionMenu = memo(function ChatContextMentionMenu({
 
 							<div className="flex items-center gap-1 shrink-0">
 								{cand.matchReason && query.trim() && (
-									<span className="text-[9px] px-1.5 py-0.2 rounded bg-accent-soft/40 text-accent font-medium select-none">
+									<span className="text-[9px] px-1.5 py-0.2 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-medium select-none">
 										{cand.matchReason}
 									</span>
 								)}
