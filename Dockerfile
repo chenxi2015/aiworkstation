@@ -21,7 +21,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 
 COPY . .
-RUN DEPLOY_TARGET=node pnpm build
+RUN pnpm build
 
 # ---------- 运行阶段 ----------
 FROM node:22-alpine AS runner

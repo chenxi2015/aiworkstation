@@ -56,8 +56,8 @@ HOST_DOWNLOADS=C:\Users\你的用户名\Downloads
 不用 Docker 时也可以直接在宿主机跑生产构建：
 
 ```bash
-pnpm build:node      # DEPLOY_TARGET=node vite build → .output/
-pnpm start:node      # node .output/server/index.mjs（监听 3888）
+pnpm build           # vite build → .output/（默认 Node 目标）
+pnpm preview         # node .output/server/index.mjs（监听 3000）
 ```
 
 ## 与插件的通信为什么不受影响
@@ -85,7 +85,7 @@ pnpm start:node      # node .output/server/index.mjs（监听 3888）
   挂载注释即可读取真实主机指标。**macOS 上 Docker Desktop 运行在 Linux VM
   里，容器只能看到 VM 的指标，无法直接看到 macOS 本身的指标**——这是
   Docker 的固有边界，如需精确监控 macOS 宿主机，工作台应直接跑在宿主机
-  （`pnpm dev` / `pnpm start:node`）。
+  （`pnpm dev` / `pnpm preview`）。
 - **其他本地目录**：在 compose 里追加同路径挂载即可（建议 `:ro` 只读）。
 
 ## 已知边界
@@ -105,8 +105,9 @@ pnpm start:node      # node .output/server/index.mjs（监听 3888）
 
 ## 构建原理
 
-- `DEPLOY_TARGET=node` 时 `vite.config.ts` 用 `nitro()` 替换
-  `@cloudflare/vite-plugin`，产出自包含 Node 服务器（`.output/`）。
+- 默认构建（`vite build`）时 `vite.config.ts` 用 `nitro()` 替换
+  `@cloudflare/vite-plugin`，产出自包含 Node 服务器（`.output/`）；
+  `vite build --mode cloudflare` 则输出 Cloudflare Workers 产物（`dist/`）。
 - 扩展 API（`/api/collect`、`/api/chat/stream`、`/api/crawler/*`、
   `/api/video-tasks/*`、`/api/open-file`）的路由表抽在
   `src/server/api/router.ts`，dev 走 Vite 中间件、生产走 Nitro
