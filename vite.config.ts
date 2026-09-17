@@ -9,11 +9,13 @@ import { extensionApiPlugin } from "./src/server/api/extensionApiPlugin.ts";
 
 process.env.VITE_CONFIG_NATIVE_IGNORE_WARNING = "true";
 
-// DEPLOY_TARGET=node produces a self-contained Node server (.output/) for
-// Docker; the default build target stays Cloudflare Workers.
-const isNodeTarget = process.env.DEPLOY_TARGET === "node";
+// The default build produces a self-contained Node server (.output/) for
+// local/Docker; `vite build --mode cloudflare` targets Cloudflare Workers.
+// A Vite mode is used instead of an env var so the scripts work on Windows.
 
-const config = defineConfig(({ command }) => ({
+const config = defineConfig(({ command, mode }) => {
+	const isCloudflareTarget = mode === "cloudflare";
+	return {
 	server: {
 		port: 3888,
 	},
@@ -21,15 +23,16 @@ const config = defineConfig(({ command }) => ({
 	plugins: [
 		extensionApiPlugin(),
 		devtools(),
-		// Only enable Cloudflare worker runner during build to allow native SQLite in local dev
-		...(command === "build" && !isNodeTarget
+		// Only enable Cloudflare worker runner for the cloudflare build to
+		// allow native SQLite in local dev / Node builds
+		...(command === "build" && isCloudflareTarget
 			? [cloudflare({ viteEnvironment: { name: "ssr" } })]
 			: []),
 		tailwindcss(),
 		tanstackStart(),
 		// Node/Docker target: Nitro bundles the SSR server plus the extension
 		// API routes (same route table as the dev plugin, node-format handler).
-		...(isNodeTarget
+		...(command === "build" && !isCloudflareTarget
 			? [
 					nitro({
 						handlers: [
@@ -44,6 +47,7 @@ const config = defineConfig(({ command }) => ({
 			: []),
 		viteReact(),
 	],
-}));
+	};
+});
 
 export default config;
