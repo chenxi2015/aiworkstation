@@ -1,5 +1,5 @@
 import { type NodeViewProps, NodeViewWrapper } from "@tiptap/react";
-import { Pencil, Trash2 } from "lucide-react";
+import { Download, Pencil, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ChartEditModal } from "./ChartEditModal";
 import {
@@ -73,6 +73,20 @@ export function ChartNodeView({
 		}
 	};
 
+	const handleDownloadImage = () => {
+		const instance = chartInstanceRef.current;
+		if (!instance) return;
+		const dataUrl = instance.getDataURL({
+			type: "png",
+			pixelRatio: 2,
+			backgroundColor: "#ffffff",
+		});
+		const link = document.createElement("a");
+		link.href = dataUrl;
+		link.download = `chart-${Date.now()}.png`;
+		link.click();
+	};
+
 	return (
 		<NodeViewWrapper
 			className="chart-node-wrapper my-3"
@@ -93,6 +107,17 @@ export function ChartNodeView({
 				/>
 				{(selected || isEditing) && (
 					<div className="chart-action-toolbar absolute right-2 top-2 flex items-center gap-1 rounded-md border border-zinc-200 bg-white/95 p-1 shadow-sm">
+						<button
+							type="button"
+							title="下载为图片"
+							className="flex h-7 w-7 items-center justify-center rounded text-zinc-600 hover:bg-zinc-100"
+							onClick={(e) => {
+								e.stopPropagation();
+								handleDownloadImage();
+							}}
+						>
+							<Download className="h-4 w-4" />
+						</button>
 						<button
 							type="button"
 							title="编辑图表数据"
