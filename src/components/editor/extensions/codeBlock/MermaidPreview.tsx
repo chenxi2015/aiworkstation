@@ -161,9 +161,16 @@ function DiagramViewport({
 		};
 	}, [zoomAt]);
 
-	// Drag to pan via Pointer Events（pointer capture 保证拖出容器也不中断）
+	// Drag to pan via Pointer Events (pointer capture ensures panning isn't interrupted outside container)
 	const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
 		if (e.button !== 0) return; // Primary button only
+		// Do not initiate drag or prevent default if clicking interactive elements
+		const target = e.target as HTMLElement | null;
+		if (
+			target?.closest("button, [data-interactive='true'], select, input, a")
+		) {
+			return;
+		}
 		e.preventDefault();
 		e.stopPropagation();
 		e.currentTarget.setPointerCapture(e.pointerId);
@@ -278,12 +285,24 @@ function DiagramViewport({
 			</div>
 
 			{/* Floating Controls Capsule */}
-			<div className="absolute right-3 bottom-3 flex items-center gap-1 p-1 rounded-full bg-white/90 backdrop-blur-md border border-zinc-200/90 shadow-[0_2px_10px_rgba(15,23,42,0.08)] text-zinc-500 z-10">
+			{/* biome-ignore lint/a11y/noStaticElementInteractions: Floating controls stop propagation capsule */}
+			{/* biome-ignore lint/a11y/useKeyWithClickEvents: Floating controls stop propagation capsule */}
+			<div
+				contentEditable={false}
+				onPointerDown={(e) => e.stopPropagation()}
+				onPointerMove={(e) => e.stopPropagation()}
+				onPointerUp={(e) => e.stopPropagation()}
+				onMouseDown={(e) => e.stopPropagation()}
+				onClick={(e) => e.stopPropagation()}
+				onDoubleClick={(e) => e.stopPropagation()}
+				style={{ touchAction: "auto" }}
+				className="absolute right-3 bottom-3 flex items-center gap-1 p-1 rounded-full bg-white/90 backdrop-blur-md border border-zinc-200/90 shadow-[0_2px_10px_rgba(15,23,42,0.08)] text-zinc-500 z-10 cursor-default pointer-events-auto select-none"
+			>
 				<button
 					type="button"
 					onClick={() => zoomFromCenter(1.25)}
 					title="放大图表 (也可使用鼠标滚轮)"
-					className="p-1.5 rounded-full hover:bg-zinc-100 text-zinc-500 hover:text-zinc-800 transition-colors cursor-pointer"
+					className="p-1.5 rounded-full hover:bg-zinc-100 active:bg-zinc-200 active:scale-95 text-zinc-500 hover:text-zinc-800 transition-all cursor-pointer"
 				>
 					<ZoomIn className="w-3.5 h-3.5" />
 				</button>
@@ -291,7 +310,7 @@ function DiagramViewport({
 					type="button"
 					onClick={() => zoomFromCenter(0.8)}
 					title="缩小图表 (也可使用鼠标滚轮)"
-					className="p-1.5 rounded-full hover:bg-zinc-100 text-zinc-500 hover:text-zinc-800 transition-colors cursor-pointer"
+					className="p-1.5 rounded-full hover:bg-zinc-100 active:bg-zinc-200 active:scale-95 text-zinc-500 hover:text-zinc-800 transition-all cursor-pointer"
 				>
 					<ZoomOut className="w-3.5 h-3.5" />
 				</button>
@@ -299,7 +318,7 @@ function DiagramViewport({
 					type="button"
 					onClick={handleReset}
 					title="复位比例 - 也可双击画布复位"
-					className="px-1.5 py-0.5 rounded-full hover:bg-zinc-100 text-[11px] font-mono text-zinc-500 hover:text-zinc-800 transition-colors flex items-center gap-1 cursor-pointer"
+					className="px-1.5 py-0.5 rounded-full hover:bg-zinc-100 active:bg-zinc-200 active:scale-95 text-[11px] font-mono text-zinc-500 hover:text-zinc-800 transition-all flex items-center gap-1 cursor-pointer"
 				>
 					<RotateCcw className="w-3 h-3" />
 					<span ref={scaleLabelRef}>100%</span>
@@ -312,7 +331,7 @@ function DiagramViewport({
 						type="button"
 						onClick={onDownloadSvg}
 						title="下载为 SVG 矢量图"
-						className="p-1.5 rounded-full hover:bg-zinc-100 text-zinc-500 hover:text-zinc-800 transition-colors cursor-pointer"
+						className="p-1.5 rounded-full hover:bg-zinc-100 active:bg-zinc-200 active:scale-95 text-zinc-500 hover:text-zinc-800 transition-all cursor-pointer"
 					>
 						<Download className="w-3.5 h-3.5" />
 					</button>
@@ -323,7 +342,7 @@ function DiagramViewport({
 						type="button"
 						onClick={onOpenFullscreen}
 						title="全屏放大查看"
-						className="p-1.5 rounded-full hover:bg-zinc-100 text-zinc-500 hover:text-zinc-800 transition-colors cursor-pointer"
+						className="p-1.5 rounded-full hover:bg-zinc-100 active:bg-zinc-200 active:scale-95 text-zinc-500 hover:text-zinc-800 transition-all cursor-pointer"
 					>
 						<Maximize2 className="w-3.5 h-3.5" />
 					</button>
@@ -334,7 +353,7 @@ function DiagramViewport({
 						type="button"
 						onClick={onCloseFullscreen}
 						title="退出全屏 (ESC)"
-						className="p-1.5 rounded-full hover:bg-zinc-100 text-zinc-500 hover:text-zinc-800 transition-colors cursor-pointer"
+						className="p-1.5 rounded-full hover:bg-zinc-100 active:bg-zinc-200 active:scale-95 text-zinc-500 hover:text-zinc-800 transition-all cursor-pointer"
 					>
 						<X className="w-3.5 h-3.5" />
 					</button>
