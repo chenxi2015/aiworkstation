@@ -10,7 +10,7 @@ import {
 	extractMultipleMediaUrls,
 	extractVideoUrl,
 } from "../importers";
-import { markdownToHtml } from "../markdown";
+import { markdownToHtml, markdownToTiptapJson } from "../markdown";
 import {
 	dataUrlToFile,
 	extractMediaFiles,
@@ -184,18 +184,17 @@ export function useRichTextEditor({
 						return true;
 					}
 
-					// 2.4 Markdown content -> convert to formatted rich text via native TipTap parseHTML
+					// 2.4 Markdown content -> convert to formatted rich text.
+					// 走 markdownToTiptapJson（含 convertChartCodeBlocks）：```chart 围栏
+					// 直接还原为可交互 chart 节点，而不是普通代码块或 base64 图片。
 					const html = event.clipboardData?.getData("text/html");
 					if (shouldTreatAsMarkdown(text, html)) {
 						try {
-							const parsedHtml = markdownToHtml(text);
-							if (parsedHtml) {
+							const docJson = markdownToTiptapJson(text);
+							const nodes = docJson.content ?? [];
+							if (nodes.length > 0) {
 								event.preventDefault();
-								editorRef.current
-									.chain()
-									.focus()
-									.insertContent(parsedHtml)
-									.run();
+								editorRef.current.chain().focus().insertContent(nodes).run();
 								return true;
 							}
 						} catch (err) {
@@ -239,10 +238,10 @@ export function useRichTextEditor({
 				// 完整保留 styledContainer 卡片与内联样式的排版效果。
 				// ⚠️ 切勿在此做 markdown 往返（tiptapJsonToMarkdown → markdownToHtml），
 				//    markdown 无法表达排版样式，往返会把整篇文章的样式全部洗掉。
-			// JSON 正文原样加载（仅做代码卡片归一化 + 浮层样式清理）
-			return sanitizeOverlayStylesInDoc(
-				normalizeCodeCardDoc(JSON.parse(initialContent)),
-			);
+				// JSON 正文原样加载（仅做代码卡片归一化 + 浮层样式清理）
+				return sanitizeOverlayStylesInDoc(
+					normalizeCodeCardDoc(JSON.parse(initialContent)),
+				);
 			} catch {
 				// 历史遗留的 Markdown / 纯文本正文
 				return markdownToHtml(initialContent) || initialContent;

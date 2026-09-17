@@ -10,6 +10,13 @@ const mermaidPlugin = createMermaidPlugin({
 		theme: "base",
 		darkMode: false,
 		securityLevel: "loose",
+		// 导出需把 SVG 位图化为 PNG：htmlLabels 会产生 <foreignObject>，
+		// 浏览器安全策略会将被污染的 canvas 拦截（toDataURL 抛 SecurityError）。
+		// 关掉后标签渲染为 SVG <text>，<br/> 换行不受影响，画布可正常导出。
+		// 注意：必须设在顶层。mermaid 11 已废弃 flowchart.htmlLabels（渲染时只读
+		// 全局 htmlLabels），写在 flowchart 下会被忽略，含 <br/> 的流程图标签仍会
+		// 生成 foreignObject 导致导出图片失败。
+		htmlLabels: false,
 		fontFamily:
 			"ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
 		themeVariables: {

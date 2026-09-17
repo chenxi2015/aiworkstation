@@ -40,22 +40,24 @@ export async function embedRichBlocksAsImages(
 	if (!container) return htmlContent;
 
 	const chartNodes = Array.from(container.querySelectorAll("div[data-chart]"));
-	if (chartNodes.length === 0) return htmlContent;
 
-	const { parseChartSpec, renderChartToDataURL } = await import(
-		"./extensions/chart/chartSpec"
-	);
-	for (const el of chartNodes) {
-		try {
-			const spec = parseChartSpec(el.getAttribute("data-spec"));
-			const dataUrl = await renderChartToDataURL(spec);
-			const img = docDom.createElement("img");
-			img.src = dataUrl;
-			img.style.cssText = "max-width: 100%; display: block; margin: 8px auto;";
-			el.replaceWith(img);
-		} catch {
-			// 渲染失败时移除占位，避免导出残留空容器
-			el.remove();
+	if (chartNodes.length > 0) {
+		const { parseChartSpec, renderChartToDataURL } = await import(
+			"./extensions/chart/chartSpec"
+		);
+		for (const el of chartNodes) {
+			try {
+				const spec = parseChartSpec(el.getAttribute("data-spec"));
+				const dataUrl = await renderChartToDataURL(spec);
+				const img = docDom.createElement("img");
+				img.src = dataUrl;
+				img.style.cssText =
+					"max-width: 100%; display: block; margin: 8px auto;";
+				el.replaceWith(img);
+			} catch {
+				// 渲染失败时移除占位，避免导出残留空容器
+				el.remove();
+			}
 		}
 	}
 
@@ -174,6 +176,137 @@ function preprocessHtmlForExport(
 }
 
 /**
+ * html-to-docx 嵌入图片（data URL → word/media）时引用 Node 的 Buffer 全局，
+ * 浏览器里没有会抛 "ReferenceError: Buffer is not defined"。
+ * 导出期间临时挂一个最小 Buffer shim（from 支持 string/ArrayBuffer/TypedArray，
+ * toString 支持 base64 与 utf-8），结束后移除，避免干扰其他库的环境检测。
+ */
+function base64ToBytes(base64: string): Uint8Array {
+	const binary = atob(base64);
+	const bytes = new Uint8Array(binary.length);
+	for (let i = 0; i < binary.length; i++) {
+		bytes[i] = binary.charCodeAt(i);
+	}
+	return bytes;
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+	let binary = "";
+	const CHUNK_SIZE = 0x8000;
+	for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+		binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK_SIZE));
+	}
+	return btoa(binary);
+}
+
+type BufferShimBytes = Uint8Array & { _isBuffer: true };
+
+const bufferShimProto = Object.create(Uint8Array.prototype) as object;
+Object.defineProperties(bufferShimProto, {
+	_isBuffer: { value: true },
+	toString: {
+		value(this: Uint8Array, encoding?: string): string {
+			if (encoding === "base64") return bytesToBase64(this);
+			return new TextDecoder("utf-8").decode(this);
+		},
+	},
+});
+
+const BufferShim = {
+	from(
+		input: string | ArrayBuffer | ArrayBufferView | ArrayLike<number>,
+		encoding?: string,
+	): BufferShimBytes {
+		let bytes: Uint8Array;
+		if (typeof input === "string") {
+			bytes =
+				encoding === "base64"
+					? base64ToBytes(input)
+					: new TextEncoder().encode(input);
+		} else if (input instanceof ArrayBuffer) {
+			bytes = new Uint8Array(input);
+		} else if (ArrayBuffer.isView(input)) {
+			bytes = new Uint8Array(input.buffer, input.byteOffset, input.byteLength);
+		} else {
+			bytes = Uint8Array.from(input);
+		}
+		Object.setPrototypeOf(bytes, bufferShimProto);
+		return bytes as BufferShimBytes;
+	},
+
+	isBuffer(value: unknown): boolean {
+		return (value as { _isBuffer?: boolean } | null)?._isBuffer === true;
+	},
+
+	byteLength(
+		input: string | ArrayBuffer | ArrayBufferView,
+		encoding?: string,
+	): number {
+		if (typeof input === "string") {
+			if (encoding === "base64") {
+				return Math.floor((input.replace(/=+$/, "").length * 3) / 4);
+			}
+			return new TextEncoder().encode(input).length;
+		}
+		return input.byteLength;
+	},
+
+	alloc(size: number): BufferShimBytes {
+		return BufferShim.from(new Uint8Array(size));
+	},
+
+	allocUnsafe(size: number): BufferShimBytes {
+		return BufferShim.from(new Uint8Array(size));
+	},
+
+	concat(list: Uint8Array[]): BufferShimBytes {
+		const total = list.reduce((sum, item) => sum + item.length, 0);
+		const out = new Uint8Array(total);
+		let offset = 0;
+		for (const item of list) {
+			out.set(item, offset);
+			offset += item.length;
+		}
+		Object.setPrototypeOf(out, bufferShimProto);
+		return out as BufferShimBytes;
+	},
+};
+
+/**
+ * Word 导出前给表格注入内联样式。
+ * @turbodocx/html-to-docx 只解析元素的内联 style（不读 <style> 标签），
+ * 编辑器表格靠 CSS 类渲染的边框进入 docx 后会丢成"无线框"，这里补齐
+ * 边框/内边距/表头底色（取值与 PDF 导出的表格样式保持一致）。
+ */
+function inlineTableStylesForWord(htmlContent: string): string {
+	if (!htmlContent.includes("<table")) return htmlContent;
+	const parser = new DOMParser();
+	const docDom = parser.parseFromString(
+		`<div>${htmlContent}</div>`,
+		"text/html",
+	);
+	const container = docDom.body.firstElementChild;
+	if (!container) return htmlContent;
+	for (const table of Array.from(container.querySelectorAll("table"))) {
+		table.setAttribute(
+			"style",
+			`${table.getAttribute("style") || ""};border-collapse:collapse;width:100%`,
+		);
+		for (const cell of Array.from(table.querySelectorAll("th, td"))) {
+			const isHeader = cell.tagName === "TH";
+			const extra = isHeader
+				? "border:1px solid #d1d5db;padding:8px 12px;background-color:#f9fafb;font-weight:600"
+				: "border:1px solid #d1d5db;padding:8px 12px";
+			cell.setAttribute(
+				"style",
+				`${cell.getAttribute("style") || ""};${extra}`,
+			);
+		}
+	}
+	return container.innerHTML;
+}
+
+/**
  * 将 HTML 字符串转换为原生 Word (.docx) 文档并触发下载。
  * 使用 @turbodocx/html-to-docx（html-to-docx 的浏览器兼容维护分支），
  * 保留标题层级、加粗/斜体/颜色/字号等内联样式、列表、表格与图片。
@@ -183,8 +316,8 @@ export async function exportToWordDocx(
 	htmlContent: string,
 ): Promise<void> {
 	const safeTitle = title || "未命名文档";
-	const bodyHtml = preprocessHtmlForExport(
-		await embedRichBlocksAsImages(htmlContent),
+	const bodyHtml = inlineTableStylesForWord(
+		preprocessHtmlForExport(await embedRichBlocksAsImages(htmlContent)),
 	);
 	const fullHtml = `<h1>${safeTitle}</h1>${bodyHtml}`;
 
@@ -196,16 +329,33 @@ export async function exportToWordDocx(
 			configurable: true,
 		});
 	}
-	const { default: HTMLtoDOCX } = await import("@turbodocx/html-to-docx");
-	const fileBlob = (await HTMLtoDOCX(fullHtml, null, {
-		title: safeTitle,
-		font: "PingFang SC",
-		fontSize: 24, // 半磅单位，24 = 12pt
-		margins: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
-		table: { row: { cantSplit: true } },
-	})) as Blob;
-
-	triggerFileDownload(`${safeTitle}.docx`, fileBlob);
+	const globalScope = globalThis as unknown as Record<string, unknown>;
+	const hadBuffer = "Buffer" in globalThis;
+	if (!hadBuffer) {
+		globalScope.Buffer = BufferShim;
+	}
+	try {
+		const { default: HTMLtoDOCX } = await import("@turbodocx/html-to-docx");
+		const result = (await HTMLtoDOCX(fullHtml, null, {
+			title: safeTitle,
+			font: "PingFang SC",
+			fontSize: 24, // 半磅单位，24 = 12pt
+			margins: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
+			table: { row: { cantSplit: true } },
+		})) as Blob | Uint8Array;
+		// 挂了 Buffer shim 后库会走 Node 分支返回 Buffer（Uint8Array），统一包成 Blob 再下载
+		const fileBlob =
+			result instanceof Blob
+				? result
+				: new Blob([new Uint8Array(result)], {
+						type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+					});
+		triggerFileDownload(`${safeTitle}.docx`, fileBlob);
+	} finally {
+		if (!hadBuffer) {
+			delete globalScope.Buffer;
+		}
+	}
 }
 
 /**

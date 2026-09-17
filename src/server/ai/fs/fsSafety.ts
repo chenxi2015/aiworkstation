@@ -1,6 +1,6 @@
 import { realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 
 /** 单文件读取上限：默认 2000 行 / 512KB，超出截断 */
 export const MAX_READ_LINES = 2000;
@@ -98,10 +98,20 @@ export function looksBinary(buf: Buffer): boolean {
  * 用于 filesRootDir 场景 —— 素材文件等写入只允许发生在文件管理根目录之下。
  */
 export function assertPathWithinRoot(targetAbs: string, rootAbs: string): void {
-	const root = realpathForCheck(resolve(rootAbs));
-	const real = realpathForCheck(resolve(targetAbs));
-	if (real !== root && !real.startsWith(`${root}/`)) {
-		throw new Error(`路径越界：${real} 不在允许的根目录 ${root} 之内`);
+	const realDisplay = realpathForCheck(resolve(targetAbs));
+	const rootDisplay = realpathForCheck(resolve(rootAbs));
+	// Windows 盘符/路径大小写不敏感（D:\ vs d:\），统一小写后再比较
+	const normalizeCase = (p: string) =>
+		process.platform === "win32" ? p.toLowerCase() : p;
+	const root = normalizeCase(rootDisplay);
+	const real = normalizeCase(realDisplay);
+	// 用 path.relative 判断包含关系：Windows 上 realpath 返回反斜杠路径，
+	// 直接 startsWith(`${root}/`) 会把根目录内的合法路径误判为越界
+	const rel = relative(root, real);
+	if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+		throw new Error(
+			`路径越界：${realDisplay} 不在允许的根目录 ${rootDisplay} 之内`,
+		);
 	}
 }
 
@@ -115,7 +125,7 @@ function realpathForCheck(p: string): string {
 	} catch {
 		const parent = resolve(p, "..");
 		if (parent === p) return p;
-		return `${realpathForCheck(parent)}/${p.slice(parent.length + 1)}`;
+		return join(realpathForCheck(parent), p.slice(parent.length + 1));
 	}
 }
 

@@ -120,6 +120,9 @@ img[style*="text-align: left"], video[style*="text-align: left"] { margin-left: 
 blockquote { border-left: 3px solid #ddd; margin: 0; padding-left: 16px; color: #666; }
 code { background: #f3f3f3; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
 pre { background: #f6f8fa; padding: 16px; border-radius: 8px; overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; margin: 14px 0; }
+th, td { border: 1px solid #d1d5db; padding: 8px 12px; text-align: left; font-size: 14px; }
+th { background: #f9fafb; font-weight: 600; }
 </style>
 </head>
 <body>
@@ -138,12 +141,14 @@ ${bodyHtml}
 		}
 	}, []);
 
-	/** 复制富文本 HTML 到剪贴板（text/html + text/plain 双格式，可直接粘贴到公众号等编辑器） */
+	/**
+	 * 复制富文本 HTML 到剪贴板（text/html + text/plain 双格式，可直接粘贴到公众号等编辑器）。
+	 * 复制不将图表/Mermaid 离屏渲染为图片（图片粘贴进其他富文本后无法再编辑），
+	 * 保留 div[data-chart] 与 mermaid 代码块原样，粘贴回本编辑器可完整还原，只有导出下载时才转图片。
+	 */
 	const copyHtml = useCallback(async () => {
 		const title = activeDoc?.title || "未命名文档";
-		const rich = hasRichBlocks(activeDoc?.content);
-		if (rich) toast.info("正在将图表渲染为图片…");
-		const html = await buildEmbeddedHtml();
+		const html = currentHtml;
 		if (!html) {
 			toast.danger("HTML 内容为空，无法复制");
 			return;
@@ -166,16 +171,16 @@ ${bodyHtml}
 			console.error("Failed to copy HTML", e);
 			toast.danger("复制 HTML 失败，请重试");
 		}
-	}, [activeDoc, buildEmbeddedHtml, contentText]);
+	}, [activeDoc, currentHtml, contentText]);
 
-	/** 复制 Markdown（图表/Mermaid 渲染为高清图片嵌入） */
+	/**
+	 * 复制 Markdown。不渲染图片：图表序列化为 ```chart 围栏、Mermaid 保留 ```mermaid 源码，
+	 * 粘贴到支持 Markdown 的编辑器（或本编辑器导入）可完整还原。
+	 */
 	const copyMarkdown = useCallback(async () => {
 		if (!activeDoc) return;
-		const rich = hasRichBlocks(activeDoc.content);
-		if (rich) toast.info("正在将图表渲染为图片…");
-		const markdown = await buildEmbeddedMarkdown();
-		await copyText(markdown, "Markdown");
-	}, [activeDoc, buildEmbeddedMarkdown, copyText]);
+		await copyText(currentMarkdown, "Markdown");
+	}, [activeDoc, currentMarkdown, copyText]);
 
 	const downloadFile = useCallback(
 		(filename: string, content: string, mime: string) => {
