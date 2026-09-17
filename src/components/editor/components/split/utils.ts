@@ -1,10 +1,11 @@
 import type { Editor } from "@tiptap/core";
 import {
+	markdownToHtml,
 	markdownToTiptapDoc,
 	parseInlineMarkdownToNodes,
 	renderBlock,
 } from "../../markdown";
-import type { DocBlock } from "./types";
+import type { DocBlock, DocumentVersion } from "./types";
 
 /**
  * Check whether a text string contains Markdown table format
@@ -170,3 +171,23 @@ export function buildDocFromBlocks(blocks: DocBlock[]) {
 		content: content.length > 0 ? content : [{ type: "paragraph" }],
 	};
 }
+
+/**
+ * Render version content into target editor: uses JSONContent directly if present,
+ * otherwise parses markdown to HTML.
+ */
+export function applyVersionContent(
+	targetEditor: { commands: { setContent: (content: any, options?: { emitUpdate?: boolean }) => any } },
+	version: DocumentVersion,
+	emitUpdate = false,
+) {
+	if (version.contentJson) {
+		targetEditor.commands.setContent(version.contentJson, {
+			emitUpdate,
+		});
+		return;
+	}
+	const html = markdownToHtml(version.content);
+	targetEditor.commands.setContent(html || "<p></p>", { emitUpdate });
+}
+

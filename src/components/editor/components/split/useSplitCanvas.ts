@@ -2,35 +2,17 @@ import { toast } from "@heroui/react";
 import type { Editor } from "@tiptap/core";
 import { type JSONContent, useEditor } from "@tiptap/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-	fetchDocumentVersions,
-	snapshotVersionRpc,
-	streamRewriteText,
-} from "../../../../services/api/editorClient";
+import { snapshotVersionRpc } from "../../../../services/api/editorClient";
 import { getEditorBaseExtensions } from "../../extensions/baseExtensions";
 import { SlashCommands } from "../../extensions/slashCommand";
 import type { SlashMenuState } from "../../hooks/useRichTextEditor";
-import {
-	markdownToHtml,
-	markdownToTiptapDoc,
-	tiptapJsonToMarkdown,
-} from "../../markdown";
-import { normalizeAiGeneratedDocument } from "../../utils/aiOutputNormalizer";
-import {
-	buildHighlightedMarkdown,
-	computeDiffWordDelta,
-	markdownToPlainText,
-} from "../../utils/diffHelper";
+import { tiptapJsonToMarkdown } from "../../markdown";
+import { markdownToPlainText } from "../../utils/diffHelper";
 import type { SlashCommandMenuRef } from "../SlashCommandMenu";
-import {
-	type DocumentVersion,
-	PRESET_MODES,
-	type SplitCanvasMode,
-	type ViewMode,
-} from "./types";
-
-/** 右栏草稿工作区的固定 ID：不属于版本列表，仅表示"未保存的当前草稿" */
-const DRAFT_VERSION_ID = "draft";
+import { useSplitAiStream } from "./hooks/useSplitAiStream";
+import { useSplitDiff } from "./hooks/useSplitDiff";
+import { useSplitScroll } from "./hooks/useSplitScroll";
+import { DRAFT_VERSION_ID, useSplitVersions } from "./hooks/useSplitVersions";
 
 export interface UseSplitCanvasOptions {
 	leftEditor: Editor;
@@ -46,8 +28,8 @@ export interface UseSplitCanvasOptions {
 }
 
 /**
- * Custom hook to manage dual-canvas state, TipTap instances, version pool,
- * AI streaming generation, sync scrolling, and database persistence.
+ * Facade hook to manage dual-canvas state:
+ * Coordinates versions, diff comparison, AI streaming, and synchronized scrolling.
  */
 export function useSplitCanvas({
 	leftEditor,
@@ -59,7 +41,7 @@ export function useSplitCanvas({
 	onAccept,
 	onSaveAsNewDocument,
 }: UseSplitCanvasOptions) {
-	// 1. Initial base markdown and HTML extracted from left TipTap editor
+	// 1. Initial base markdown and JSON extracted from left TipTap editor
 	const initialBaseMarkdown = useMemo(() => {
 		try {
 			const md = tiptapJsonToMarkdown(leftEditor.getJSON());
@@ -69,145 +51,15 @@ export function useSplitCanvas({
 		}
 	}, [leftEditor]);
 
-	// 基准内容的原始 TipTap JSON：用于双栏渲染，避免 Markdown 往返丢失排版样式
 	const initialBaseJson = useMemo<JSONContent>(() => {
 		return leftEditor.getJSON();
 	}, [leftEditor]);
 
-	// 渲染版本内容到编辑器：有原始 JSON 直接用 JSON，否则走 Markdown → HTML
-	const applyVersionContent = useCallback(
-		(targetEditor: Editor, version: DocumentVersion, emitUpdate = false) => {
-			if (version.contentJson) {
-				targetEditor.commands.setContent(version.contentJson, {
-					emitUpdate,
-				});
-				return;
-			}
-			const html = markdownToHtml(version.content);
-			targetEditor.commands.setContent(html || "<p></p>", { emitUpdate });
-		},
-		[],
-	);
-
-	// 2. Version State Pool：只存放"已保存版本"（v0 基准 + 数据库快照 + 手动保存的新版本）。
-	// 右栏是未保存的草稿工作区，AI 生成 / 手动编辑都只写草稿，
-	// 只有点击「保存版本」才会把当前草稿沉淀为版本条目进入列表。
-	const [versions, setVersions] = useState<DocumentVersion[]>(() => {
-		const v0: DocumentVersion = {
-			id: "v0",
-			label: "v0: 当前正文 (Base)",
-			mode: "original",
-			content: initialBaseMarkdown,
-			contentJson: initialBaseJson,
-			createdAt: Date.now(),
-			origin: "human",
-			isSavedToDb: true,
-		};
-		return [v0];
-	});
-
-	// 草稿工作区内容（Markdown），与版本列表完全解耦
-	const [draftContent, setDraftContent] = useState<string>("");
-	// 草稿工作区的原始 TipTap JSON：渲染优先使用，避免 Markdown 往返丢失排版样式
-	const [draftContentJson, setDraftContentJson] = useState<JSONContent | null>(
-		null,
-	);
-	const draftOriginRef = useRef<"human" | "ai">("human");
-	const draftActionRef = useRef<string>("手动精修");
-
-	const [leftVersionId, setLeftVersionId] = useState<string>("v0");
-	const [rightVersionId, setRightVersionId] =
-		useState<string>(DRAFT_VERSION_ID);
-	const [diffViewMode, setDiffViewMode] = useState<ViewMode>("clean");
-	const [isSavingVersion, setIsSavingVersion] = useState(false);
-
-	// Load historical versions from SQLite on mount
-	useEffect(() => {
-		if (!docId) return;
-		let isMounted = true;
-		void fetchDocumentVersions(docId).then((dbVers) => {
-			if (!isMounted || !dbVers || dbVers.length === 0) return;
-			const mappedDbVersions: DocumentVersion[] = dbVers.map((dv) => {
-				let contentMd = "";
-				let contentJson: JSONContent | undefined;
-				try {
-					const parsed = JSON.parse(dv.content);
-					contentMd = tiptapJsonToMarkdown(parsed) || dv.content;
-					if (
-						parsed &&
-						(parsed.type === "doc" || Array.isArray(parsed.content))
-					) {
-						contentJson = parsed;
-					}
-				} catch {
-					contentMd = dv.content;
-				}
-				const dateStr = dv.createdAt
-					? new Date(dv.createdAt).toLocaleTimeString([], {
-							hour: "2-digit",
-							minute: "2-digit",
-						})
-					: "";
-				return {
-					id: `db_${dv.id}`,
-					label: `v${dv.version}: ${dv.note || (dv.origin === "ai" ? "AI 改写" : "历史快照")}${dateStr ? ` (${dateStr})` : ""}`,
-					mode: dv.origin === "ai" ? "rewrite" : "manual",
-					content: contentMd,
-					contentJson,
-					createdAt: dv.createdAt
-						? new Date(dv.createdAt).getTime()
-						: Date.now(),
-					dbVersionId: dv.id,
-					origin: dv.origin,
-					isSavedToDb: true,
-				};
-			});
-
-			setVersions((prev) => {
-				const existingIds = new Set(prev.map((v) => v.id));
-				const newUnique = mappedDbVersions.filter(
-					(v) => !existingIds.has(v.id),
-				);
-				return [...prev, ...newUnique];
-			});
-		});
-		return () => {
-			isMounted = false;
-		};
-	}, [docId]);
-
-	// Current active version models
-	const activeLeftVersion = useMemo(
-		() => versions.find((v) => v.id === leftVersionId) || versions[0],
-		[versions, leftVersionId],
-	);
-
-	// 右栏当前内容模型：草稿工作区（未保存）或某个已保存版本
-	const activeRightVersion = useMemo<DocumentVersion>(() => {
-		if (rightVersionId === DRAFT_VERSION_ID) {
-			return {
-				id: DRAFT_VERSION_ID,
-				label: "当前草稿 (未保存)",
-				mode: "manual",
-				content: draftContent,
-				contentJson: draftContentJson ?? undefined,
-				createdAt: 0,
-				origin: draftOriginRef.current,
-				isSavedToDb: false,
-			};
-		}
-		return (
-			versions.find((v) => v.id === rightVersionId) ||
-			versions[versions.length - 1] ||
-			versions[0]
-		);
-	}, [versions, rightVersionId, draftContent, draftContentJson]);
-
-	// 3. Slash Menu state for Right TipTap Editor
+	// 2. Slash Menu state for Right TipTap Editor
 	const [slashMenu, setSlashMenu] = useState<SlashMenuState | null>(null);
 	const slashMenuRef = useRef<SlashCommandMenuRef>(null);
 
-	// 4. Left Read-only Rich Text Editor instance (initialized with normalized HTML)
+	// 3. TipTap editors
 	const leftPreviewEditor = useEditor({
 		extensions: getEditorBaseExtensions(),
 		content: initialBaseJson,
@@ -215,7 +67,6 @@ export function useSplitCanvas({
 		immediatelyRender: false,
 	});
 
-	// 5. Right Editable Rich Text Editor instance (starts blank; AI generation or version selection fills it)
 	const rightEditor = useEditor({
 		extensions: [
 			...getEditorBaseExtensions({
@@ -262,14 +113,36 @@ export function useSplitCanvas({
 		immediatelyRender: false,
 	});
 
-	// Word counts tracking actual visible text length
+	// Word counts
+	const [rightWordCount, setRightWordCount] = useState<number>(0);
+
+	// 4. Sub-hook: Versions & Snapshot management
+	const {
+		versions,
+		leftVersionId,
+		setLeftVersionId,
+		rightVersionId,
+		setRightVersionId,
+		setDraftContent,
+		setDraftContentJson,
+		draftOriginRef,
+		draftActionRef,
+		isSavingVersion,
+		activeLeftVersion,
+		activeRightVersion,
+		handleSelectRightVersion,
+		handleSaveCurrentVersionToDb,
+	} = useSplitVersions({
+		docId,
+		initialBaseMarkdown,
+		initialBaseJson,
+		rightEditor,
+		setRightWordCount,
+	});
+
 	const leftWordCount = useMemo(() => {
 		return markdownToPlainText(activeLeftVersion?.content || "").length;
 	}, [activeLeftVersion?.content]);
-
-	const [rightWordCount, setRightWordCount] = useState<number>(() => {
-		return 0;
-	});
 
 	// Keep right word count in sync when active right version switches
 	useEffect(() => {
@@ -278,6 +151,73 @@ export function useSplitCanvas({
 		}
 	}, [activeRightVersion?.content]);
 
+	// 5. Sub-hook: Scroll Synchronization & Edge navigation
+	const {
+		leftScrollRef,
+		rightScrollRef,
+		isRightAtBottomRef,
+		isRightAtTop,
+		isRightAtBottom,
+		handleLeftScroll,
+		handleRightScroll,
+		scrollRightToTop,
+		scrollRightToBottom,
+		trackRightScrollPosition,
+	} = useSplitScroll();
+
+	// 6. Sub-hook: AI Streaming Rewriter
+	const {
+		selectedMode,
+		setSelectedMode,
+		customPrompt,
+		setCustomPrompt,
+		isStreaming,
+		handleStartGenerate,
+		handleStopGenerate,
+	} = useSplitAiStream({
+		rightEditor,
+		leftEditor,
+		activeLeftVersion,
+		initialBaseMarkdown,
+		docTitle,
+		stylePreset,
+		instruction,
+		modeLabel,
+		rightScrollRef,
+		isRightAtBottomRef,
+		setRightVersionId,
+		setRightWordCount,
+		setDraftContent,
+		setDraftContentJson,
+		draftOriginRef,
+		draftActionRef,
+	});
+
+	// 7. Sub-hook: Diff Comparison & View synchronization
+	const {
+		diffViewMode,
+		setDiffViewMode,
+		diffStrings,
+		canAccept,
+		canSaveAsNew,
+	} = useSplitDiff({
+		activeLeftVersion,
+		activeRightVersion,
+		leftVersionId,
+		rightVersionId,
+		initialBaseMarkdown,
+		leftPreviewEditor,
+		rightEditor,
+		isStreaming,
+		rightWordCount,
+	});
+
+	// Re-sync arrow disabled states when editor/version/stream changes
+	useEffect(() => {
+		trackRightScrollPosition();
+	}, [trackRightScrollPosition, rightEditor, rightVersionId, isStreaming]);
+
+	// Listen to right editor typing updates
 	useEffect(() => {
 		if (!rightEditor) return;
 		const updateCount = () => {
@@ -286,8 +226,6 @@ export function useSplitCanvas({
 			const md = tiptapJsonToMarkdown(rightEditor.getJSON()) || text;
 			setRightWordCount(markdownToPlainText(md).length);
 			setDraftContentJson(rightEditor.getJSON());
-			// 手动编辑只写入草稿工作区，不产生版本；
-			// 若正在查看某个已保存版本，一旦开始编辑就自动切回草稿（以当前内容为底）
 			if (rightVersionId !== DRAFT_VERSION_ID) {
 				draftOriginRef.current = "human";
 				draftActionRef.current = "手动精修";
@@ -299,405 +237,18 @@ export function useSplitCanvas({
 		return () => {
 			rightEditor.off("update", updateCount);
 		};
-	}, [rightEditor, rightVersionId, diffViewMode]);
+	}, [
+		rightEditor,
+		rightVersionId,
+		diffViewMode,
+		draftOriginRef,
+		draftActionRef,
+		setDraftContent,
+		setDraftContentJson,
+		setRightVersionId,
+	]);
 
-	// AI Streaming & Mode states
-	const [selectedMode, setSelectedMode] = useState<SplitCanvasMode | null>(
-		() => {
-			if (modeLabel) {
-				const matched = PRESET_MODES.find((m) => m.label === modeLabel);
-				if (matched) return matched.id;
-			}
-			return null;
-		},
-	);
-	const [customPrompt, setCustomPrompt] = useState(instruction || "");
-	const [isStreaming, setIsStreaming] = useState(false);
-
-	const leftScrollRef = useRef<HTMLDivElement>(null);
-	const rightScrollRef = useRef<HTMLDivElement>(null);
-	const isScrollingRef = useRef<"left" | "right" | null>(null);
-	const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-	const abortControllerRef = useRef<AbortController | null>(null);
-	// 记录已自动触发的指令指纹：防止重复触发，但允许分栏已打开时 AI 下发新指令再次生成
-	const autoTriggeredKeyRef = useRef<string | null>(null);
-	// Right column scroll-follow state (AI assistant style: only stick to
-	// bottom while the user has not scrolled up)
-	const isRightAtBottomRef = useRef(true);
-	const isRightSmoothScrollingRef = useRef(false);
-	const [isRightAtTop, setIsRightAtTop] = useState(true);
-	const [isRightAtBottom, setIsRightAtBottom] = useState(false);
-
-	const trackRightScrollPosition = useCallback(() => {
-		const right = rightScrollRef.current;
-		if (!right || isRightSmoothScrollingRef.current) return;
-		const distanceToBottom =
-			right.scrollHeight - right.scrollTop - right.clientHeight;
-		const atBottom = distanceToBottom <= 80;
-		isRightAtBottomRef.current = atBottom;
-		setIsRightAtTop(right.scrollTop <= 2);
-		setIsRightAtBottom(atBottom);
-	}, []);
-
-	const scrollRightToTop = useCallback(() => {
-		const right = rightScrollRef.current;
-		if (!right) return;
-		isRightAtBottomRef.current = false;
-		setIsRightAtTop(true);
-		setIsRightAtBottom(false);
-		isRightSmoothScrollingRef.current = true;
-		right.scrollTo({ top: 0, behavior: "smooth" });
-		setTimeout(() => {
-			isRightSmoothScrollingRef.current = false;
-		}, 500);
-	}, []);
-
-	const scrollRightToBottom = useCallback(() => {
-		const right = rightScrollRef.current;
-		if (!right) return;
-		isRightAtBottomRef.current = true;
-		setIsRightAtTop(false);
-		setIsRightAtBottom(true);
-		isRightSmoothScrollingRef.current = true;
-		right.scrollTo({ top: right.scrollHeight, behavior: "smooth" });
-		setTimeout(() => {
-			isRightSmoothScrollingRef.current = false;
-		}, 500);
-	}, []);
-
-	// Re-sync arrow disabled states when the content or version changes
-	// without any scroll event (initial load, version switch, stream start)
-	// biome-ignore lint/correctness/useExhaustiveDependencies: intentionally re-run when editor/version/stream state changes
-	useEffect(() => {
-		trackRightScrollPosition();
-	}, [trackRightScrollPosition, rightEditor, rightVersionId, isStreaming]);
-
-	// Synchronized smooth scrolling between columns
-	const handleLeftScroll = useCallback(() => {
-		if (isScrollingRef.current === "right") return;
-		isScrollingRef.current = "left";
-		if (leftScrollRef.current && rightScrollRef.current) {
-			const left = leftScrollRef.current;
-			const right = rightScrollRef.current;
-			const maxScrollLeft = left.scrollHeight - left.clientHeight;
-			const maxScrollRight = right.scrollHeight - right.clientHeight;
-			if (maxScrollLeft > 0 && maxScrollRight > 0) {
-				if (Math.abs(maxScrollLeft - maxScrollRight) <= 32) {
-					right.scrollTop = Math.min(left.scrollTop, maxScrollRight);
-				} else {
-					const ratio = left.scrollTop / maxScrollLeft;
-					right.scrollTop = ratio * maxScrollRight;
-				}
-			}
-		}
-		if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-		scrollTimeoutRef.current = setTimeout(() => {
-			isScrollingRef.current = null;
-		}, 60);
-	}, []);
-
-	const handleRightScroll = useCallback(() => {
-		trackRightScrollPosition();
-		if (isScrollingRef.current === "left") return;
-		isScrollingRef.current = "right";
-		if (leftScrollRef.current && rightScrollRef.current) {
-			const left = leftScrollRef.current;
-			const right = rightScrollRef.current;
-			const maxScrollLeft = left.scrollHeight - left.clientHeight;
-			const maxScrollRight = right.scrollHeight - right.clientHeight;
-			if (maxScrollLeft > 0 && maxScrollRight > 0) {
-				if (Math.abs(maxScrollLeft - maxScrollRight) <= 32) {
-					left.scrollTop = Math.min(right.scrollTop, maxScrollLeft);
-				} else {
-					const ratio = right.scrollTop / maxScrollRight;
-					left.scrollTop = ratio * maxScrollLeft;
-				}
-			}
-		}
-		if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-		scrollTimeoutRef.current = setTimeout(() => {
-			isScrollingRef.current = null;
-		}, 60);
-	}, [trackRightScrollPosition]);
-
-	// Stop AI generation
-	const handleStopGenerate = useCallback(() => {
-		if (abortControllerRef.current) {
-			abortControllerRef.current.abort();
-			abortControllerRef.current = null;
-		}
-		setIsStreaming(false);
-	}, []);
-
-	// Start AI generation into right rich text editor
-	const handleStartGenerate = useCallback(
-		async (
-			modeOverride?: SplitCanvasMode | null,
-			instructionOverride?: string,
-		) => {
-			if (!rightEditor) return;
-
-			const mode = modeOverride !== undefined ? modeOverride : selectedMode;
-			const preset = mode ? PRESET_MODES.find((m) => m.id === mode) : null;
-			const promptExtra =
-				instructionOverride !== undefined ? instructionOverride : customPrompt;
-
-			// Guard: require either a preset mode or custom instruction
-			if (!mode && !promptExtra.trim()) return;
-
-			// Base content to transform from currently selected left version
-			const baseContent =
-				activeLeftVersion?.content?.trim() || initialBaseMarkdown;
-			if (!baseContent) return;
-
-			// 生成只写入草稿工作区，不直接产生版本条目；
-			// 版本由用户点击「保存版本」时显式沉淀
-			const actionTitle = preset
-				? preset.label
-				: promptExtra.trim()
-					? promptExtra.trim().slice(0, 10)
-					: "智能优化";
-			draftOriginRef.current = "ai";
-			draftActionRef.current = actionTitle;
-
-			setRightVersionId(DRAFT_VERSION_ID);
-			setIsStreaming(true);
-
-			// Decide stream-follow from the actual current position, so a user
-			// reading at the top is never yanked to the bottom
-			const right = rightScrollRef.current;
-			if (right) {
-				isRightAtBottomRef.current =
-					right.scrollHeight - right.scrollTop - right.clientHeight <= 80;
-			}
-
-			const controller = new AbortController();
-			abortControllerRef.current = controller;
-
-			let fullHint = "";
-			if (preset) {
-				fullHint = promptExtra.trim()
-					? `${preset.defaultHint}\n\n【用户补充的特别要求】：\n${promptExtra.trim()}`
-					: preset.defaultHint;
-			} else if (promptExtra.trim()) {
-				fullHint = `你是一名专业中文内容创作与编辑助手。请根据以下用户提出的明确要求，对正文进行深度针对性改写与优化：\n\n【用户明确要求】：\n${promptExtra.trim()}\n\n【输出形态契约（最高优先级）】：你的输出将直接渲染进富文本编辑器，只能二选一并全篇统一：A. 纯 Markdown 正文（默认，正文严禁出现任何 HTML 标签）；B. 仅当用户明确要求"网页排版/美化样式/HTML 排版"时，输出纯裸 HTML 排版文档（以 <section>/<div> 开头，通篇无 Markdown 语法、无代码围栏）。严禁 Markdown 散文与 HTML 片段混排，严禁用 \`\`\` 围栏包裹任何排版内容。\n\n【配图保留铁律】：原文中若包含任何 Markdown 图片（形如 \`![说明](URL)\`）或多媒体，必须完整保留其链接并合理安排在改写后对应段落之间，严禁删除任何图片！直接输出改写优化后的全篇正文，不要包含任何前缀、问候或说明。`;
-			} else {
-				fullHint = `你是一名资深文字编辑与内容优化大师。请对以下正文进行全面精细化润色与提升：纠正错别字、病句，优化行文结构与表达质感，提升逻辑流畅性。【配图保留铁律】：原文中若包含任何 Markdown 图片（形如 \`![说明](URL)\`）或多媒体，必须完整保留其链接并合理安排在对应段落中，严禁删除任何图片！直接输出优化后的全篇正文，不要包含任何前缀、问候或说明。`;
-			}
-
-			try {
-				await streamRewriteText(
-					{
-						prompt: baseContent,
-						systemHint: fullHint,
-						stylePreset,
-						articleTitle: docTitle,
-					},
-					{
-						onChunk: (_delta, fullText) => {
-							try {
-								const normalizedText = normalizeAiGeneratedDocument(
-									fullText,
-									baseContent,
-								);
-								const { nodes } = markdownToTiptapDoc(normalizedText);
-								const docJson: JSONContent = {
-									type: "doc",
-									content: nodes.length > 0 ? nodes : [{ type: "paragraph" }],
-								};
-								rightEditor.commands.setContent(docJson, {
-									emitUpdate: false,
-								});
-								setRightWordCount(normalizedText.length);
-								setDraftContent(normalizedText);
-								setDraftContentJson(docJson);
-								// AI assistant style follow: only stick to bottom while the
-								// user has not scrolled up to read earlier content
-								const scrollEl = rightScrollRef.current;
-								if (scrollEl && isRightAtBottomRef.current) {
-									scrollEl.scrollTop = scrollEl.scrollHeight;
-								}
-							} catch (e) {
-								console.warn("[SplitCompareView] setContent chunk error:", e);
-							}
-						},
-						onDone: async (fullText) => {
-							try {
-								const normalizedText = normalizeAiGeneratedDocument(
-									fullText,
-									baseContent,
-								);
-								const { nodes } = markdownToTiptapDoc(normalizedText);
-
-								// Scan and retain original images
-								const originalImages: Array<{ src: string; alt?: string }> = [];
-								const scanOriginalImages = (n: JSONContent) => {
-									if (n.type === "image" && n.attrs?.src) {
-										originalImages.push({
-											src: String(n.attrs.src),
-											alt: n.attrs.alt ? String(n.attrs.alt) : undefined,
-										});
-									}
-									if (n.content && Array.isArray(n.content)) {
-										for (const child of n.content) scanOriginalImages(child);
-									}
-								};
-								scanOriginalImages(leftEditor.getJSON());
-
-								const generatedSrcSet = new Set<string>();
-								const scanGeneratedImages = (n: JSONContent) => {
-									if (n.type === "image" && n.attrs?.src) {
-										generatedSrcSet.add(String(n.attrs.src));
-									}
-									if (n.content && Array.isArray(n.content)) {
-										for (const child of n.content) scanGeneratedImages(child);
-									}
-								};
-								for (const node of nodes) scanGeneratedImages(node);
-
-								const missingImages = originalImages.filter(
-									(img) => !generatedSrcSet.has(img.src),
-								);
-								const finalNodes = [...nodes];
-								if (missingImages.length > 0) {
-									for (const img of missingImages) {
-										finalNodes.push({
-											type: "image",
-											attrs: { src: img.src, alt: img.alt || "" },
-										});
-									}
-								}
-
-								const finalDocJson: JSONContent = {
-									type: "doc",
-									content:
-										finalNodes.length > 0
-											? finalNodes
-											: [{ type: "paragraph" }],
-								};
-								rightEditor.commands.setContent(finalDocJson, {
-									emitUpdate: true,
-								});
-								setRightWordCount(
-									rightEditor.getText().length || normalizedText.length,
-								);
-								setDraftContent(normalizedText);
-								setDraftContentJson(finalDocJson);
-							} catch (e) {
-								console.warn("[SplitCompareView] setContent done error:", e);
-							}
-							setIsStreaming(false);
-						},
-						onError: (err) => {
-							console.warn("[SplitCompareView] Stream error:", err);
-							setIsStreaming(false);
-						},
-					},
-					controller.signal,
-				);
-			} catch (err) {
-				if (!controller.signal.aborted) {
-					console.error("[SplitCompareView] Generation error:", err);
-				}
-				setIsStreaming(false);
-			}
-		},
-		[
-			rightEditor,
-			selectedMode,
-			customPrompt,
-			activeLeftVersion,
-			initialBaseMarkdown,
-			stylePreset,
-			docTitle,
-			leftEditor,
-		],
-	);
-
-	// Auto-trigger if opened with instruction
-	useEffect(() => {
-		if (!instruction && !modeLabel) return;
-		// 右侧编辑器以 immediatelyRender: false 延迟创建，首帧仍为 null；
-		// 必须等实例就绪后再触发，否则 handleStartGenerate 静默 return 且不再重试
-		if (!rightEditor) return;
-		const triggerKey = `${modeLabel ?? ""}::${instruction ?? ""}`;
-		if (autoTriggeredKeyRef.current === triggerKey) return;
-		autoTriggeredKeyRef.current = triggerKey;
-		const targetMode = modeLabel
-			? PRESET_MODES.find((m) => m.label === modeLabel)?.id || null
-			: null;
-		setSelectedMode(targetMode);
-		// AI 指令直接用于本轮生成，清空输入框避免长文残留在 Dock 里
-		setCustomPrompt("");
-		void handleStartGenerate(targetMode, instruction);
-	}, [instruction, modeLabel, rightEditor, handleStartGenerate]);
-
-	// Clean up streaming on unmount
-	useEffect(() => {
-		return () => {
-			if (abortControllerRef.current) {
-				abortControllerRef.current.abort();
-			}
-		};
-	}, []);
-
-	// Handle version selection on right column
-	const handleSelectRightVersion = useCallback(
-		(versionId: string) => {
-			setRightVersionId(versionId);
-			const targetVer = versions.find((v) => v.id === versionId);
-			if (!targetVer || !rightEditor) return;
-			try {
-				// emitUpdate=false：仅浏览版本不触发 update 监听，避免把草稿工作区覆盖成所看版本
-				applyVersionContent(rightEditor, targetVer, false);
-				setRightWordCount(markdownToPlainText(targetVer.content).length);
-			} catch {
-				rightEditor.commands.setContent(targetVer.content, {
-					emitUpdate: false,
-				});
-				setRightWordCount(markdownToPlainText(targetVer.content).length);
-			}
-		},
-		[versions, rightEditor, applyVersionContent],
-	);
-
-	// Manually save current active version to SQLite document_versions
-	const handleSaveCurrentVersionToDb = useCallback(async () => {
-		if (!docId || !rightEditor) return;
-		setIsSavingVersion(true);
-		try {
-			const jsonContent = JSON.stringify(rightEditor.getJSON());
-			const textPreview = rightEditor.getText().trim().slice(0, 15);
-			const saved = await snapshotVersionRpc({
-				documentId: docId,
-				content: jsonContent,
-				origin: "human",
-				note: `手动存档: ${textPreview || "精修版"}`,
-			});
-			setVersions((prev) =>
-				prev.map((v) =>
-					v.id === rightVersionId
-						? {
-								...v,
-								isSavedToDb: true,
-								dbVersionId: saved.id,
-								label: v.label.includes("[已存库]")
-									? v.label
-									: `${v.label} [已存库]`,
-							}
-						: v,
-				),
-			);
-			toast.success("当前版本已成功持久化至数据库！");
-		} catch (err: unknown) {
-			const msg = err instanceof Error ? err.message : String(err);
-			toast.danger(`保存版本失败: ${msg}`);
-		} finally {
-			setIsSavingVersion(false);
-		}
-	}, [docId, rightEditor, rightVersionId]);
-
-	// Accept right editor content into left main document
+	// Actions: Accept / Discard / Save As New
 	const handleAccept = useCallback(async () => {
 		if (!rightEditor) return;
 		const text = rightEditor.getText().trim();
@@ -705,7 +256,6 @@ export function useSplitCanvas({
 			toast.warning("右侧草稿内容为空，无法采纳覆盖正文");
 			return;
 		}
-		// Save snapshot before accepting to ensure history is never lost
 		if (docId) {
 			try {
 				await snapshotVersionRpc({
@@ -721,7 +271,11 @@ export function useSplitCanvas({
 		onAccept(rightEditor.getJSON());
 	}, [rightEditor, onAccept, docId, activeRightVersion.label]);
 
-	// Save right editor content as a new standalone document
+	// Retain right draft without overwriting main document or resetting right content
+	const handleReject = useCallback(() => {
+		toast.info("已保留右侧演练草稿，暂未采纳至正文");
+	}, []);
+
 	const handleSaveAsNew = useCallback(async () => {
 		if (!rightEditor || !onSaveAsNewDocument) return;
 		const text = rightEditor.getText().trim();
@@ -733,99 +287,6 @@ export function useSplitCanvas({
 		const newTitle = `${docTitle || "未命名文档"} · 改写篇`;
 		await onSaveAsNewDocument(newTitle, md);
 	}, [rightEditor, docTitle, onSaveAsNewDocument]);
-
-	// Compute Diff Highlighting strings and accurate word delta between left and right versions
-	const diffStrings = useMemo(() => {
-		if (diffViewMode !== "diff") {
-			return { leftHighlighted: "", rightHighlighted: "", diffDelta: 0 };
-		}
-		const leftMd = activeLeftVersion?.content || "";
-		const rightMd = activeRightVersion?.content || "";
-		const leftHighlighted = buildHighlightedMarkdown(leftMd, rightMd, "base");
-		const rightHighlighted = buildHighlightedMarkdown(
-			leftMd,
-			rightMd,
-			"revised",
-		);
-		const diffDelta = computeDiffWordDelta(leftMd, rightMd);
-		return { leftHighlighted, rightHighlighted, diffDelta };
-	}, [diffViewMode, activeLeftVersion, activeRightVersion]);
-
-	// Synchronize left & right editor contents between clean and diff highlighting modes
-	const lastAppliedModeRef = useRef<ViewMode>("clean");
-	const lastAppliedLeftVerRef = useRef<string>("v0");
-	const lastAppliedRightVerRef = useRef<string>("v_draft");
-
-	useEffect(() => {
-		if (isStreaming) return;
-
-		const modeChanged = lastAppliedModeRef.current !== diffViewMode;
-		const leftVerChanged = lastAppliedLeftVerRef.current !== leftVersionId;
-		const rightVerChanged = lastAppliedRightVerRef.current !== rightVersionId;
-
-		if (!modeChanged && !leftVerChanged && !rightVerChanged) {
-			return;
-		}
-
-		lastAppliedModeRef.current = diffViewMode;
-		lastAppliedLeftVerRef.current = leftVersionId;
-		lastAppliedRightVerRef.current = rightVersionId;
-
-		if (diffViewMode === "diff") {
-			// Diff mode: apply diff highlights and freeze right editor from manual typing
-			if (leftPreviewEditor && diffStrings.leftHighlighted) {
-				const html = markdownToHtml(diffStrings.leftHighlighted);
-				leftPreviewEditor.commands.setContent(html || "<p></p>", {
-					emitUpdate: false,
-				});
-			}
-			if (rightEditor && diffStrings.rightHighlighted) {
-				const html = markdownToHtml(diffStrings.rightHighlighted);
-				rightEditor.commands.setContent(html || "<p></p>", {
-					emitUpdate: false,
-				});
-				rightEditor.setEditable(false);
-			}
-		} else {
-			// Clean mode: restore clean rich text content and re-enable editing
-			if (leftPreviewEditor && activeLeftVersion) {
-				applyVersionContent(leftPreviewEditor, activeLeftVersion);
-			}
-			if (rightEditor) {
-				if (activeRightVersion) {
-					applyVersionContent(rightEditor, activeRightVersion);
-				}
-				rightEditor.setEditable(true);
-			}
-		}
-	}, [
-		diffViewMode,
-		leftVersionId,
-		rightVersionId,
-		diffStrings.leftHighlighted,
-		diffStrings.rightHighlighted,
-		activeLeftVersion,
-		activeRightVersion,
-		leftPreviewEditor,
-		rightEditor,
-		isStreaming,
-		applyVersionContent,
-	]);
-
-	// Check if right canvas has substantial changes compared to the base text.
-	// 必须两侧都做纯文本归一化后再对比（右侧是编辑器纯文本，基准是 Markdown 源文本，
-	// 直接对比会因 Markdown 标记永远不等，导致首次进入就误判为"有改动"）。
-	const hasSubstantialChanges = useMemo(() => {
-		const rightPlain = markdownToPlainText(
-			activeRightVersion?.content || "",
-		).trim();
-		if (!rightPlain) return false;
-		const basePlain = markdownToPlainText(initialBaseMarkdown).trim();
-		return rightPlain !== basePlain;
-	}, [activeRightVersion?.content, initialBaseMarkdown]);
-
-	const canAccept = hasSubstantialChanges && !isStreaming;
-	const canSaveAsNew = rightWordCount > 0 && !isStreaming;
 
 	return {
 		// Version pool
@@ -859,6 +320,8 @@ export function useSplitCanvas({
 		canAccept,
 		canSaveAsNew,
 		handleAccept,
+		handleReject,
+		handleDiscard: handleReject,
 		handleSaveAsNew,
 		handleSaveCurrentVersionToDb,
 

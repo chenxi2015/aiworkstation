@@ -54,23 +54,14 @@ export function SplitFloatingPromptDock({
 	isStreaming,
 	onStartGenerate,
 	onStopGenerate,
-	canAccept,
-	onAccept,
-	onReject,
 	inputVisible = true,
 }: SplitFloatingPromptDockProps) {
 	const [menuOpen, setMenuOpen] = useState(false);
-	const [reviewDismissed, setReviewDismissed] = useState(false);
 	const menuRef = useRef<HTMLDivElement>(null);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 
 	const activePreset = PRESET_MODES.find((m) => m.id === selectedMode) || null;
 	const canGenerate = Boolean(selectedMode || customPrompt.trim());
-
-	// 新一轮生成完成后重新展示审核条
-	useEffect(() => {
-		if (canAccept) setReviewDismissed(false);
-	}, [canAccept]);
 
 	// 点击外部关闭快捷操作菜单
 	useEffect(() => {
@@ -101,45 +92,11 @@ export function SplitFloatingPromptDock({
 		}
 	};
 
-	const showReviewBar =
-		inputVisible && !isStreaming && canAccept && !reviewDismissed;
-
 	// 面板展开时代理输入入口：非流式期间整个 Dock 退场
 	if (!inputVisible && !isStreaming) return null;
 
 	return (
 		<div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-30 w-[min(560px,92%)] select-none">
-			{/* 审核胶囊：采纳 / 放弃（对应参考图 Accept / Reject） */}
-			{showReviewBar && (
-				<div className="mb-2.5 flex justify-center animate-in fade-in slide-in-from-bottom-2 duration-200">
-					<div className="flex items-center gap-1 px-2 py-1.5 rounded-full bg-surface/95 dark:bg-zinc-900/95 backdrop-blur-xl border border-border/80 shadow-lg">
-						<button
-							type="button"
-							onClick={onReject}
-							className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium text-muted hover:text-foreground hover:bg-muted/10 transition-colors cursor-pointer"
-						>
-							<X className="w-3.5 h-3.5" />
-							<span>放弃并退出</span>
-						</button>
-						<button
-							type="button"
-							onClick={onAccept}
-							className="flex items-center gap-1.5 px-4 py-1 rounded-full text-xs font-medium bg-accent text-accent-foreground hover:opacity-90 transition-opacity cursor-pointer shadow-xs active:scale-95"
-						>
-							<Check className="w-3.5 h-3.5" />
-							<span>采纳至正文</span>
-						</button>
-						<button
-							type="button"
-							onClick={() => setReviewDismissed(true)}
-							title="继续编辑，暂不处理"
-							className="p-1 rounded-full text-muted hover:text-foreground hover:bg-muted/10 transition-colors cursor-pointer"
-						>
-							<X className="w-3 h-3" />
-						</button>
-					</div>
-				</div>
-			)}
 
 			{isStreaming ? (
 				/* 流式状态胶囊（对应参考图 Using AI toolkit） */

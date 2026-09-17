@@ -93,6 +93,7 @@ export function SplitCompareView(props: SplitCompareViewProps) {
 				isSavingVersion={isSavingVersion}
 				canAccept={canAccept}
 				canSaveAsNew={canSaveAsNew}
+				rightWordCount={rightWordCount}
 				onAccept={handleAccept}
 				onCancel={onCancel}
 				onSaveAsNewDocument={onSaveAsNewDocument ? handleSaveAsNew : undefined}
@@ -141,9 +142,6 @@ export function SplitCompareView(props: SplitCompareViewProps) {
 						onChangeCustomPrompt={setCustomPrompt}
 						onStartGenerate={() => handleStartGenerate()}
 						onStopGenerate={handleStopGenerate}
-						canAccept={canAccept}
-						onAccept={handleAccept}
-						onReject={onCancel}
 						dockInputVisible={isAiPanelCollapsed}
 					/>
 				</div>

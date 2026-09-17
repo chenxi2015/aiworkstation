@@ -37,9 +37,6 @@ export interface SplitRevisedColumnProps {
 	onChangeCustomPrompt: (prompt: string) => void;
 	onStartGenerate: () => void;
 	onStopGenerate: () => void;
-	canAccept?: boolean;
-	onAccept?: () => void;
-	onReject?: () => void;
 	/** 右侧 AI Agent 面板展开时隐藏 Dock 输入入口，仅保留流式状态 */
 	dockInputVisible?: boolean;
 }
@@ -75,9 +72,6 @@ export function SplitRevisedColumn({
 	onChangeCustomPrompt,
 	onStartGenerate,
 	onStopGenerate,
-	canAccept,
-	onAccept,
-	onReject,
 	dockInputVisible = true,
 }: SplitRevisedColumnProps) {
 	return (
@@ -163,9 +157,6 @@ export function SplitRevisedColumn({
 				isStreaming={isStreaming}
 				onStartGenerate={onStartGenerate}
 				onStopGenerate={onStopGenerate}
-				canAccept={canAccept}
-				onAccept={onAccept}
-				onReject={onReject}
 				inputVisible={dockInputVisible}
 			/>
 
