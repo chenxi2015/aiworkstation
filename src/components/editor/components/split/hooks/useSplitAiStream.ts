@@ -1,3 +1,4 @@
+import { toast } from "@heroui/react";
 import type { Editor } from "@tiptap/core";
 import type { JSONContent } from "@tiptap/react";
 import type React from "react";
@@ -5,10 +6,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { streamRewriteText } from "../../../../../services/api/editorClient";
 import { markdownToTiptapDoc } from "../../../markdown";
 import { normalizeAiGeneratedDocument } from "../../../utils/aiOutputNormalizer";
+import { recordSplitPracticeSession } from "../services/splitChatSessionService";
 import { PRESET_MODES, type SplitCanvasMode } from "../types";
 import { DRAFT_VERSION_ID } from "./useSplitVersions";
 
 export interface UseSplitAiStreamOptions {
+	docId?: number;
 	rightEditor: Editor | null;
 	leftEditor: Editor;
 	activeLeftVersion: { content: string };
@@ -28,6 +31,7 @@ export interface UseSplitAiStreamOptions {
 }
 
 export function useSplitAiStream({
+	docId,
 	rightEditor,
 	leftEditor,
 	activeLeftVersion,
@@ -82,18 +86,33 @@ export function useSplitAiStream({
 				instructionOverride !== undefined ? instructionOverride : customPrompt;
 
 			// Guard: require either a preset mode or custom instruction
-			if (!mode && !promptExtra.trim()) return;
+			if (!mode && !promptExtra.trim()) {
+				toast.warning("请输入修改或创作要求");
+				return;
+			}
 
 			// Base content to transform from currently selected left version
 			const baseContent =
 				activeLeftVersion?.content?.trim() || initialBaseMarkdown;
-			if (!baseContent) return;
+			if (!baseContent && !promptExtra.trim()) {
+				toast.warning("当前没有可改写的正文内容，请输入要求");
+				return;
+			}
 
-			const actionTitle = preset
-				? preset.label
-				: promptExtra.trim()
-					? promptExtra.trim().slice(0, 10)
-					: "智能优化";
+			let actionTitle = "智能优化";
+			if (preset) {
+				actionTitle = preset.label;
+			} else if (promptExtra.trim()) {
+				const skillMatch = promptExtra.match(/\[Skill:\s*([^\]]+)\]/i);
+				if (skillMatch) {
+					actionTitle = skillMatch[1].trim();
+				} else {
+					const clean = promptExtra
+						.replace(/^[[【][^\]】]+[\]】]\s*/, "")
+						.trim();
+					actionTitle = clean ? clean.slice(0, 12) : "演练创作";
+				}
+			}
 			draftOriginRef.current = "ai";
 			draftActionRef.current = actionTitle;
 
@@ -109,8 +128,12 @@ export function useSplitAiStream({
 			const controller = new AbortController();
 			abortControllerRef.current = controller;
 
+			const effectivePrompt = baseContent || promptExtra.trim();
+
 			let fullHint = "";
-			if (preset) {
+			if (!baseContent) {
+				fullHint = `你是一名专业中文内容创作与编辑大师。请根据以下用户提出的明确要求，直接构思并撰写高质量的完整正文：\n\n【用户明确要求】：\n${promptExtra.trim()}\n\n【输出形态契约（最高优先级）】：纯 Markdown 正文，直接输出排版工整、逻辑紧密的正文，严禁输出任何问候、开场白或解释说明。`;
+			} else if (preset) {
 				fullHint = promptExtra.trim()
 					? `${preset.defaultHint}\n\n【用户补充的特别要求】：\n${promptExtra.trim()}`
 					: preset.defaultHint;
@@ -123,7 +146,7 @@ export function useSplitAiStream({
 			try {
 				await streamRewriteText(
 					{
-						prompt: baseContent,
+						prompt: effectivePrompt,
 						systemHint: fullHint,
 						stylePreset,
 						articleTitle: docTitle,
@@ -133,7 +156,7 @@ export function useSplitAiStream({
 							try {
 								const normalizedText = normalizeAiGeneratedDocument(
 									fullText,
-									baseContent,
+									effectivePrompt,
 								);
 								const { nodes } = markdownToTiptapDoc(normalizedText);
 								const docJson: JSONContent = {
@@ -217,6 +240,15 @@ export function useSplitAiStream({
 								);
 								setDraftContent(normalizedText);
 								setDraftContentJson(finalDocJson);
+
+								// Record split AI interaction to persistent chat history
+								void recordSplitPracticeSession({
+									docId,
+									docTitle,
+									prompt: promptExtra,
+									modeLabel: actionTitle,
+									generatedContent: normalizedText,
+								});
 							} catch (e) {
 								console.warn("[SplitCompareView] setContent done error:", e);
 							}
@@ -224,6 +256,7 @@ export function useSplitAiStream({
 						},
 						onError: (err) => {
 							console.warn("[SplitCompareView] Stream error:", err);
+							toast.danger(`生成出错: ${err}`);
 							setIsStreaming(false);
 						},
 					},
@@ -232,11 +265,15 @@ export function useSplitAiStream({
 			} catch (err) {
 				if (!controller.signal.aborted) {
 					console.error("[SplitCompareView] Generation error:", err);
+					toast.danger(
+						`生成失败: ${err instanceof Error ? err.message : String(err)}`,
+					);
 				}
 				setIsStreaming(false);
 			}
 		},
 		[
+			docId,
 			rightEditor,
 			selectedMode,
 			customPrompt,

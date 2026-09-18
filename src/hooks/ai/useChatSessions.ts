@@ -66,8 +66,15 @@ export function useChatSessions<
 	const [sessions, setSessions] = useState<ChatSession<TMessage>[]>([]);
 	const sessionsRef = useRef<ChatSession<TMessage>[]>([]);
 	const initialSessionId = getSavedActiveSessionId() || `session_${Date.now()}`;
-	const [currentSessionId, setCurrentSessionIdState] = useState<string>(initialSessionId);
+	const [currentSessionId, setCurrentSessionIdState] =
+		useState<string>(initialSessionId);
 	const currentSessionIdRef = useRef<string>(initialSessionId);
+
+	// Stabilize callbacks with refs to avoid infinite re-render loops caused by inline functions
+	const onSessionLoadedRef = useRef(props?.onSessionLoaded);
+	onSessionLoadedRef.current = props?.onSessionLoaded;
+	const onSessionClearedRef = useRef(props?.onSessionCleared);
+	onSessionClearedRef.current = props?.onSessionCleared;
 
 	// Keep sessionsRef in sync with state
 	useEffect(() => {
@@ -101,13 +108,9 @@ export function useChatSessions<
 							: null;
 						const targetSession = matched || dbSessions[0];
 
-						if (
-							targetSession &&
-							targetSession.messages &&
-							targetSession.messages.length > 0
-						) {
+						if (targetSession?.messages && targetSession.messages.length > 0) {
 							setCurrentSessionId(targetSession.id);
-							props?.onSessionLoaded?.(targetSession.messages);
+							onSessionLoadedRef.current?.(targetSession.messages);
 						}
 					}
 				}
@@ -125,6 +128,38 @@ export function useChatSessions<
 			isMounted = false;
 		};
 	}, [setCurrentSessionId]);
+
+	// Listen to cross-module session update events (e.g. from split canvas AI practice)
+	useEffect(() => {
+		if (typeof window === "undefined") return;
+
+		const handleSessionsUpdated = async () => {
+			try {
+				const dbSessions =
+					await WorkbenchStorageService.fetchChatSessions<TMessage>();
+				if (dbSessions) {
+					sessionsRef.current = dbSessions;
+					setSessions(dbSessions);
+				}
+			} catch (e) {
+				console.warn(
+					"[useChatSessions] Failed to refresh sessions on event:",
+					e,
+				);
+			}
+		};
+
+		window.addEventListener(
+			"aiworkstation:chat_sessions_updated",
+			handleSessionsUpdated,
+		);
+		return () => {
+			window.removeEventListener(
+				"aiworkstation:chat_sessions_updated",
+				handleSessionsUpdated,
+			);
+		};
+	}, []);
 
 	// Synchronize current messages with sessions list and SQLite database
 	const syncSession = useCallback((msgs: TMessage[], sessId: string) => {
@@ -186,18 +221,18 @@ export function useChatSessions<
 	const createNewChat = useCallback(() => {
 		const newId = `session_${Date.now()}`;
 		setCurrentSessionId(newId);
-		props?.onSessionCleared?.();
+		onSessionClearedRef.current?.();
 		toast.success("已开启新对话");
-	}, [setCurrentSessionId, props]);
+	}, [setCurrentSessionId]);
 
 	// Load a selected historical session (pure read operation, does not overwrite history)
 	const loadSession = useCallback(
 		(session: ChatSession<TMessage>) => {
 			setCurrentSessionId(session.id);
-			props?.onSessionLoaded?.(session.messages || []);
+			onSessionLoadedRef.current?.(session.messages || []);
 			toast.success(`已载入「${session.title || "历史对话"}」`);
 		},
-		[props, setCurrentSessionId],
+		[setCurrentSessionId],
 	);
 
 	// Delete a single historical session from SQLite
@@ -209,20 +244,20 @@ export function useChatSessions<
 				sessionsRef.current = remaining;
 				if (currentSessionId === sessionId) {
 					const next = remaining[0];
-					if (next && next.messages && next.messages.length > 0) {
+					if (next?.messages && next.messages.length > 0) {
 						setCurrentSessionId(next.id);
-						props?.onSessionLoaded?.(next.messages);
+						onSessionLoadedRef.current?.(next.messages);
 					} else {
 						const newId = `session_${Date.now()}`;
 						setCurrentSessionId(newId);
-						props?.onSessionCleared?.();
+						onSessionClearedRef.current?.();
 					}
 				}
 				return remaining;
 			});
 			toast.success("已删除该会话记录");
 		},
-		[currentSessionId, setCurrentSessionId, props],
+		[currentSessionId, setCurrentSessionId],
 	);
 
 	// Clear all sessions in SQLite
@@ -232,9 +267,9 @@ export function useChatSessions<
 		const newId = `session_${Date.now()}`;
 		setCurrentSessionId(newId);
 		WorkbenchStorageService.clearChatSessions();
-		props?.onSessionCleared?.();
+		onSessionClearedRef.current?.();
 		toast.success("已清空所有对话记录");
-	}, [props, setCurrentSessionId]);
+	}, [setCurrentSessionId]);
 
 	// Export all sessions as formatted JSON file
 	const exportAllSessionsToJson = useCallback(async () => {

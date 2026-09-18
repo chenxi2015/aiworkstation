@@ -140,7 +140,9 @@ export function SplitCompareView(props: SplitCompareViewProps) {
 						onSelectMode={setSelectedMode}
 						customPrompt={customPrompt}
 						onChangeCustomPrompt={setCustomPrompt}
-						onStartGenerate={() => handleStartGenerate()}
+						onStartGenerate={(promptOverride) =>
+							handleStartGenerate(undefined, promptOverride)
+						}
 						onStopGenerate={handleStopGenerate}
 						dockInputVisible={isAiPanelCollapsed}
 					/>

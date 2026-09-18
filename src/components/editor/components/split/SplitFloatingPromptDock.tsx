@@ -31,7 +31,7 @@ export interface SplitFloatingPromptDockProps {
 	customPrompt: string;
 	onChangeCustomPrompt: (prompt: string) => void;
 	isStreaming: boolean;
-	onStartGenerate: () => void;
+	onStartGenerate: (promptOverride?: string) => void;
 	onStopGenerate: () => void;
 	canAccept?: boolean;
 	onAccept?: () => void;
@@ -167,7 +167,10 @@ export function SplitFloatingPromptDock({
 		if (!canSend) return;
 
 		let finalPrompt = trimmedText;
-		if (skills.length > 0) {
+		if (
+			skills.length > 0 &&
+			!skills.some((s) => trimmedText.includes(`[Skill: ${s.name}]`))
+		) {
 			const skillsHeader = skills.map((s) => `[Skill: ${s.name}]`).join("\n");
 			finalPrompt = finalPrompt
 				? `${skillsHeader}\n\n${finalPrompt}`
@@ -180,9 +183,7 @@ export function SplitFloatingPromptDock({
 		setMenuOpen(false);
 		setSlashQuery(null);
 
-		setTimeout(() => {
-			onStartGenerate();
-		}, 0);
+		onStartGenerate(finalPrompt);
 	}, [
 		isStreaming,
 		customPrompt,
@@ -288,7 +289,7 @@ export function SplitFloatingPromptDock({
 				</div>
 
 				{/* Middle: Modern Inline Rich Input Area powered by TipTap */}
-				<div className="px-1 py-0.5 min-h-[28px] flex items-start">
+				<div className="px-1 py-0.5 min-h-[40px] flex items-start">
 					<ChatRichInlineInput
 						ref={inlineEditorRef}
 						placeholder={placeholder}

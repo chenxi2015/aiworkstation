@@ -7,15 +7,54 @@ import {
 	Folder as FolderIcon,
 	Globe,
 	Pencil,
+	Sparkles,
 	Trash2,
 	ZoomIn,
 } from "lucide-react";
-import { memo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import type { ChatItem } from "../../../../../hooks/ai/useAiChat";
 import type { Category } from "../../../types";
 import { useImagePreview } from "../../shared/ImagePreviewModal";
 import { UrlLinkifiedText } from "../../shared/UrlLinkifiedText";
 import { MessageEditInlineInput } from "../inline/MessageEditInlineInput";
+
+/** Parses any legacy split practice prefix and duplicate skill headers from raw content */
+function parseSplitMessageContent(content: string): {
+	splitBadge: string | null;
+	cleanContent: string;
+} {
+	if (!content) return { splitBadge: null, cleanContent: "" };
+
+	let text = content;
+	let splitBadge: string | null = null;
+
+	// 1. Detect legacy 【双栏演练 · xxx】 prefix
+	const splitMatch = text.match(/^\s*【双栏演练(?:\s*·\s*([^】]+))?】\s*/);
+	if (splitMatch) {
+		let label = (splitMatch[1] || "").trim();
+		// Clean up any incomplete or broken skill tag inside label, e.g. [Skill: ai
+		label = label
+			.replace(/\[Skill:\s*/i, "")
+			.replace(/[\]]/g, "")
+			.trim();
+		splitBadge = label ? `双栏演练 · ${label}` : "双栏演练";
+		text = text.slice(splitMatch[0].length).trim();
+	}
+
+	// 2. Remove redundant standalone skill header lines if text already has the same inline token
+	const duplicateSkillMatch = text.match(
+		/^\[Skill:\s*([^\]]+)\]\s*\n+([\s\S]*)$/i,
+	);
+	if (duplicateSkillMatch) {
+		const skillName = duplicateSkillMatch[1].trim().toLowerCase();
+		const rest = duplicateSkillMatch[2].trim();
+		if (rest.toLowerCase().includes(`[skill: ${skillName}]`)) {
+			text = rest;
+		}
+	}
+
+	return { splitBadge, cleanContent: text };
+}
 
 export interface UserMessageBubbleProps {
 	msg: ChatItem;
@@ -47,8 +86,13 @@ export const UserMessageBubble = memo(function UserMessageBubble({
 	const [copied, setCopied] = useState(false);
 	const { openPreview } = useImagePreview();
 
+	const { splitBadge, cleanContent } = useMemo(
+		() => parseSplitMessageContent(msg.content),
+		[msg.content],
+	);
+
 	const handleCopy = () => {
-		navigator.clipboard.writeText(msg.content);
+		navigator.clipboard.writeText(cleanContent);
 		setCopied(true);
 		toast.success("已复制到剪贴板");
 		setTimeout(() => setCopied(false), 2000);
@@ -69,6 +113,21 @@ export const UserMessageBubble = memo(function UserMessageBubble({
 					{msg.contextItems.map((ci) => {
 						const isLink = ci.type === "bookmark" || Boolean(ci.url);
 						const isFolder = ci.type === "folder";
+
+						if ((ci.type as string) === "split_practice") {
+							return (
+								<div
+									key={ci.id}
+									className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-accent/10 border border-accent/30 text-[10px] text-accent font-medium select-none shadow-2xs"
+									title="来自双栏演练画布"
+								>
+									<Sparkles className="w-3 h-3 text-accent shrink-0" />
+									<span className="truncate max-w-[160px] font-medium">
+										{ci.title}
+									</span>
+								</div>
+							);
+						}
 
 						if (isLink && ci.url) {
 							return (
@@ -230,8 +289,17 @@ export const UserMessageBubble = memo(function UserMessageBubble({
 				<div className="flex flex-col items-end gap-1 max-w-[85%] sm:max-w-[75%]">
 					{/* Clean neutral rounded pill */}
 					<div className="bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-2xl px-4 py-2 text-sm leading-relaxed font-normal shadow-2xs">
+						{splitBadge &&
+							!msg.contextItems?.some(
+								(c) => (c.type as string) === "split_practice",
+							) && (
+								<div className="flex items-center gap-1.5 pb-1 mb-1 border-b border-border/50 text-[11px] font-medium text-accent select-none">
+									<Sparkles className="w-3 h-3 text-accent shrink-0" />
+									<span>{splitBadge}</span>
+								</div>
+							)}
 						<div className="whitespace-pre-wrap leading-relaxed">
-							<UrlLinkifiedText text={msg.content} />
+							<UrlLinkifiedText text={cleanContent} />
 						</div>
 					</div>
 

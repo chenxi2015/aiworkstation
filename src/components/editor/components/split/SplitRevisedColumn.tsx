@@ -35,7 +35,7 @@ export interface SplitRevisedColumnProps {
 	onSelectMode: (mode: SplitCanvasMode | null) => void;
 	customPrompt: string;
 	onChangeCustomPrompt: (prompt: string) => void;
-	onStartGenerate: () => void;
+	onStartGenerate: (promptOverride?: string) => void;
 	onStopGenerate: () => void;
 	/** 右侧 AI Agent 面板展开时隐藏 Dock 输入入口，仅保留流式状态 */
 	dockInputVisible?: boolean;

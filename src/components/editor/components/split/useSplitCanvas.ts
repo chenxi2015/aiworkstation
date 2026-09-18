@@ -175,6 +175,7 @@ export function useSplitCanvas({
 		handleStartGenerate,
 		handleStopGenerate,
 	} = useSplitAiStream({
+		docId,
 		rightEditor,
 		leftEditor,
 		activeLeftVersion,
