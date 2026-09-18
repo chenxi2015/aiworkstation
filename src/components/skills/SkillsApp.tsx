@@ -189,7 +189,7 @@ export function SkillsApp({
 							<p className="mt-2 text-xs text-muted max-w-sm leading-relaxed">
 								{query || rootFilter !== ALL_ROOTS
 									? "换个关键词或来源试试"
-									: "默认扫描 ~/.codex/skills、~/.agents/skills、~/.claude/skills，在这些目录下放置含 SKILL.md 的文件夹即可被收录"}
+									: "自动扫描 WorkBuddy、千问、豆包、Cursor、Trae、Claude、Agents、Hermes、OpenClaw 等主流工具的 skills 目录，有就自动加载"}
 							</p>
 							{overview && !overview.roots.some((r) => r.exists) && (
 								<p className="mt-1 text-[10px] text-muted font-mono flex items-center gap-1">

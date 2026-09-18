@@ -17,12 +17,45 @@ import type {
  */
 
 const DEFAULT_SKILL_ROOTS: ReadonlyArray<{ label: string; path: string }> = [
+	// Core & Official Agent roots
 	{ label: "Antigravity", path: "~/.gemini/config/skills" },
+	{ label: "Antigravity (IDE)", path: "~/.gemini/skills" },
 	{ label: "Builtin", path: "~/.gemini/antigravity-ide/builtin/skills" },
 	{ label: "Codex", path: "~/.codex/skills" },
 	{ label: "Agents", path: "~/.agents/skills" },
 	{ label: "Claude", path: "~/.claude/skills" },
+	{ label: "OpenClaw", path: "~/.openclaw/skills" },
+	{ label: "Hermes", path: "~/.hermes/skills" },
+
+	// Mainstream & domestic AI tool roots
+	{ label: "WorkBuddy", path: "~/.workbuddy/skills" },
+	{ label: "千问", path: "~/.qwen/skills" },
+	{ label: "豆包", path: "~/DoubaoWork/skills" },
+	{ label: "豆包", path: "~/.doubao/skills" },
+	{ label: "Cursor", path: "~/.cursor/skills" },
+	{ label: "Trae", path: "~/.trae/skills" },
+	{ label: "Trae CN", path: "~/.trae-cn/skills" },
+	{ label: "Windsurf", path: "~/.codeium/windsurf/skills" },
+	{ label: "Windsurf", path: "~/.windsurf/skills" },
+	{ label: "Grok", path: "~/.grok/skills" },
+	{ label: "通义灵码", path: "~/.lingma/skills" },
+	{ label: "iFlow", path: "~/.iflow/skills" },
+	{ label: "StepFun", path: "~/.stepfun/skills" },
+	{ label: "Kiro", path: "~/.kiro/skills" },
+	{ label: "CodeBuddy", path: "~/.codebuddy/skills" },
+	{ label: "Devin", path: "~/.config/devin/skills" },
+	{ label: "Devin", path: "~/.devin/skills" },
+	{ label: "Junie", path: "~/.junie/skills" },
+	{ label: "Augment", path: "~/.augment/skills" },
+	{ label: "Tabnine", path: "~/.tabnine/agent/skills" },
+	{ label: "Tabnine", path: "~/.tabnine/skills" },
+	{ label: "MarsCode", path: "~/.marscode/builtin/global/skills" },
+	{ label: "MarsCode", path: "~/.marscode/skills" },
+	{ label: "CC-Switch", path: "~/.cc-switch/skills" },
+
+	// Workspace-level skills
 	{ label: "Workspace", path: ".agents/skills" },
+	{ label: "Workspace (OpenClaw)", path: ".openclaw/skills" },
 ];
 
 const OVERVIEW_CACHE_MS = 60_000;
@@ -88,44 +121,130 @@ async function walkStats(
 	for (const entry of entries) {
 		if (entry.name === "node_modules" || entry.name.startsWith(".")) continue;
 		const full = path.join(dir, entry.name);
-		if (entry.isDirectory()) {
-			await walkStats(full, state, depth + 1);
-		} else if (entry.isFile()) {
-			try {
-				const stat = await fs.stat(full);
+		try {
+			const stat = await fs.stat(full);
+			if (stat.isDirectory()) {
+				await walkStats(full, state, depth + 1);
+			} else if (stat.isFile()) {
 				state.fileCount += 1;
 				state.sizeBytes += stat.size;
 				if (stat.mtimeMs > state.modifiedAt) state.modifiedAt = stat.mtimeMs;
-			} catch {
-				// 忽略无权限文件
 			}
+		} catch {
+			// Ignore unreadable files or broken symlinks
 		}
 	}
 }
 
+/**
+ * Safely search and read SKILL.md or skill.md from a directory
+ */
+async function findSkillMd(dirPath: string): Promise<{
+	content: string;
+	rawBuffer: Buffer;
+} | null> {
+	for (const candidate of ["SKILL.md", "skill.md"]) {
+		try {
+			const full = path.join(dirPath, candidate);
+			const rawBuffer = await fs.readFile(full);
+			return {
+				content: rawBuffer.toString("utf8"),
+				rawBuffer,
+			};
+		} catch {
+			// continue trying other casing
+		}
+	}
+	return null;
+}
+
+interface DiscoveredSkillTarget {
+	dirPath: string;
+	relPath: string;
+	markdown: string | null;
+}
+
+/**
+ * Discover skill directories under a given directory recursively (up to maxDepth).
+ * Follows symlinks safely. When a directory has SKILL.md, it is treated as a skill
+ * and will not be recursed deeper. Otherwise, subdirectories are scanned (handling categorized skills e.g. Hermes).
+ */
+async function discoverSkillTargets(
+	currentDir: string,
+	baseDir: string,
+	depth = 0,
+	maxDepth = 3,
+): Promise<DiscoveredSkillTarget[]> {
+	if (depth > maxDepth) return [];
+	let entries: Dirent[];
+	try {
+		entries = await fs.readdir(currentDir, { withFileTypes: true });
+	} catch {
+		return [];
+	}
+
+	const results: DiscoveredSkillTarget[] = [];
+	for (const entry of entries) {
+		if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
+		const fullPath = path.join(currentDir, entry.name);
+		try {
+			const stat = await fs.stat(fullPath);
+			if (!stat.isDirectory()) continue;
+		} catch {
+			continue;
+		}
+
+		const skillMdResult = await findSkillMd(fullPath);
+		const relPath = path.relative(baseDir, fullPath);
+
+		if (skillMdResult !== null) {
+			// Found a valid skill directory
+			results.push({
+				dirPath: fullPath,
+				relPath,
+				markdown: skillMdResult.content,
+			});
+		} else if (depth < maxDepth) {
+			// Category directory or unfinished skill: probe subdirectories
+			const subResults = await discoverSkillTargets(
+				fullPath,
+				baseDir,
+				depth + 1,
+				maxDepth,
+			);
+			if (subResults.length > 0) {
+				results.push(...subResults);
+			} else if (depth === 0) {
+				// Top-level directory without SKILL.md and without child skills: retain as unfinished skill
+				results.push({ dirPath: fullPath, relPath, markdown: null });
+			}
+		}
+	}
+	return results;
+}
+
 async function scanSkillDir(
+	dirPath: string,
 	rootPath: string,
 	rootLabel: string,
-	dirName: string,
+	relPath: string,
+	initialMarkdown?: string | null,
 ): Promise<SkillInfo | null> {
-	const dirPath = path.join(rootPath, dirName);
-	const skillMdPath = path.join(dirPath, "SKILL.md");
-	let markdown: string | null = null;
-	try {
-		markdown = await fs.readFile(skillMdPath, "utf8");
-	} catch {
-		// 无 SKILL.md 的目录也收录（标记 hasSkillMd=false），方便用户发现半成品 skill
+	let markdown = initialMarkdown ?? null;
+	if (markdown === null) {
+		const found = await findSkillMd(dirPath);
+		markdown = found?.content ?? null;
 	}
 	const fm = markdown ? parseFrontmatter(markdown) : {};
 	const stats = { fileCount: 0, sizeBytes: 0, modifiedAt: 0 };
 	await walkStats(dirPath, stats);
 	return {
-		name: fm.name || dirName,
+		name: fm.name || path.basename(dirPath),
 		description: fm.description || "",
 		version: fm.version,
 		author: fm.author,
 		license: fm.license,
-		dirName,
+		dirName: relPath,
 		dirPath,
 		rootPath,
 		rootLabel,
@@ -140,19 +259,31 @@ async function scanRoot(
 	root: (typeof DEFAULT_SKILL_ROOTS)[number],
 ): Promise<{ info: SkillRootInfo; skills: SkillInfo[] }> {
 	const rootPath = expandHome(root.path);
-	let entries: Dirent[];
+	let exists = false;
 	try {
-		entries = await fs.readdir(rootPath, { withFileTypes: true });
+		const stat = await fs.stat(rootPath);
+		exists = stat.isDirectory();
 	} catch {
+		exists = false;
+	}
+
+	if (!exists) {
 		return {
 			info: { path: rootPath, label: root.label, exists: false, skillCount: 0 },
 			skills: [],
 		};
 	}
+
+	const targets = await discoverSkillTargets(rootPath, rootPath);
 	const skills: SkillInfo[] = [];
-	for (const entry of entries) {
-		if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
-		const skill = await scanSkillDir(rootPath, root.label, entry.name);
+	for (const target of targets) {
+		const skill = await scanSkillDir(
+			target.dirPath,
+			rootPath,
+			root.label,
+			target.relPath,
+			target.markdown,
+		);
 		if (skill) skills.push(skill);
 	}
 	skills.sort((a, b) => b.modifiedAt - a.modifiedAt);
@@ -180,8 +311,35 @@ export async function scanSkillsOverview(
 	}
 	const roots: SkillRootInfo[] = [];
 	const skills: SkillInfo[] = [];
+	const seenPaths = new Set<string>();
+	const usedLabels = new Set<string>();
+
 	for (const root of DEFAULT_SKILL_ROOTS) {
+		const expanded = expandHome(root.path);
+		if (seenPaths.has(expanded)) continue;
+		seenPaths.add(expanded);
+
 		const { info, skills: rootSkills } = await scanRoot(root);
+
+		// "有就加载，没有就不加载"：只保留本机实际存在（exists=true）的根目录
+		if (!info.exists) {
+			continue;
+		}
+
+		// Avoid duplicate tab labels if multiple paths resolve for the same vendor
+		let finalLabel = info.label;
+		if (usedLabels.has(finalLabel)) {
+			finalLabel = `${info.label} (${path.basename(path.dirname(info.path))})`;
+		}
+		usedLabels.add(finalLabel);
+		info.label = finalLabel;
+
+		if (finalLabel !== root.label) {
+			for (const s of rootSkills) {
+				s.rootLabel = finalLabel;
+			}
+		}
+
 		roots.push(info);
 		skills.push(...rootSkills);
 	}
@@ -226,12 +384,15 @@ export async function readSkillDetail(dirPath: string): Promise<SkillDetail> {
 	let markdown: string | null = null;
 	let truncated = false;
 	try {
-		const raw = await fs.readFile(path.join(dirPath, "SKILL.md"));
-		if (raw.byteLength > MAX_MARKDOWN_BYTES) {
-			markdown = raw.subarray(0, MAX_MARKDOWN_BYTES).toString("utf8");
-			truncated = true;
-		} else {
-			markdown = raw.toString("utf8");
+		const skillMdResult = await findSkillMd(dirPath);
+		const raw = skillMdResult?.rawBuffer;
+		if (raw) {
+			if (raw.byteLength > MAX_MARKDOWN_BYTES) {
+				markdown = raw.subarray(0, MAX_MARKDOWN_BYTES).toString("utf8");
+				truncated = true;
+			} else {
+				markdown = raw.toString("utf8");
+			}
 		}
 	} catch {
 		markdown = null;
@@ -265,7 +426,8 @@ export async function resolveSkillDir(
 		(s) =>
 			s.dirPath === trimmed ||
 			s.name.toLowerCase() === normalized ||
-			s.dirName.toLowerCase() === normalized,
+			s.dirName.toLowerCase() === normalized ||
+			path.basename(s.dirPath).toLowerCase() === normalized,
 	);
 	if (found) return found.dirPath;
 
