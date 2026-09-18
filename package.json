@@ -20,7 +20,8 @@
     "zip:extension:firefox": "pnpm -C extensions/aicollector zip:firefox"
   },
   "dependencies": {
-    "@dnd-kit/react": "^0.5.0",
+		"@dnd-kit/dom": "^0.5.0",
+		"@dnd-kit/react": "^0.5.0",
     "@faker-js/faker": "^10.3.0",
     "@heroui/react": "^3.2.4",
     "@heroui/styles": "^3.2.4",

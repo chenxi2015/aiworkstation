@@ -1,16 +1,26 @@
+import { toast } from "@heroui/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getWorkbenchSettings } from "../../../server/functions/workbench";
 import {
+	createDocumentFolderRpc,
 	createDocumentRpc,
+	deleteDocumentFolderRpc,
 	deleteDocumentRpc,
+	fetchDocumentFolders,
 	fetchDocuments,
 	generateAiBarTextRpc,
+	moveDocumentToFolderRpc,
+	renameDocumentFolderRpc,
+	reorderDocumentFoldersRpc,
+	reorderDocumentsRpc,
 	snapshotVersionRpc,
+	toggleDocumentPinnedRpc,
 	updateDocumentRpc,
 } from "../../../services/api/editorClient";
 import { workbenchContextActions } from "../../../stores/workbenchContextStore";
 import {
 	DEFAULT_STYLE_PRESETS,
+	type EditorDocFolder,
 	type EditorDocument,
 	type EditorStylePreset,
 } from "../types";
@@ -26,9 +36,33 @@ export type SaveState = "idle" | "dirty" | "saving" | "saved" | "error";
 /** Autosave debounce delay in milliseconds */
 const AUTOSAVE_DELAY = 800;
 
+/** 文件夹选中态："all" = 全部文档，否则为 document_folders.id */
+export type ActiveFolderId = number | "all";
+
+/** 与服务端 listDocuments 排序保持一致：置顶 → 手动排序 → 更新时间 → id */
+function sortDocuments(list: EditorDocument[]): EditorDocument[] {
+	return [...list].sort(
+		(a, b) =>
+			Number(b.pinned ?? false) - Number(a.pinned ?? false) ||
+			(a.sortOrder ?? 0) - (b.sortOrder ?? 0) ||
+			(b.updatedAt ?? "").localeCompare(a.updatedAt ?? "") ||
+			b.id - a.id,
+	);
+}
+
 export interface UseDocumentManagerReturn {
 	documents: EditorDocument[];
 	loading: boolean;
+	docFolders: EditorDocFolder[];
+	activeFolderId: ActiveFolderId;
+	setActiveFolderId: (id: ActiveFolderId) => void;
+	handleCreateFolder: (name?: string) => Promise<EditorDocFolder>;
+	handleRenameFolder: (id: number, name: string) => Promise<void>;
+	handleDeleteFolder: (id: number) => Promise<void>;
+	handleReorderFolders: (orderedIds: number[]) => Promise<void>;
+	handleMoveDocument: (docId: number, folderId: number | null) => Promise<void>;
+	handleTogglePinned: (docId: number, pinned: boolean) => Promise<void>;
+	handleReorderDocuments: (orderedIds: number[]) => Promise<void>;
 	activeId: number | null;
 	activeDoc: EditorDocument | null;
 	saveState: SaveState;
@@ -57,6 +91,8 @@ export interface UseDocumentManagerReturn {
 export function useDocumentManager(): UseDocumentManagerReturn {
 	const [documents, setDocuments] = useState<EditorDocument[]>([]);
 	const [loading, setLoading] = useState(true);
+	const [docFolders, setDocFolders] = useState<EditorDocFolder[]>([]);
+	const [activeFolderId, setActiveFolderId] = useState<ActiveFolderId>("all");
 	const [activeId, setActiveId] = useState<number | null>(null);
 	const [saveState, setSaveState] = useState<SaveState>("idle");
 	const [savedAt, setSavedAt] = useState<string | null>(null);
@@ -162,9 +198,168 @@ export function useDocumentManager(): UseDocumentManagerReturn {
 		return docs;
 	}, []);
 
+	const reloadFolders = useCallback(async () => {
+		const folders = await fetchDocumentFolders();
+		setDocFolders(folders);
+		return folders;
+	}, []);
+
+	const handleCreateFolder = useCallback(async (name?: string) => {
+		try {
+			const folder = await createDocumentFolderRpc({ name });
+			// 新文件夹置顶展示（服务端 sort_order 已保证，前端同步插到最前）
+			setDocFolders((prev) => [folder, ...prev]);
+			return folder;
+		} catch (err) {
+			toast.danger(
+				`创建文件夹失败: ${err instanceof Error ? err.message : String(err)}`,
+			);
+			throw err;
+		}
+	}, []);
+
+	const handleRenameFolder = useCallback(async (id: number, name: string) => {
+		try {
+			await renameDocumentFolderRpc(id, name);
+			setDocFolders((prev) =>
+				prev.map((f) => (f.id === id ? { ...f, name } : f)),
+			);
+		} catch (err) {
+			toast.danger(
+				`重命名文件夹失败: ${err instanceof Error ? err.message : String(err)}`,
+			);
+		}
+	}, []);
+
+	const handleDeleteFolder = useCallback(async (id: number) => {
+		try {
+			await deleteDocumentFolderRpc(id);
+			setDocFolders((prev) => prev.filter((f) => f.id !== id));
+			// 其中文档移回「全部」
+			setDocuments((prev) =>
+				prev.map((d) => (d.folderId === id ? { ...d, folderId: null } : d)),
+			);
+			setActiveFolderId((prev) => (prev === id ? "all" : prev));
+		} catch (err) {
+			toast.danger(
+				`删除文件夹失败: ${err instanceof Error ? err.message : String(err)}`,
+			);
+		}
+	}, []);
+
+	const handleReorderFolders = useCallback(async (orderedIds: number[]) => {
+		// 乐观更新本地顺序
+		setDocFolders((prev) => {
+			const byId = new Map(prev.map((f) => [f.id, f]));
+			const next: EditorDocFolder[] = [];
+			orderedIds.forEach((id, index) => {
+				const folder = byId.get(id);
+				if (folder) {
+					byId.delete(id);
+					next.push({ ...folder, sortOrder: index });
+				}
+			});
+			return [...next, ...byId.values()];
+		});
+		try {
+			await reorderDocumentFoldersRpc(orderedIds);
+		} catch (err) {
+			toast.danger(
+				`文件夹排序保存失败: ${err instanceof Error ? err.message : String(err)}`,
+			);
+		}
+	}, []);
+
+	const handleMoveDocument = useCallback(
+		async (docId: number, folderId: number | null) => {
+			try {
+				await moveDocumentToFolderRpc(docId, folderId);
+				setDocuments((prev) =>
+					sortDocuments(
+						prev.map((d) => {
+							if (d.id !== docId) return d;
+							const siblings = prev.filter(
+								(s) => (s.folderId ?? null) === folderId && s.id !== docId,
+							);
+							const minOrder = Math.min(
+								0,
+								...siblings.map((s) => s.sortOrder ?? 0),
+							);
+							return { ...d, folderId, sortOrder: minOrder - 1 };
+						}),
+					),
+				);
+				// 计数徽标依赖服务端统计，静默刷新
+				void reloadFolders();
+			} catch (err) {
+				toast.danger(
+					`移动文档失败: ${err instanceof Error ? err.message : String(err)}`,
+				);
+			}
+		},
+		[reloadFolders],
+	);
+
+	const handleTogglePinned = useCallback(
+		async (docId: number, pinned: boolean) => {
+			try {
+				await toggleDocumentPinnedRpc(docId, pinned);
+				setDocuments((prev) =>
+					sortDocuments(
+						prev.map((d) => {
+							if (d.id !== docId) return d;
+							// 与服务端一致：排到同组最前
+							const siblings = prev.filter(
+								(s) =>
+									(s.folderId ?? null) === (d.folderId ?? null) &&
+									s.id !== docId,
+							);
+							const minOrder = Math.min(
+								0,
+								...siblings.map((s) => s.sortOrder ?? 0),
+							);
+							return { ...d, pinned, sortOrder: minOrder - 1 };
+						}),
+					),
+				);
+			} catch (err) {
+				toast.danger(
+					`置顶操作失败: ${err instanceof Error ? err.message : String(err)}`,
+				);
+			}
+		},
+		[],
+	);
+
+	const handleReorderDocuments = useCallback(async (orderedIds: number[]) => {
+		// 乐观更新：把 orderedIds 指定的新顺序物理落到数组位置上
+		// （列表展示依赖数组顺序，仅改 sortOrder 字段会让拖拽后视觉回弹）
+		setDocuments((prev) => {
+			const orderMap = new Map(orderedIds.map((id, i) => [id, i]));
+			const byId = new Map(prev.map((d) => [d.id, d]));
+			let cursor = 0;
+			return prev.map((d) => {
+				if (!orderMap.has(d.id)) return d;
+				const nextDoc = byId.get(orderedIds[cursor]);
+				cursor += 1;
+				return nextDoc
+					? { ...nextDoc, sortOrder: orderMap.get(nextDoc.id) as number }
+					: d;
+			});
+		});
+		try {
+			await reorderDocumentsRpc(orderedIds);
+		} catch (err) {
+			toast.danger(
+				`文档排序保存失败: ${err instanceof Error ? err.message : String(err)}`,
+			);
+		}
+	}, []);
+
 	// Initial data loading
 	useEffect(() => {
 		(async () => {
+			void reloadFolders();
 			const docs = await fetchDocuments();
 			// Check if there are unsynced local drafts in IndexedDB
 			const mergedDocs = await Promise.all(
@@ -241,7 +436,7 @@ export function useDocumentManager(): UseDocumentManagerReturn {
 				);
 			}
 		})();
-	}, []);
+	}, [reloadFolders]);
 
 	// Save draft before page unloads
 	useEffect(() => {
@@ -273,12 +468,15 @@ export function useDocumentManager(): UseDocumentManagerReturn {
 
 	const handleCreate = useCallback(async () => {
 		await switchDocument(null);
-		const doc = await createDocumentRpc({});
+		// 在文件夹视图下新建的文档直接落入该文件夹
+		const folderId = activeFolderId === "all" ? null : activeFolderId;
+		const doc = await createDocumentRpc({ folderId });
 		setDocuments((prev) => [doc, ...prev]);
 		setActiveId(doc.id);
 		setSaveState("idle");
+		void reloadFolders();
 		return doc;
-	}, [switchDocument]);
+	}, [switchDocument, activeFolderId, reloadFolders]);
 
 	const handleInsertNewDocument = useCallback(
 		async (title: string, options?: { activate?: boolean }) => {
@@ -428,6 +626,16 @@ export function useDocumentManager(): UseDocumentManagerReturn {
 	return {
 		documents,
 		loading,
+		docFolders,
+		activeFolderId,
+		setActiveFolderId,
+		handleCreateFolder,
+		handleRenameFolder,
+		handleDeleteFolder,
+		handleReorderFolders,
+		handleMoveDocument,
+		handleTogglePinned,
+		handleReorderDocuments,
 		activeId,
 		activeDoc,
 		saveState,

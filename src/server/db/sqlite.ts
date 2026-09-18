@@ -391,6 +391,38 @@ export class WorkbenchDatabase {
 		return this.documentRepo.deleteDocument(id);
 	}
 
+	moveDocumentToFolder(id: number, folderId: number | null) {
+		return this.documentRepo.moveDocumentToFolder(id, folderId);
+	}
+
+	setDocumentPinned(id: number, pinned: boolean) {
+		return this.documentRepo.setDocumentPinned(id, pinned);
+	}
+
+	reorderDocuments(orderedIds: number[]) {
+		return this.documentRepo.reorderDocuments(orderedIds);
+	}
+
+	listDocumentFolders() {
+		return this.documentRepo.listDocumentFolders();
+	}
+
+	createDocumentFolder(name: string) {
+		return this.documentRepo.createDocumentFolder(name);
+	}
+
+	renameDocumentFolder(id: number, name: string) {
+		return this.documentRepo.renameDocumentFolder(id, name);
+	}
+
+	deleteDocumentFolder(id: number) {
+		return this.documentRepo.deleteDocumentFolder(id);
+	}
+
+	reorderDocumentFolders(orderedIds: number[]) {
+		return this.documentRepo.reorderDocumentFolders(orderedIds);
+	}
+
 	createDocumentVersion(
 		params: Parameters<DocumentRepository["createVersion"]>[0],
 	) {

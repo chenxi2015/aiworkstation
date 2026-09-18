@@ -1,17 +1,26 @@
 import type {
 	DocumentVersion,
 	DocumentVersionOrigin,
+	EditorDocFolder,
 	EditorDocument,
 } from "../../components/editor/types";
 import {
 	createDocument,
+	createDocumentFolder,
 	deleteDocument,
+	deleteDocumentFolder,
 	downloadExternalAssetToDocument,
 	generateAiBarText,
+	listDocumentFolders,
 	listDocuments,
 	listDocumentVersions,
+	moveDocumentToFolder,
 	openDocumentDirectory,
+	renameDocumentFolder,
+	reorderDocumentFolders,
+	reorderDocuments,
 	snapshotDocumentVersion,
+	toggleDocumentPinned,
 	updateDocument,
 	uploadDocumentAsset,
 } from "../../server/functions/editor";
@@ -28,8 +37,59 @@ export async function fetchDocuments(): Promise<EditorDocument[]> {
 export async function createDocumentRpc(params: {
 	title?: string;
 	stylePreset?: string;
+	folderId?: number | null;
 }): Promise<EditorDocument> {
 	return await createDocument({ data: params });
+}
+
+export async function fetchDocumentFolders(): Promise<EditorDocFolder[]> {
+	try {
+		return (await listDocumentFolders()) ?? [];
+	} catch (err) {
+		console.warn("[editorClient] listDocumentFolders error:", err);
+		return [];
+	}
+}
+
+export async function createDocumentFolderRpc(params: {
+	name?: string;
+}): Promise<EditorDocFolder> {
+	return await createDocumentFolder({ data: params });
+}
+
+export async function renameDocumentFolderRpc(
+	id: number,
+	name: string,
+): Promise<void> {
+	await renameDocumentFolder({ data: { id, name } });
+}
+
+export async function deleteDocumentFolderRpc(id: number): Promise<void> {
+	await deleteDocumentFolder({ data: { id } });
+}
+
+export async function reorderDocumentFoldersRpc(
+	orderedIds: number[],
+): Promise<void> {
+	await reorderDocumentFolders({ data: { orderedIds } });
+}
+
+export async function moveDocumentToFolderRpc(
+	id: number,
+	folderId: number | null,
+): Promise<void> {
+	await moveDocumentToFolder({ data: { id, folderId } });
+}
+
+export async function toggleDocumentPinnedRpc(
+	id: number,
+	pinned: boolean,
+): Promise<void> {
+	await toggleDocumentPinned({ data: { id, pinned } });
+}
+
+export async function reorderDocumentsRpc(orderedIds: number[]): Promise<void> {
+	await reorderDocuments({ data: { orderedIds } });
 }
 
 export async function updateDocumentRpc(params: {

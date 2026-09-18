@@ -91,6 +91,23 @@ export interface EditorDocument {
 	contentText: string;
 	stylePreset?: string;
 	status: DocumentStatus;
+	/** 所属文档文件夹；null/undefined = 未归档（归入「全部」） */
+	folderId?: number | null;
+	/** 同组内手动排序权重（小在前），配合 pinned 分组展示 */
+	sortOrder?: number;
+	/** 置顶标记：置顶文档固定排在当前列表最前 */
+	pinned?: boolean;
+	createdAt?: string;
+	updatedAt?: string;
+}
+
+/** 创作文档文件夹（document_folders 表，编辑器三栏布局左侧栏） */
+export interface EditorDocFolder {
+	id: number;
+	name: string;
+	sortOrder: number;
+	/** 未归档计数之外的有效文档数（不含 archived） */
+	docCount?: number;
 	createdAt?: string;
 	updatedAt?: string;
 }

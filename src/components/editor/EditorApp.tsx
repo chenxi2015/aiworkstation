@@ -1,9 +1,16 @@
+import {
+	DragDropProvider,
+	type DragEndEvent,
+	type DragMoveEvent,
+} from "@dnd-kit/react";
+import { isSortable } from "@dnd-kit/react/sortable";
 import { toast } from "@heroui/react";
 import type { Editor } from "@tiptap/react";
 import { FileText, Sparkles, Square } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { NavLayoutEntry } from "../../modules/registry";
 import { updateDocumentRpc } from "../../services/api/editorClient";
+import { arrayMove } from "../workbench/dnd/dndUtils";
 import { useWorkbenchQuickActions } from "../workbench/layout/useWorkbenchQuickActions";
 import { WorkbenchHeader } from "../workbench/layout/WorkbenchHeader";
 import { EditorCanvasSkeleton } from "../workbench/skeletons";
@@ -11,6 +18,8 @@ import type { Folder } from "../workbench/types";
 import { DocumentHeader } from "./components/DocumentHeader";
 import { DocumentSidebar } from "./components/DocumentSidebar";
 import { EditorActionBar } from "./components/EditorActionBar";
+import { EditorDragChip } from "./components/EditorDragChip";
+import { FolderSidebar } from "./components/FolderSidebar";
 import { SplitCompareView } from "./components/SplitCompareView";
 import { DistributionModal } from "./DistributionModal";
 import { useArticleCreationPipeline } from "./hooks/useArticleCreationPipeline";
@@ -21,6 +30,23 @@ import { ImportModal } from "./ImportModal";
 import { markdownToTiptapDoc } from "./markdown";
 import { RichTextEditor } from "./RichTextEditor";
 import { normalizeCodeCardHtml } from "./utils/codeCardNormalizer";
+import type { EditorDragData } from "./utils/editorDnd";
+
+const FOLDER_SIDEBAR_COLLAPSED_KEY = "editor.folderSidebar.collapsed";
+
+/** 指针命中的文件夹行（拖拽中的元素 pointer-events:none，会被自然跳过） */
+function hitTestFolderRow(point: {
+	x: number;
+	y: number;
+}): number | "all" | null {
+	const el = document.elementFromPoint(point.x, point.y);
+	const row = el instanceof Element ? el.closest("[data-edfolder]") : null;
+	if (!row) return null;
+	const raw = row.getAttribute("data-edfolder");
+	if (raw === "all") return "all";
+	const folderId = Number(raw);
+	return Number.isFinite(folderId) ? folderId : null;
+}
 
 export interface EditorAppProps {
 	unclassifiedCount: number;
@@ -47,6 +73,16 @@ export function EditorApp({
 	const {
 		documents,
 		loading,
+		docFolders,
+		activeFolderId,
+		setActiveFolderId,
+		handleCreateFolder,
+		handleRenameFolder,
+		handleDeleteFolder,
+		handleReorderFolders,
+		handleMoveDocument,
+		handleTogglePinned,
+		handleReorderDocuments,
 		activeId,
 		activeDoc,
 		saveState,
@@ -65,6 +101,111 @@ export function EditorApp({
 		handleInsertNewDocument,
 		reloadDocuments,
 	} = docManager;
+
+	// 文件夹栏折叠态（持久化到 localStorage）
+	const [folderCollapsed, setFolderCollapsed] = useState(
+		() =>
+			typeof window !== "undefined" &&
+			window.localStorage.getItem(FOLDER_SIDEBAR_COLLAPSED_KEY) === "1",
+	);
+	const toggleFolderCollapsed = useCallback(() => {
+		setFolderCollapsed((prev) => {
+			const next = !prev;
+			try {
+				window.localStorage.setItem(
+					FOLDER_SIDEBAR_COLLAPSED_KEY,
+					next ? "1" : "0",
+				);
+			} catch {
+				// localStorage 不可用时静默忽略
+			}
+			return next;
+		});
+	}, []);
+
+	// 文档拖到文件夹行的悬停高亮目标
+	const [docDropTarget, setDocDropTarget] = useState<number | "all" | null>(
+		null,
+	);
+
+	const handleEditorDragMove = useCallback((event: DragMoveEvent) => {
+		const { operation } = event;
+		const data = operation.source?.data as EditorDragData | undefined;
+		if (data?.kind !== "editor-doc") {
+			setDocDropTarget(null);
+			return;
+		}
+		// sortable 插件会把 target 重置为拖拽源，文件夹命中改用指针探测
+		const hit = hitTestFolderRow(operation.position.current);
+		const next = hit !== null && hit !== (data.folderId ?? "all") ? hit : null;
+		setDocDropTarget((prev) => (prev === next ? prev : next));
+	}, []);
+
+	const handleEditorDragEnd = useCallback(
+		(event: DragEndEvent) => {
+			setDocDropTarget(null);
+			const { operation } = event;
+			const { source } = operation;
+			const data = source?.data as EditorDragData | undefined;
+			if (!data || !source) return;
+
+			// 文件夹行拖拽：sortable 重排
+			if (data.kind === "editor-folder") {
+				if (isSortable(source)) {
+					const { initialIndex, index } = source.sortable;
+					if (
+						initialIndex !== index &&
+						initialIndex >= 0 &&
+						index >= 0 &&
+						index < docFolders.length
+					) {
+						void handleReorderFolders(
+							arrayMove(
+								docFolders.map((f) => f.id),
+								initialIndex,
+								index,
+							),
+						);
+					}
+				}
+				return;
+			}
+
+			// 文档拖拽：优先判定「移动到文件夹」（指针命中文件夹行）
+			const hit = hitTestFolderRow(operation.position.current);
+			if (hit !== null) {
+				const targetFolderId = hit === "all" ? null : hit;
+				if (targetFolderId !== data.folderId) {
+					void handleMoveDocument(data.docId, targetFolderId);
+					return;
+				}
+			}
+
+			// 否则按文档组内排序处理（仅未置顶组可排序）
+			if (isSortable(source)) {
+				const { initialIndex, index } = source.sortable;
+				if (initialIndex === index || initialIndex < 0 || index < 0) return;
+				const scoped =
+					activeFolderId === "all"
+						? documents
+						: documents.filter((d) => d.folderId === activeFolderId);
+				const unpinnedIds = scoped.filter((d) => !d.pinned).map((d) => d.id);
+				if (index < unpinnedIds.length) {
+					void handleReorderDocuments(
+						arrayMove(unpinnedIds, initialIndex, index),
+					);
+				}
+			}
+		},
+		[
+			docFolders,
+			documents,
+			activeFolderId,
+			handleReorderFolders,
+			handleMoveDocument,
+			handleReorderDocuments,
+		],
+	);
 
 	// 深链直开：文档列表加载完成后切到指定文档（一次性）
 	const initialDocHandledRef = useRef(false);
@@ -302,22 +443,45 @@ export function EditorApp({
 				{...actionProps}
 			/>
 			<main className="flex-1 overflow-hidden flex min-h-0">
-				{/* Left: Documents draft list */}
-				<DocumentSidebar
-					documents={documents}
-					loading={loading}
-					activeId={activeId}
-					onSelect={(id) => {
-						setSplitSession(null);
-						void switchDocument(id);
-					}}
-					onCreate={() => {
-						setSplitSession(null);
-						void handleCreate();
-					}}
-					onDelete={handleDelete}
-					onOpenImport={() => setIsImportModalOpen(true)}
-				/>
+				{/* Left: Folders + Documents（Notes 式三栏，跨栏拖拽共用一个 provider） */}
+				<DragDropProvider
+					onDragMove={handleEditorDragMove}
+					onDragEnd={handleEditorDragEnd}
+				>
+					<FolderSidebar
+						folders={docFolders}
+						totalCount={documents.length}
+						activeFolderId={activeFolderId}
+						docDropTarget={docDropTarget}
+						collapsed={folderCollapsed}
+						onToggleCollapsed={toggleFolderCollapsed}
+						onSelectFolder={setActiveFolderId}
+						onCreateFolder={handleCreateFolder}
+						onRenameFolder={handleRenameFolder}
+						onDeleteFolder={handleDeleteFolder}
+					/>
+					<DocumentSidebar
+						documents={documents}
+						loading={loading}
+						activeId={activeId}
+						activeFolderId={activeFolderId}
+						folders={docFolders}
+						onSelect={(id) => {
+							setSplitSession(null);
+							void switchDocument(id);
+						}}
+						onCreate={() => {
+							setSplitSession(null);
+							void handleCreate();
+						}}
+						onDelete={handleDelete}
+						onOpenImport={() => setIsImportModalOpen(true)}
+						onTogglePin={handleTogglePinned}
+						onMoveDocument={handleMoveDocument}
+					/>
+					{/* 拖拽跟随物：Notes 式纯图标芯片，紧贴指针左侧（自绘，不用 DragOverlay 避免继承源卡片宽度） */}
+					<EditorDragChip />
+				</DragDropProvider>
 
 				{/* Center: Title + Editor + Bottom actions or Split Diff View */}
 				<section className="flex-1 flex flex-col min-w-0 min-h-0">

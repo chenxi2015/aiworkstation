@@ -161,6 +161,15 @@ export function initSchema(db: SqliteDatabase): void {
       created_at TEXT
     );
 
+    -- 14. Editor document folders table（创作模块文档分组：三栏布局左侧栏）
+    CREATE TABLE IF NOT EXISTS document_folders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      sort_order INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
     -- Indexes for fast queries
     CREATE INDEX IF NOT EXISTS idx_folders_category ON folders(category);
     CREATE INDEX IF NOT EXISTS idx_folder_items_folder_id ON folder_items(folder_id);
@@ -219,6 +228,26 @@ export function initSchema(db: SqliteDatabase): void {
 				"ALTER TABLE materials ADD COLUMN folder_id INTEGER DEFAULT NULL",
 			);
 		}
+
+		// Editor 三栏布局（2026-09）：documents 增加文件夹归属 / 手动排序 / 置顶
+		const documentCols = db
+			.prepare("PRAGMA table_info(documents)")
+			.all() as Array<{ name: string }>;
+		const documentColNames = new Set(documentCols.map((c) => c.name));
+		if (!documentColNames.has("folder_id")) {
+			db.exec(
+				"ALTER TABLE documents ADD COLUMN folder_id INTEGER DEFAULT NULL",
+			);
+		}
+		if (!documentColNames.has("sort_order")) {
+			db.exec("ALTER TABLE documents ADD COLUMN sort_order INTEGER DEFAULT 0");
+		}
+		if (!documentColNames.has("pinned")) {
+			db.exec("ALTER TABLE documents ADD COLUMN pinned INTEGER DEFAULT 0");
+		}
+		db.exec(
+			"CREATE INDEX IF NOT EXISTS idx_documents_folder_id ON documents(folder_id)",
+		);
 		// 索引依赖 folder_id 列，必须放在列迁移之后（老库无该列时建索引会报错）
 		db.exec(
 			"CREATE INDEX IF NOT EXISTS idx_materials_folder_id ON materials(folder_id)",
