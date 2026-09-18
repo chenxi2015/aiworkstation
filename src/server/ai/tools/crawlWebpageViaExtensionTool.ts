@@ -138,7 +138,7 @@ async function fallbackToNativeFetch(
 	};
 }
 
-import { tryInterceptSkillUrl } from "../../services/skillsScanner.ts";
+import { tryInterceptSkillUrl } from "../../services/skills/index.ts";
 
 /**
  * Dispatches a silent crawl job to the AI Collector extension: the extension

@@ -1,5 +1,5 @@
 import type { ChatContextItem } from "../../../../types/chatContext.ts";
-import { loadSkillContextBundle } from "../../../services/skillsScanner.ts";
+import { loadSkillContextBundle } from "../../../services/skills/index.ts";
 
 // ---------- Type labels ----------
 

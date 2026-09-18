@@ -12,7 +12,7 @@ import type {
 import { getDb } from "../db/connection.ts";
 import { workbenchDb } from "../db/sqlite.ts";
 import { getLastDeadLinkScan } from "../maintenance.ts";
-import { scanSkillsOverview } from "../services/skillsScanner.ts";
+import { scanSkillsOverview } from "../services/skills/index.ts";
 
 function queryRecentBookmarks(limit: number): RecentBookmark[] {
 	const rows = getDb()

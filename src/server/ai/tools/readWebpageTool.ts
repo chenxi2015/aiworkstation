@@ -77,7 +77,7 @@ function cleanHtmlContent(rawHtml: string): {
 	};
 }
 
-import { tryInterceptSkillUrl } from "../../services/skillsScanner.ts";
+import { tryInterceptSkillUrl } from "../../services/skills/index.ts";
 
 /**
  * Executes webpage fetching and content extraction

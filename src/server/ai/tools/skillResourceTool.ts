@@ -3,7 +3,7 @@ import { z } from "zod";
 import {
 	readSkillResourceFile,
 	resolveSkillDir,
-} from "../../services/skillsScanner.ts";
+} from "../../services/skills/index.ts";
 import type { ToolExecutionResult } from "./types.ts";
 
 export const readSkillResourceInputSchema = z

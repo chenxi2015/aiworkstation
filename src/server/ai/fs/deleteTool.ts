@@ -1,4 +1,12 @@
-import { existsSync, mkdirSync, renameSync, rmSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import {
+	cpSync,
+	existsSync,
+	mkdirSync,
+	renameSync,
+	rmSync,
+	statSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { toolDefinition } from "@tanstack/ai";
@@ -37,8 +45,14 @@ export function executeDelete(args: DeleteInput): ToolExecutionResult {
 	if (!existsSync(target)) {
 		throw new Error(`路径不存在：${target}`);
 	}
+	const recursive = args.recursive ?? false;
+	if (statSync(target).isDirectory() && !recursive) {
+		throw new Error(
+			`${target} 是目录，删除目录需要显式设置 recursive: true（请确认目录内容后再操作）`,
+		);
+	}
 	if (args.permanent ?? false) {
-		rmSync(target, { recursive: args.recursive ?? false, force: false });
+		rmSync(target, { recursive, force: false });
 		return {
 			toolName: "fs_delete",
 			summary: `已彻底删除 ${target}（不可恢复）。`,
@@ -55,15 +69,24 @@ export function executeDelete(args: DeleteInput): ToolExecutionResult {
 		.replace(/[:.]/g, "-")
 		.replace("T", "_")
 		.slice(0, 19);
-	const trashPath = join(TRASH_DIR, `${stamp}_${basename(target)}`);
+	// 同一秒内删除同名文件时避免回收目录内冲突
+	let trashPath = join(TRASH_DIR, `${stamp}_${basename(target)}`);
+	if (existsSync(trashPath)) {
+		trashPath = join(
+			TRASH_DIR,
+			`${stamp}_${randomUUID().slice(0, 8)}_${basename(target)}`,
+		);
+	}
 	try {
 		renameSync(target, trashPath);
-	} catch {
-		// 跨盘 rename 失败时退化为永久删除
-		rmSync(target, { recursive: args.recursive ?? false, force: false });
+	} catch (err: unknown) {
+		// 跨盘 rename 失败（EXDEV）：复制到回收目录后再删源，保持「可恢复」承诺
+		if ((err as { code?: string })?.code !== "EXDEV") throw err;
+		cpSync(target, trashPath, { recursive: true });
+		rmSync(target, { recursive, force: false });
 		return {
 			toolName: "fs_delete",
-			summary: `已删除 ${target}。注意：因跨磁盘无法移入回收目录，本次为彻底删除。`,
+			summary: `已将 ${target} 移入回收目录 ${trashPath}（跨磁盘为复制迁移），需要时可移回恢复。`,
 			items: [],
 			references: [],
 			isMutation: true,

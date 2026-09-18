@@ -6,7 +6,7 @@ import type {
 import {
 	readSkillDetail,
 	scanSkillsOverview,
-} from "../services/skillsScanner.ts";
+} from "../services/skills/index.ts";
 
 /**
  * Server Function: 扫描本机 skill 根目录，返回聚合概览（60s 缓存）

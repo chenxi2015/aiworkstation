@@ -1,4 +1,4 @@
-import { statSync } from "node:fs";
+import { lstatSync, readlinkSync, statSync } from "node:fs";
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 import type { ToolExecutionResult } from "../tools/types.ts";
@@ -16,16 +16,30 @@ export function executeGetFileInfo(
 	args: GetFileInfoInput,
 ): ToolExecutionResult {
 	const target = resolveUserPath(args.path);
-	const stat = statSync(target);
-	const type = stat.isDirectory()
-		? "目录"
-		: stat.isSymbolicLink()
-			? "符号链接"
-			: "文件";
+	// 先用 lstat 判断路径本身是否为符号链接（stat 会跟随链接，永远探测不到）
+	const lst = lstatSync(target);
+	let stat = lst;
+	let linkTarget: string | null = null;
+	let type = lst.isDirectory() ? "目录" : "文件";
+	if (lst.isSymbolicLink()) {
+		type = "符号链接";
+		try {
+			linkTarget = readlinkSync(target);
+		} catch {
+			/* ignore */
+		}
+		try {
+			// 链接目标存在时，大小/时间展示目标文件的信息
+			stat = statSync(target);
+		} catch {
+			stat = lst;
+		}
+	}
 
 	const summary = [
 		`路径：${target}`,
 		`类型：${type}`,
+		...(linkTarget !== null ? [`链接目标：${linkTarget}`] : []),
 		`大小：${formatBytes(stat.size)}`,
 		`创建时间：${stat.birthtime.toLocaleString()}`,
 		`修改时间：${stat.mtime.toLocaleString()}`,

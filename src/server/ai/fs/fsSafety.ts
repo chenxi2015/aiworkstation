@@ -1,10 +1,31 @@
-import { realpathSync, statSync } from "node:fs";
+import {
+	chmodSync,
+	closeSync,
+	fsyncSync,
+	openSync,
+	realpathSync,
+	renameSync,
+	rmSync,
+	statSync,
+	writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import {
+	basename,
+	dirname,
+	isAbsolute,
+	join,
+	relative,
+	resolve,
+	sep,
+} from "node:path";
 
 /** 单文件读取上限：默认 2000 行 / 512KB，超出截断 */
 export const MAX_READ_LINES = 2000;
 export const MAX_READ_BYTES = 512 * 1024;
+
+/** 完整读入内存做行分页的上限：超过此大小退化为首窗口读取 */
+export const MAX_FULL_READ_BYTES = 8 * 1024 * 1024;
 
 /** 搜索结果上限，防止超大目录遍历失控 */
 export const MAX_SEARCH_RESULTS = 200;
@@ -68,6 +89,10 @@ export function assertWritablePath(absPath: string): void {
 	} catch {
 		// 目标尚不存在（新建场景），按解析后的路径校验
 	}
+	// Windows 文件系统大小写不敏感，统一小写比较避免 "c:\windows" 绕过黑名单
+	if (process.platform === "win32") {
+		real = real.toLowerCase();
+	}
 	for (const allow of ALLOWED_UNDER_FORBIDDEN) {
 		if (real === allow || real.startsWith(`${allow}/`)) {
 			return;
@@ -91,6 +116,75 @@ export function looksBinary(buf: Buffer): boolean {
 		if (buf[i] === 0) return true;
 	}
 	return false;
+}
+
+/**
+ * 原子写入文本文件：先写同目录临时文件（0o600 私有权限），fsync 落盘后
+ * rename 一次性发布。任何一步失败都会清理临时文件，目标文件要么保持原样、
+ * 要么完整替换，绝不会出现写了一半的损坏文件。覆盖已有文件时保留其权限位。
+ * 参考 deepseek-harness fs-local 的 writeFileAtomic 实现（同步版本）。
+ */
+export function writeTextAtomicSync(absPath: string, content: string): void {
+	const dir = dirname(absPath);
+	const tempPath = join(dir, `.${basename(absPath)}.${process.pid}.tmp`);
+	let fd: number | undefined;
+	try {
+		fd = openSync(tempPath, "w", 0o600);
+		writeFileSync(fd, content, "utf-8");
+		fsyncSync(fd);
+		closeSync(fd);
+		fd = undefined;
+		try {
+			// 覆盖场景：沿用原文件权限位（如可执行脚本）
+			const mode = statSync(absPath).mode & 0o777;
+			chmodSync(tempPath, mode);
+		} catch {
+			// 新文件场景：维持 0o600 之外的默认由 umask 决定，这里放宽为常规 0o644
+			try {
+				chmodSync(tempPath, 0o644);
+			} catch {
+				/* Windows 等不支持 chmod 的平台忽略 */
+			}
+		}
+		renameSync(tempPath, absPath);
+	} catch (err) {
+		if (fd !== undefined) {
+			try {
+				closeSync(fd);
+			} catch {
+				/* ignore */
+			}
+		}
+		try {
+			rmSync(tempPath, { force: true });
+		} catch {
+			/* ignore */
+		}
+		throw err;
+	}
+}
+
+export type LineEndings = "LF" | "CRLF";
+
+/** 采样前 4KB 检测文件主流行尾风格 */
+export function detectLineEndings(raw: string): LineEndings {
+	const sample = raw.slice(0, 4096);
+	const crlfCount = sample.split("\r\n").length - 1;
+	const lfCount = sample.split("\n").length - 1 - crlfCount;
+	return crlfCount > lfCount ? "CRLF" : "LF";
+}
+
+/** CRLF 归一化为 LF —— 内存中匹配/编辑的统一形态（单独的 \r 不动） */
+export function normalizeLineEndings(content: string): string {
+	return content.replaceAll("\r\n", "\n");
+}
+
+/** 把 LF 归一化后的内容还原为文件原本的换行风格 */
+export function restoreLineEndings(
+	content: string,
+	lineEndings: LineEndings,
+): string {
+	return lineEndings === "CRLF" ? content.replaceAll("\n", "\r\n") : content;
 }
 
 /**

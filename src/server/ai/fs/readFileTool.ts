@@ -5,6 +5,7 @@ import type { ToolExecutionResult } from "../tools/types.ts";
 import {
 	formatBytes,
 	looksBinary,
+	MAX_FULL_READ_BYTES,
 	MAX_READ_BYTES,
 	MAX_READ_LINES,
 	resolveUserPath,
@@ -40,7 +41,12 @@ export function executeReadFile(args: ReadFileInput): ToolExecutionResult {
 	let content: string;
 	let byteTruncated = false;
 	try {
-		const readSize = Math.min(stat.size, MAX_READ_BYTES);
+		// ≤8MB 的文件完整读入，保证 startLine/endLine 行分页真正可用；
+		// 超大文件退化为只读首个 512KB 窗口（行分页不可用，建议改用 fs_search_content 定位）
+		const readSize = Math.min(
+			stat.size,
+			stat.size <= MAX_FULL_READ_BYTES ? stat.size : MAX_READ_BYTES,
+		);
 		const buf = Buffer.alloc(readSize);
 		readSync(fd, buf, 0, readSize, 0);
 		if (looksBinary(buf)) {
@@ -48,7 +54,7 @@ export function executeReadFile(args: ReadFileInput): ToolExecutionResult {
 				`${filePath} 是二进制文件（${formatBytes(stat.size)}），无法以文本读取`,
 			);
 		}
-		byteTruncated = stat.size > MAX_READ_BYTES;
+		byteTruncated = stat.size > readSize;
 		content = buf.toString("utf-8");
 	} finally {
 		try {
@@ -59,7 +65,20 @@ export function executeReadFile(args: ReadFileInput): ToolExecutionResult {
 	}
 
 	const allLines = content.split("\n");
+	if (byteTruncated && allLines.length > 1) {
+		// 字节截断点可能落在某行中间（甚至截断多字节 UTF-8 字符），丢弃末尾残行；
+		// 仅一行的长行场景保留该残行，保证窗口内容可见
+		allLines.pop();
+	}
 	const startLine = Math.max(args.startLine ?? 1, 1);
+	const totalLines = allLines.length;
+	if (startLine > totalLines && totalLines > 0) {
+		throw new Error(
+			byteTruncated
+				? `文件 ${filePath} 过大（${formatBytes(stat.size)}），目前仅能读取前 ${totalLines} 行；请用 fs_search_content 按关键词定位，或指定更小的 startLine`
+				: `起始行 ${startLine} 超出文件总行数（共 ${totalLines} 行）`,
+		);
+	}
 	const endLine = args.endLine
 		? Math.min(args.endLine, startLine + MAX_READ_LINES - 1)
 		: startLine + MAX_READ_LINES - 1;
@@ -68,10 +87,9 @@ export function executeReadFile(args: ReadFileInput): ToolExecutionResult {
 		.map((line, i) => `${startLine + i}: ${line}`)
 		.join("\n");
 
-	const totalLines = allLines.length;
 	const truncated =
-		byteTruncated || endLine < totalLines
-			? `\n... (文件共 ${totalLines} 行，当前显示 ${startLine}-${Math.min(endLine, totalLines)} 行${byteTruncated ? "，文件过大已按字节截断" : ""})`
+		byteTruncated || endLine < totalLines || startLine > 1
+			? `\n... (文件${byteTruncated ? `共 ${formatBytes(stat.size)}，已按字节截断，仅前 ${totalLines} 行可读` : `共 ${totalLines} 行`}，当前显示 ${startLine}-${Math.min(endLine, totalLines)} 行)`
 			: "";
 
 	return {

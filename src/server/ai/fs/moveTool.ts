@@ -1,5 +1,12 @@
-import { existsSync, mkdirSync, renameSync } from "node:fs";
-import { dirname } from "node:path";
+import {
+	cpSync,
+	existsSync,
+	mkdirSync,
+	renameSync,
+	rmSync,
+	statSync,
+} from "node:fs";
+import { dirname, sep } from "node:path";
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 import type { ToolExecutionResult } from "../tools/types.ts";
@@ -32,13 +39,26 @@ export function executeMove(args: MoveInput): ToolExecutionResult {
 	if (!existsSync(source)) {
 		throw new Error(`源路径不存在：${source}`);
 	}
+	if (
+		statSync(source).isDirectory() &&
+		(target === source || target.startsWith(`${source}${sep}`))
+	) {
+		throw new Error(`不能把目录移动到它自身内部：${target}`);
+	}
 	if (existsSync(target) && !(args.overwrite ?? false)) {
 		throw new Error(
 			`目标路径已存在：${target}。如确认要覆盖，请将 overwrite 设为 true`,
 		);
 	}
 	mkdirSync(dirname(target), { recursive: true });
-	renameSync(source, target);
+	try {
+		renameSync(source, target);
+	} catch (err: unknown) {
+		// 跨磁盘 rename 失败（EXDEV）：退化为复制 + 删除
+		if ((err as { code?: string })?.code !== "EXDEV") throw err;
+		cpSync(source, target, { recursive: true });
+		rmSync(source, { recursive: true, force: true });
+	}
 
 	return {
 		toolName: "fs_move",

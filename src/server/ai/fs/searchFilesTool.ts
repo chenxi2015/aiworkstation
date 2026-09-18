@@ -36,6 +36,13 @@ export const searchFilesInputSchema = z
 			.nullable()
 			.optional()
 			.describe("最大递归深度，默认 5（全局搜索时默认 4）"),
+		includeHidden: z
+			.boolean()
+			.nullable()
+			.optional()
+			.describe(
+				"是否包含 . 开头的隐藏文件/目录，默认 false（path 本身指向隐藏目录时自动视为 true）",
+			),
 	})
 	.passthrough();
 

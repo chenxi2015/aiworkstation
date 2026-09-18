@@ -7,6 +7,7 @@ import {
 	assertWritablePath,
 	formatBytes,
 	resolveUserPath,
+	writeTextAtomicSync,
 } from "./fsSafety.ts";
 
 export const writeFileInputSchema = z
@@ -32,10 +33,13 @@ export function executeWriteFile(args: WriteFileInput): ToolExecutionResult {
 	const existed = existsSync(filePath);
 	const append = args.append ?? false;
 	mkdirSync(dirname(filePath), { recursive: true });
-	writeFileSync(filePath, args.content, {
-		encoding: "utf-8",
-		flag: append ? "a" : "w",
-	});
+	if (append) {
+		// 追加无法原子化，保持直接追加
+		writeFileSync(filePath, args.content, { encoding: "utf-8", flag: "a" });
+	} else {
+		// 覆盖/创建走原子写：中途崩溃不会留下半个文件
+		writeTextAtomicSync(filePath, args.content);
+	}
 
 	const action = append ? "追加写入" : existed ? "覆盖写入" : "创建";
 	return {
