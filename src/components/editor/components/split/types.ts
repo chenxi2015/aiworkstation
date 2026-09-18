@@ -110,8 +110,14 @@ export interface SplitCompareViewProps {
 	) => void;
 	/** Callback when user rejects/exits split compare */
 	onCancel: () => void;
-	/** Callback when user saves right canvas as a new standalone document */
-	onSaveAsNewDocument?: (title: string, markdown: string) => Promise<void>;
+	/** Callback when user saves right canvas as a new standalone document.
+	 *  docJson 直接携带右栏 TipTap JSON，避免 Markdown 往返丢失 HTML 样式
+	 *  （styledContainer / textStyle 等在 Markdown 中无法表达）。 */
+	onSaveAsNewDocument?: (
+		title: string,
+		markdown: string,
+		docJson?: JSONContent,
+	) => Promise<void>;
 }
 
 export type ViewMode = "diff" | "clean";

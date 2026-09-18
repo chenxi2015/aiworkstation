@@ -5,7 +5,7 @@ import {
 } from "@dnd-kit/react";
 import { isSortable } from "@dnd-kit/react/sortable";
 import { toast } from "@heroui/react";
-import type { Editor } from "@tiptap/react";
+import type { Editor, JSONContent } from "@tiptap/react";
 import { FileText, Sparkles, Square } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { NavLayoutEntry } from "../../modules/registry";
@@ -329,13 +329,26 @@ export function EditorApp({
 	}, [splitSession]);
 
 	const handleSaveAsNewDocument = useCallback(
-		async (title: string, markdown: string) => {
+		async (title: string, markdown: string, docJson?: JSONContent) => {
 			try {
-				const { nodes } = markdownToTiptapDoc(markdown);
-				const docJson = {
-					type: "doc",
-					content: nodes.length > 0 ? nodes : [{ type: "paragraph" }],
-				};
+				// 双栏另存时直接携带右栏 TipTap JSON，避免 Markdown 往返丢失
+				// HTML 样式（styledContainer / textStyle 等）；无 JSON 时回退 Markdown 解析
+				const finalDocJson = docJson
+					? {
+							...docJson,
+							type: "doc",
+							content:
+								docJson.content && docJson.content.length > 0
+									? docJson.content
+									: [{ type: "paragraph" }],
+						}
+					: (() => {
+							const { nodes } = markdownToTiptapDoc(markdown);
+							return {
+								type: "doc",
+								content: nodes.length > 0 ? nodes : [{ type: "paragraph" }],
+							};
+						})();
 				// 先建文档但不激活：避免编辑器以空 initialContent 挂载
 				// （useEditor 仅在创建时读取一次 initialContent，之后 prop 更新无效）
 				const newDoc = await handleInsertNewDocument(title, {
@@ -345,7 +358,7 @@ export function EditorApp({
 				await updateDocumentRpc({
 					id: newDoc.id,
 					title,
-					content: JSON.stringify(docJson),
+					content: JSON.stringify(finalDocJson),
 					contentText: markdown,
 				});
 				// 先把含正文的新文档同步进本地 state，再切换激活，
@@ -373,8 +386,8 @@ export function EditorApp({
 				JSON.stringify(cleanDocJson),
 				editorInstanceRef.current.getText(),
 			);
-			setSplitSession(null);
-			toast.success("已成功采纳改写成果，原文已更新！");
+			// 保持双栏打开：SplitCompareView 内部将草稿固化为新版本并切到左栏，可继续叠加优化
+			toast.success("已采纳至正文并生成新版本，可继续叠加优化！");
 		},
 		[handleBeforeAiApply, handleEditorChange],
 	);

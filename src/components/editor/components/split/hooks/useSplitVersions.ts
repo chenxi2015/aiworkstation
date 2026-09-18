@@ -160,6 +160,35 @@ export function useSplitVersions({
 		[versions, rightEditor, setRightWordCount],
 	);
 
+	// 采纳右侧草稿后：固化为新版本 v1/v2/... 追加进版本池，并把左栏切换到该新版本（右栏由调用方清空）
+	const acceptDraftAsNewVersion = useCallback((contentJson: JSONContent) => {
+		let md = "";
+		try {
+			md = tiptapJsonToMarkdown(contentJson);
+		} catch {
+			md = "";
+		}
+		const newId = `acc_${Date.now()}`;
+		setVersions((prev) => {
+			const acceptCount = prev.filter((v) => v.id.startsWith("acc_")).length;
+			const action = draftActionRef.current || "采纳版本";
+			return [
+				...prev,
+				{
+					id: newId,
+					label: `v${acceptCount + 1}: ${action} (已采纳)`,
+					mode: draftOriginRef.current === "ai" ? "rewrite" : "manual",
+					content: md,
+					contentJson,
+					createdAt: Date.now(),
+					origin: draftOriginRef.current,
+					isSavedToDb: false,
+				},
+			];
+		});
+		setLeftVersionId(newId);
+	}, []);
+
 	// Manually save current active version to SQLite document_versions
 	const handleSaveCurrentVersionToDb = useCallback(async () => {
 		if (!docId || !rightEditor) return;
@@ -213,6 +242,7 @@ export function useSplitVersions({
 		activeLeftVersion,
 		activeRightVersion,
 		handleSelectRightVersion,
+		acceptDraftAsNewVersion,
 		handleSaveCurrentVersionToDb,
 	};
 }

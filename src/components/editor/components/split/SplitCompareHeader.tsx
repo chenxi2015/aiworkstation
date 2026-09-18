@@ -256,7 +256,7 @@ export function SplitCompareHeader({
 						</AlertDialog.Header>
 						<AlertDialog.Body>
 							<p className="text-sm text-muted leading-relaxed">
-								确定要采纳右侧演练内容覆盖左侧正文吗？正文当前状态将自动创建版本快照备份，以便随时回退。
+								确定要采纳右侧演练内容覆盖正文吗？采纳后双栏保持打开：右侧将固化为新版本并切换至左栏显示，右栏清空后可继续基于新版本叠加优化；正文当前状态将自动创建版本快照备份，以便随时回退。
 							</p>
 						</AlertDialog.Body>
 						<AlertDialog.Footer>

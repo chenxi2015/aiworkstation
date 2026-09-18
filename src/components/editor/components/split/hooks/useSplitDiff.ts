@@ -54,13 +54,17 @@ export function useSplitDiff({
 	// Synchronize left & right editor contents between clean and diff highlighting modes
 	const lastAppliedModeRef = useRef<ViewMode>("clean");
 	const lastAppliedLeftVerRef = useRef<string>("v0");
+	const lastAppliedLeftVerObjRef = useRef<DocumentVersion | null>(null);
 	const lastAppliedRightVerRef = useRef<string>("v_draft");
 
 	useEffect(() => {
 		if (isStreaming) return;
 
 		const modeChanged = lastAppliedModeRef.current !== diffViewMode;
-		const leftVerChanged = lastAppliedLeftVerRef.current !== leftVersionId;
+		// 左栏需响应"同 ID 内容被升级"（采纳后 v0 基准原地更新），右栏不跟踪内容身份避免打字被回滚
+		const leftVerChanged =
+			lastAppliedLeftVerRef.current !== leftVersionId ||
+			lastAppliedLeftVerObjRef.current !== activeLeftVersion;
 		const rightVerChanged = lastAppliedRightVerRef.current !== rightVersionId;
 
 		if (!modeChanged && !leftVerChanged && !rightVerChanged) {
@@ -69,6 +73,7 @@ export function useSplitDiff({
 
 		lastAppliedModeRef.current = diffViewMode;
 		lastAppliedLeftVerRef.current = leftVersionId;
+		lastAppliedLeftVerObjRef.current = activeLeftVersion;
 		lastAppliedRightVerRef.current = rightVersionId;
 
 		if (diffViewMode === "diff") {

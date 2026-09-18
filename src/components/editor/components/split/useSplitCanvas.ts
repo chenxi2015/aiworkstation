@@ -24,7 +24,11 @@ export interface UseSplitCanvasOptions {
 	onAccept: (
 		cleanDocJson: Parameters<Editor["commands"]["setContent"]>[0],
 	) => void;
-	onSaveAsNewDocument?: (title: string, markdown: string) => Promise<void>;
+	onSaveAsNewDocument?: (
+		title: string,
+		markdown: string,
+		docJson?: JSONContent,
+	) => Promise<void>;
 }
 
 /**
@@ -131,6 +135,7 @@ export function useSplitCanvas({
 		activeLeftVersion,
 		activeRightVersion,
 		handleSelectRightVersion,
+		acceptDraftAsNewVersion,
 		handleSaveCurrentVersionToDb,
 	} = useSplitVersions({
 		docId,
@@ -257,11 +262,12 @@ export function useSplitCanvas({
 			toast.warning("右侧草稿内容为空，无法采纳覆盖正文");
 			return;
 		}
+		const acceptedJson = rightEditor.getJSON();
 		if (docId) {
 			try {
 				await snapshotVersionRpc({
 					documentId: docId,
-					content: JSON.stringify(rightEditor.getJSON()),
+					content: JSON.stringify(acceptedJson),
 					origin: "human",
 					note: `采纳应用前快照: ${activeRightVersion.label}`,
 				});
@@ -269,8 +275,24 @@ export function useSplitCanvas({
 				// non-blocking
 			}
 		}
-		onAccept(rightEditor.getJSON());
-	}, [rightEditor, onAccept, docId, activeRightVersion.label]);
+		onAccept(acceptedJson);
+		// 双栏保持打开：右侧草稿固化为新版本 vN 并切到左栏，右侧清空等待下一轮叠加优化
+		acceptDraftAsNewVersion(acceptedJson);
+		setDraftContent("");
+		setDraftContentJson(null);
+		setRightVersionId(DRAFT_VERSION_ID);
+		setRightWordCount(0);
+		rightEditor.commands.clearContent(false);
+	}, [
+		rightEditor,
+		onAccept,
+		docId,
+		activeRightVersion.label,
+		acceptDraftAsNewVersion,
+		setDraftContent,
+		setDraftContentJson,
+		setRightVersionId,
+	]);
 
 	// Retain right draft without overwriting main document or resetting right content
 	const handleReject = useCallback(() => {
@@ -284,9 +306,10 @@ export function useSplitCanvas({
 			toast.warning("右侧草稿内容为空，无法另存为新文档");
 			return;
 		}
-		const md = tiptapJsonToMarkdown(rightEditor.getJSON()) || text;
+		const docJson = rightEditor.getJSON();
+		const md = tiptapJsonToMarkdown(docJson) || text;
 		const newTitle = `${docTitle || "未命名文档"} · 改写篇`;
-		await onSaveAsNewDocument(newTitle, md);
+		await onSaveAsNewDocument(newTitle, md, docJson);
 	}, [rightEditor, docTitle, onSaveAsNewDocument]);
 
 	return {
