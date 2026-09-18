@@ -127,22 +127,31 @@ export function EditorApp({
 	const [docDropTarget, setDocDropTarget] = useState<number | "all" | null>(
 		null,
 	);
+	// Cache last value to skip identical setState calls entirely
+	const docDropTargetRef = useRef<number | "all" | null>(null);
 
 	const handleEditorDragMove = useCallback((event: DragMoveEvent) => {
 		const { operation } = event;
 		const data = operation.source?.data as EditorDragData | undefined;
 		if (data?.kind !== "editor-doc") {
-			setDocDropTarget(null);
+			if (docDropTargetRef.current !== null) {
+				docDropTargetRef.current = null;
+				setDocDropTarget(null);
+			}
 			return;
 		}
 		// sortable 插件会把 target 重置为拖拽源，文件夹命中改用指针探测
 		const hit = hitTestFolderRow(operation.position.current);
 		const next = hit !== null && hit !== (data.folderId ?? "all") ? hit : null;
-		setDocDropTarget((prev) => (prev === next ? prev : next));
+		if (docDropTargetRef.current !== next) {
+			docDropTargetRef.current = next;
+			setDocDropTarget(next);
+		}
 	}, []);
 
 	const handleEditorDragEnd = useCallback(
 		(event: DragEndEvent) => {
+			docDropTargetRef.current = null;
 			setDocDropTarget(null);
 			const { operation } = event;
 			const { source } = operation;

@@ -20,12 +20,13 @@
     "zip:extension:firefox": "pnpm -C extensions/aicollector zip:firefox"
   },
   "dependencies": {
-		"@dnd-kit/dom": "^0.5.0",
-		"@dnd-kit/react": "^0.5.0",
+    "@dnd-kit/dom": "^0.5.0",
+    "@dnd-kit/react": "^0.5.0",
     "@faker-js/faker": "^10.3.0",
     "@heroui/react": "^3.2.4",
     "@heroui/styles": "^3.2.4",
     "@internationalized/date": "^3.12.3",
+    "@paper-design/shaders-react": "^0.0.81",
     "@streamdown/code": "^1.1.1",
     "@streamdown/mermaid": "^1.0.2",
     "@tailwindcss/vite": "^4.1.18",

@@ -4,9 +4,9 @@ packages:
 
 allowBuilds:
   '@google/genai': true
-  '@turbodocx/html-to-docx': set this to true or false
+  '@turbodocx/html-to-docx': true
   better-sqlite3: false
-  core-js: set this to true or false
+  core-js: true
   esbuild: true
   lightningcss: true
   protobufjs: true
