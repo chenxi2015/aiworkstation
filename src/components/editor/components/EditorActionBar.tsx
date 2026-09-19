@@ -50,7 +50,7 @@ export function EditorActionBar({
 	onOpenDistribution,
 }: EditorActionBarProps) {
 	return (
-		<div className="shrink-0 border-t border-border bg-surface/60 px-4 py-2 flex items-center gap-2 flex-wrap">
+		<div className="shrink-0 relative z-50 border-t border-border bg-surface px-4 py-2 flex items-center gap-2 flex-wrap">
 			{/* Word count & Save state */}
 			<span className="text-[11px] text-muted">{wordCount} 字</span>
 			<span className="text-[11px] text-muted/60">·</span>

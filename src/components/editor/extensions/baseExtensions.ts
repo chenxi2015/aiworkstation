@@ -8,6 +8,7 @@ import TaskList from "@tiptap/extension-task-list";
 import TextAlign from "@tiptap/extension-text-align";
 import StarterKit from "@tiptap/starter-kit";
 import { VideoNode } from "../videoNode";
+import { AiSelectionHighlight } from "./aiSelectionHighlight";
 import { CodeBlockWithHighlight } from "./CodeBlockWithHighlight";
 import { CustomImage } from "./CustomImage";
 import { ChartNode } from "./chart/ChartNode";
@@ -62,5 +63,6 @@ export function getEditorBaseExtensions(options?: { placeholder?: string }) {
 		}),
 		...getStylePreservationExtensions(),
 		...SuggestionDiffExtensions,
+		AiSelectionHighlight,
 	];
 }

@@ -107,7 +107,7 @@ export function EditorToolbar({
 	};
 
 	return (
-		<div className="shrink-0 border-b border-border bg-surface/60 px-4 py-1.5 flex items-center justify-center gap-0.5 flex-wrap">
+		<div className="shrink-0 relative z-50 border-b border-border bg-surface px-4 py-1.5 flex items-center justify-center gap-0.5 flex-wrap">
 			{preview ? (
 				<div className="flex items-center justify-between w-full py-0.5">
 					<div className="flex items-center gap-2">

@@ -127,7 +127,9 @@ export function RichTextEditor({
 					editor={editor}
 					onGenerate={onAiGenerate}
 					onBeforeApply={onBeforeAiApply}
-					isPipelineRunning={pipeline.isStreaming}
+					isPipelineRunning={
+						pipeline.isStreaming || pipeline.activeSuggestionCount > 0
+					}
 				/>
 			)}
 

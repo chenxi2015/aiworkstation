@@ -45,7 +45,7 @@ export function DocumentHeader({
 	};
 
 	return (
-		<div className="shrink-0 px-8 pt-4 pb-2 max-w-full mx-auto w-full flex items-center gap-3 select-none">
+		<div className="shrink-0 relative z-50 bg-surface px-8 pt-4 pb-2 max-w-full mx-auto w-full flex items-center gap-3 select-none">
 			{/* Left: Document #ID & Editable Title */}
 			<div className="flex-1 min-w-0 flex items-center gap-1.5">
 				<span

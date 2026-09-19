@@ -1,5 +1,9 @@
 import type { Editor } from "@tiptap/core";
-import { buildNodesFromDiff, computeFineDiff } from "./diffHelper";
+import {
+	buildInlineNodesFromDiff,
+	buildNodesFromDiff,
+	computeFineDiff,
+} from "./diffHelper";
 
 export interface ActiveSuggestionInfo {
 	id: string;
@@ -26,8 +30,14 @@ export const SuggestionController = {
 		const { state, view } = editor;
 		const { tr } = state;
 
+		const $from = state.doc.resolve(from);
+		const $to = state.doc.resolve(to);
+		const isSameBlock = $from.sameParent($to) && $from.parent.isTextblock;
+
 		const segments = computeFineDiff(oldText, newText);
-		const nodes = buildNodesFromDiff(state.schema, segments, suggestionId);
+		const nodes = isSameBlock
+			? buildInlineNodesFromDiff(state.schema, segments, suggestionId)
+			: buildNodesFromDiff(state.schema, segments, suggestionId);
 
 		tr.replaceWith(from, to, nodes);
 

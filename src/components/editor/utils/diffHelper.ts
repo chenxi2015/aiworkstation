@@ -81,6 +81,51 @@ export function buildNodesFromDiff(
 	return paragraphs.length > 0 ? paragraphs : [schema.nodes.paragraph.create()];
 }
 
+/**
+ * Build inline ProseMirror text nodes from diff segments without paragraph wrappers.
+ * Used for intra-block replacements to strictly prevent creating empty paragraphs or splitting blocks.
+ */
+export function buildInlineNodesFromDiff(
+	schema: Schema,
+	segments: DiffSegment[],
+	suggestionId: string,
+): ProsemirrorNode[] {
+	const deleteMark = schema.marks.suggestionDelete?.create({ suggestionId });
+	const insertMark = schema.marks.suggestionInsert?.create({ suggestionId });
+
+	const inlineNodes: ProsemirrorNode[] = [];
+
+	for (const segment of segments) {
+		const { text, status } = segment;
+		if (!text) continue;
+
+		const parts = text.split("\n");
+		for (let i = 0; i < parts.length; i++) {
+			const part = parts[i];
+			if (part) {
+				const marks: Mark[] = [];
+				if (status === "added" && insertMark) {
+					marks.push(insertMark);
+				} else if (status === "removed" && deleteMark) {
+					marks.push(deleteMark);
+				}
+				inlineNodes.push(schema.text(part, marks));
+			}
+
+			// In-block newlines use hardBreak if available, otherwise spaces
+			if (i < parts.length - 1) {
+				if (schema.nodes.hardBreak) {
+					inlineNodes.push(schema.nodes.hardBreak.create());
+				} else {
+					inlineNodes.push(schema.text(" "));
+				}
+			}
+		}
+	}
+
+	return inlineNodes;
+}
+
 const ADD_CLASS =
 	"no-underline bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-medium px-0.5 rounded mx-0.5";
 const DEL_CLASS =
