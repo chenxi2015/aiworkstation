@@ -11,6 +11,7 @@ import {
 import { memo, useMemo, useState } from "react";
 import type { PageBridge } from "../../../../types/pageBridge";
 import type { Folder } from "../../types";
+import { GemSmoke } from '@paper-design/shaders-react';
 
 export interface ChatEmptyStateProps {
 	activeModule?: string;
@@ -43,12 +44,30 @@ interface PromptListItem {
  */
 function HeroIllustration() {
 	return (
-		<div className="relative w-28 h-20 mb-2 flex items-center justify-center select-none pointer-events-none">
-			<img
+		<div className="relative w-20 h-20 overflow-hidden rounded-full mb-2 flex items-center justify-center select-none pointer-events-none">
+			{/* <img
 				src="/hero-illustration.svg"
 				alt="AI Assistant Illustration"
 				className="w-full h-full object-contain drop-shadow-xs"
 				aria-hidden="true"
+			/> */}
+			<GemSmoke
+				width={200}
+				height={200}
+				image="https://shaders.paper.design/images/logos/diamond.svg"
+				colors={["#333333", "#e7e6df"]}
+				colorBack="#f0efea"
+				colorInner="#fafaf5"
+				shape="diamond"
+				innerDistortion={0.8}
+				outerDistortion={0.6}
+				outerGlow={0.55}
+				innerGlow={1}
+				offset={0}
+				angle={0}
+				size={0.8}
+				speed={1}
+				scale={0.9}
 			/>
 		</div>
 	);
