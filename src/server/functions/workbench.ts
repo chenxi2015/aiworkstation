@@ -189,6 +189,79 @@ export const moveItem = createServerFn({ method: "POST" })
 	);
 
 /**
+ * Server Function: Assign multiple items (including web search references) into a target folder atomically
+ */
+export const assignItemsToFolder = createServerFn({ method: "POST" })
+	.validator(
+		(data: {
+			targetFolderId: number;
+			items: Array<{
+				id?: string | number;
+				url?: string;
+				name?: string;
+				title?: string;
+				description?: string;
+				sourceFolderId?: number | null;
+				folderId?: number | null;
+			}>;
+		}) => data,
+	)
+	.handler(
+		async ({
+			data,
+		}): Promise<{ folders: Folder[]; unclassified: WorkbenchItem[] }> => {
+			workbenchDb.assignItemsToFolder(data.targetFolderId, data.items);
+			const folders = workbenchDb.getAllFolders();
+			const unclassified = workbenchDb.getUnclassifiedItems();
+			return { folders, unclassified };
+		},
+	);
+
+/**
+ * Server Function: Create a new folder and assign items to it atomically
+ */
+export const createFolderAndAssignItems = createServerFn({ method: "POST" })
+	.validator(
+		(data: {
+			name: string;
+			category?: string;
+			desc?: string;
+			color?: string;
+			items: Array<{
+				id?: string | number;
+				url?: string;
+				name?: string;
+				title?: string;
+				description?: string;
+				sourceFolderId?: number | null;
+				folderId?: number | null;
+			}>;
+		}) => data,
+	)
+	.handler(
+		async ({
+			data,
+		}): Promise<{
+			folders: Folder[];
+			unclassified: WorkbenchItem[];
+			createdFolder: Folder;
+		}> => {
+			const folderCategory = data.category?.trim() || "bookmarks";
+			const created = workbenchDb.createFolder(
+				data.name.trim(),
+				folderCategory,
+				data.desc || "",
+				data.color,
+			);
+			workbenchDb.assignItemsToFolder(created.id, data.items);
+			const folders = workbenchDb.getAllFolders();
+			const unclassified = workbenchDb.getUnclassifiedItems();
+			const createdFolder = folders.find((f) => f.id === created.id) || created;
+			return { folders, unclassified, createdFolder };
+		},
+	);
+
+/**
  * Server Function: Delete item in SQLite
  */
 export const deleteItem = createServerFn({ method: "POST" })

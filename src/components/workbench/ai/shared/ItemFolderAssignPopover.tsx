@@ -8,6 +8,7 @@ import {
 	Search,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { resolveCategoryLabel } from "../../../../modules/registry";
 import {
 	CATEGORIES,
 	type Folder,
@@ -21,12 +22,12 @@ export interface ItemFolderAssignPopoverProps {
 	categories: string[];
 	isCreateMode: boolean;
 	newFolderName: string;
-	newFolderCategory: string;
+	newFolderCategory?: string;
 	folderFilterQuery: string;
 	isProcessingMove: boolean;
 	onToggleCreateMode: () => void;
 	onChangeNewFolderName: (name: string) => void;
-	onChangeNewFolderCategory: (category: string) => void;
+	onChangeNewFolderCategory?: (category: string) => void;
 	onChangeFilterQuery: (query: string) => void;
 	onClose: () => void;
 	onMoveToExistingFolder: (folder: Folder) => void;
@@ -43,12 +44,12 @@ export function ItemFolderAssignPopover({
 	categories,
 	isCreateMode,
 	newFolderName,
-	newFolderCategory,
+	newFolderCategory: _newFolderCategory,
 	folderFilterQuery,
 	isProcessingMove,
 	onToggleCreateMode,
 	onChangeNewFolderName,
-	onChangeNewFolderCategory,
+	onChangeNewFolderCategory: _onChangeNewFolderCategory,
 	onChangeFilterQuery,
 	onClose,
 	onMoveToExistingFolder,
@@ -222,33 +223,14 @@ export function ItemFolderAssignPopover({
 												onCreateFolderAndMove();
 											}
 										}}
-										placeholder="例如：视频剪辑工具集"
+										placeholder="例如：AI 探索与工具集"
 										className="w-full bg-surface-secondary/70 border border-border rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:outline-none focus:border-accent transition-colors"
 										autoFocus
 									/>
-								</div>
-
-								<div className="flex flex-col gap-1.5">
-									<label
-										htmlFor="shared-new-folder-category"
-										className="text-xs font-medium text-foreground"
-									>
-										所属分类
-									</label>
-									<select
-										id="shared-new-folder-category"
-										value={newFolderCategory}
-										onChange={(e) => onChangeNewFolderCategory(e.target.value)}
-										className="w-full bg-surface-secondary/70 border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:border-accent cursor-pointer transition-colors"
-									>
-										{categories
-											.filter((cat) => cat !== "未分类")
-											.map((cat) => (
-												<option key={cat} value={cat}>
-													{cat}
-												</option>
-											))}
-									</select>
+									<p className="text-[11px] text-muted mt-0.5">
+										新建文件夹将收纳选中的 {assigningItems.length}{" "}
+										个网址，按回车即可快速创建并归入。
+									</p>
 								</div>
 							</div>
 						) : (
@@ -286,7 +268,11 @@ export function ItemFolderAssignPopover({
 															: "bg-surface-secondary/70 text-muted hover:text-foreground hover:bg-surface-secondary"
 													}`}
 												>
-													<span>{cat}</span>
+													<span>
+														{cat === "全部"
+															? "全部"
+															: resolveCategoryLabel(cat)}
+													</span>
 													<span
 														className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
 															isActive
@@ -357,7 +343,7 @@ export function ItemFolderAssignPopover({
 																{f.name}
 															</span>
 															<span className="text-[10px] text-muted px-1.5 py-0.5 rounded-md bg-surface-secondary border border-border/40 shrink-0">
-																{f.category}
+																{resolveCategoryLabel(f.category)}
 															</span>
 														</div>
 														<span className="text-[10px] text-muted mt-0.5">

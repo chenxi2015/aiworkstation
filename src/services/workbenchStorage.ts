@@ -46,7 +46,9 @@ import {
 	addBookmarksToDb,
 	addLinkToFolderInDb,
 	applyAIClassificationToDb,
+	assignItemsToFolderInDb,
 	clearUnclassifiedInDb,
+	createFolderAndAssignItemsInDb,
 	deleteFolderFromDb,
 	deleteItemInDb,
 	fetchAllFromDb,
@@ -92,6 +94,8 @@ export class WorkbenchStorageService {
 	static moveFolderToCategoryInDb = moveFolderToCategoryInDb;
 	static applyAIClassificationToDb = applyAIClassificationToDb;
 	static moveItemInDb = moveItemInDb;
+	static assignItemsToFolderInDb = assignItemsToFolderInDb;
+	static createFolderAndAssignItemsInDb = createFolderAndAssignItemsInDb;
 	static deleteItemInDb = deleteItemInDb;
 	static clearUnclassifiedInDb = clearUnclassifiedInDb;
 	static addBookmarksToDb = addBookmarksToDb;

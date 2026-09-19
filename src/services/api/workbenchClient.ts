@@ -9,7 +9,9 @@ import {
 	addBookmarks,
 	addLinkToFolder,
 	applyAIClassification,
+	assignItemsToFolder,
 	clearUnclassifiedBookmarks,
+	createFolderAndAssignItems,
 	deleteFolder,
 	deleteItem,
 	getWorkbenchData,
@@ -130,6 +132,54 @@ export async function moveItemInDb(
 			targetFolderId,
 		},
 	});
+}
+
+/**
+ * Assign multiple items (existing bookmarks or AI search results) to a folder atomically
+ */
+export async function assignItemsToFolderInDb(
+	targetFolderId: number,
+	items: Array<{
+		id?: string | number;
+		url?: string;
+		name?: string;
+		title?: string;
+		description?: string;
+		sourceFolderId?: number | null;
+		folderId?: number | null;
+	}>,
+): Promise<{ folders: Folder[]; unclassified: WorkbenchItem[] }> {
+	return await assignItemsToFolder({
+		data: {
+			targetFolderId,
+			items,
+		},
+	});
+}
+
+/**
+ * Create a new folder and assign multiple items to it atomically
+ */
+export async function createFolderAndAssignItemsInDb(data: {
+	name: string;
+	category?: string;
+	desc?: string;
+	color?: string;
+	items: Array<{
+		id?: string | number;
+		url?: string;
+		name?: string;
+		title?: string;
+		description?: string;
+		sourceFolderId?: number | null;
+		folderId?: number | null;
+	}>;
+}): Promise<{
+	folders: Folder[];
+	unclassified: WorkbenchItem[];
+	createdFolder: Folder;
+}> {
+	return await createFolderAndAssignItems({ data });
 }
 
 /**

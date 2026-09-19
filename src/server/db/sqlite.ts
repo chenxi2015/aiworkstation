@@ -163,6 +163,21 @@ export class WorkbenchDatabase {
 		this.bookmarkRepo.linkItemToFolder(itemId, targetFolderId);
 	}
 
+	assignItemsToFolder(
+		targetFolderId: number,
+		items: Array<{
+			id?: string | number;
+			url?: string;
+			name?: string;
+			title?: string;
+			description?: string;
+			sourceFolderId?: number | null;
+			folderId?: number | null;
+		}>,
+	): string[] {
+		return this.bookmarkRepo.assignItemsToFolder(targetFolderId, items);
+	}
+
 	deleteItem(itemId: string, folderId: number | null): void {
 		this.bookmarkRepo.deleteItem(itemId, folderId);
 	}

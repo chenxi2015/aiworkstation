@@ -124,13 +124,17 @@ export function useItemFolderAssign(options?: UseItemFolderAssignOptions) {
 			setIsProcessingMove(true);
 
 			try {
-				for (const item of assigningItems) {
-					await WorkbenchStorageService.moveItemInDb(
-						item.id || "",
-						item.folderId ?? null,
-						targetFolder.id,
-					);
-				}
+				await WorkbenchStorageService.assignItemsToFolderInDb(
+					targetFolder.id,
+					assigningItems.map((item) => ({
+						id: item.id,
+						url: item.url,
+						name: item.name,
+						title: item.name,
+						description: item.description || item.summary,
+						sourceFolderId: item.folderId ?? null,
+					})),
+				);
 
 				toast.success(
 					`已将 ${assigningItems.length} 项移入「${targetFolder.name}」`,
@@ -163,31 +167,22 @@ export function useItemFolderAssign(options?: UseItemFolderAssignOptions) {
 
 			setIsProcessingMove(true);
 			try {
-				// 1. Create new folder in DB
-				const updatedFolders = await WorkbenchStorageService.saveFolderToDb({
-					name: trimmedName,
-					category: newFolderCategory || "bookmarks",
-					desc: `由 AI 问答/搜索结果快捷归类创建，包含 ${assigningItems.length} 个书签`,
-				});
+				const res =
+					await WorkbenchStorageService.createFolderAndAssignItemsInDb({
+						name: trimmedName,
+						category: newFolderCategory || "bookmarks",
+						desc: `由 AI 问答/搜索结果快捷归类创建，包含 ${assigningItems.length} 个书签`,
+						items: assigningItems.map((item) => ({
+							id: item.id,
+							url: item.url,
+							name: item.name,
+							title: item.name,
+							description: item.description || item.summary,
+							sourceFolderId: item.folderId ?? null,
+						})),
+					});
 
-				const createdFolder = updatedFolders.find(
-					(f) => f.name === trimmedName,
-				) || {
-					id: Date.now(),
-					name: trimmedName,
-					category: newFolderCategory,
-					createdAt: "刚刚",
-					items: [],
-				};
-
-				// 2. Move items into newly created folder
-				for (const item of assigningItems) {
-					await WorkbenchStorageService.moveItemInDb(
-						item.id || "",
-						item.folderId ?? null,
-						createdFolder.id,
-					);
-				}
+				const createdFolder = res.createdFolder;
 
 				toast.success(
 					`已创建「${trimmedName}」并移入 ${assigningItems.length} 项`,

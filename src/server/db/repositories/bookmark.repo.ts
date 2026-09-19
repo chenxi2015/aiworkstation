@@ -377,6 +377,112 @@ export class BookmarkRepository {
 	}
 
 	/**
+	 * Assign multiple items (existing bookmarks or AI search results) to a folder atomically.
+	 * If an item is an external URL not yet in bookmarks table, it will be automatically inserted first,
+	 * ensuring the foreign key constraint on folder_items(item_id) is always satisfied.
+	 */
+	assignItemsToFolder(
+		targetFolderId: number,
+		items: Array<{
+			id?: string | number;
+			url?: string;
+			name?: string;
+			title?: string;
+			description?: string;
+			sourceFolderId?: number | null;
+			folderId?: number | null;
+		}>,
+	): string[] {
+		const today = new Date().toISOString().split("T")[0];
+		const findByIdStmt = this.db.prepare(
+			"SELECT id FROM bookmarks WHERE id = ?",
+		);
+		const findByUrlStmt = this.db.prepare(
+			"SELECT id FROM bookmarks WHERE url = ?",
+		);
+		const upsertBookmarkStmt = this.db.prepare(`
+			INSERT INTO bookmarks (
+				id, url, title, description, summary, item_type, source,
+				date_added, created_at, updated_at
+			) VALUES (
+				@id, @url, @title, @description, @summary, 'link', 'ai_search',
+				@date_added, @created_at, @updated_at
+			)
+			ON CONFLICT(url) DO UPDATE SET
+				title = CASE WHEN excluded.title != '' THEN excluded.title ELSE bookmarks.title END,
+				description = CASE WHEN excluded.description != '' THEN excluded.description ELSE bookmarks.description END,
+				updated_at = excluded.updated_at
+		`);
+		const deleteOldRelationStmt = this.db.prepare(
+			"DELETE FROM folder_items WHERE folder_id = ? AND item_id = ?",
+		);
+		const insertRelationStmt = this.db.prepare(
+			"INSERT OR IGNORE INTO folder_items (folder_id, item_id, created_at) VALUES (?, ?, ?)",
+		);
+
+		const transaction = this.db.transaction(() => {
+			const assignedIds: string[] = [];
+			for (const item of items) {
+				let resolvedId: string | null = null;
+
+				// 1. Try finding by ID
+				if (item.id !== undefined && item.id !== null && item.id !== "") {
+					const idStr = item.id.toString();
+					const byId = findByIdStmt.get(idStr) as { id: string } | undefined;
+					if (byId) {
+						resolvedId = byId.id;
+					}
+				}
+
+				// 2. If not found by ID, try finding by URL
+				if (!resolvedId && item.url) {
+					const byUrl = findByUrlStmt.get(item.url) as
+						| { id: string }
+						| undefined;
+					if (byUrl) {
+						resolvedId = byUrl.id;
+					}
+				}
+
+				// 3. If neither exists, insert new bookmark for this URL
+				if (!resolvedId && item.url) {
+					const newId = `bm_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+					const itemTitle = item.title || item.name || item.url;
+					const itemDesc = item.description || "";
+					upsertBookmarkStmt.run({
+						id: newId,
+						url: item.url,
+						title: itemTitle,
+						description: itemDesc,
+						summary: itemTitle,
+						date_added: Date.now(),
+						created_at: today,
+						updated_at: today,
+					});
+
+					const createdRow = findByUrlStmt.get(item.url) as
+						| { id: string }
+						| undefined;
+					resolvedId = createdRow?.id || newId;
+				}
+
+				// 4. Link into target folder
+				if (resolvedId) {
+					const sourceId = item.sourceFolderId ?? item.folderId ?? null;
+					if (sourceId !== null && sourceId !== targetFolderId) {
+						deleteOldRelationStmt.run(sourceId, resolvedId);
+					}
+					insertRelationStmt.run(targetFolderId, resolvedId, today);
+					assignedIds.push(resolvedId);
+				}
+			}
+			return assignedIds;
+		});
+
+		return transaction();
+	}
+
+	/**
 	 * Link item to folder without removing from existing folders (many-to-many reference)
 	 */
 	linkItemToFolder(itemId: string, targetFolderId: number): void {
