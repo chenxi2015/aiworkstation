@@ -227,6 +227,12 @@ export const ChatEmptyState = memo(function ChatEmptyState({
 					description:
 						"聚合多维度学习资源，梳理知识脉络与核心概念，规划循序渐进的高效学习路径。",
 				};
+			case "obsidian":
+				return {
+					title: "认识 笔记整理搭档",
+					description:
+						"直接对话你的 Obsidian 笔记：总结要点、润色改写、检索知识库素材补充进笔记，一键写回 Vault。",
+				};
 			default:
 				return {
 					title: "认识 知识库智能助手",
@@ -283,6 +289,22 @@ export const ChatEmptyState = memo(function ChatEmptyState({
 			});
 		}
 
+		// 页面桥接的模块快捷动作（opt-in：声明了 emptyState 元数据才展示）
+		for (const action of pageBridge?.actions ?? []) {
+			if (!action.emptyState) continue;
+			list.push({
+				id: `action-${action.id}`,
+				icon: (action.icon ?? Sparkles) as typeof Sparkles,
+				title: action.emptyState.title,
+				subtitle: action.emptyState.subtitle,
+				badge: action.emptyState.badge,
+				actionText: action.emptyState.actionText,
+				onClick: () => {
+					void action.onAction("");
+				},
+			});
+		}
+
 		rawPrompts.forEach((prompt, idx) => {
 			const meta = parsePromptMeta(prompt);
 			// Avoid duplicate title if rewrite action already exists
@@ -302,7 +324,7 @@ export const ChatEmptyState = memo(function ChatEmptyState({
 		});
 
 		return list;
-	}, [spinRewriteAction, rewriteAction, rawPrompts, onSelectPrompt]);
+	}, [spinRewriteAction, rewriteAction, rawPrompts, onSelectPrompt, pageBridge]);
 
 	// Show top 3 by default, expand all on click
 	const displayLimit = 3;

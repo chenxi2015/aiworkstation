@@ -123,6 +123,8 @@ export interface WorkbenchSettings {
 	embeddingProvider?: string;
 	// 文件管理根目录：视频下载、creator 素材文件等统一落在此目录下
 	filesRootDir?: string;
+	// Obsidian Vault 根目录（笔记模块直接读写该目录，未配置时回退 ~/Documents/Obsidian）
+	obsidianVaultDir?: string;
 	// 已废弃：旧版下载目录设置，读取时作为 filesRootDir 的 alias 免迁移兼容，写入只写 filesRootDir
 	downloadsDir?: string;
 	// Whether the first-time setup wizard has been completed

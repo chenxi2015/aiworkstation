@@ -38,6 +38,10 @@ export interface UseFloatingPositionOptions {
 	panelRef?: React.RefObject<HTMLDivElement | null>;
 	/** Optional explicit document range to anchor to (useful when selection is lost) */
 	anchorRange?: { from: number; to: number } | null;
+	/** Distance/margin from the bottom of viewport or scroll container (default 16) */
+	bottom?: number;
+	/** Safe distance from the top boundary (default 8) */
+	topOffset?: number;
 }
 
 export interface FloatingPositionResult {
@@ -60,6 +64,8 @@ export function useFloatingPosition({
 	panelHeight: defaultPanelH = 40,
 	panelRef,
 	anchorRange,
+	bottom = 16,
+	topOffset = 8,
 }: UseFloatingPositionOptions): FloatingPositionResult {
 	const [pos, setPos] = useState<FloatPos>({ top: 0, left: 0 });
 	const [anchorVisible, setAnchorVisible] = useState(true);
@@ -94,18 +100,34 @@ export function useFloatingPosition({
 		const panelH = panelRef?.current?.offsetHeight ?? defaultPanelH;
 		const panelW = panelRef?.current?.offsetWidth ?? defaultPanelW;
 
+		// Calculate vertical boundaries considering scroll container and viewport
+		const containerBottom = scrollElRef.current
+			? scrollElRef.current.getBoundingClientRect().bottom
+			: window.innerHeight;
+		const boundaryBottom =
+			Math.min(window.innerHeight, containerBottom) - bottom;
+		const boundaryTop = Math.max(
+			topOffset,
+			scrollElRef.current
+				? Math.max(0, scrollElRef.current.getBoundingClientRect().top) +
+						topOffset
+				: topOffset,
+		);
+
 		const contentLeft = view.dom.getBoundingClientRect().left;
 		const areaLeft = scrollElRef.current?.getBoundingClientRect().left ?? 8;
 		const gutterWidth = contentLeft - areaLeft;
 
-		if (gutterWidth >= panelW + 12) {
+		// The content column has ~32px horizontal padding that is empty space,
+		// so the panel may borrow up to 24px of it before it would cover text
+		if (gutterWidth >= panelW - 24) {
 			// Wide screen: park in the left gutter, flush with selection start
-			const maxTop = window.innerHeight - panelH - 8;
-			let top = start.top;
-			if (top > maxTop && start.top < window.innerHeight) {
-				top = Math.max(8, maxTop);
+			const maxTop = boundaryBottom - panelH;
+			let top = Math.max(boundaryTop, start.top);
+			if (top > maxTop) {
+				top = Math.max(boundaryTop, maxTop);
 			}
-			setPos({ top, left: contentLeft - panelW - 12 });
+			setPos({ top, left: Math.max(areaLeft + 4, contentLeft - panelW - 8) });
 		} else {
 			// Narrow screen: below the selection
 			const left = Math.max(
@@ -113,13 +135,24 @@ export function useFloatingPosition({
 				Math.min(start.left, window.innerWidth - panelW - 8),
 			);
 			let top = end.bottom + 8;
-			if (top + panelH > window.innerHeight - 8) {
+			if (top + panelH > boundaryBottom) {
 				const above = start.top - panelH - 8;
-				top = above >= 8 ? above : Math.max(8, window.innerHeight - panelH - 8);
+				top =
+					above >= boundaryTop
+						? above
+						: Math.max(boundaryTop, boundaryBottom - panelH);
 			}
 			setPos({ top, left });
 		}
-	}, [editor, defaultPanelH, defaultPanelW, panelRef, anchorRange]);
+	}, [
+		editor,
+		defaultPanelH,
+		defaultPanelW,
+		panelRef,
+		anchorRange,
+		bottom,
+		topOffset,
+	]);
 
 	// Immediate calculation when enabled or anchorRange changes
 	useEffect(() => {
@@ -127,6 +160,20 @@ export function useFloatingPosition({
 			computePosition();
 		}
 	}, [enabled, computePosition]);
+
+	// Sync position on editor selection change
+	useEffect(() => {
+		if (!enabled) return;
+
+		const handleSelection = () => {
+			computePosition();
+		};
+
+		editor.on("selectionUpdate", handleSelection);
+		return () => {
+			editor.off("selectionUpdate", handleSelection);
+		};
+	}, [editor, enabled, computePosition]);
 
 	// rAF-throttled scroll / resize handler
 	useEffect(() => {
@@ -149,6 +196,21 @@ export function useFloatingPosition({
 			if (rafId) cancelAnimationFrame(rafId);
 		};
 	}, [enabled, computePosition]);
+
+	// Auto-recalculate when panel content size changes (e.g. prompt input grows, result panel renders)
+	useEffect(() => {
+		if (!enabled || !panelRef?.current || typeof ResizeObserver === "undefined")
+			return;
+
+		const observer = new ResizeObserver(() => {
+			computePosition();
+		});
+
+		observer.observe(panelRef.current);
+		return () => {
+			observer.disconnect();
+		};
+	}, [enabled, panelRef, computePosition]);
 
 	return { pos, anchorVisible, refresh: computePosition };
 }

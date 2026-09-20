@@ -31,6 +31,7 @@
   | `learn` | 学习 | `/learn` | 学习资源聚合 |
   | `editor` | 创作 | `/editor` | AI 富文本创作台：单篇深度加工、划词 AI 改写、多格式导入导出 |
   | `ecommerce` | 电商 | `/ecommerce` | 电商资源归集 |
+  | `obsidian` | 笔记 | `/obsidian` | Obsidian 本地 Vault 直连：目录即分类，Markdown 文件直接读写，不落库（不与 editor documents 混合） |
   | `skills` | Skills | `/skills` | 本地散落 skills 目录的集合管理（后续落库） |
 
 - **category 关联约定**：`folders.category` 存模块 **code**（如 `learn`），通过注册表解析展示名；
@@ -135,6 +136,7 @@ src/components/dashboard/ # 工作台仪表盘：WidgetCard 外壳 + widgets/ �
 src/server/functions/  # server functions：workbench / search(embedding) / rag / models
 src/server/db/         # better-sqlite3 + 原生 SQL schema 与迁移
 src/server/ai/tools/   # ReAct Agent 的 10 个书签/文件夹/统计与批量归集 Tool
+src/server/services/obsidian/ # Obsidian Vault 直连服务：vault 路径解析（settings.obsidianVaultDir）/ 目录树扫描（60s 缓存）/ 笔记 CRUD（mtime 乐观并发防冲突）
 src/server/maintenance.ts # 死链巡检等后台维护任务
 vite.config.ts         # 插件 HTTP API（/api/collect）以 Vite dev middleware 形式挂在这里
 extensions/aicollector/ # Chrome 插件（WXT 框架）：background / content / sidepanel 等 entrypoints

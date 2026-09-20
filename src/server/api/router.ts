@@ -80,6 +80,16 @@ const routes: RouteDefinition[] = [
 		},
 	},
 	{
+		path: "/api/obsidian/asset",
+		exact: true,
+		handler: async (req, res) => {
+			const { handleObsidianAssetRequest } = await import(
+				"./handlers/obsidianAssetHandler.ts"
+			);
+			return handleObsidianAssetRequest(req, res);
+		},
+	},
+	{
 		path: "/api/files",
 		exact: false,
 		handler: async (req, res, pathname) => {

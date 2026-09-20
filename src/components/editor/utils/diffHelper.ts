@@ -112,13 +112,9 @@ export function buildInlineNodesFromDiff(
 				inlineNodes.push(schema.text(part, marks));
 			}
 
-			// In-block newlines use hardBreak if available, otherwise spaces
+			// In-block separations use spaces strictly; never insert hardBreak (<br>)
 			if (i < parts.length - 1) {
-				if (schema.nodes.hardBreak) {
-					inlineNodes.push(schema.nodes.hardBreak.create());
-				} else {
-					inlineNodes.push(schema.text(" "));
-				}
+				inlineNodes.push(schema.text(" "));
 			}
 		}
 	}

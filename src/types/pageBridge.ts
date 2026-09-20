@@ -14,6 +14,15 @@ export interface PageAction {
 	tooltip?: string;
 	/** Primary visual highlight (e.g. 'primary', 'secondary') */
 	variant?: "default" | "accent";
+	/** 在聊天空态作为快捷入口展示（缺省不展示，仅供编程触发） */
+	emptyState?: {
+		title: string;
+		subtitle: string;
+		badge?: string;
+		actionText?: string;
+	};
+	/** 在 AI 回复消息操作条上展示（onAction 收到该消息全文） */
+	showOnMessages?: boolean;
 	/** Execution handler receiving the AI message content */
 	onAction: (content: string) => Promise<void> | void;
 }

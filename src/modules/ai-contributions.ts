@@ -141,6 +141,18 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 			},
 		],
 	},
+	obsidian: {
+		code: "obsidian",
+		systemPromptHint:
+			"用户正在「笔记」模块（Obsidian Vault 直连）。偏向笔记协同：总结与润色当前笔记、从收藏库检索素材补充笔记、整理知识结构；笔记正文通过对话上下文提供，修改由用户在编辑器确认后落盘。",
+		promptSuggestions: [
+			"帮我梳理当前笔记的结构，给出改进建议",
+			"从我的收藏库找一些能补充当前笔记主题的素材",
+			"把这篇笔记的核心要点整理成一份大纲",
+			"为这篇笔记生成 3~5 个关联标签和双链建议",
+		],
+		contextItemTypes: ["bookmark", "folder", "tag", "image", "file"],
+	},
 	ecommerce: {
 		code: "ecommerce",
 		systemPromptHint:

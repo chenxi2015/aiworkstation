@@ -8,6 +8,7 @@ import {
 } from "./modules/default.ts";
 import { editorPrompt } from "./modules/editor.ts";
 import { learnPrompt } from "./modules/learn.ts";
+import { obsidianPrompt } from "./modules/obsidian.ts";
 import { workbenchPrompt } from "./modules/workbench.ts";
 import type {
 	BuildSystemPromptParams,
@@ -25,6 +26,7 @@ const MODULE_PROMPT_REGISTRY: Record<string, ModulePromptDefinition> = {
 	creator: creatorPrompt,
 	editor: editorPrompt,
 	learn: learnPrompt,
+	obsidian: obsidianPrompt,
 	ecommerce: ecommercePrompt,
 	skills: skillsPrompt,
 };

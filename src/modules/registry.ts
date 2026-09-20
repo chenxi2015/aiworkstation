@@ -5,6 +5,7 @@ import {
 	LayoutGrid,
 	type LucideIcon,
 	Megaphone,
+	NotebookPen,
 	PenLine,
 	ShoppingBag,
 } from "lucide-react";
@@ -29,6 +30,7 @@ export type ModuleRoute =
 	| "/learn"
 	| "/editor"
 	| "/ecommerce"
+	| "/obsidian"
 	| "/skills";
 
 export interface ModuleDef {
@@ -94,6 +96,14 @@ export const MODULES: readonly ModuleDef[] = [
 		icon: ShoppingBag,
 		description: "电商选品、素材与运营资源的归集。",
 		aliases: ["电商"],
+	},
+	{
+		code: "obsidian",
+		label: "笔记",
+		route: "/obsidian",
+		icon: NotebookPen,
+		description:
+			"Obsidian 本地 Vault 直连：目录即分类，Markdown 文件直接读写，不落库。",
 	},
 	{
 		code: "skills",

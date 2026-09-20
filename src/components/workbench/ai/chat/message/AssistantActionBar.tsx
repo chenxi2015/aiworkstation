@@ -20,12 +20,17 @@ export const AssistantActionBar = memo(function AssistantActionBar({
 	content,
 	index,
 	isLoading,
-	pageBridge: _pageBridge,
+	pageBridge,
 	onResend,
 	onDelete,
 	onStartSelectDelete,
 }: AssistantActionBarProps) {
 	const [copied, setCopied] = useState(false);
+	const [runningAction, setRunningAction] = useState<string | null>(null);
+
+	// 模块页注册的「应用到页面」动作（如 Obsidian：写入当前笔记）
+	const messageActions =
+		pageBridge?.actions?.filter((a) => a.showOnMessages) ?? [];
 
 	const handleCopy = () => {
 		navigator.clipboard.writeText(content);
@@ -36,6 +41,46 @@ export const AssistantActionBar = memo(function AssistantActionBar({
 
 	return (
 		<div className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center gap-1 text-muted text-xs pt-1">
+			{/* Module page actions (opt-in via action.showOnMessages) */}
+			{messageActions.map((action) => {
+				const ActionIcon = action.icon;
+				const running = runningAction === action.id;
+				return (
+					<Tooltip key={action.id}>
+						<Tooltip.Trigger>
+							<button
+								type="button"
+								disabled={running}
+								onClick={async () => {
+									setRunningAction(action.id);
+									try {
+										await action.onAction(content);
+									} finally {
+										setRunningAction(null);
+									}
+								}}
+								className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md transition-colors cursor-pointer disabled:opacity-40 ${
+									action.variant === "accent"
+										? "text-accent hover:bg-accent/10"
+										: "text-muted hover:text-foreground hover:bg-surface-secondary/80"
+								}`}
+								aria-label={action.label}
+							>
+								{ActionIcon && (
+									<ActionIcon
+										className={`w-3.5 h-3.5 ${running ? "animate-pulse" : ""}`}
+									/>
+								)}
+								<span className="text-[11px]">{action.label}</span>
+							</button>
+						</Tooltip.Trigger>
+						<Tooltip.Content className="text-[10px] py-0.5 px-1.5">
+							{action.tooltip ?? action.label}
+						</Tooltip.Content>
+					</Tooltip>
+				);
+			})}
+
 			{/* Copy full answer */}
 			<Tooltip>
 				<Tooltip.Trigger>

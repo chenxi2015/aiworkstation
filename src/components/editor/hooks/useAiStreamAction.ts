@@ -56,6 +56,15 @@ interface LastGenerationSnapshot {
 	action: AiBarAction | null;
 }
 
+function escapeHtml(str: string): string {
+	return str
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&#039;");
+}
+
 // ──────────────────────────────────────────────────────────────────
 // Hook
 // ──────────────────────────────────────────────────────────────────
@@ -88,6 +97,16 @@ export function useAiStreamAction({
 	const abortControllerRef = useRef<AbortController | null>(null);
 	const lastGenerationRef = useRef<LastGenerationSnapshot | null>(null);
 
+	// ── Text extraction helper with hardBreak (<br>) to \n mapping ──
+	const getDocText = useCallback(
+		(from: number, to: number) => {
+			return editor.state.doc.textBetween(from, to, "\n", (leafNode) =>
+				leafNode.type.name === "hardBreak" ? "\n" : "",
+			);
+		},
+		[editor],
+	);
+
 	// ── Visual selection decoration helper ──────────────────────
 	const setVisualHighlight = useCallback(
 		(range: { from: number; to: number } | null) => {
@@ -116,8 +135,11 @@ export function useAiStreamAction({
 	const handleAction = useCallback(
 		async (action: AiBarAction) => {
 			const { from, to } = editor.state.selection;
-			const selection = editor.state.doc.textBetween(from, to, " ");
+			const selection = getDocText(from, to);
 			if (!selection.trim()) return false;
+
+			// New generation invalidates any previous undo-recovery snapshot
+			lastGenerationRef.current = null;
 
 			setTargetRange({ from, to });
 			setVisualHighlight({ from, to });
@@ -189,6 +211,13 @@ export function useAiStreamAction({
 								fullText,
 							);
 							if (finalized) {
+								// Snapshot generation so Undo can restore the AI result panel
+								lastGenerationRef.current = {
+									targetRange: { from, to },
+									originalText: selection,
+									result: fullText,
+									action,
+								};
 								setActiveSuggestion(finalized);
 								updateSuggestionPos(suggestionId);
 							}
@@ -207,13 +236,23 @@ export function useAiStreamAction({
 				if (!ac.signal.aborted) {
 					console.warn("[useAiStreamAction] Streaming error:", err);
 					if (accumulated) {
-						SuggestionController.finalizeStreaming(
+						const finalized = SuggestionController.finalizeStreaming(
 							editor,
 							suggestionId,
 							{ from, to },
 							selection,
 							accumulated,
 						);
+						if (finalized) {
+							lastGenerationRef.current = {
+								targetRange: { from, to },
+								originalText: selection,
+								result: accumulated,
+								action,
+							};
+							setActiveSuggestion(finalized);
+							updateSuggestionPos(suggestionId);
+						}
 					} else {
 						SuggestionController.reject(editor, suggestionId);
 						setActiveSuggestion(null);
@@ -232,6 +271,7 @@ export function useAiStreamAction({
 			onBeforeApply,
 			updateSuggestionPos,
 			setVisualHighlight,
+			getDocText,
 		],
 	);
 
@@ -273,13 +313,21 @@ export function useAiStreamAction({
 		await onBeforeApply?.();
 		const range = targetRange || editor.state.selection;
 		const { from, to } = range;
-		const selection = editor.state.doc.textBetween(from, to, " ");
+		const selection = getDocText(from, to);
 
 		// Backup generation details so user can safely return to the result panel on Reject
 		reviewBackupRef.current = {
 			result,
 			action: activeAction,
 			targetRange: { from, to },
+		};
+
+		// Snapshot generation so Undo can restore the AI result panel
+		lastGenerationRef.current = {
+			targetRange: { from, to },
+			originalText: selection,
+			result,
+			action: activeAction,
 		};
 
 		const suggestion = SuggestionController.applyFineDiff(
@@ -303,6 +351,7 @@ export function useAiStreamAction({
 		onBeforeApply,
 		updateSuggestionPos,
 		setVisualHighlight,
+		getDocText,
 	]);
 
 	// ── Accept / Reject suggestion ──────────────────────────────
@@ -324,6 +373,8 @@ export function useAiStreamAction({
 
 	const handleRejectSuggestion = useCallback(() => {
 		if (!activeSuggestion) return;
+		// Explicit discard: undo-recovery must not resurrect the AI result
+		lastGenerationRef.current = null;
 		try {
 			SuggestionController.reject(editor, activeSuggestion.id);
 		} catch (err) {
@@ -351,7 +402,7 @@ export function useAiStreamAction({
 		await onBeforeApply?.();
 		const range = targetRange || editor.state.selection;
 		const { from, to } = range;
-		const originalText = editor.state.doc.textBetween(from, to, " ");
+		const originalText = getDocText(from, to);
 
 		// Snapshot generation result for Undo restoration
 		lastGenerationRef.current = {
@@ -361,7 +412,21 @@ export function useAiStreamAction({
 			action: activeAction,
 		};
 
-		editor.chain().focus().insertContentAt({ from, to }, result).run();
+		const hasNewlines = result.includes("\n");
+		if (hasNewlines) {
+			// Multi-paragraph format: strictly split by newline and wrap into <p> tags
+			// This completely prevents TipTap from converting \n into intra-paragraph <br> tags
+			const paragraphs = result
+				.split(/\r?\n+/)
+				.map((p) => p.trim())
+				.filter(Boolean);
+			const html = paragraphs.map((p) => `<p>${escapeHtml(p)}</p>`).join("");
+			editor.chain().focus().insertContentAt({ from, to }, html).run();
+		} else {
+			// Single-line / inline replacement: preserve existing block structure
+			editor.chain().focus().insertContentAt({ from, to }, result).run();
+		}
+
 		setState("idle");
 		setResult("");
 		setTargetRange(null);
@@ -373,6 +438,7 @@ export function useAiStreamAction({
 		activeAction,
 		onBeforeApply,
 		setVisualHighlight,
+		getDocText,
 	]);
 
 	const handleInsertAfter = useCallback(async () => {
@@ -380,7 +446,7 @@ export function useAiStreamAction({
 		await onBeforeApply?.();
 		const range = targetRange || editor.state.selection;
 		const { from, to } = range;
-		const originalText = editor.state.doc.textBetween(from, to, " ");
+		const originalText = getDocText(from, to);
 
 		// Snapshot generation result for Undo restoration
 		lastGenerationRef.current = {
@@ -390,7 +456,18 @@ export function useAiStreamAction({
 			action: activeAction,
 		};
 
-		editor.chain().focus().insertContentAt(to, `\n${result}`).run();
+		// In insert-after mode, always insert as clean, separate paragraphs
+		const paragraphs = result
+			.split(/\r?\n+/)
+			.map((p) => p.trim())
+			.filter(Boolean);
+		const html = paragraphs.map((p) => `<p>${escapeHtml(p)}</p>`).join("");
+
+		const $to = editor.state.doc.resolve(to);
+		// Position after current enclosing block if inside one, else at 'to'
+		const insertPos = $to.depth > 0 ? $to.after() : to;
+		editor.chain().focus().insertContentAt(insertPos, html).run();
+
 		setState("idle");
 		setResult("");
 		setTargetRange(null);
@@ -402,6 +479,7 @@ export function useAiStreamAction({
 		activeAction,
 		onBeforeApply,
 		setVisualHighlight,
+		getDocText,
 	]);
 
 	const handleCopy = useCallback(async () => {
@@ -432,6 +510,22 @@ export function useAiStreamAction({
 	const stateRef = useRef(state);
 	stateRef.current = state;
 
+	// ── Reopen the AI result panel from a generation snapshot ──
+	// NOTE: clears the snapshot BEFORE dispatching editor transactions so the
+	// transaction listener below cannot re-enter this recovery recursively.
+	const reopenResultPanel = useCallback(
+		(snapshot: LastGenerationSnapshot) => {
+			lastGenerationRef.current = null;
+			setState("result");
+			setResult(snapshot.result);
+			setActiveAction(snapshot.action);
+			setTargetRange(snapshot.targetRange);
+			setVisualHighlight(snapshot.targetRange);
+			editor.commands.setTextSelection(snapshot.targetRange);
+		},
+		[editor, setVisualHighlight],
+	);
+
 	// ── Sync suggestion & undo recovery state with document (handles Undo/Redo) ─
 	useEffect(() => {
 		const handleTransaction = () => {
@@ -455,22 +549,25 @@ export function useAiStreamAction({
 			}
 
 			// 2. Undo recovery: if user pressed Undo and the original text is restored
-			if (lastGenerationRef.current && stateRef.current === "idle") {
-				const lastGen = lastGenerationRef.current;
+			//    (and no suggestion diff / streaming leftovers remain), reopen the
+			//    AI result panel so the generated content is never lost on Undo.
+			const lastGen = lastGenerationRef.current;
+			if (
+				lastGen &&
+				stateRef.current === "idle" &&
+				!detected &&
+				!SuggestionController.hasSuggestionMarks(editor)
+			) {
 				const { from, to } = lastGen.targetRange;
 				const docSize = editor.state.doc.content.size;
 				if (from >= 0 && to <= docSize) {
-					const currentText = editor.state.doc.textBetween(from, to, " ");
-					const cleanCurrent = currentText.trim();
-					const cleanOriginal = lastGen.originalText.trim();
+					const currentText = getDocText(from, to);
+					const normalize = (s: string) => s.replace(/\s+/g, " ").trim();
+					const cleanCurrent = normalize(currentText);
+					const cleanOriginal = normalize(lastGen.originalText);
 					if (cleanCurrent === cleanOriginal && cleanOriginal.length > 0) {
 						// Restored to pre-replace content -> reopen AI result panel
-						setState("result");
-						setResult(lastGen.result);
-						setActiveAction(lastGen.action);
-						setTargetRange(lastGen.targetRange);
-						setVisualHighlight(lastGen.targetRange);
-						editor.commands.setTextSelection({ from, to });
+						reopenResultPanel(lastGen);
 					}
 				}
 			}
@@ -482,7 +579,37 @@ export function useAiStreamAction({
 		return () => {
 			editor.off("transaction", handleTransaction);
 		};
-	}, [editor, updateSuggestionPos, setVisualHighlight]);
+	}, [editor, updateSuggestionPos, getDocText, reopenResultPanel]);
+
+	// ── Intercept Cmd+Z / Ctrl+Z while an AI suggestion is pending review ──
+	// Runs in capture phase on document, i.e. BEFORE ProseMirror's keymap:
+	// instead of letting Undo silently destroy the AI suggestion, reject the
+	// suggestion (restoring the original text) and reopen the result panel
+	// so the generated content survives the undo.
+	useEffect(() => {
+		const handleUndoCapture = (e: KeyboardEvent) => {
+			const isUndo =
+				(e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z" && !e.shiftKey;
+			if (!isUndo || editor.isDestroyed) return;
+			const target = e.target;
+			if (!(target instanceof Node) || !editor.view.dom.contains(target))
+				return;
+			if (stateRef.current !== "idle") return;
+			const lastGen = lastGenerationRef.current;
+			if (!lastGen) return;
+			const active = SuggestionController.detectActiveSuggestion(editor);
+			if (!active) return;
+			e.preventDefault();
+			e.stopPropagation();
+			SuggestionController.reject(editor, active.id);
+			reopenResultPanel(lastGen);
+		};
+
+		document.addEventListener("keydown", handleUndoCapture, true);
+		return () => {
+			document.removeEventListener("keydown", handleUndoCapture, true);
+		};
+	}, [editor, reopenResultPanel]);
 
 	// ── Follow suggestion on scroll / resize ────────────────────
 	useEffect(() => {

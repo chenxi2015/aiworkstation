@@ -298,7 +298,7 @@ export const UserMessageBubble = memo(function UserMessageBubble({
 									<span>{splitBadge}</span>
 								</div>
 							)}
-						<div className="whitespace-pre-wrap leading-relaxed">
+						<div className="whitespace-pre-wrap leading-relaxed max-h-72 sm:max-h-80 overflow-y-auto">
 							<UrlLinkifiedText text={cleanContent} />
 						</div>
 					</div>

@@ -1,0 +1,34 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { ObsidianApp } from "../components/obsidian/ObsidianApp";
+import { ModuleSkeleton } from "../components/workbench/skeletons";
+import { workbenchLoader } from "./-workbenchLoader";
+
+/** Obsidian 模块深链参数：按相对路径直接打开某篇笔记 */
+export interface ObsidianSearch {
+	note?: string;
+}
+
+export const Route = createFileRoute("/obsidian")({
+	validateSearch: (search: Record<string, unknown>): ObsidianSearch => ({
+		note:
+			typeof search.note === "string" && search.note ? search.note : undefined,
+	}),
+	loader: workbenchLoader,
+	pendingComponent: ModuleSkeleton,
+	pendingMs: 200,
+	component: ObsidianPage,
+});
+
+function ObsidianPage() {
+	const { unclassified, settings, folders } = Route.useLoaderData();
+	const search = Route.useSearch();
+	return (
+		<ObsidianApp
+			unclassifiedCount={unclassified.length}
+			navLayout={settings.navLayout}
+			folders={folders}
+			settings={settings}
+			initialNotePath={search.note}
+		/>
+	);
+}

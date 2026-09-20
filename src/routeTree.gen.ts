@@ -16,6 +16,7 @@ import { Route as CreatorRouteImport } from './routes/creator'
 import { Route as EcommerceRouteImport } from './routes/ecommerce'
 import { Route as EditorRouteImport } from './routes/editor'
 import { Route as LearnRouteImport } from './routes/learn'
+import { Route as ObsidianRouteImport } from './routes/obsidian'
 import { Route as SkillsRouteImport } from './routes/skills'
 import { Route as WorkbenchRouteImport } from './routes/workbench'
 
@@ -54,6 +55,11 @@ const LearnRoute = LearnRouteImport.update({
   path: '/learn',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ObsidianRoute = ObsidianRouteImport.update({
+  id: '/obsidian',
+  path: '/obsidian',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SkillsRoute = SkillsRouteImport.update({
   id: '/skills',
   path: '/skills',
@@ -73,6 +79,7 @@ export interface FileRoutesByFullPath {
   '/ecommerce': typeof EcommerceRoute
   '/editor': typeof EditorRoute
   '/learn': typeof LearnRoute
+  '/obsidian': typeof ObsidianRoute
   '/skills': typeof SkillsRoute
   '/workbench': typeof WorkbenchRoute
 }
@@ -84,6 +91,7 @@ export interface FileRoutesByTo {
   '/ecommerce': typeof EcommerceRoute
   '/editor': typeof EditorRoute
   '/learn': typeof LearnRoute
+  '/obsidian': typeof ObsidianRoute
   '/skills': typeof SkillsRoute
   '/workbench': typeof WorkbenchRoute
 }
@@ -96,6 +104,7 @@ export interface FileRoutesById {
   '/ecommerce': typeof EcommerceRoute
   '/editor': typeof EditorRoute
   '/learn': typeof LearnRoute
+  '/obsidian': typeof ObsidianRoute
   '/skills': typeof SkillsRoute
   '/workbench': typeof WorkbenchRoute
 }
@@ -109,6 +118,7 @@ export interface FileRouteTypes {
     | '/ecommerce'
     | '/editor'
     | '/learn'
+    | '/obsidian'
     | '/skills'
     | '/workbench'
   fileRoutesByTo: FileRoutesByTo
@@ -120,6 +130,7 @@ export interface FileRouteTypes {
     | '/ecommerce'
     | '/editor'
     | '/learn'
+    | '/obsidian'
     | '/skills'
     | '/workbench'
   id:
@@ -131,6 +142,7 @@ export interface FileRouteTypes {
     | '/ecommerce'
     | '/editor'
     | '/learn'
+    | '/obsidian'
     | '/skills'
     | '/workbench'
   fileRoutesById: FileRoutesById
@@ -143,6 +155,7 @@ export interface RootRouteChildren {
   EcommerceRoute: typeof EcommerceRoute
   EditorRoute: typeof EditorRoute
   LearnRoute: typeof LearnRoute
+  ObsidianRoute: typeof ObsidianRoute
   SkillsRoute: typeof SkillsRoute
   WorkbenchRoute: typeof WorkbenchRoute
 }
@@ -198,6 +211,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LearnRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/obsidian': {
+      id: '/obsidian'
+      path: '/obsidian'
+      fullPath: '/obsidian'
+      preLoaderRoute: typeof ObsidianRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/skills': {
       id: '/skills'
       path: '/skills'
@@ -223,6 +243,7 @@ const rootRouteChildren: RootRouteChildren = {
   EcommerceRoute: EcommerceRoute,
   EditorRoute: EditorRoute,
   LearnRoute: LearnRoute,
+  ObsidianRoute: ObsidianRoute,
   SkillsRoute: SkillsRoute,
   WorkbenchRoute: WorkbenchRoute,
 }

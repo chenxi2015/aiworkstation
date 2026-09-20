@@ -121,6 +121,22 @@ export function markdownToHtml(markdown: string): string {
 }
 
 /**
+ * 将外部粘贴的 HTML（网页复制内容等）转换为 Markdown 文本。
+ * 与创作模块的导入链路同源：generateJSON(HTML) → tiptapJsonToMarkdown。
+ * 单向转换（粘贴导入），不用于笔记自身的读写往返。
+ */
+export function htmlToMarkdown(html: string): string {
+	if (!html || !html.trim()) return "";
+	try {
+		const doc = generateJSON(html, coreConversionExtensions) as JSONContent;
+		return tiptapJsonToMarkdown(doc);
+	} catch (err) {
+		console.warn("[htmlToMarkdown] conversion failed:", err);
+		return "";
+	}
+}
+
+/**
  * Converts TipTap Document JSON tree into standard Markdown string using TipTap official static-renderer
  */
 export function tiptapJsonToMarkdown(doc: JSONContent): string {

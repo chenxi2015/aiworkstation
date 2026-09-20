@@ -1,4 +1,5 @@
 import type { Editor } from "@tiptap/core";
+import type { Slice } from "@tiptap/pm/model";
 import {
 	buildInlineNodesFromDiff,
 	buildNodesFromDiff,
@@ -11,6 +12,16 @@ export interface ActiveSuggestionInfo {
 	to: number;
 	isStreaming?: boolean;
 }
+
+interface SuggestionSnapshot {
+	id: string;
+	from: number;
+	to: number;
+	slice: Slice;
+}
+
+/** In-memory snapshot map for pristine document slice restoration */
+const suggestionSnapshots = new Map<string, SuggestionSnapshot>();
 
 /**
  * Controller for managing AI inline suggestion diffs (Delete vs Insert)
@@ -30,12 +41,24 @@ export const SuggestionController = {
 		const { state, view } = editor;
 		const { tr } = state;
 
+		// 1. Snapshot pristine slice before any mutation for lossless rejection
+		const originalSlice = state.doc.slice(from, to);
+		suggestionSnapshots.set(suggestionId, {
+			id: suggestionId,
+			from,
+			to,
+			slice: originalSlice,
+		});
+
 		const $from = state.doc.resolve(from);
 		const $to = state.doc.resolve(to);
-		const isSameBlock = $from.sameParent($to) && $from.parent.isTextblock;
+		// Strictly require both oldText and newText to have NO newlines for inline diff
+		const hasMultipleBlocks = oldText.includes("\n") || newText.includes("\n");
+		const isInlineDiff =
+			!hasMultipleBlocks && $from.sameParent($to) && $from.parent.isTextblock;
 
 		const segments = computeFineDiff(oldText, newText);
-		const nodes = isSameBlock
+		const nodes = isInlineDiff
 			? buildInlineNodesFromDiff(state.schema, segments, suggestionId)
 			: buildNodesFromDiff(state.schema, segments, suggestionId);
 
@@ -234,6 +257,8 @@ export const SuggestionController = {
 		const { state, view } = editor;
 		const { doc, tr } = state;
 
+		suggestionSnapshots.delete(suggestionId);
+
 		const deleteRanges: { from: number; to: number }[] = [];
 		const insertRanges: { from: number; to: number }[] = [];
 
@@ -266,18 +291,63 @@ export const SuggestionController = {
 			tr.delete(range.from, range.to);
 		}
 
+		// 3. Clean up completely empty paragraphs left by deleting all text in a block
+		tr.doc.descendants((node, pos) => {
+			if (
+				node.isBlock &&
+				node.type.name === "paragraph" &&
+				node.content.size === 0
+			) {
+				if (tr.doc.childCount > 1) {
+					tr.delete(pos, pos + node.nodeSize);
+				}
+			}
+		});
+
 		if (tr.docChanged) {
 			view.dispatch(tr);
 		}
 	},
 
 	/**
-	 * Reject suggestion: remove inserted suggestion text and restore original text
+	 * Reject suggestion: restore original text slice losslessly and remove inserted suggestion text
 	 */
 	reject(editor: Editor, suggestionId: string): void {
 		const { state, view } = editor;
 		const { doc, tr } = state;
 
+		// 1. First attempt: pristine atomic Slice restoration
+		const snapshot = suggestionSnapshots.get(suggestionId);
+		if (snapshot) {
+			let minPos = Infinity;
+			let maxPos = -1;
+
+			doc.descendants((node, pos) => {
+				if (!node.isText) return;
+				for (const mark of node.marks) {
+					if (
+						(mark.type.name === "suggestionDelete" ||
+							mark.type.name === "suggestionInsert") &&
+						mark.attrs.suggestionId === suggestionId
+					) {
+						minPos = Math.min(minPos, pos);
+						maxPos = Math.max(maxPos, pos + node.nodeSize);
+					}
+				}
+			});
+
+			if (minPos !== Infinity && maxPos !== -1) {
+				tr.replace(minPos, maxPos, snapshot.slice);
+				suggestionSnapshots.delete(suggestionId);
+				if (tr.docChanged) {
+					view.dispatch(tr);
+				}
+				return;
+			}
+			suggestionSnapshots.delete(suggestionId);
+		}
+
+		// 2. Fallback: manual range mark removal and deletion if snapshot is unavailable
 		const deleteRanges: { from: number; to: number }[] = [];
 		const insertRanges: { from: number; to: number }[] = [];
 
@@ -299,13 +369,12 @@ export const SuggestionController = {
 			}
 		});
 
-		// 1. Unmark deleted original text so it restores to normal text first
-		// Must be done before deleting insertRanges, otherwise document positions shift and become out of range
+		// Unmark deleted original text
 		for (const range of deleteRanges) {
 			tr.removeMark(range.from, range.to, state.schema.marks.suggestionDelete);
 		}
 
-		// 2. Remove inserted text ranges (in reverse order to keep preceding positions valid)
+		// Remove inserted text ranges (in reverse order)
 		insertRanges.sort((a, b) => b.from - a.from);
 		for (const range of insertRanges) {
 			tr.delete(range.from, range.to);
@@ -314,6 +383,30 @@ export const SuggestionController = {
 		if (tr.docChanged) {
 			view.dispatch(tr);
 		}
+	},
+
+	/**
+	 * Check whether the document still contains any suggestion marks
+	 * (including in-progress streaming marks)
+	 */
+	hasSuggestionMarks(editor: Editor): boolean {
+		let found = false;
+		editor.state.doc.descendants((node) => {
+			if (found) return false;
+			if (
+				node.isText &&
+				node.marks.some(
+					(m) =>
+						m.type.name === "suggestionDelete" ||
+						m.type.name === "suggestionInsert",
+				)
+			) {
+				found = true;
+				return false;
+			}
+			return true;
+		});
+		return found;
 	},
 
 	/**

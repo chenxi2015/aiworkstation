@@ -25,6 +25,8 @@ export interface AiBubbleMenuProps {
 	onGenerate?: (prompt: string) => Promise<string>;
 	/** Whether full-document paragraph pipeline is actively streaming */
 	isPipelineRunning?: boolean;
+	/** Distance/margin from the bottom of viewport or scroll container (default 56 to clear EditorActionBar) */
+	bottom?: number;
 }
 
 /**
@@ -38,6 +40,7 @@ export function AiBubbleMenu({
 	extraActions = [],
 	onGenerate,
 	isPipelineRunning = false,
+	bottom = 56,
 }: AiBubbleMenuProps) {
 	const [visible, setVisible] = useState(false);
 	const panelRef = useRef<HTMLDivElement>(null);
@@ -62,14 +65,15 @@ export function AiBubbleMenu({
 		editor,
 		enabled: visible || ai.state !== "idle",
 		panelRef,
-		anchorRange: ai.targetRange,
+		anchorRange: ai.state !== "idle" ? ai.targetRange : null,
+		bottom,
 	});
 
 	// ── Selection change → show / hide bubble ───────────────────
 	useEffect(() => {
 		const handleSelectionUpdate = () => {
-			// Do not hide if currently executing or displaying AI result
-			if (ai.state !== "idle") {
+			// Do not interrupt active streaming
+			if (ai.isStreaming) {
 				return;
 			}
 
@@ -80,9 +84,17 @@ export function AiBubbleMenu({
 				editor.isActive("codeBlock") ||
 				SuggestionController.detectActiveSuggestion(editor)
 			) {
-				setVisible(false);
+				if (ai.state === "idle") {
+					setVisible(false);
+				}
 				return;
 			}
+
+			// If previous AI generation completed and user selected a new text region, reset to idle
+			if (ai.state !== "idle") {
+				ai.resetVisibility();
+			}
+
 			refreshPos();
 			setVisible(true);
 		};
@@ -108,7 +120,7 @@ export function AiBubbleMenu({
 			editor.off("selectionUpdate", handleSelectionUpdate);
 			editor.off("blur", handleBlur);
 		};
-	}, [editor, refreshPos, ai.state]);
+	}, [editor, refreshPos, ai.state, ai.isStreaming, ai.resetVisibility]);
 
 	// ── Wrap handleAction to hide bubble when streaming starts ──
 	const onAction = useCallback(
