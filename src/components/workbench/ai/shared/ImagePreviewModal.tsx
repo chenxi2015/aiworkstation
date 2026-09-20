@@ -10,13 +10,13 @@ import {
 } from "lucide-react";
 import {
 	createContext,
+	type ReactNode,
 	useCallback,
 	useContext,
 	useEffect,
 	useMemo,
 	useRef,
 	useState,
-	type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
 
@@ -208,22 +208,37 @@ export function ImagePreviewModal({ data, onClose }: ImagePreviewModalProps) {
 	};
 
 	// Download image to local file
-	const handleDownload = () => {
+	const handleDownload = async () => {
 		if (!data.src) return;
+		// 统一命名：image_毫秒时间戳.扩展名（扩展名从 URL 推断，兜底 png）
+		const ext = data.src.split(/[?#]/)[0].split(".").pop()?.toLowerCase() ?? "";
+		const filename = `image_${Date.now()}.${
+			/^[a-z0-9]{2,5}$/.test(ext) ? ext : "png"
+		}`;
 		try {
+			// 先 fetch 成 blob 再走 a[download]，跨域直链会被浏览器当成导航直接打开
+			const res = await fetch(data.src);
+			if (!res.ok) throw new Error(String(res.status));
+			const blob = await res.blob();
+			const url = URL.createObjectURL(blob);
 			const link = document.createElement("a");
-			link.href = data.src;
-			const safeTitle = (data.title || "image")
-				.replace(/[\\/:*?"<>|]/g, "_")
-				.slice(0, 50);
-			link.download = safeTitle.includes(".") ? safeTitle : `${safeTitle}.png`;
+			link.href = url;
+			link.download = filename;
 			document.body.appendChild(link);
 			link.click();
 			document.body.removeChild(link);
+			setTimeout(() => URL.revokeObjectURL(url), 5000);
 			toast.success("已开始下载图片");
 		} catch (err) {
+			// 跨域无法读取时退回 a 标签直链下载（交给浏览器处理，不再 window.open）
 			console.error("Failed to trigger image download:", err);
-			window.open(data.src, "_blank");
+			const link = document.createElement("a");
+			link.href = data.src;
+			link.download = filename;
+			link.rel = "noopener";
+			document.body.appendChild(link);
+			link.click();
+			document.body.removeChild(link);
 		}
 	};
 
@@ -370,12 +385,10 @@ export function ImagePreviewModal({ data, onClose }: ImagePreviewModalProps) {
 					style={{
 						transform: `translate3d(${position.x}px, ${position.y}px, 0) scale(${scale})`,
 						transformOrigin: "center center",
-						transition: isDragging ? "none" : "transform 0.18s cubic-bezier(0.2, 0, 0, 1)",
-						cursor: isZoomed
-							? isDragging
-								? "grabbing"
-								: "grab"
-							: "zoom-in",
+						transition: isDragging
+							? "none"
+							: "transform 0.18s cubic-bezier(0.2, 0, 0, 1)",
+						cursor: isZoomed ? (isDragging ? "grabbing" : "grab") : "zoom-in",
 					}}
 					onMouseDown={handleMouseDown}
 					onClick={handleClickImage}
@@ -404,7 +417,9 @@ export function ImagePreviewModal({ data, onClose }: ImagePreviewModalProps) {
 				onClick={(e) => e.stopPropagation()}
 			>
 				{isZoomed ? (
-					<span>按住鼠标左键可自由拖拽平移 · 滚轮缩放 · 点击还原 · 按 Esc 关闭</span>
+					<span>
+						按住鼠标左键可自由拖拽平移 · 滚轮缩放 · 点击还原 · 按 Esc 关闭
+					</span>
 				) : (
 					<span>点击或滚轮放大 · 点击外部遮罩或按 Esc 关闭</span>
 				)}
@@ -449,10 +464,7 @@ export function ImagePreviewProvider({ children }: { children: ReactNode }) {
 			{mounted &&
 				typeof document !== "undefined" &&
 				createPortal(
-					<ImagePreviewModal
-						data={previewImage}
-						onClose={closePreview}
-					/>,
+					<ImagePreviewModal data={previewImage} onClose={closePreview} />,
 					document.body,
 				)}
 		</ImagePreviewContext.Provider>

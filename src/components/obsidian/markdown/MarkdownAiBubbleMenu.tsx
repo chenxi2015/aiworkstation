@@ -11,6 +11,7 @@ import {
 import { AiCustomPromptInput } from "../../editor/components/bubble/AiCustomPromptInput";
 import { AiPresetActionList } from "../../editor/components/bubble/AiPresetActionList";
 import { AiResultPanel } from "../../editor/components/bubble/AiResultPanel";
+import { useCmFloatingPosition } from "./useCmFloatingPosition";
 
 export interface MarkdownAiBubbleMenuProps {
 	/** CodeMirror 实例（编辑态挂载后传入） */
@@ -39,14 +40,10 @@ export function MarkdownAiBubbleMenu({
 	extraActions = [],
 }: MarkdownAiBubbleMenuProps) {
 	const [visible, setVisible] = useState(false);
-	const [pos, setPos] = useState<{ top: number; left: number }>({
-		top: 0,
-		left: 0,
-	});
 	const [state, setState] = useState<ActionState>("idle");
 	const [result, setResult] = useState("");
 	const [activeAction, setActiveAction] = useState<AiBarAction | null>(null);
-	const panelRef = useRef<HTMLDivElement>(null);
+	const panelRef = useRef<HTMLElement>(null);
 	const targetRef = useRef<TargetRange | null>(null);
 
 	const actions = (() => {
@@ -59,24 +56,17 @@ export function MarkdownAiBubbleMenu({
 		return merged;
 	})();
 
-	const computePos = useCallback((v: EditorView, from: number, to: number) => {
-		const start = v.coordsAtPos(from);
-		const end = v.coordsAtPos(to);
-		if (!start || !end) return null;
-		const panelWidth = 390;
-		const panelHeight = 260;
-		const left = Math.max(
-			8,
-			Math.min(start.left, window.innerWidth - panelWidth - 8),
-		);
-		// 默认放在选区下方；下方空间不足时翻到上方
-		let top = end.bottom + 8;
-		if (top + panelHeight > window.innerHeight - 8 && start.top > panelHeight) {
-			top = start.top - 8;
-			return { top, left, above: true };
-		}
-		return { top, left, above: false };
-	}, []);
+	// 浮层定位：与创作模块同一套逻辑 —— 下方不足翻上方、滚动 / resize 跟随、
+	// 面板实测尺寸（ResizeObserver）跟踪；锚点滚出屏幕时整体隐藏
+	const shouldShow = !!view && (visible || state !== "idle");
+	const { pos, anchorVisible, refresh } = useCmFloatingPosition({
+		view,
+		enabled: shouldShow,
+		panelRef,
+		anchorRange: state !== "idle" ? targetRef.current : null,
+		panelWidth: 380,
+		panelHeight: 260,
+	});
 
 	const reset = useCallback(() => {
 		setState("idle");
@@ -98,13 +88,8 @@ export function MarkdownAiBubbleMenu({
 				setVisible(false);
 				return;
 			}
-			const p = computePos(view, sel.from, sel.to);
-			if (!p) {
-				setVisible(false);
-				return;
-			}
-			setPos({ top: p.top, left: p.left });
 			setVisible(true);
+			refresh();
 		};
 
 		const handleBlur = () => {
@@ -124,7 +109,7 @@ export function MarkdownAiBubbleMenu({
 			view.dom.removeEventListener("keyup", handleSelection);
 			view.dom.removeEventListener("focusout", handleBlur);
 		};
-	}, [view, state, computePos]);
+	}, [view, state, refresh]);
 
 	const runAction = useCallback(
 		async (action: AiBarAction) => {
@@ -193,15 +178,7 @@ export function MarkdownAiBubbleMenu({
 		}
 	}, [result]);
 
-	// AI 状态激活时，把面板锚定在目标区间附近
-	useEffect(() => {
-		if (state === "idle" || !view || !targetRef.current) return;
-		const p = computePos(view, targetRef.current.from, targetRef.current.to);
-		if (p) setPos({ top: p.top, left: p.left });
-	}, [state, view, computePos]);
-
-	const shouldShow = view && (visible || state !== "idle");
-	if (!shouldShow) return null;
+	if (!shouldShow || !anchorVisible) return null;
 
 	const panelStyle: React.CSSProperties = {
 		position: "fixed",

@@ -10,6 +10,7 @@ import {
 	renameVaultEntryRpc,
 	saveVaultNoteRpc,
 } from "../../services/api/obsidianClient";
+import { ImagePreviewProvider } from "../workbench/ai/shared/ImagePreviewModal";
 import { MarkdownAiBubbleMenu } from "./markdown/MarkdownAiBubbleMenu";
 import { MarkdownEditor } from "./markdown/MarkdownEditor";
 import type { ObsidianNoteApi, ObsidianNoteContent } from "./types";
@@ -29,6 +30,8 @@ export interface NotePanelProps {
 	onDeleted: () => void;
 	/** 向页面层注册当前笔记操作句柄（供 AI 侧边栏桥接调用） */
 	onRegisterNoteApi?: (api: ObsidianNoteApi | null) => void;
+	/** 笔记内链接（Dataview 结果等）跳转到其他笔记 */
+	onNavigateNote?: (relPath: string) => void;
 }
 
 /**
@@ -41,6 +44,7 @@ export function NotePanel({
 	onRenamed,
 	onDeleted,
 	onRegisterNoteApi,
+	onNavigateNote,
 }: NotePanelProps) {
 	const [note, setNote] = useState<ObsidianNoteContent | null>(null);
 	const [loading, setLoading] = useState(true);
@@ -319,14 +323,17 @@ export function NotePanel({
 				</div>
 			)}
 			<div className="flex-1 overflow-hidden">
-				<MarkdownEditor
-					value={draft}
-					onChange={handleDraftChange}
-					onReady={setEditorView}
-					readOnly={note.truncated}
-					noteRelPath={note.relPath}
-					onSaveShortcut={() => void flushSave()}
-				/>
+				<ImagePreviewProvider>
+					<MarkdownEditor
+						value={draft}
+						onChange={handleDraftChange}
+						onReady={setEditorView}
+						readOnly={note.truncated}
+						noteRelPath={note.relPath}
+						onSaveShortcut={() => void flushSave()}
+						onNavigateNote={onNavigateNote}
+					/>
+				</ImagePreviewProvider>
 			</div>
 			{/* 底部状态栏：与创作模块一致，为后续快照/导出/分发等动作预留位置 */}
 			<div className="shrink-0 border-t border-border bg-surface px-4 py-1.5 flex items-center gap-2 text-[11px] text-muted">

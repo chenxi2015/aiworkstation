@@ -1,9 +1,6 @@
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
-import {
-	defaultHighlightStyle,
-	syntaxHighlighting,
-} from "@codemirror/language";
+import { syntaxHighlighting } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
 import { searchKeymap } from "@codemirror/search";
 import { EditorState, Prec } from "@codemirror/state";
@@ -15,9 +12,14 @@ import {
 	lineNumbers,
 	placeholder,
 } from "@codemirror/view";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import "katex/dist/katex.min.css";
 import { htmlToMarkdown } from "../../editor/markdown";
+import { useImagePreview } from "../../workbench/ai/shared/ImagePreviewModal";
+import { appHighlightStyle, appTheme } from "./editorTheme";
+import { insertLink, toggleInlineFormat } from "./formatCommands";
 import { livePreview } from "./livePreview";
+import { MarkdownContextMenu } from "./MarkdownContextMenu";
 
 export interface MarkdownEditorProps {
 	/** 受控初始值；仅在外部值与编辑器内容不一致时同步（如重新加载笔记） */
@@ -32,6 +34,16 @@ export interface MarkdownEditorProps {
 	noteRelPath?: string;
 	/** Cmd/Ctrl+S 保存回调 */
 	onSaveShortcut?: () => void;
+	/** 点击笔记链接（Dataview 结果等）跳转回调 */
+	onNavigateNote?: (relPath: string) => void;
+}
+
+/** Imperative handle for precise editor operations (avoids full-document round-trip) */
+export interface MarkdownEditorHandle {
+	/** Append text at the end via precise dispatch (no full replace) */
+	appendText: (text: string) => void;
+	/** Get the EditorView instance */
+	getView: () => EditorView | null;
 }
 
 /**
@@ -47,15 +59,28 @@ export function MarkdownEditor({
 	readOnly = false,
 	noteRelPath,
 	onSaveShortcut,
+	onNavigateNote,
 }: MarkdownEditorProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const viewRef = useRef<EditorView | null>(null);
+	const [contextMenu, setContextMenu] = useState<{
+		x: number;
+		y: number;
+	} | null>(null);
 	const onChangeRef = useRef(onChange);
 	onChangeRef.current = onChange;
 	const onReadyRef = useRef(onReady);
 	onReadyRef.current = onReady;
 	const onSaveRef = useRef(onSaveShortcut);
 	onSaveRef.current = onSaveShortcut;
+	const onNavigateNoteRef = useRef(onNavigateNote);
+	onNavigateNoteRef.current = onNavigateNote;
+	const { openPreview } = useImagePreview();
+	const openPreviewRef = useRef(openPreview);
+	openPreviewRef.current = openPreview;
+	// Track whether the last doc change was initiated by the editor (vs external value prop)
+	const selfChangeRef = useRef(false);
+	const rafIdRef = useRef(0);
 
 	// 编辑器实例只创建一次；外部值同步走下方 effect，回调经 ref 透传
 	// biome-ignore lint/correctness/useExhaustiveDependencies: 实例只随挂载创建一次
@@ -78,16 +103,45 @@ export function MarkdownEditor({
 							},
 						]),
 					),
+					// 行内格式快捷键（对齐 Obsidian：⌘B 加粗 / ⌘I 倾斜 / ⌘E 代码 / ⌘K 链接）
+					keymap.of([
+						{
+							key: "Mod-b",
+							run: (v) => toggleInlineFormat(v, "bold"),
+						},
+						{
+							key: "Mod-i",
+							run: (v) => toggleInlineFormat(v, "italic"),
+						},
+						{
+							key: "Mod-e",
+							run: (v) => toggleInlineFormat(v, "code"),
+						},
+						{ key: "Mod-k", run: (v) => insertLink(v) },
+						{
+							key: "Mod-Shift-x",
+							run: (v) => toggleInlineFormat(v, "strike"),
+						},
+						{
+							key: "Mod-Shift-h",
+							run: (v) => toggleInlineFormat(v, "highlight"),
+						},
+					]),
 					lineNumbers(),
 					history(),
 					highlightActiveLine(),
 					highlightActiveLineGutter(),
 					markdown({ base: markdownLanguage, codeLanguages: languages }),
-					syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+					syntaxHighlighting(appHighlightStyle, { fallback: true }),
 					keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
 					placeholder(placeholderText),
 					EditorView.lineWrapping,
-					livePreview({ noteRelPath }),
+					livePreview({
+						noteRelPath,
+						onPreviewImage: (data) =>
+							openPreviewRef.current({ src: data.src, title: data.alt }),
+						onNavigateNote: (rel) => onNavigateNoteRef.current?.(rel),
+					}),
 					appTheme,
 					EditorState.readOnly.of(readOnly),
 					EditorView.editable.of(!readOnly),
@@ -107,10 +161,38 @@ export function MarkdownEditor({
 							});
 							return true;
 						},
+						contextmenu(event, v) {
+							if (readOnly) return false;
+							event.preventDefault();
+							// 右键落在选区外时先把光标移过去（对齐 Obsidian 行为）
+							const pos = v.posAtCoords({
+								x: event.clientX,
+								y: event.clientY,
+							});
+							if (pos != null) {
+								const inSelection = v.state.selection.ranges.some(
+									(r) => pos >= r.from && pos <= r.to,
+								);
+								if (!inSelection) {
+									v.dispatch({ selection: { anchor: pos } });
+								}
+							}
+							v.focus();
+							setContextMenu({ x: event.clientX, y: event.clientY });
+							return true;
+						},
 					}),
 					EditorView.updateListener.of((update) => {
 						if (update.docChanged) {
-							onChangeRef.current(update.state.doc.toString());
+							selfChangeRef.current = true;
+							// Debounce toString via rAF: coalesce multiple rapid updates into one
+							if (!rafIdRef.current) {
+								rafIdRef.current = requestAnimationFrame(() => {
+									rafIdRef.current = 0;
+									const v = viewRef.current;
+									if (v) onChangeRef.current(v.state.doc.toString());
+								});
+							}
 						}
 					}),
 				],
@@ -121,13 +203,18 @@ export function MarkdownEditor({
 
 		return () => {
 			onReadyRef.current?.(null);
+			if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
 			view.destroy();
 			viewRef.current = null;
 		};
 	}, []);
 
-	// 外部值变化（重新加载 / AI 整体替换）时同步进编辑器，本地编辑不被覆盖
+	// External value sync: skip when the change originated from editor itself (avoids double toString)
 	useEffect(() => {
+		if (selfChangeRef.current) {
+			selfChangeRef.current = false;
+			return;
+		}
 		const view = viewRef.current;
 		if (!view) return;
 		const current = view.state.doc.toString();
@@ -137,188 +224,18 @@ export function MarkdownEditor({
 		});
 	}, [value]);
 
-	return <div ref={containerRef} className="h-full min-h-0 text-[13px]" />;
+	return (
+		<>
+			<div ref={containerRef} className="h-full min-h-0" />
+			{contextMenu && viewRef.current && (
+				<MarkdownContextMenu
+					x={contextMenu.x}
+					y={contextMenu.y}
+					view={viewRef.current}
+					onClose={() => setContextMenu(null)}
+				/>
+			)}
+		</>
+	);
 }
 
-/** 跟随应用 CSS 变量的主题（亮/暗模式自动适配） */
-const appTheme = EditorView.theme({
-	"&": {
-		height: "100%",
-		backgroundColor: "transparent",
-		color: "var(--foreground)",
-		fontSize: "13px",
-	},
-	".cm-content": {
-		fontFamily:
-			"ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-		lineHeight: "1.75",
-		padding: "20px 24px",
-		caretColor: "var(--accent)",
-		// Obsidian 式窄屏阅读宽度：内容居中聚焦
-		maxWidth: "760px",
-		margin: "0 auto",
-	},
-	".cm-scroller": {
-		fontFamily: "inherit",
-		overflow: "auto",
-	},
-	".cm-gutters": {
-		backgroundColor: "transparent",
-		color: "var(--muted)",
-		border: "none",
-		opacity: "0.6",
-	},
-	".cm-activeLine": {
-		backgroundColor: "var(--surface-secondary)",
-	},
-	".cm-activeLineGutter": {
-		backgroundColor: "transparent",
-		color: "var(--foreground)",
-	},
-	"&.cm-focused": {
-		outline: "none",
-	},
-	".cm-selectionBackground, &.cm-focused .cm-selectionBackground": {
-		backgroundColor: "var(--accent-soft, rgba(59, 91, 219, 0.18))",
-	},
-	".cm-cursor": {
-		borderLeftColor: "var(--accent)",
-	},
-	".cm-placeholder": {
-		color: "var(--muted)",
-	},
-
-	// ── Live Preview 装饰样式 ─────────────────────────────
-	".cm-live-h1": {
-		fontSize: "1.7em",
-		fontWeight: "700",
-		lineHeight: "1.4",
-	},
-	".cm-live-h2": {
-		fontSize: "1.45em",
-		fontWeight: "700",
-		lineHeight: "1.4",
-	},
-	".cm-live-h3": { fontSize: "1.25em", fontWeight: "600" },
-	".cm-live-h4": { fontSize: "1.12em", fontWeight: "600" },
-	".cm-live-h5, .cm-live-h6": { fontSize: "1.05em", fontWeight: "600" },
-	".cm-live-strong": { fontWeight: "700" },
-	".cm-live-em": { fontStyle: "italic" },
-	".cm-live-strike": { textDecoration: "line-through" },
-	".cm-live-incode": {
-		backgroundColor: "var(--surface-secondary)",
-		borderRadius: "4px",
-		padding: "0 4px",
-		fontSize: "0.92em",
-	},
-	".cm-live-codeblock": {
-		backgroundColor: "var(--surface-secondary)",
-	},
-	".cm-live-quote": {
-		borderLeft: "3px solid var(--border)",
-		paddingLeft: "12px",
-		color: "var(--muted)",
-	},
-	".cm-live-link": {
-		color: "var(--accent)",
-		textDecoration: "underline",
-		textUnderlineOffset: "2px",
-	},
-	".cm-live-image": { color: "var(--muted)" },
-	".cm-live-hr": {
-		borderTop: "1px solid var(--border)",
-		color: "transparent",
-	},
-	".cm-live-frontmatter": {
-		color: "var(--muted)",
-		fontSize: "0.92em",
-		opacity: "0.75",
-	},
-	".cm-live-wikilink": {
-		color: "var(--accent)",
-		fontWeight: "500",
-	},
-	".cm-live-highlight": {
-		backgroundColor: "color-mix(in srgb, gold 30%, transparent)",
-		borderRadius: "2px",
-	},
-	// ── 表格 / 媒体 widget 样式 ────────────────────────────
-	".cm-live-table": {
-		margin: "8px 0",
-	},
-	".cm-live-table table": {
-		borderCollapse: "collapse",
-		width: "100%",
-		fontSize: "0.92em",
-	},
-	".cm-live-table th, .cm-live-table td": {
-		border: "1px solid var(--border)",
-		padding: "6px 12px",
-		textAlign: "left",
-	},
-	".cm-live-table th": {
-		backgroundColor: "var(--surface-secondary)",
-		fontWeight: "600",
-	},
-	".cm-live-media": {
-		display: "block",
-		margin: "8px 0",
-		position: "relative",
-	},
-	".cm-live-media-toolbar": {
-		position: "absolute",
-		top: "8px",
-		right: "8px",
-		display: "flex",
-		gap: "4px",
-		opacity: "0",
-		transition: "opacity 0.15s ease",
-		backgroundColor: "var(--overlay)",
-		border: "1px solid var(--border)",
-		borderRadius: "8px",
-		padding: "3px",
-		boxShadow: "0 2px 8px rgb(0 0 0 / 0.12)",
-		zIndex: "5",
-	},
-	".cm-live-media:hover .cm-live-media-toolbar, .cm-live-media:focus-within .cm-live-media-toolbar":
-		{
-			opacity: "1",
-		},
-	".cm-live-media-btn": {
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "center",
-		width: "24px",
-		height: "24px",
-		border: "none",
-		borderRadius: "6px",
-		backgroundColor: "transparent",
-		color: "var(--foreground)",
-		cursor: "pointer",
-	},
-	".cm-live-media-btn:hover": {
-		backgroundColor: "var(--surface-secondary)",
-	},
-	".cm-live-media-btn svg": {
-		width: "14px",
-		height: "14px",
-	},
-	".cm-live-media img, .cm-live-media video": {
-		maxWidth: "100%",
-		borderRadius: "8px",
-	},
-	".cm-live-media-audio": {
-		display: "block",
-		margin: "8px 0",
-	},
-	".cm-live-media-error": {
-		color: "var(--muted)",
-		fontSize: "0.85em",
-	},
-	".cm-live-tag": {
-		color: "var(--accent)",
-		backgroundColor: "var(--accent-soft, rgba(59, 91, 219, 0.10))",
-		borderRadius: "4px",
-		padding: "0 2px",
-	},
-});

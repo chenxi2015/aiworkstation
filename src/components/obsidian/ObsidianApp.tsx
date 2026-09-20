@@ -57,6 +57,14 @@ export function ObsidianApp({
 	const [editingVault, setEditingVault] = useState(false);
 	const [vaultInput, setVaultInput] = useState(settings.obsidianVaultDir ?? "");
 	const [pickerOpen, setPickerOpen] = useState(false);
+	// Debounced search: raw query drives the input, debouncedQuery drives filtering
+	const [debouncedQuery, setDebouncedQuery] = useState("");
+	const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const handleQueryChange = useCallback((value: string) => {
+		setQuery(value);
+		if (debounceRef.current) clearTimeout(debounceRef.current);
+		debounceRef.current = setTimeout(() => setDebouncedQuery(value), 300);
+	}, []);
 	const noteApiRef = useRef<ObsidianNoteApi | null>(null);
 	const handleRegisterNoteApi = useCallback((api: ObsidianNoteApi | null) => {
 		noteApiRef.current = api;
@@ -85,15 +93,21 @@ export function ObsidianApp({
 	}, [initialNotePath]);
 
 	const filteredTree = useMemo(
-		() => (treeData ? filterVaultTree(treeData.tree, query) : []),
-		[treeData, query],
+		() => (treeData ? filterVaultTree(treeData.tree, debouncedQuery) : []),
+		[treeData, debouncedQuery],
 	);
 
-	// 搜索时强制展开所有文件夹，保证命中结果可见
+	// Cache all folder paths independently of query (only recompute on tree change)
+	const allFolderPaths = useMemo(
+		() => (treeData ? collectFolderPaths(treeData.tree) : []),
+		[treeData],
+	);
+
+	// Force-expand all folders during search so hits are visible
 	const effectiveExpanded = useMemo(() => {
-		if (!query.trim() || !treeData) return expanded;
-		return new Set([...expanded, ...collectFolderPaths(treeData.tree)]);
-	}, [query, treeData, expanded]);
+		if (!debouncedQuery.trim()) return expanded;
+		return new Set([...expanded, ...allFolderPaths]);
+	}, [debouncedQuery, allFolderPaths, expanded]);
 
 	const toggleFolder = useCallback((relPath: string) => {
 		setExpanded((prev) => {
@@ -236,7 +250,7 @@ export function ObsidianApp({
 						<input
 							type="text"
 							value={query}
-							onChange={(e) => setQuery(e.target.value)}
+							onChange={(e) => handleQueryChange(e.target.value)}
 							placeholder="筛选笔记/文件夹…"
 							className="w-44 pl-7 pr-2 py-1.5 rounded-lg border border-border bg-surface-secondary/40 text-[11px] text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/40"
 						/>
@@ -342,6 +356,7 @@ export function ObsidianApp({
 								onRenamed={setSelectedNotePath}
 								onDeleted={() => setSelectedNotePath(null)}
 								onRegisterNoteApi={handleRegisterNoteApi}
+								onNavigateNote={setSelectedNotePath}
 							/>
 						) : (
 							<div className="h-full flex flex-col items-center justify-center text-center px-8">

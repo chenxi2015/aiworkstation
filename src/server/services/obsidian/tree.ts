@@ -4,6 +4,7 @@ import type {
 	ObsidianTree,
 	ObsidianTreeNode,
 } from "../../../components/obsidian/types.ts";
+import { invalidateDataviewCache } from "./dataview.ts";
 import { resolveObsidianVaultDir } from "./vault.ts";
 
 const TREE_CACHE_MS = 60_000;
@@ -19,6 +20,7 @@ let treeInflight: Promise<ObsidianTree> | null = null;
 /** 结构变更（增删改移动）后调用，强制下次扫描重读磁盘 */
 export function invalidateVaultTreeCache(): void {
 	treeCache = null;
+	invalidateDataviewCache();
 }
 
 /** 扫描 Vault 目录树（60s 内存缓存，force 可绕过；并发去重同 skills overview） */
@@ -74,49 +76,70 @@ async function scanDir(
 		return [];
 	}
 
-	const nodes: ObsidianTreeNode[] = [];
+	// Separate entries into folders and .md files for different handling
+	const folderEntries: Dirent[] = [];
+	const noteEntries: Dirent[] = [];
 	for (const entry of entries) {
 		if (state.nodes > MAX_NODES) break;
 		if (entry.name.startsWith(".") || SKIP_DIRS.has(entry.name)) continue;
-		const full = path.join(dir, entry.name);
-		const relPath = path.relative(baseDir, full);
-
 		if (entry.isDirectory()) {
-			const children = await scanDir(full, baseDir, state, depth + 1);
-			let mtime = 0;
-			try {
-				mtime = (await fs.stat(full)).mtimeMs;
-			} catch {
-				// 忽略单条目读取失败
-			}
-			nodes.push({
-				name: entry.name,
-				relPath,
-				kind: "folder",
-				size: 0,
-				mtime,
-				children,
-			});
-			state.nodes += 1;
+			folderEntries.push(entry);
 		} else if (entry.isFile() && entry.name.toLowerCase().endsWith(".md")) {
-			try {
-				const stat = await fs.stat(full);
-				nodes.push({
-					name: entry.name.slice(0, -3),
-					relPath,
-					kind: "note",
-					size: stat.size,
-					mtime: stat.mtimeMs,
-				});
-				state.nodes += 1;
-				state.noteCount += 1;
-			} catch {
-				// 忽略单条目读取失败
-			}
+			noteEntries.push(entry);
 		}
 	}
 
-	// 文件夹在前，各自按名称排序（中文按拼音）
+	const nodes: ObsidianTreeNode[] = [];
+
+	// Folders: recurse children, skip mtime stat (UI doesn't display folder mtime)
+	for (const entry of folderEntries) {
+		if (state.nodes > MAX_NODES) break;
+		const full = path.join(dir, entry.name);
+		const relPath = path.relative(baseDir, full);
+		const children = await scanDir(full, baseDir, state, depth + 1);
+		nodes.push({
+			name: entry.name,
+			relPath,
+			kind: "folder",
+			size: 0,
+			mtime: 0,
+			children,
+		});
+		state.nodes += 1;
+	}
+
+	// Notes: parallel stat for all .md files in same directory
+	if (
+		noteEntries.length > 0 &&
+		state.nodes + noteEntries.length <= MAX_NODES + noteEntries.length
+	) {
+		const statResults = await Promise.all(
+			noteEntries.map(async (entry) => {
+				const full = path.join(dir, entry.name);
+				try {
+					const stat = await fs.stat(full);
+					return { entry, full, stat };
+				} catch {
+					return null;
+				}
+			}),
+		);
+		for (const result of statResults) {
+			if (!result || state.nodes > MAX_NODES) continue;
+			const relPath = path.relative(baseDir, result.full);
+			nodes.push({
+				name: result.entry.name.slice(0, -3),
+				relPath,
+				kind: "note",
+				size: result.stat.size,
+				mtime: result.stat.mtimeMs,
+			});
+			state.nodes += 1;
+			state.noteCount += 1;
+		}
+	}
+
+	// Folders first, then sort by name (Chinese pinyin)
 	nodes.sort((a, b) =>
 		a.kind === b.kind
 			? a.name.localeCompare(b.name, "zh-Hans-CN")

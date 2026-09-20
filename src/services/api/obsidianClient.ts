@@ -11,10 +11,29 @@ import {
 	getObsidianTree,
 	listLocalDirectories,
 	moveVaultEntryFn,
+	queryVaultDataview,
 	readVaultNoteFn,
 	renameVaultEntryFn,
 	saveVaultNoteFn,
 } from "../../server/functions/obsidian";
+import type { DataviewResult } from "../../server/services/obsidian/dataview";
+
+/** 执行 Dataview 查询（服务端扫描 Vault；失败时返回带 error 的空结果） */
+export async function queryDataviewRpc(
+	source: string,
+): Promise<DataviewResult> {
+	try {
+		return await queryVaultDataview({ data: { source } });
+	} catch (err) {
+		return {
+			type: "table",
+			columns: [],
+			rows: [],
+			tasks: [],
+			error: errMessage(err, "Dataview 查询失败"),
+		};
+	}
+}
 
 const EMPTY_TREE: ObsidianTree = {
 	vault: { path: "", configured: "", exists: false, noteCount: 0 },
@@ -24,6 +43,26 @@ const EMPTY_TREE: ObsidianTree = {
 
 function errMessage(err: unknown, fallback: string): string {
 	return err instanceof Error ? err.message : fallback;
+}
+
+/** 上传本地媒体文件到 Vault（保存在笔记同目录），返回 Vault 相对路径与最终文件名 */
+export async function uploadVaultAsset(
+	file: File,
+	noteRelPath?: string,
+): Promise<{ path: string; name: string }> {
+	const noteDir = noteRelPath?.includes("/")
+		? noteRelPath.split("/").slice(0, -1).join("/")
+		: "";
+	const params = new URLSearchParams({ name: file.name });
+	if (noteDir) params.set("dir", noteDir);
+	const res = await fetch(`/api/obsidian/asset?${params.toString()}`, {
+		method: "POST",
+		body: file,
+	});
+	if (!res.ok) {
+		throw new Error((await res.text()) || "上传失败");
+	}
+	return (await res.json()) as { path: string; name: string };
 }
 
 export interface LocalDirEntry {

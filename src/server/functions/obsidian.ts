@@ -10,6 +10,10 @@ import type {
 } from "../../components/obsidian/types.ts";
 import { resolveUserPath } from "../ai/fs/fsSafety.ts";
 import {
+	type DataviewResult,
+	runDataviewQuery,
+} from "../services/obsidian/dataview.ts";
+import {
 	createVaultFolder,
 	createVaultNote,
 	deleteVaultEntry,
@@ -19,6 +23,15 @@ import {
 	saveVaultNote,
 	scanVaultTree,
 } from "../services/obsidian/index.ts";
+
+/**
+ * Server Function: 执行 Dataview 查询（TABLE/LIST/TASK 常用子集，服务端扫描 Vault 求值）
+ */
+export const queryVaultDataview = createServerFn({ method: "POST" })
+	.validator((data: { source: string }) => data)
+	.handler(async ({ data }): Promise<DataviewResult> => {
+		return await runDataviewQuery(data.source ?? "");
+	});
 
 /**
  * Server Function: 列出本机目录的子文件夹（目录选择器数据源）。

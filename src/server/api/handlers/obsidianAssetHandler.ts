@@ -59,11 +59,19 @@ function findAssetByName(
  * GET /api/obsidian/asset?path=<vault 相对路径>&name=<短文件名兜底>
  * 只读回读 Vault 内的图片/音视频/PDF 资源（路径穿越防护，限 vault 根目录内）。
  * name 用于 Obsidian 短路径写法（![[image.png]]），全库按文件名查找。
+ *
+ * POST /api/obsidian/asset?dir=<vault 相对目录>&name=<文件名>
+ * 上传媒体文件写入 Vault（请求体为文件二进制；重名自动追加 -1/-2 后缀），
+ * 返回 { path: vault 相对路径, name: 最终文件名 }。
  */
 export async function handleObsidianAssetRequest(
 	req: IncomingMessage,
 	res: ServerResponse,
 ): Promise<void> {
+	if (req.method === "POST") {
+		await handleAssetUpload(req, res);
+		return;
+	}
 	if (req.method !== "GET") {
 		res.statusCode = 405;
 		res.end("Method not allowed");
@@ -103,6 +111,66 @@ export async function handleObsidianAssetRequest(
 		res.setHeader("Content-Length", fs.statSync(absPath).size);
 		res.setHeader("Cache-Control", "private, max-age=3600");
 		fs.createReadStream(absPath).pipe(res);
+	} catch (err: unknown) {
+		const errMsg = err instanceof Error ? err.message : String(err);
+		res.statusCode = 403;
+		res.end(errMsg);
+	}
+}
+
+/** 上传体积上限 100MB */
+const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
+
+async function handleAssetUpload(
+	req: IncomingMessage,
+	res: ServerResponse,
+): Promise<void> {
+	try {
+		const url = new URL(req.url ?? "", "http://localhost");
+		const dirParam = url.searchParams.get("dir") ?? "";
+		const nameParam = path.basename(url.searchParams.get("name") ?? "asset");
+		const ext = path.extname(nameParam).replace(/^\./, "").toLowerCase();
+		if (!ASSET_EXTS.has(ext) || ext === "pdf") {
+			res.statusCode = 415;
+			res.end("不支持的文件类型");
+			return;
+		}
+		const vault = resolveObsidianVaultDir();
+		const targetDir = path.resolve(vault.path, dirParam);
+		assertPathWithinRoot(targetDir, vault.path);
+		fs.mkdirSync(targetDir, { recursive: true });
+
+		// 重名自动追加 -1 / -2 … 不覆盖已有文件
+		const stem =
+			path
+				.basename(nameParam, path.extname(nameParam))
+				.replace(/[\\/:*?"<>|]/g, "_")
+				.trim() || "asset";
+		let filename = `${stem}.${ext}`;
+		let suffix = 1;
+		while (fs.existsSync(path.join(targetDir, filename))) {
+			filename = `${stem}-${suffix++}.${ext}`;
+		}
+
+		const chunks: Buffer[] = [];
+		let size = 0;
+		for await (const chunk of req) {
+			size += (chunk as Buffer).length;
+			if (size > MAX_UPLOAD_BYTES) {
+				res.statusCode = 413;
+				res.end("文件超过 100MB 上限");
+				return;
+			}
+			chunks.push(chunk as Buffer);
+		}
+		const absPath = path.join(targetDir, filename);
+		fs.writeFileSync(absPath, Buffer.concat(chunks));
+		const relPath = path
+			.relative(vault.path, absPath)
+			.split(path.sep)
+			.join("/");
+		res.setHeader("Content-Type", "application/json");
+		res.end(JSON.stringify({ path: relPath, name: filename }));
 	} catch (err: unknown) {
 		const errMsg = err instanceof Error ? err.message : String(err);
 		res.statusCode = 403;
