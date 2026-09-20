@@ -14,9 +14,22 @@ import {
 	queryVaultDataview,
 	readVaultNoteFn,
 	renameVaultEntryFn,
+	resolveVaultWikilinkFn,
 	saveVaultNoteFn,
 } from "../../server/functions/obsidian";
 import type { DataviewResult } from "../../server/services/obsidian/dataview";
+
+/** 解析双链目标 → Vault 相对路径（未找到返回 null） */
+export async function resolveWikilinkRpc(
+	target: string,
+): Promise<string | null> {
+	try {
+		const res = await resolveVaultWikilinkFn({ data: { target } });
+		return res.relPath;
+	} catch {
+		return null;
+	}
+}
 
 /** 执行 Dataview 查询（服务端扫描 Vault；失败时返回带 error 的空结果） */
 export async function queryDataviewRpc(

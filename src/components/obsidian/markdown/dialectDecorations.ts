@@ -1,10 +1,6 @@
 import type { EditorState } from "@codemirror/state";
 import { Decoration } from "@codemirror/view";
-import {
-	MediaWidget,
-	mediaKindOf,
-	resolveAssetUrl,
-} from "./mediaWidget";
+import { MediaWidget, mediaKindOf, resolveAssetUrl } from "./mediaWidget";
 import { FrontmatterWidget, MathWidget } from "./widgets";
 
 export interface Range {
@@ -30,6 +26,8 @@ export interface LivePreviewOptions {
 	onPreviewImage?: (data: { src: string; alt: string }) => void;
 	/** Note navigation link callback */
 	onNavigateNote?: (relPath: string) => void;
+	/** 双链目标不存在时的新建回调（name 不含 .md 后缀） */
+	onCreateNote?: (name: string) => void;
 }
 
 /** Check if current selection overlaps with [from, to] */

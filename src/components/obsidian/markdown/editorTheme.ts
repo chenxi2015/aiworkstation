@@ -142,6 +142,7 @@ export const appTheme = EditorView.theme({
 	".cm-live-wikilink": {
 		color: "var(--accent)",
 		fontWeight: "500",
+		cursor: "pointer",
 	},
 	".cm-live-highlight": {
 		backgroundColor: "color-mix(in srgb, gold 30%, transparent)",
@@ -185,7 +186,7 @@ export const appTheme = EditorView.theme({
 		boxShadow: "0 2px 8px rgb(0 0 0 / 0.12)",
 		zIndex: "5",
 	},
-	".cm-live-media:hover .cm-live-media-toolbar, .cm-live-media:focus-within .cm-live-media-toolbar":
+	".cm-live-media:hover .cm-live-media-toolbar, .cm-live-media:focus-within .cm-live-media-toolbar, .cm-live-mermaid:hover .cm-live-media-toolbar, .cm-live-mermaid:focus-within .cm-live-media-toolbar":
 		{
 			opacity: "1",
 		},
@@ -369,5 +370,27 @@ export const appTheme = EditorView.theme({
 		color: "var(--muted)",
 		fontSize: "0.85em",
 		margin: "6px 0 2px",
+	},
+	// ── Mermaid ───────────────────────────────────────────────
+	".cm-live-mermaid": {
+		margin: "8px 0",
+		backgroundColor: "var(--surface)",
+		border: "1px solid var(--border)",
+		borderRadius: "10px",
+		overflow: "hidden",
+		position: "relative",
+	},
+	".cm-live-mermaid-code": {
+		marginTop: "10px",
+		padding: "10px 12px",
+		backgroundColor: "var(--surface-secondary)",
+		borderRadius: "8px",
+		textAlign: "left",
+		fontSize: "0.85em",
+		fontFamily:
+			"ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+		whiteSpace: "pre",
+		overflowX: "auto",
+		color: "var(--foreground)",
 	},
 });

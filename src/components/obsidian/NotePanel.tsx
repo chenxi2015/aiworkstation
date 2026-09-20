@@ -32,6 +32,8 @@ export interface NotePanelProps {
 	onRegisterNoteApi?: (api: ObsidianNoteApi | null) => void;
 	/** 笔记内链接（Dataview 结果等）跳转到其他笔记 */
 	onNavigateNote?: (relPath: string) => void;
+	/** 双链目标不存在时的新建回调（name 不含 .md 后缀） */
+	onCreateNote?: (name: string) => void;
 }
 
 /**
@@ -45,6 +47,7 @@ export function NotePanel({
 	onDeleted,
 	onRegisterNoteApi,
 	onNavigateNote,
+	onCreateNote,
 }: NotePanelProps) {
 	const [note, setNote] = useState<ObsidianNoteContent | null>(null);
 	const [loading, setLoading] = useState(true);
@@ -332,6 +335,7 @@ export function NotePanel({
 						noteRelPath={note.relPath}
 						onSaveShortcut={() => void flushSave()}
 						onNavigateNote={onNavigateNote}
+						onCreateNote={onCreateNote}
 					/>
 				</ImagePreviewProvider>
 			</div>

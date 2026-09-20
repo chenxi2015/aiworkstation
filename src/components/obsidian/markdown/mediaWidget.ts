@@ -1,5 +1,5 @@
 import { StateEffect, StateField } from "@codemirror/state";
-import { EditorView, WidgetType } from "@codemirror/view";
+import { type EditorView, WidgetType } from "@codemirror/view";
 import { toast } from "@heroui/react";
 import { uploadVaultAsset } from "../../../services/api/obsidianClient";
 

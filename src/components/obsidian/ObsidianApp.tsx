@@ -151,6 +151,24 @@ export function ObsidianApp({
 		if (res.relPath) setSelectedNotePath(res.relPath);
 	}, [currentDir, load]);
 
+	/** 双链跳转新建：落在当前笔记所在目录（对齐 Obsidian 默认行为），静默创建后直接打开 */
+	const handleCreateNoteFromLink = useCallback(
+		async (name: string) => {
+			const dir = selectedNotePath?.includes("/")
+				? selectedNotePath.split("/").slice(0, -1).join("/")
+				: "";
+			const res = await createVaultNoteRpc(dir, name);
+			if (!res.success) {
+				toast.danger(res.error ?? "新建笔记失败");
+				return;
+			}
+			toast.success(`已新建笔记「${name}」`);
+			await load(true);
+			if (res.relPath) setSelectedNotePath(res.relPath);
+		},
+		[selectedNotePath, load],
+	);
+
 	const handleCreateFolder = useCallback(async () => {
 		const name = window.prompt(
 			`新文件夹名称（创建于：${currentDir || "Vault 根目录"}）`,
@@ -357,6 +375,7 @@ export function ObsidianApp({
 								onDeleted={() => setSelectedNotePath(null)}
 								onRegisterNoteApi={handleRegisterNoteApi}
 								onNavigateNote={setSelectedNotePath}
+								onCreateNote={(name) => void handleCreateNoteFromLink(name)}
 							/>
 						) : (
 							<div className="h-full flex flex-col items-center justify-center text-center px-8">

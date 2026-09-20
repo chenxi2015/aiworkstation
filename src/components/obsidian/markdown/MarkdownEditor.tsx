@@ -36,6 +36,8 @@ export interface MarkdownEditorProps {
 	onSaveShortcut?: () => void;
 	/** 点击笔记链接（Dataview 结果等）跳转回调 */
 	onNavigateNote?: (relPath: string) => void;
+	/** 双链目标不存在时的新建回调（name 不含 .md 后缀） */
+	onCreateNote?: (name: string) => void;
 }
 
 /** Imperative handle for precise editor operations (avoids full-document round-trip) */
@@ -60,6 +62,7 @@ export function MarkdownEditor({
 	noteRelPath,
 	onSaveShortcut,
 	onNavigateNote,
+	onCreateNote,
 }: MarkdownEditorProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const viewRef = useRef<EditorView | null>(null);
@@ -75,6 +78,8 @@ export function MarkdownEditor({
 	onSaveRef.current = onSaveShortcut;
 	const onNavigateNoteRef = useRef(onNavigateNote);
 	onNavigateNoteRef.current = onNavigateNote;
+	const onCreateNoteRef = useRef(onCreateNote);
+	onCreateNoteRef.current = onCreateNote;
 	const { openPreview } = useImagePreview();
 	const openPreviewRef = useRef(openPreview);
 	openPreviewRef.current = openPreview;
@@ -141,6 +146,7 @@ export function MarkdownEditor({
 						onPreviewImage: (data) =>
 							openPreviewRef.current({ src: data.src, title: data.alt }),
 						onNavigateNote: (rel) => onNavigateNoteRef.current?.(rel),
+						onCreateNote: (name) => onCreateNoteRef.current?.(name),
 					}),
 					appTheme,
 					EditorState.readOnly.of(readOnly),
@@ -238,4 +244,3 @@ export function MarkdownEditor({
 		</>
 	);
 }
-

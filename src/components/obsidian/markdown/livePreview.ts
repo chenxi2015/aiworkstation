@@ -6,11 +6,7 @@ import {
 	StateField,
 	type Transaction,
 } from "@codemirror/state";
-import {
-	Decoration,
-	type DecorationSet,
-	EditorView,
-} from "@codemirror/view";
+import { Decoration, type DecorationSet, EditorView } from "@codemirror/view";
 import { DataviewWidget, extractDataviewQuery } from "./DataviewWidget";
 import {
 	type DecoItem,
@@ -21,6 +17,7 @@ import {
 	type Range,
 	selectionTouches,
 } from "./dialectDecorations";
+import { MermaidWidget } from "./MermaidWidget";
 import {
 	MediaWidget,
 	mediaKindOf,
@@ -35,6 +32,7 @@ import {
 	HEADING_CLASSES,
 	TableWidget,
 } from "./widgets";
+import { wikilinkInteractions } from "./wikilink";
 
 export type { LivePreviewOptions };
 
@@ -235,6 +233,23 @@ function buildDecorations(
 								return;
 							}
 						}
+						if (infoText === "mermaid") {
+							if (!selectionTouches(state, from, to)) {
+								const code = extractDataviewQuery(
+									state.doc.sliceString(from, to),
+								);
+								replacedBlocks.push({ from, to });
+								blockWidgets.push({
+									from,
+									to,
+									deco: Decoration.replace({
+										widget: new MermaidWidget(code),
+										block: true,
+									}),
+								});
+								return;
+							}
+						}
 						pushLine(from, to, "cm-live-codeblock");
 						codeBlockRanges.push({ from, to });
 						return;
@@ -404,5 +419,9 @@ function createLivePreviewField(options: LivePreviewOptions) {
 }
 
 export function livePreview(options: LivePreviewOptions = {}): Extension {
-	return [mediaSourceField, createLivePreviewField(options)];
+	return [
+		mediaSourceField,
+		createLivePreviewField(options),
+		wikilinkInteractions(options),
+	];
 }

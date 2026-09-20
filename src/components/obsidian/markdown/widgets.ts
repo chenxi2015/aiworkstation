@@ -1,4 +1,4 @@
-import { EditorView, WidgetType } from "@codemirror/view";
+import { type EditorView, WidgetType } from "@codemirror/view";
 import katex from "katex";
 import { markdownToHtml } from "../../editor/markdown";
 

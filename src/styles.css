@@ -1043,3 +1043,40 @@ blockquote::after {
 		animation: none;
 	}
 }
+
+/* ============ Obsidian 笔记：双链悬停预览卡片 ============ */
+.cm-live-hover-preview {
+	position: fixed;
+	z-index: 100;
+	width: 400px;
+	max-height: 300px;
+	overflow: auto;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: 12px;
+	box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
+	padding: 12px 14px;
+	font-size: 13px;
+	line-height: 1.6;
+	color: var(--foreground);
+}
+
+.cm-live-hover-preview-title {
+	font-weight: 600;
+	font-size: 14px;
+	margin-bottom: 6px;
+	padding-bottom: 6px;
+	border-bottom: 1px solid var(--border);
+}
+
+.cm-live-hover-preview-body img {
+	max-width: 100%;
+}
+
+.cm-live-hover-preview-body pre {
+	background: var(--surface-secondary);
+	border-radius: 6px;
+	padding: 8px;
+	overflow-x: auto;
+	font-size: 12px;
+}

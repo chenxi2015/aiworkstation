@@ -62,6 +62,45 @@ async function doScanVaultTree(): Promise<ObsidianTree> {
 	return data;
 }
 
+/**
+ * 解析 Obsidian 双链目标 → Vault 相对路径（基于目录树缓存）：
+ * - 含 "/" 按路径精确匹配（可省略 .md 后缀）
+ * - 纯名称按文件名全局匹配（多命中取路径最短者，对齐 Obsidian 最短路径优先）
+ * - 未找到返回 null（由调用方决定是否新建）
+ */
+export async function resolveVaultWikilink(
+	target: string,
+): Promise<string | null> {
+	const cleaned = target.trim().replace(/\.md$/i, "");
+	if (!cleaned) return null;
+	const { tree } = await scanVaultTree();
+	const notes: { name: string; relPath: string }[] = [];
+	const walk = (nodes: ObsidianTreeNode[]) => {
+		for (const node of nodes) {
+			if (node.kind === "note") {
+				notes.push({ name: node.name, relPath: node.relPath });
+			} else {
+				walk(node.children ?? []);
+			}
+		}
+	};
+	walk(tree);
+	if (cleaned.includes("/")) {
+		// 完整路径优先，其次路径后缀匹配（Obsidian 允许省略上层目录）
+		const candidates = notes
+			.filter((n) => {
+				const bare = n.relPath.replace(/\.md$/i, "");
+				return bare === cleaned || bare.endsWith(`/${cleaned}`);
+			})
+			.sort((a, b) => a.relPath.length - b.relPath.length);
+		return candidates[0]?.relPath ?? null;
+	}
+	const candidates = notes
+		.filter((n) => n.name === cleaned)
+		.sort((a, b) => a.relPath.length - b.relPath.length);
+	return candidates[0]?.relPath ?? null;
+}
+
 async function scanDir(
 	dir: string,
 	baseDir: string,

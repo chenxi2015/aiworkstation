@@ -20,6 +20,7 @@ import {
 	moveVaultEntry,
 	readVaultNote,
 	renameVaultEntry,
+	resolveVaultWikilink,
 	saveVaultNote,
 	scanVaultTree,
 } from "../services/obsidian/index.ts";
@@ -31,6 +32,15 @@ export const queryVaultDataview = createServerFn({ method: "POST" })
 	.validator((data: { source: string }) => data)
 	.handler(async ({ data }): Promise<DataviewResult> => {
 		return await runDataviewQuery(data.source ?? "");
+	});
+
+/**
+ * Server Function: 解析双链目标 → Vault 相对路径（未找到返回 null）
+ */
+export const resolveVaultWikilinkFn = createServerFn({ method: "POST" })
+	.validator((data: { target: string }) => data)
+	.handler(async ({ data }): Promise<{ relPath: string | null }> => {
+		return { relPath: await resolveVaultWikilink(data.target ?? "") };
 	});
 
 /**
