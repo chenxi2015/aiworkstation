@@ -1,5 +1,4 @@
 import { useRouter, useRouterState } from "@tanstack/react-router";
-import { PanelRightOpen } from "lucide-react";
 import {
 	createContext,
 	type ReactNode,
@@ -29,6 +28,7 @@ import type {
 	WorkbenchItem,
 	WorkbenchSettings,
 } from "../workbench/types";
+import { FloatingDockProvider } from "./FloatingDock";
 
 /** 面板浏览上下文：由当前页面声明（如书签页选中的文件夹），其他页面回落到全局模式 */
 export interface AiPanelScope {
@@ -277,41 +277,38 @@ export function AppShell({
 				<div className="app-shell h-screen flex overflow-hidden relative">
 					{/* 流式 SSR 占位：仅在未折叠时渲染骨架屏 */}
 					{!isCollapsed && <AiPanelSkeleton />}
-					{/* Left Region: 当前路由页面（含各自的顶栏与内容） */}
-					<div className="order-1 flex-1 flex flex-col min-w-0 min-h-0">
-						{children}
-					</div>
-					{/* Right: 常驻 AI 搜索与知识问答中枢（全局单例，占满视口高度） */}
-					<ChatWithBookmarksPanel
-						ref={panelRef}
-						className={isCollapsed ? "hidden" : "order-2"}
-						selectedFolder={scope.selectedFolder}
-						activeCategory={scope.activeCategory}
-						activeModule={activeModule}
-						pageBridge={pageBridge}
-						folders={folders}
-						categories={categories}
-						settings={settings}
-						onNavigateToFolder={handleNavigateToFolder}
-						onDataChanged={handleDataChanged}
-						onCollapse={() => setIsCollapsed(true)}
-					/>
-
-					{/* Collapsed floating trigger tab on right edge */}
-					{isCollapsed && (
-						<button
-							type="button"
-							onClick={() => setIsCollapsed(false)}
-							className="fixed right-0 top-1/2 -translate-y-[calc(100%+3.5rem)] z-30 bg-accent border border-r-0 border-accent/70 py-3 px-1.5 rounded-l-xl shadow-lg shadow-accent/30 flex flex-col items-center gap-1.5 transition-all duration-300 cursor-pointer group hover:px-2.5 hover:bg-accent/90 animate-ai-tab-breathe"
-							title="展开 AI 助手"
-							aria-label="展开 AI 助手"
+					{/* Left Region: 当前路由页面（含各自的顶栏与内容）；relative 为右下角浮动坞提供定位上下文 */}
+					<div className="order-1 relative flex-1 flex flex-col min-w-0 min-h-0">
+						<FloatingDockProvider
+							aiTrigger={{
+								collapsed: isCollapsed,
+								onOpen: () => setIsCollapsed(false),
+							}}
 						>
-							<PanelRightOpen className="w-4 h-4 text-accent-foreground group-hover:scale-110 transition-transform" />
-							<span className="text-[10px] [writing-mode:vertical-lr] tracking-widest text-accent-foreground/90 group-hover:text-accent-foreground font-semibold select-none">
-								AI助手
-							</span>
-						</button>
-					)}
+							{children}
+						</FloatingDockProvider>
+					</div>
+					{/* Right: 常驻 AI 搜索与知识问答中枢（全局单例，占满视口高度）；
+					    外层容器做宽度过渡：折叠时宽度收为 0，面板内容贴右缘随之滑出/滑入 */}
+					<div
+						className={`order-2 shrink-0 h-full overflow-hidden flex justify-end transition-[width] duration-300 ease-out ${
+							isCollapsed ? "w-0" : "w-[380px] xl:w-[440px] 2xl:w-[480px]"
+						}`}
+					>
+						<ChatWithBookmarksPanel
+							ref={panelRef}
+							selectedFolder={scope.selectedFolder}
+							activeCategory={scope.activeCategory}
+							activeModule={activeModule}
+							pageBridge={pageBridge}
+							folders={folders}
+							categories={categories}
+							settings={settings}
+							onNavigateToFolder={handleNavigateToFolder}
+							onDataChanged={handleDataChanged}
+							onCollapse={() => setIsCollapsed(true)}
+						/>
+					</div>
 				</div>
 			</WorkbenchDndProvider>
 		</AiPanelContext.Provider>

@@ -92,7 +92,8 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 					)}
 					<TanStackDevtools
 						config={{
-							position: "bottom-right",
+							// 右下角留给全局浮动坞（AI 助手 + 返回顶部），避免触发球重叠
+							position: "bottom-left",
 						}}
 						plugins={[
 							{

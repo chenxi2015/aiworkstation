@@ -1,9 +1,10 @@
 import { type Editor, EditorContent } from "@tiptap/react";
+import { ArrowUp } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useFloatingDockAction } from "../shell/FloatingDock";
 import { AiBubbleMenu } from "./AiBubbleMenu";
 import { EditorToolbar } from "./components/EditorToolbar";
 import { PipelineProgressFloatingBar } from "./components/PipelineProgressFloatingBar";
-import { ScrollToTopButton } from "./components/ScrollToTopButton";
 import { SlashCommandMenu } from "./components/SlashCommandMenu";
 import { TableActionMenu } from "./components/TableActionMenu";
 import { EditorMediaContext } from "./extensions/MediaNodeView";
@@ -85,6 +86,16 @@ export function RichTextEditor({
 		onRegisterPipeline?.(pipeline.startPipeline);
 	}, [onRegisterPipeline, pipeline.startPipeline]);
 
+	// 返回顶部动作注册到全局右下角浮动坞，与 AI 助手按钮同一列堆叠
+	useFloatingDockAction({
+		id: "editor-scroll-to-top",
+		label: "滚动置顶",
+		icon: <ArrowUp className="w-4 h-4 stroke-[2.2]" />,
+		visible: showScrollTop,
+		onTrigger: () =>
+			scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" }),
+	});
+
 	if (!editor) return null;
 
 	const togglePreview = () => {
@@ -97,13 +108,6 @@ export function RichTextEditor({
 	const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
 		const isScrolled = e.currentTarget.scrollTop > 200;
 		setShowScrollTop(isScrolled);
-	};
-
-	const handleScrollToTop = () => {
-		scrollContainerRef.current?.scrollTo({
-			top: 0,
-			behavior: "smooth",
-		});
 	};
 
 	return (
@@ -183,12 +187,6 @@ export function RichTextEditor({
 						</div>
 					)}
 				</EditorMediaContext.Provider>
-
-				{/* 滚动置顶按钮 */}
-				<ScrollToTopButton
-					visible={showScrollTop}
-					onClick={handleScrollToTop}
-				/>
 
 				{/* AI 逐段流式改写进度与批量审阅条 */}
 				<PipelineProgressFloatingBar
