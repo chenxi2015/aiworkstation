@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join, relative, resolve, sep } from "node:path";
 import { workbenchDb } from "../../db/sqlite.ts";
 import { expandHome } from "../skills/roots.ts";
 
@@ -29,6 +29,14 @@ export function resolveObsidianVaultDir(): {
 } {
 	const configured = getConfiguredVaultDir() ?? DEFAULT_OBSIDIAN_VAULT_DIR;
 	return { path: resolve(expandHome(configured)), configured };
+}
+
+/**
+ * 绝对路径 → 相对路径（统一 POSIX "/" 分隔符）。
+ * Windows 上 path.relative 返回反斜杠，而客户端/wikilink/dataview 全部按 "/" 处理。
+ */
+export function toPosixRelPath(rootAbs: string, absPath: string): string {
+	return relative(rootAbs, absPath).split(sep).join("/");
 }
 
 /**

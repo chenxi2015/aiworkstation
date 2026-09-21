@@ -233,7 +233,7 @@ export const deleteVaultEntryFn = createServerFn({ method: "POST" })
 	});
 
 /**
- * Server Function: 在访达中显示笔记/文件夹（macOS open -R）
+ * Server Function: 在系统文件管理器中显示笔记/文件夹（macOS 访达 / Windows 资源管理器 / Linux xdg-open）
  */
 export const revealVaultEntryFn = createServerFn({ method: "POST" })
 	.validator((data: { relPath: string }) => data)

@@ -2,7 +2,10 @@ import fs from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
 import { assertPathWithinRoot } from "../../ai/fs/fsSafety.ts";
-import { resolveObsidianVaultDir } from "../../services/obsidian/vault.ts";
+import {
+	resolveObsidianVaultDir,
+	toPosixRelPath,
+} from "../../services/obsidian/vault.ts";
 
 const MIME_BY_EXT: Record<string, string> = {
 	png: "image/png",
@@ -165,10 +168,7 @@ async function handleAssetUpload(
 		}
 		const absPath = path.join(targetDir, filename);
 		fs.writeFileSync(absPath, Buffer.concat(chunks));
-		const relPath = path
-			.relative(vault.path, absPath)
-			.split(path.sep)
-			.join("/");
+		const relPath = toPosixRelPath(vault.path, absPath);
 		res.setHeader("Content-Type", "application/json");
 		res.end(JSON.stringify({ path: relPath, name: filename }));
 	} catch (err: unknown) {

@@ -7,6 +7,7 @@ import {
 	Trash2,
 } from "lucide-react";
 import { useEffect, useRef } from "react";
+import { getFileManagerName } from "../../lib/platform";
 import type { ObsidianTreeNode } from "./types";
 
 export interface TreeMenuTarget {
@@ -152,7 +153,7 @@ export function TreeContextMenu({
 			/>
 			<MenuItem
 				icon={FolderSearch}
-				label="在访达中显示"
+				label={`在${getFileManagerName()}中显示`}
 				onClick={act(() => onReveal(node))}
 			/>
 		</div>

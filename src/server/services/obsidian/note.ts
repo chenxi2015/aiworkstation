@@ -1,4 +1,3 @@
-import { execFile } from "node:child_process";
 import { existsSync, promises as fs, statSync } from "node:fs";
 import path from "node:path";
 import type {
@@ -7,6 +6,7 @@ import type {
 	ObsidianSaveResult,
 } from "../../../components/obsidian/types.ts";
 import { tryThreeWayMerge } from "../../../components/obsidian/utils/merge.ts";
+import { getFileManagerName } from "../../../lib/platform.ts";
 import {
 	assertWritablePath,
 	MAX_READ_BYTES,
@@ -14,8 +14,9 @@ import {
 	writeTextAtomicSync,
 } from "../../ai/fs/fsSafety.ts";
 import { readFileCapped } from "../skills/scanCore.ts";
+import { openInOs } from "../systemOpener.ts";
 import { invalidateVaultTreeCache } from "./tree.ts";
-import { resolveObsidianVaultDir } from "./vault.ts";
+import { resolveObsidianVaultDir, toPosixRelPath } from "./vault.ts";
 
 function vaultRoot(): string {
 	const { path: root, configured } = resolveObsidianVaultDir();
@@ -135,7 +136,7 @@ export async function createVaultNote(
 		if (existsSync(abs)) throw new Error(`同名笔记已存在：${fileName}`);
 		writeTextAtomicSync(abs, content);
 		invalidateVaultTreeCache();
-		return { success: true, relPath: path.relative(vaultRoot(), abs) };
+		return { success: true, relPath: toPosixRelPath(vaultRoot(), abs) };
 	} catch (err) {
 		return { success: false, error: errMessage(err, "新建笔记失败") };
 	}
@@ -154,7 +155,7 @@ export async function createVaultFolder(
 		if (existsSync(abs)) throw new Error(`同名条目已存在：${folderName}`);
 		await fs.mkdir(abs, { recursive: true });
 		invalidateVaultTreeCache();
-		return { success: true, relPath: path.relative(vaultRoot(), abs) };
+		return { success: true, relPath: toPosixRelPath(vaultRoot(), abs) };
 	} catch (err) {
 		return { success: false, error: errMessage(err, "新建文件夹失败") };
 	}
@@ -180,7 +181,7 @@ export async function renameVaultEntry(
 		if (existsSync(target)) throw new Error(`同名条目已存在：${finalName}`);
 		await fs.rename(abs, target);
 		invalidateVaultTreeCache();
-		return { success: true, relPath: path.relative(vaultRoot(), target) };
+		return { success: true, relPath: toPosixRelPath(vaultRoot(), target) };
 	} catch (err) {
 		return { success: false, error: errMessage(err, "重命名失败") };
 	}
@@ -207,30 +208,26 @@ export async function moveVaultEntry(
 		if (existsSync(target)) throw new Error("目标位置已存在同名条目");
 		await fs.rename(abs, target);
 		invalidateVaultTreeCache();
-		return { success: true, relPath: path.relative(vaultRoot(), target) };
+		return { success: true, relPath: toPosixRelPath(vaultRoot(), target) };
 	} catch (err) {
 		return { success: false, error: errMessage(err, "移动失败") };
 	}
 }
 
-/** 在访达中显示（macOS open -R；非 macOS 平台返回不支持） */
+/** 在系统文件管理器中显示（跨平台逻辑复用 systemOpener；Vault 路径已经 entryAbsPath 校验，跳过根目录白名单） */
 export async function revealVaultEntry(
 	relPath: string,
 ): Promise<ObsidianMutationResult> {
 	try {
-		if (process.platform !== "darwin") {
-			throw new Error("当前平台不支持在文件管理器中显示");
-		}
 		const abs = entryAbsPath(relPath);
 		if (!existsSync(abs)) throw new Error("文件不存在");
-		await new Promise<void>((resolvePromise, rejectPromise) => {
-			execFile("open", ["-R", abs], (err) =>
-				err ? rejectPromise(err) : resolvePromise(),
-			);
-		});
+		await openInOs(abs, { reveal: true, skipRootCheck: true });
 		return { success: true };
 	} catch (err) {
-		return { success: false, error: errMessage(err, "打开访达失败") };
+		return {
+			success: false,
+			error: errMessage(err, `打开${getFileManagerName()}失败`),
+		};
 	}
 }
 

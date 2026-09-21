@@ -5,7 +5,7 @@ import type {
 	ObsidianTreeNode,
 } from "../../../components/obsidian/types.ts";
 import { invalidateDataviewCache } from "./dataview.ts";
-import { resolveObsidianVaultDir } from "./vault.ts";
+import { resolveObsidianVaultDir, toPosixRelPath } from "./vault.ts";
 
 const TREE_CACHE_MS = 60_000;
 const MAX_DEPTH = 8;
@@ -134,7 +134,7 @@ async function scanDir(
 	for (const entry of folderEntries) {
 		if (state.nodes > MAX_NODES) break;
 		const full = path.join(dir, entry.name);
-		const relPath = path.relative(baseDir, full);
+		const relPath = toPosixRelPath(baseDir, full);
 		const children = await scanDir(full, baseDir, state, depth + 1);
 		nodes.push({
 			name: entry.name,
@@ -165,7 +165,7 @@ async function scanDir(
 		);
 		for (const result of statResults) {
 			if (!result || state.nodes > MAX_NODES) continue;
-			const relPath = path.relative(baseDir, result.full);
+			const relPath = toPosixRelPath(baseDir, result.full);
 			nodes.push({
 				name: result.entry.name.slice(0, -3),
 				relPath,

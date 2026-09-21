@@ -26,6 +26,7 @@ import {
 	Sparkles,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { detectHostOS } from "../../lib/platform";
 import { WorkbenchStorageService } from "../../services/workbenchStorage";
 import { EMBEDDING_PROVIDERS, LLM_PROVIDERS } from "./settings/constants";
 import type { WorkbenchSettings } from "./types";
@@ -34,12 +35,6 @@ interface SetupWizardProps {
 	isOpen: boolean;
 	existingSettings: WorkbenchSettings;
 	onComplete: (settings: WorkbenchSettings) => void;
-}
-
-function isWindowsClient(): boolean {
-	return (
-		typeof navigator !== "undefined" && /windows/i.test(navigator.userAgent)
-	);
 }
 
 // ── Step index ───────────────────────────────────────────────────
@@ -84,7 +79,7 @@ export function SetupWizard({
 	);
 
 	const [saving, setSaving] = useState(false);
-	const isWindows = isWindowsClient();
+	const isWindows = detectHostOS() === "windows";
 
 	useEffect(() => {
 		if (isOpen) setStep(hasApiKey ? 1 : 0);

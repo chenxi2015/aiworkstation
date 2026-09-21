@@ -4,6 +4,7 @@ import type {
 	ObsidianSaveResult,
 	ObsidianTree,
 } from "../../components/obsidian/types";
+import { getFileManagerName } from "../../lib/platform";
 import {
 	createLocalVaultFn,
 	createVaultFolderFn,
@@ -232,13 +233,16 @@ export async function deleteVaultEntryRpc(
 	}
 }
 
-/** 在访达中显示笔记/文件夹 */
+/** 在系统文件管理器中显示笔记/文件夹（macOS 访达 / Windows 文件资源管理器） */
 export async function revealVaultEntryRpc(
 	relPath: string,
 ): Promise<ObsidianMutationResult> {
 	try {
 		return await revealVaultEntryFn({ data: { relPath } });
 	} catch (err) {
-		return { success: false, error: errMessage(err, "打开访达失败") };
+		return {
+			success: false,
+			error: errMessage(err, `打开${getFileManagerName()}失败`),
+		};
 	}
 }

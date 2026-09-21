@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { resolveObsidianVaultDir } from "./vault.ts";
+import { resolveObsidianVaultDir, toPosixRelPath } from "./vault.ts";
 
 /**
  * Dataview 查询引擎（常用子集，服务端执行）：
@@ -193,7 +193,7 @@ async function loadFiles(): Promise<FileMeta[]> {
 	const files = await Promise.all(
 		absFiles.map(async (abs) => {
 			try {
-				const relPath = path.relative(root, abs);
+				const relPath = toPosixRelPath(root, abs);
 				const stat = await fs.stat(abs);
 				const fh = await fs.open(abs, "r");
 				try {

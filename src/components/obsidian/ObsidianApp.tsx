@@ -1,5 +1,7 @@
 import { Button, Tooltip, toast } from "@heroui/react";
 import {
+	ChevronsDownUp,
+	ChevronsUpDown,
 	FilePlus2,
 	FolderOpen,
 	FolderPlus,
@@ -9,6 +11,7 @@ import {
 	Search,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getFileManagerName } from "../../lib/platform";
 import type { NavLayoutEntry } from "../../modules/registry";
 import {
 	createVaultFolderRpc,
@@ -124,6 +127,14 @@ export function ObsidianApp({
 			return next;
 		});
 	}, []);
+
+	/** 展开/收起全部文件夹：有展开项时一键收起，否则全部展开 */
+	const anyExpanded = expanded.size > 0;
+	const handleToggleExpandAll = useCallback(() => {
+		setExpanded((prev) =>
+			prev.size > 0 ? new Set() : new Set(allFolderPaths),
+		);
+	}, [allFolderPaths]);
 
 	const handleSaveVaultDir = useCallback(
 		(path: string) => {
@@ -328,7 +339,8 @@ export function ObsidianApp({
 	const handleRevealEntry = useCallback(
 		async (node: ObsidianTree["tree"][number]) => {
 			const res = await revealVaultEntryRpc(node.relPath);
-			if (!res.success) toast.danger(res.error ?? "打开访达失败");
+			if (!res.success)
+				toast.danger(res.error ?? `打开${getFileManagerName()}失败`);
 		},
 		[],
 	);
@@ -434,6 +446,28 @@ export function ObsidianApp({
 										</button>
 									</Tooltip.Trigger>
 									<Tooltip.Content placement="bottom">重新扫描</Tooltip.Content>
+								</Tooltip>
+								<Tooltip>
+									<Tooltip.Trigger>
+										<button
+											type="button"
+											onClick={handleToggleExpandAll}
+											disabled={!vault?.exists}
+											aria-label={
+												anyExpanded ? "收起全部文件夹" : "展开全部文件夹"
+											}
+											className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/60 transition-colors disabled:opacity-40"
+										>
+											{anyExpanded ? (
+												<ChevronsDownUp className="w-3.5 h-3.5" />
+											) : (
+												<ChevronsUpDown className="w-3.5 h-3.5" />
+											)}
+										</button>
+									</Tooltip.Trigger>
+									<Tooltip.Content placement="bottom">
+										{anyExpanded ? "收起全部文件夹" : "展开全部文件夹"}
+									</Tooltip.Content>
 								</Tooltip>
 							</div>
 						</div>
