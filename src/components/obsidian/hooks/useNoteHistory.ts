@@ -1,24 +1,57 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+const LAST_NOTE_STORAGE_KEY = "obsidian_last_selected_note";
+
 export interface UseNoteHistoryOptions {
 	initialNotePath?: string;
+	onNoteChange?: (path: string | null) => void;
 }
 
 /**
  * Manages note navigation history stack (back/forward), hotkeys, and path remapping.
  */
 export function useNoteHistory(options: UseNoteHistoryOptions = {}) {
-	const { initialNotePath } = options;
+	const { initialNotePath, onNoteChange } = options;
 
 	const [noteHistory, setNoteHistory] = useState<{
 		stack: string[];
 		index: number;
-	}>({ stack: [], index: -1 });
+	}>(() => {
+		if (initialNotePath) {
+			return { stack: [initialNotePath], index: 0 };
+		}
+		if (typeof window !== "undefined") {
+			try {
+				const saved = window.localStorage.getItem(LAST_NOTE_STORAGE_KEY);
+				if (saved) {
+					return { stack: [saved], index: 0 };
+				}
+			} catch {
+				// Ignore localStorage error
+			}
+		}
+		return { stack: [], index: -1 };
+	});
 
 	const selectedNotePath =
 		noteHistory.index >= 0
 			? (noteHistory.stack[noteHistory.index] ?? null)
 			: null;
+
+	// Persist current note and notify router of changes
+	useEffect(() => {
+		if (typeof window === "undefined") return;
+		try {
+			if (selectedNotePath) {
+				window.localStorage.setItem(LAST_NOTE_STORAGE_KEY, selectedNotePath);
+			} else {
+				window.localStorage.removeItem(LAST_NOTE_STORAGE_KEY);
+			}
+		} catch {
+			// Ignore localStorage error
+		}
+		onNoteChange?.(selectedNotePath);
+	}, [selectedNotePath, onNoteChange]);
 
 	const openNote = useCallback((path: string) => {
 		setNoteHistory((prev) => {

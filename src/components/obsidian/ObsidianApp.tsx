@@ -27,6 +27,7 @@ export interface ObsidianAppProps {
 	settings: WorkbenchSettings;
 	/** Deep-link: directly open this note on load (relative path to vault root) */
 	initialNotePath?: string;
+	onNoteChange?: (path: string | null) => void;
 }
 
 /**
@@ -39,6 +40,7 @@ export function ObsidianApp({
 	folders,
 	settings,
 	initialNotePath,
+	onNoteChange,
 }: ObsidianAppProps) {
 	const { actionProps, modals } = useWorkbenchQuickActions({ folders });
 	const { sidebarWidth, handleSidebarResizeStart } = useSidebarResize();
@@ -56,7 +58,7 @@ export function ObsidianApp({
 		removeCurrentNote,
 		handleNoteRenamed,
 		removeAffectedHistory,
-	} = useNoteHistory({ initialNotePath });
+	} = useNoteHistory({ initialNotePath, onNoteChange });
 
 	// 2. Vault tree & search state
 	const {

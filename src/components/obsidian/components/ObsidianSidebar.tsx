@@ -8,7 +8,7 @@ import {
 	RefreshCw,
 	Search,
 } from "lucide-react";
-import { useRef } from "react";
+import { useState } from "react";
 import type { WorkbenchSettings } from "../../workbench/types";
 import type { ObsidianTree } from "../types";
 import { VaultSwitcher } from "../VaultSwitcher";
@@ -86,7 +86,7 @@ export function ObsidianSidebar({
 	scannedAt,
 	onApplyVaultSettings,
 }: ObsidianSidebarProps) {
-	const scrollRef = useRef<HTMLDivElement | null>(null);
+	const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
 
 	return (
 		<aside
@@ -198,7 +198,7 @@ export function ObsidianSidebar({
 			{/* Empty area click clears selected directory */}
 			{/* biome-ignore lint/a11y/noStaticElementInteractions lint/a11y/useKeyWithClickEvents: Click blank space to reset current directory */}
 			<div
-				ref={scrollRef}
+				ref={setScrollElement}
 				className="flex-1 overflow-y-auto py-1"
 				onClick={(e) => {
 					if (e.target === e.currentTarget) onClearCurrentDir();
@@ -206,7 +206,7 @@ export function ObsidianSidebar({
 			>
 				{filteredTree.length > 0 ? (
 					<VaultTree
-						scrollRef={scrollRef}
+						scrollElement={scrollElement}
 						nodes={filteredTree}
 						selectedNotePath={selectedNotePath}
 						currentDir={currentDir}

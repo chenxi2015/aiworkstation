@@ -22,6 +22,21 @@ export const Route = createFileRoute("/obsidian")({
 function ObsidianPage() {
 	const { unclassified, settings, folders } = Route.useLoaderData();
 	const search = Route.useSearch();
+	const navigate = Route.useNavigate();
+
+	const handleNoteChange = (path: string | null) => {
+		const targetNote = path ?? undefined;
+		if (search.note !== targetNote) {
+			navigate({
+				search: (prev) => ({
+					...prev,
+					note: targetNote,
+				}),
+				replace: true,
+			});
+		}
+	};
+
 	return (
 		<ObsidianApp
 			unclassifiedCount={unclassified.length}
@@ -29,6 +44,7 @@ function ObsidianPage() {
 			folders={folders}
 			settings={settings}
 			initialNotePath={search.note}
+			onNoteChange={handleNoteChange}
 		/>
 	);
 }

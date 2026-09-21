@@ -19,6 +19,7 @@ export interface FlatTreeNode {
 
 export interface VaultTreeProps {
 	nodes: ObsidianTreeNode[];
+	scrollElement?: HTMLDivElement | null;
 	scrollRef?: React.RefObject<HTMLDivElement | null>;
 	selectedNotePath: string | null;
 	currentDir: string;
@@ -328,6 +329,7 @@ export function flattenVaultTree(
 /** Vault 目录树（虚拟列表渲染）：海量笔记展开时仅渲染可见 DOM 节点 */
 export const VaultTree = memo(function VaultTree({
 	nodes,
+	scrollElement,
 	scrollRef,
 	selectedNotePath,
 	currentDir,
@@ -342,7 +344,6 @@ export const VaultTree = memo(function VaultTree({
 	onRenameCancel,
 }: VaultTreeProps) {
 	const internalRef = useRef<HTMLDivElement | null>(null);
-	const targetScrollRef = scrollRef ?? internalRef;
 
 	const flatNodes = useMemo(
 		() => flattenVaultTree(nodes, expanded),
@@ -351,7 +352,7 @@ export const VaultTree = memo(function VaultTree({
 
 	const rowVirtualizer = useVirtualizer({
 		count: flatNodes.length,
-		getScrollElement: () => targetScrollRef.current,
+		getScrollElement: () => scrollElement ?? scrollRef?.current ?? internalRef.current,
 		estimateSize: () => 28,
 		overscan: 10,
 	});
@@ -367,16 +368,42 @@ export const VaultTree = memo(function VaultTree({
 		}
 	}, [autoReveal, selectedNotePath, flatNodes, rowVirtualizer]);
 
+	const virtualRows = rowVirtualizer.getVirtualItems();
+	// Initial frame fallback: if virtualizer hasn't measured yet but nodes exist, render directly
+	const shouldFallback = virtualRows.length === 0 && flatNodes.length > 0;
+
+	if (shouldFallback) {
+		return (
+			<div ref={internalRef} className="w-full">
+				{flatNodes.map((item) => (
+					<FlatRow
+						key={item.node.relPath}
+						item={item}
+						isCurrent={item.isFolder && currentDir === item.node.relPath}
+						isSelected={!item.isFolder && selectedNotePath === item.node.relPath}
+						isRenaming={renamingPath === item.node.relPath}
+						onToggleFolder={onToggleFolder}
+						onSelectFolder={onSelectFolder}
+						onSelectNote={onSelectNote}
+						onOpenMenu={onOpenMenu}
+						onRenameCommit={onRenameCommit}
+						onRenameCancel={onRenameCancel}
+					/>
+				))}
+			</div>
+		);
+	}
+
 	return (
 		<div
-			ref={scrollRef ? undefined : internalRef}
+			ref={scrollElement ? undefined : (scrollRef ? undefined : internalRef)}
 			style={{
 				height: `${rowVirtualizer.getTotalSize()}px`,
 				width: "100%",
 				position: "relative",
 			}}
 		>
-			{rowVirtualizer.getVirtualItems().map((virtualRow) => {
+			{virtualRows.map((virtualRow) => {
 				const item = flatNodes[virtualRow.index];
 				if (!item) return null;
 
