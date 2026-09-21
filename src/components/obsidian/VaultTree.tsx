@@ -1,3 +1,4 @@
+import { useVirtualizer } from "@tanstack/react-virtual";
 import {
 	ChevronDown,
 	ChevronRight,
@@ -6,17 +7,25 @@ import {
 	Folder,
 	FolderOpen,
 } from "lucide-react";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ObsidianTreeNode } from "./types";
+
+export interface FlatTreeNode {
+	node: ObsidianTreeNode;
+	depth: number;
+	isFolder: boolean;
+	isExpanded: boolean;
+}
 
 export interface VaultTreeProps {
 	nodes: ObsidianTreeNode[];
-	depth?: number;
+	scrollRef?: React.RefObject<HTMLDivElement | null>;
 	selectedNotePath: string | null;
 	currentDir: string;
 	expanded: Set<string>;
 	/** 正在内联重命名的条目路径（新建后自动进入重命名） */
 	renamingPath?: string | null;
+	autoReveal?: boolean;
 	onToggleFolder: (relPath: string) => void;
 	onSelectFolder: (relPath: string) => void;
 	onSelectNote: (relPath: string) => void;
@@ -108,7 +117,9 @@ function RowShell({
 	leading,
 	nameClassName,
 }: RowShellProps) {
-	const indent = { paddingLeft: `${depth * 14 + 8}px` };
+	// Cap visual indent to prevent text from being crushed in deep hierarchies
+	const effectiveDepth = Math.min(depth, 10);
+	const indent = { paddingLeft: `${effectiveDepth * 14 + 8}px` };
 	const isFolder = node.kind === "folder";
 	const defaultName =
 		!isFolder && node.name.toLowerCase().endsWith(".md")
@@ -139,7 +150,7 @@ function RowShell({
 			data-reveal-path={node.relPath}
 			onClick={handleRowClick}
 			onContextMenu={handleContextMenu}
-			className={`group w-full flex items-center gap-1.5 py-1.5 pr-1 text-left text-xs cursor-pointer select-none transition-colors ${
+			className={`group w-full h-[28px] flex items-center gap-1.5 pr-1 text-left text-xs cursor-pointer select-none transition-colors ${
 				active
 					? "text-zinc-900 dark:text-zinc-100 bg-zinc-200/70 dark:bg-zinc-800 font-medium"
 					: "text-foreground/80 hover:bg-surface-secondary/60"
@@ -175,18 +186,13 @@ function RowShell({
 	);
 }
 
-// ── Memoized single row: only re-renders when its own relevant props change ──
+// ── 扁平单行渲染（按文件夹/笔记类型自适应） ──
 
-interface FolderNodeProps {
-	node: ObsidianTreeNode;
-	depth: number;
+interface FlatRowProps {
+	item: FlatTreeNode;
 	isCurrent: boolean;
-	isExpanded: boolean;
+	isSelected: boolean;
 	isRenaming: boolean;
-	selectedNotePath: string | null;
-	currentDir: string;
-	expanded: Set<string>;
-	renamingPath?: string | null;
 	onToggleFolder: (relPath: string) => void;
 	onSelectFolder: (relPath: string) => void;
 	onSelectNote: (relPath: string) => void;
@@ -195,36 +201,37 @@ interface FolderNodeProps {
 	onRenameCancel: () => void;
 }
 
-const FolderNode = memo(function FolderNode({
-	node,
-	depth,
+const FlatRow = memo(function FlatRow({
+	item,
 	isCurrent,
-	isExpanded,
+	isSelected,
 	isRenaming,
-	selectedNotePath,
-	currentDir,
-	expanded,
-	renamingPath,
 	onToggleFolder,
 	onSelectFolder,
 	onSelectNote,
 	onOpenMenu,
 	onRenameCommit,
 	onRenameCancel,
-}: FolderNodeProps) {
-	const handleClick = useCallback(() => {
-		onToggleFolder(node.relPath);
-		onSelectFolder(node.relPath);
-	}, [node.relPath, onToggleFolder, onSelectFolder]);
+}: FlatRowProps) {
+	const { node, depth, isFolder, isExpanded } = item;
 
-	return (
-		<div>
+	const handleRowClick = useCallback(() => {
+		if (isFolder) {
+			onToggleFolder(node.relPath);
+			onSelectFolder(node.relPath);
+		} else {
+			onSelectNote(node.relPath);
+		}
+	}, [isFolder, node.relPath, onToggleFolder, onSelectFolder, onSelectNote]);
+
+	if (isFolder) {
+		return (
 			<RowShell
 				node={node}
 				depth={depth}
 				active={isCurrent}
 				isRenaming={isRenaming}
-				onRowClick={handleClick}
+				onRowClick={handleRowClick}
 				onOpenMenu={onOpenMenu}
 				onRenameCommit={onRenameCommit}
 				onRenameCancel={onRenameCancel}
@@ -256,50 +263,8 @@ const FolderNode = memo(function FolderNode({
 					</>
 				}
 			/>
-			{isExpanded && node.children && node.children.length > 0 && (
-				<VaultTree
-					nodes={node.children}
-					depth={depth + 1}
-					selectedNotePath={selectedNotePath}
-					currentDir={currentDir}
-					expanded={expanded}
-					renamingPath={renamingPath}
-					onToggleFolder={onToggleFolder}
-					onSelectFolder={onSelectFolder}
-					onSelectNote={onSelectNote}
-					onOpenMenu={onOpenMenu}
-					onRenameCommit={onRenameCommit}
-					onRenameCancel={onRenameCancel}
-				/>
-			)}
-		</div>
-	);
-});
-
-interface NoteNodeProps {
-	node: ObsidianTreeNode;
-	depth: number;
-	isSelected: boolean;
-	isRenaming: boolean;
-	onSelectNote: (relPath: string) => void;
-	onOpenMenu: (node: ObsidianTreeNode, x: number, y: number) => void;
-	onRenameCommit: (relPath: string, newName: string, isFolder: boolean) => void;
-	onRenameCancel: () => void;
-}
-
-const NoteNode = memo(function NoteNode({
-	node,
-	depth,
-	isSelected,
-	isRenaming,
-	onSelectNote,
-	onOpenMenu,
-	onRenameCommit,
-	onRenameCancel,
-}: NoteNodeProps) {
-	const handleClick = useCallback(() => {
-		onSelectNote(node.relPath);
-	}, [node.relPath, onSelectNote]);
+		);
+	}
 
 	return (
 		<RowShell
@@ -307,7 +272,7 @@ const NoteNode = memo(function NoteNode({
 			depth={depth}
 			active={isSelected}
 			isRenaming={isRenaming}
-			onRowClick={handleClick}
+			onRowClick={handleRowClick}
 			onOpenMenu={onOpenMenu}
 			onRenameCommit={onRenameCommit}
 			onRenameCancel={onRenameCancel}
@@ -332,14 +297,43 @@ const NoteNode = memo(function NoteNode({
 	);
 });
 
-/** Vault 目录树（递归渲染）：文件夹可折叠、点击即作为新建目标目录 */
+/** 树结构平铺算法：按展开状态深度优先遍历输出可见行列表 */
+export function flattenVaultTree(
+	nodes: ObsidianTreeNode[],
+	expanded: Set<string>,
+	depth = 0,
+): FlatTreeNode[] {
+	const out: FlatTreeNode[] = [];
+
+	const walk = (list: ObsidianTreeNode[], curDepth: number) => {
+		for (const node of list) {
+			const isFolder = node.kind === "folder";
+			const isExpanded = isFolder && expanded.has(node.relPath);
+			out.push({
+				node,
+				depth: curDepth,
+				isFolder,
+				isExpanded,
+			});
+			if (isExpanded && node.children && node.children.length > 0) {
+				walk(node.children, curDepth + 1);
+			}
+		}
+	};
+
+	walk(nodes, depth);
+	return out;
+}
+
+/** Vault 目录树（虚拟列表渲染）：海量笔记展开时仅渲染可见 DOM 节点 */
 export const VaultTree = memo(function VaultTree({
 	nodes,
-	depth = 0,
+	scrollRef,
 	selectedNotePath,
 	currentDir,
 	expanded,
 	renamingPath,
+	autoReveal,
 	onToggleFolder,
 	onSelectFolder,
 	onSelectNote,
@@ -347,22 +341,62 @@ export const VaultTree = memo(function VaultTree({
 	onRenameCommit,
 	onRenameCancel,
 }: VaultTreeProps) {
+	const internalRef = useRef<HTMLDivElement | null>(null);
+	const targetScrollRef = scrollRef ?? internalRef;
+
+	const flatNodes = useMemo(
+		() => flattenVaultTree(nodes, expanded),
+		[nodes, expanded],
+	);
+
+	const rowVirtualizer = useVirtualizer({
+		count: flatNodes.length,
+		getScrollElement: () => targetScrollRef.current,
+		estimateSize: () => 28,
+		overscan: 10,
+	});
+
+	// Auto-reveal: scroll virtual row into view
+	useEffect(() => {
+		if (!autoReveal || !selectedNotePath) return;
+		const index = flatNodes.findIndex(
+			(item) => !item.isFolder && item.node.relPath === selectedNotePath,
+		);
+		if (index !== -1) {
+			rowVirtualizer.scrollToIndex(index, { align: "auto" });
+		}
+	}, [autoReveal, selectedNotePath, flatNodes, rowVirtualizer]);
+
 	return (
-		<div>
-			{nodes.map((node) => {
-				if (node.kind === "folder") {
-					return (
-						<FolderNode
-							key={node.relPath}
-							node={node}
-							depth={depth}
-							isCurrent={currentDir === node.relPath}
-							isExpanded={expanded.has(node.relPath)}
-							isRenaming={renamingPath === node.relPath}
-							selectedNotePath={selectedNotePath}
-							currentDir={currentDir}
-							expanded={expanded}
-							renamingPath={renamingPath}
+		<div
+			ref={scrollRef ? undefined : internalRef}
+			style={{
+				height: `${rowVirtualizer.getTotalSize()}px`,
+				width: "100%",
+				position: "relative",
+			}}
+		>
+			{rowVirtualizer.getVirtualItems().map((virtualRow) => {
+				const item = flatNodes[virtualRow.index];
+				if (!item) return null;
+
+				return (
+					<div
+						key={item.node.relPath}
+						style={{
+							position: "absolute",
+							top: 0,
+							left: 0,
+							width: "100%",
+							height: `${virtualRow.size}px`,
+							transform: `translateY(${virtualRow.start}px)`,
+						}}
+					>
+						<FlatRow
+							item={item}
+							isCurrent={item.isFolder && currentDir === item.node.relPath}
+							isSelected={!item.isFolder && selectedNotePath === item.node.relPath}
+							isRenaming={renamingPath === item.node.relPath}
 							onToggleFolder={onToggleFolder}
 							onSelectFolder={onSelectFolder}
 							onSelectNote={onSelectNote}
@@ -370,20 +404,7 @@ export const VaultTree = memo(function VaultTree({
 							onRenameCommit={onRenameCommit}
 							onRenameCancel={onRenameCancel}
 						/>
-					);
-				}
-				return (
-					<NoteNode
-						key={node.relPath}
-						node={node}
-						depth={depth}
-						isSelected={selectedNotePath === node.relPath}
-						isRenaming={renamingPath === node.relPath}
-						onSelectNote={onSelectNote}
-						onOpenMenu={onOpenMenu}
-						onRenameCommit={onRenameCommit}
-						onRenameCancel={onRenameCancel}
-					/>
+					</div>
 				);
 			})}
 		</div>
@@ -427,3 +448,4 @@ export function collectFolderPaths(nodes: ObsidianTreeNode[]): string[] {
 	walk(nodes);
 	return out;
 }
+

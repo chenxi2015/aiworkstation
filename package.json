@@ -57,6 +57,7 @@
     "@tanstack/react-start": "latest",
     "@tanstack/react-store": "latest",
     "@tanstack/react-table": "latest",
+    "@tanstack/react-virtual": "^3.14.13",
     "@tanstack/store": "latest",
     "@tiptap/core": "^3.31.3",
     "@tiptap/extension-code-block": "3.31.3",

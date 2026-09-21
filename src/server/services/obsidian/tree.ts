@@ -8,8 +8,10 @@ import { invalidateDataviewCache } from "./dataview.ts";
 import { resolveObsidianVaultDir, toPosixRelPath } from "./vault.ts";
 
 const TREE_CACHE_MS = 60_000;
-const MAX_DEPTH = 8;
-const MAX_NODES = 5000;
+// Allow deep directory hierarchies while preventing infinite loops from circular symlinks
+const MAX_DEPTH = 32;
+// High threshold to support large-scale Obsidian vaults without early truncation
+const MAX_NODES = 50_000;
 
 /** Obsidian 元数据 / 回收站 / 依赖目录，连同一切隐藏项一起跳过 */
 const SKIP_DIRS = new Set([".obsidian", ".trash", "node_modules"]);
@@ -82,7 +84,8 @@ async function doScanVaultTree(): Promise<ObsidianTree> {
 		exists = false;
 	}
 	const state = { noteCount: 0, nodes: 0 };
-	const tree = exists ? await scanDir(vault.path, vault.path, state, 0) : [];
+	const visited = new Set<string>();
+	const tree = exists ? await scanDir(vault.path, vault.path, state, 0, visited) : [];
 	const data: ObsidianTree = {
 		vault: {
 			path: vault.path,
@@ -131,8 +134,12 @@ async function scanDir(
 	baseDir: string,
 	state: { noteCount: number; nodes: number },
 	depth: number,
+	visited: Set<string>,
 ): Promise<ObsidianTreeNode[]> {
 	if (depth > MAX_DEPTH || state.nodes > MAX_NODES) return [];
+	if (visited.has(dir)) return [];
+	visited.add(dir);
+
 	let entries: Dirent[];
 	try {
 		entries = await fs.readdir(dir, { withFileTypes: true });
@@ -160,7 +167,7 @@ async function scanDir(
 		if (state.nodes > MAX_NODES) break;
 		const full = path.join(dir, entry.name);
 		const relPath = toPosixRelPath(baseDir, full);
-		const children = await scanDir(full, baseDir, state, depth + 1);
+		const children = await scanDir(full, baseDir, state, depth + 1, visited);
 		nodes.push({
 			name: entry.name,
 			relPath,

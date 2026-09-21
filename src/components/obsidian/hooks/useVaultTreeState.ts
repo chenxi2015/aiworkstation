@@ -74,11 +74,12 @@ export function useVaultTreeState({ selectedNotePath }: UseVaultTreeStateOptions
 		[treeData],
 	);
 
-	// Force-expand all folders during search so hits are visible
+	// Force-expand only folders containing matching hits during search so hits are visible
 	const effectiveExpanded = useMemo(() => {
 		if (!debouncedQuery.trim()) return expanded;
-		return new Set([...expanded, ...allFolderPaths]);
-	}, [debouncedQuery, allFolderPaths, expanded]);
+		const matchingFolders = collectFolderPaths(filteredTree);
+		return new Set([...expanded, ...matchingFolders]);
+	}, [debouncedQuery, filteredTree, expanded]);
 
 	const toggleFolder = useCallback((relPath: string) => {
 		setExpanded((prev) => {
@@ -122,20 +123,13 @@ export function useVaultTreeState({ selectedNotePath }: UseVaultTreeStateOptions
 		[expandDirChain],
 	);
 
-	// Auto-reveal effect
+	// Auto-reveal effect: expand ancestors when note changes
 	useEffect(() => {
 		if (!autoReveal || !selectedNotePath) return;
 		const parent = selectedNotePath.includes("/")
 			? selectedNotePath.split("/").slice(0, -1).join("/")
 			: "";
 		expandDirChain(parent);
-
-		const timer = setTimeout(() => {
-			document
-				.querySelector(`[data-reveal-path="${CSS.escape(selectedNotePath)}"]`)
-				?.scrollIntoView({ block: "nearest" });
-		}, 50);
-		return () => clearTimeout(timer);
 	}, [autoReveal, selectedNotePath, expandDirChain]);
 
 	const resetTreeSelection = useCallback(() => {
