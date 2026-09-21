@@ -15,7 +15,7 @@ export function shouldSkipDeleteConfirm(): boolean {
 
 export interface DeleteEntryDialogProps {
 	/** 待删除条目；null 时关闭 */
-	target: { name: string; kind: "folder" | "note" } | null;
+	target: { name: string; kind: "folder" | "note" | "file" } | null;
 	onClose: () => void;
 	/** 确认删除（移动条目到系统回收站） */
 	onConfirm: () => void | Promise<void>;
@@ -30,9 +30,15 @@ export function DeleteEntryDialog({
 	const [skipFuture, setSkipFuture] = useState(false);
 
 	const isFolder = target?.kind === "folder";
-	const fileLabel = isFolder ? "文件夹" : "文件";
+	const fileLabel = isFolder
+		? "文件夹"
+		: target?.kind === "note"
+			? "笔记"
+			: "文件";
 	const displayName =
-		target && !isFolder && !target.name.toLowerCase().endsWith(".md")
+		target &&
+		target.kind === "note" &&
+		!target.name.toLowerCase().endsWith(".md")
 			? `${target.name}.md`
 			: (target?.name ?? "");
 

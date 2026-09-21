@@ -4,6 +4,11 @@ import { useEffect, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { fetchVaultNote } from "../../../services/api/obsidianClient";
 import { markdownToHtml } from "../../editor/markdown";
+import {
+	hasNonMarkdownExtension,
+	isImageFile,
+	isMarkdownFile,
+} from "../utils/vaultFileUtils";
 
 interface CacheEntry<T> {
 	data: T;
@@ -65,6 +70,21 @@ export function WikilinkPreviewCard({
 	useEffect(() => {
 		if (!relPath) return;
 
+		// 图片资源直接预览
+		if (isImageFile(relPath)) {
+			const assetUrl = `/api/obsidian/asset?path=${encodeURIComponent(relPath)}`;
+			setHtml(
+				`<div style="display: flex; align-items: center; justify-content: center; padding: 8px;"><img src="${assetUrl}" alt="${target}" style="max-height: 280px; max-width: 100%; border-radius: 4px; object-fit: contain;" /></div>`,
+			);
+			setLoading(false);
+			return;
+		}
+
+		if (!isMarkdownFile(relPath)) {
+			setLoading(false);
+			return;
+		}
+
 		let cancelled = false;
 		const cached = previewCache.get(relPath);
 		if (cached && Date.now() - cached.at < PREVIEW_CACHE_TTL_MS) {
@@ -87,7 +107,7 @@ export function WikilinkPreviewCard({
 		return () => {
 			cancelled = true;
 		};
-	}, [relPath]);
+	}, [relPath, target]);
 
 	// Position calculation with viewport boundaries flip
 	const cardWidth = 440;
@@ -120,6 +140,8 @@ export function WikilinkPreviewCard({
 		onMouseLeave();
 	};
 
+	const isNonMdMissing = !relPath && hasNonMarkdownExtension(target);
+
 	return (
 		// biome-ignore lint/a11y/noStaticElementInteractions: tooltip card mouse bridge tracking
 		<div
@@ -135,8 +157,8 @@ export function WikilinkPreviewCard({
 						<button
 							type="button"
 							className="cm-live-hover-preview-expand-btn"
-							title="进入笔记"
-							aria-label="进入笔记"
+							title={isMarkdownFile(relPath) ? "进入笔记" : "打开文件"}
+							aria-label={isMarkdownFile(relPath) ? "进入笔记" : "打开文件"}
 							onClick={(e) => {
 								e.stopPropagation();
 								e.preventDefault();
@@ -155,7 +177,7 @@ export function WikilinkPreviewCard({
 							/* biome-ignore lint/security/noDangerouslySetInnerHtml: preview rendered markdown HTML */
 							<div dangerouslySetInnerHTML={{ __html: html }} />
 						) : (
-							<i>（空笔记）</i>
+							<i>（空内容）</i>
 						)}
 					</div>
 				</>
@@ -165,10 +187,14 @@ export function WikilinkPreviewCard({
 					className="cm-live-hover-preview-empty"
 					onClick={(e) => {
 						e.preventDefault();
-						onFollow(target);
+						if (!isNonMdMissing) {
+							onFollow(target);
+						}
 					}}
 				>
-					笔记「{target}」尚未创建，点击新建
+					{isNonMdMissing
+						? `文件「${target}」未在当前 Vault 中找到`
+						: `笔记「${target}」尚未创建，点击新建`}
 				</button>
 			)}
 		</div>

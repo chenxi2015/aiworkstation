@@ -54,12 +54,39 @@ function buildWikilinkIndex(tree: ObsidianTreeNode[]): WikilinkIndex {
 	const walk = (nodes: ObsidianTreeNode[]) => {
 		for (const node of nodes) {
 			if (node.kind === "note") {
+				// 纯笔记名（如 "MyNote"）与带后缀名（"MyNote.md"）都建立索引
 				const list = byName.get(node.name) ?? [];
 				list.push(node.relPath);
 				byName.set(node.name, list);
 
+				const mdFullName = `${node.name}.md`;
+				const mdList = byName.get(mdFullName) ?? [];
+				if (!mdList.includes(node.relPath)) {
+					mdList.push(node.relPath);
+					byName.set(mdFullName, mdList);
+				}
+
 				const bare = node.relPath.replace(/\.md$/i, "");
 				allNotes.push({ bare, relPath: node.relPath });
+			} else if (node.kind === "file") {
+				// 通用文件（如 "How to take smart notes.epub"）
+				const list = byName.get(node.name) ?? [];
+				list.push(node.relPath);
+				byName.set(node.name, list);
+
+				// 建立去掉扩展名的别名索引（同名 note 优先）
+				const dotIdx = node.name.lastIndexOf(".");
+				if (dotIdx > 0) {
+					const stem = node.name.slice(0, dotIdx);
+					const stemList = byName.get(stem) ?? [];
+					if (!stemList.includes(node.relPath)) {
+						stemList.push(node.relPath);
+						byName.set(stem, stemList);
+					}
+					const bareRel = node.relPath.slice(0, -(node.name.length - dotIdx));
+					allNotes.push({ bare: bareRel, relPath: node.relPath });
+				}
+				allNotes.push({ bare: node.relPath, relPath: node.relPath });
 			} else {
 				walk(node.children ?? []);
 			}
@@ -85,7 +112,9 @@ async function doScanVaultTree(): Promise<ObsidianTree> {
 	}
 	const state = { noteCount: 0, nodes: 0 };
 	const visited = new Set<string>();
-	const tree = exists ? await scanDir(vault.path, vault.path, state, 0, visited) : [];
+	const tree = exists
+		? await scanDir(vault.path, vault.path, state, 0, visited)
+		: [];
 	const data: ObsidianTree = {
 		vault: {
 			path: vault.path,
@@ -103,29 +132,51 @@ async function doScanVaultTree(): Promise<ObsidianTree> {
 
 /**
  * 解析 Obsidian 双链目标 → Vault 相对路径（基于目录树缓存）：
- * - 含 "/" 按路径精确匹配（可省略 .md 后缀）
+ * - 含 "/" 按路径精确匹配（支持 .md 与非 md 扩展名）
  * - 纯名称按文件名全局匹配（多命中取路径最短者，对齐 Obsidian 最短路径优先）
+ * - 支持外部文件（如 .epub、.pdf、音视频等真实文件）
  * - 未找到返回 null（由调用方决定是否新建）
  */
 export async function resolveVaultWikilink(
 	target: string,
 ): Promise<string | null> {
-	const cleaned = target.trim().replace(/\.md$/i, "");
-	if (!cleaned) return null;
+	const trimmed = target.trim();
+	if (!trimmed) return null;
 	const treeData = await scanVaultTree();
 	if (!wikilinkIndexCache) {
 		wikilinkIndexCache = buildWikilinkIndex(treeData.tree);
 	}
 
-	if (cleaned.includes("/")) {
+	if (trimmed.includes("/")) {
 		// 完整路径优先，其次路径后缀匹配（Obsidian 允许省略上层目录）
+		const cleaned = trimmed.replace(/\.md$/i, "");
 		const match = wikilinkIndexCache.allNotes.find(
-			(n) => n.bare === cleaned || n.bare.endsWith(`/${cleaned}`),
+			(n) =>
+				n.relPath === trimmed ||
+				n.bare === trimmed ||
+				n.relPath === `${cleaned}.md` ||
+				n.bare === cleaned ||
+				n.relPath.endsWith(`/${trimmed}`) ||
+				n.bare.endsWith(`/${trimmed}`) ||
+				n.relPath.endsWith(`/${cleaned}.md`) ||
+				n.bare.endsWith(`/${cleaned}`),
 		);
 		return match?.relPath ?? null;
 	}
 
-	const candidates = wikilinkIndexCache.byName.get(cleaned);
+	// 1. 尝试以原 target 查找（例如 "How to take smart notes.epub" 或 "MyNote"）
+	let candidates = wikilinkIndexCache.byName.get(trimmed);
+	if (candidates && candidates.length > 0) {
+		return candidates[0];
+	}
+
+	// 2. 如果 target 以 .md 结尾，尝试去掉 .md 查；如果没带，尝试加上 .md 查
+	if (/\.md$/i.test(trimmed)) {
+		candidates = wikilinkIndexCache.byName.get(trimmed.replace(/\.md$/i, ""));
+	} else {
+		candidates = wikilinkIndexCache.byName.get(`${trimmed}.md`);
+	}
+
 	return candidates?.[0] ?? null;
 }
 
@@ -147,16 +198,16 @@ async function scanDir(
 		return [];
 	}
 
-	// Separate entries into folders and .md files for different handling
+	// Separate entries into folders and files (.md notes + other attachments)
 	const folderEntries: Dirent[] = [];
-	const noteEntries: Dirent[] = [];
+	const fileEntries: Dirent[] = [];
 	for (const entry of entries) {
 		if (state.nodes > MAX_NODES) break;
 		if (entry.name.startsWith(".") || SKIP_DIRS.has(entry.name)) continue;
 		if (entry.isDirectory()) {
 			folderEntries.push(entry);
-		} else if (entry.isFile() && entry.name.toLowerCase().endsWith(".md")) {
-			noteEntries.push(entry);
+		} else if (entry.isFile()) {
+			fileEntries.push(entry);
 		}
 	}
 
@@ -179,13 +230,13 @@ async function scanDir(
 		state.nodes += 1;
 	}
 
-	// Notes: parallel stat for all .md files in same directory
+	// Files: parallel stat for all files (.md notes and other attachments like epub, pdf, etc.)
 	if (
-		noteEntries.length > 0 &&
-		state.nodes + noteEntries.length <= MAX_NODES + noteEntries.length
+		fileEntries.length > 0 &&
+		state.nodes + fileEntries.length <= MAX_NODES + fileEntries.length
 	) {
 		const statResults = await Promise.all(
-			noteEntries.map(async (entry) => {
+			fileEntries.map(async (entry) => {
 				const full = path.join(dir, entry.name);
 				try {
 					const stat = await fs.stat(full);
@@ -197,26 +248,29 @@ async function scanDir(
 		);
 		for (const result of statResults) {
 			if (!result || state.nodes > MAX_NODES) continue;
+			const isMd = result.entry.name.toLowerCase().endsWith(".md");
 			const relPath = toPosixRelPath(baseDir, result.full);
 			nodes.push({
-				name: result.entry.name.slice(0, -3),
+				name: isMd ? result.entry.name.slice(0, -3) : result.entry.name,
 				relPath,
-				kind: "note",
+				kind: isMd ? "note" : "file",
 				size: result.stat.size,
 				mtime: result.stat.mtimeMs,
 			});
 			state.nodes += 1;
-			state.noteCount += 1;
+			if (isMd) {
+				state.noteCount += 1;
+			}
 		}
 	}
 
 	// Folders first, then sort by name (Chinese pinyin)
 	nodes.sort((a, b) =>
-		a.kind === b.kind
-			? a.name.localeCompare(b.name, "zh-Hans-CN")
-			: a.kind === "folder"
-				? -1
-				: 1,
+		a.kind === "folder" && b.kind !== "folder"
+			? -1
+			: a.kind !== "folder" && b.kind === "folder"
+				? 1
+				: a.name.localeCompare(b.name, "zh-Hans-CN"),
 	);
 	return nodes;
 }

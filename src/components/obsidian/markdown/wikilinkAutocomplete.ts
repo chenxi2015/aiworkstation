@@ -11,6 +11,7 @@ import type { ObsidianTreeNode } from "../types";
 export interface VaultNoteSuggestion {
 	name: string;
 	relPath: string;
+	kind?: "note" | "file";
 }
 
 let cachedSuggestions: { list: VaultNoteSuggestion[]; at: number } | null =
@@ -30,8 +31,8 @@ async function getVaultNoteSuggestions(): Promise<VaultNoteSuggestion[]> {
 	const list: VaultNoteSuggestion[] = [];
 	const walk = (nodes: ObsidianTreeNode[]) => {
 		for (const node of nodes) {
-			if (node.kind === "note") {
-				list.push({ name: node.name, relPath: node.relPath });
+			if (node.kind === "note" || node.kind === "file") {
+				list.push({ name: node.name, relPath: node.relPath, kind: node.kind });
 			} else {
 				walk(node.children ?? []);
 			}
@@ -72,26 +73,33 @@ async function wikilinkCompletionSource(
 		.sort((a, b) => b.score - a.score || a.note.name.localeCompare(b.note.name))
 		.slice(0, 30);
 
-	const options: Completion[] = scored.map(({ note }) => ({
-		label: note.name,
-		detail: note.relPath.includes("/")
+	const options: Completion[] = scored.map(({ note }) => {
+		let detail = note.relPath.includes("/")
 			? note.relPath.replace(/\.md$/i, "")
-			: undefined,
-		type: "file",
-		apply: (view, completion, applyFrom, applyTo) => {
-			const after = view.state.doc.sliceString(applyTo, applyTo + 2);
-			const hasClosing = after === "]]";
-			const replacement = `${completion.label}]]`;
-			view.dispatch({
-				changes: {
-					from: applyFrom,
-					to: hasClosing ? applyTo + 2 : applyTo,
-					insert: replacement,
-				},
-				selection: { anchor: applyFrom + replacement.length },
-			});
-		},
-	}));
+			: undefined;
+		if (note.kind === "file") {
+			const ext = note.name.split(".").pop()?.toUpperCase() || "FILE";
+			detail = detail ? `[${ext}] ${detail}` : `[${ext}]`;
+		}
+		return {
+			label: note.name,
+			detail,
+			type: note.kind === "file" ? "variable" : "file",
+			apply: (view, completion, applyFrom, applyTo) => {
+				const after = view.state.doc.sliceString(applyTo, applyTo + 2);
+				const hasClosing = after === "]]";
+				const replacement = `${completion.label}]]`;
+				view.dispatch({
+					changes: {
+						from: applyFrom,
+						to: hasClosing ? applyTo + 2 : applyTo,
+						insert: replacement,
+					},
+					selection: { anchor: applyFrom + replacement.length },
+				});
+			},
+		};
+	});
 
 	return {
 		from,

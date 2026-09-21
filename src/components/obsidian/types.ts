@@ -20,7 +20,7 @@ export interface ObsidianTreeNode {
 	name: string;
 	/** 相对 Vault 根目录的路径 */
 	relPath: string;
-	kind: "folder" | "note";
+	kind: "folder" | "note" | "file";
 	/** 笔记字节数（文件夹为 0） */
 	size: number;
 	/** 修改时间（ms epoch） */

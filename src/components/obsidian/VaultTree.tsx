@@ -1,14 +1,22 @@
+import { toast } from "@heroui/react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
+	BookOpen,
 	ChevronDown,
 	ChevronRight,
 	Ellipsis,
+	File,
 	FileText,
+	Film,
 	Folder,
 	FolderOpen,
+	Image,
+	Music,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { openVaultEntryRpc } from "../../services/api/obsidianClient";
 import type { ObsidianTreeNode } from "./types";
+import { getVaultFileCategory } from "./utils/vaultFileUtils";
 
 export interface FlatTreeNode {
 	node: ObsidianTreeNode;
@@ -216,14 +224,30 @@ const FlatRow = memo(function FlatRow({
 }: FlatRowProps) {
 	const { node, depth, isFolder, isExpanded } = item;
 
-	const handleRowClick = useCallback(() => {
+	const handleRowClick = useCallback(async () => {
 		if (isFolder) {
 			onToggleFolder(node.relPath);
 			onSelectFolder(node.relPath);
+		} else if (node.kind === "file") {
+			// 非 Markdown 附件文件：直接调用系统默认应用打开
+			const res = await openVaultEntryRpc(node.relPath);
+			if (res.success) {
+				toast.success(`已在系统默认应用中打开「${node.name}」`);
+			} else {
+				toast.danger(res.error || `打开文件「${node.name}」失败`);
+			}
 		} else {
 			onSelectNote(node.relPath);
 		}
-	}, [isFolder, node.relPath, onToggleFolder, onSelectFolder, onSelectNote]);
+	}, [
+		isFolder,
+		node.kind,
+		node.name,
+		node.relPath,
+		onToggleFolder,
+		onSelectFolder,
+		onSelectNote,
+	]);
 
 	if (isFolder) {
 		return (
@@ -267,6 +291,31 @@ const FlatRow = memo(function FlatRow({
 		);
 	}
 
+	const iconClass = `w-3.5 h-3.5 shrink-0 transition-colors ${
+		isSelected
+			? "text-zinc-900 dark:text-zinc-100"
+			: "text-muted group-hover:text-foreground/80"
+	}`;
+
+	const renderFileIcon = () => {
+		if (node.kind === "note") {
+			return <FileText className={iconClass} />;
+		}
+		const category = getVaultFileCategory(node.name);
+		switch (category) {
+			case "book":
+				return <BookOpen className={iconClass} />;
+			case "image":
+				return <Image className={iconClass} />;
+			case "video":
+				return <Film className={iconClass} />;
+			case "audio":
+				return <Music className={iconClass} />;
+			default:
+				return <File className={iconClass} />;
+		}
+	};
+
 	return (
 		<RowShell
 			node={node}
@@ -285,13 +334,7 @@ const FlatRow = memo(function FlatRow({
 			leading={
 				<>
 					<span className="w-3 shrink-0" />
-					<FileText
-						className={`w-3.5 h-3.5 shrink-0 transition-colors ${
-							isSelected
-								? "text-zinc-900 dark:text-zinc-100"
-								: "text-muted group-hover:text-foreground/80"
-						}`}
-					/>
+					{renderFileIcon()}
 				</>
 			}
 		/>
@@ -352,7 +395,8 @@ export const VaultTree = memo(function VaultTree({
 
 	const rowVirtualizer = useVirtualizer({
 		count: flatNodes.length,
-		getScrollElement: () => scrollElement ?? scrollRef?.current ?? internalRef.current,
+		getScrollElement: () =>
+			scrollElement ?? scrollRef?.current ?? internalRef.current,
 		estimateSize: () => 28,
 		overscan: 10,
 	});
@@ -380,7 +424,9 @@ export const VaultTree = memo(function VaultTree({
 						key={item.node.relPath}
 						item={item}
 						isCurrent={item.isFolder && currentDir === item.node.relPath}
-						isSelected={!item.isFolder && selectedNotePath === item.node.relPath}
+						isSelected={
+							!item.isFolder && selectedNotePath === item.node.relPath
+						}
 						isRenaming={renamingPath === item.node.relPath}
 						onToggleFolder={onToggleFolder}
 						onSelectFolder={onSelectFolder}
@@ -396,7 +442,7 @@ export const VaultTree = memo(function VaultTree({
 
 	return (
 		<div
-			ref={scrollElement ? undefined : (scrollRef ? undefined : internalRef)}
+			ref={scrollElement ? undefined : scrollRef ? undefined : internalRef}
 			style={{
 				height: `${rowVirtualizer.getTotalSize()}px`,
 				width: "100%",
@@ -422,7 +468,9 @@ export const VaultTree = memo(function VaultTree({
 						<FlatRow
 							item={item}
 							isCurrent={item.isFolder && currentDir === item.node.relPath}
-							isSelected={!item.isFolder && selectedNotePath === item.node.relPath}
+							isSelected={
+								!item.isFolder && selectedNotePath === item.node.relPath
+							}
 							isRenaming={renamingPath === item.node.relPath}
 							onToggleFolder={onToggleFolder}
 							onSelectFolder={onSelectFolder}
@@ -448,7 +496,7 @@ export function filterVaultTree(
 	const walk = (list: ObsidianTreeNode[]): ObsidianTreeNode[] => {
 		const out: ObsidianTreeNode[] = [];
 		for (const node of list) {
-			if (node.kind === "note") {
+			if (node.kind === "note" || node.kind === "file") {
 				if (node.name.toLowerCase().includes(q)) out.push(node);
 				continue;
 			}
@@ -475,4 +523,3 @@ export function collectFolderPaths(nodes: ObsidianTreeNode[]): string[] {
 	walk(nodes);
 	return out;
 }
-

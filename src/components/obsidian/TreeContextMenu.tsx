@@ -1,5 +1,7 @@
+import { toast } from "@heroui/react";
 import {
 	Copy,
+	ExternalLink,
 	FilePlus2,
 	FolderPlus,
 	FolderSearch,
@@ -8,6 +10,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { getFileManagerName } from "../../lib/platform";
+import { openVaultEntryRpc } from "../../services/api/obsidianClient";
 import type { ObsidianTreeNode } from "./types";
 
 export interface TreeMenuTarget {
@@ -119,7 +122,7 @@ export function TreeContextMenu({
 			style={{ left, top }}
 			className="fixed z-50 min-w-44 p-1 shadow-lg border border-border/80 rounded-xl bg-surface animate-in fade-in zoom-in-95 duration-100"
 		>
-			{isFolder && (
+			{isFolder ? (
 				<>
 					<MenuItem
 						icon={FilePlus2}
@@ -130,6 +133,22 @@ export function TreeContextMenu({
 						icon={FolderPlus}
 						label="新建文件夹"
 						onClick={act(() => onCreateFolder(node.relPath))}
+					/>
+					<div className="my-1 border-t border-border/60" />
+				</>
+			) : (
+				<>
+					<MenuItem
+						icon={ExternalLink}
+						label="在系统默认应用中打开"
+						onClick={act(async () => {
+							const res = await openVaultEntryRpc(node.relPath);
+							if (res.success) {
+								toast.success(`已在系统默认应用中打开「${node.name}」`);
+							} else {
+								toast.danger(res.error || `打开文件「${node.name}」失败`);
+							}
+						})}
 					/>
 					<div className="my-1 border-t border-border/60" />
 				</>

@@ -1,6 +1,15 @@
 import type { Extension } from "@codemirror/state";
 import { type EditorView, ViewPlugin } from "@codemirror/view";
-import { resolveWikilinkRpc } from "../../../services/api/obsidianClient";
+import { toast } from "@heroui/react";
+import {
+	openVaultEntryRpc,
+	resolveWikilinkRpc,
+} from "../../../services/api/obsidianClient";
+import {
+	canPreviewHover,
+	hasNonMarkdownExtension,
+	isMarkdownFile,
+} from "../utils/vaultFileUtils";
 import type { LivePreviewOptions } from "./livePreview";
 import {
 	clearWikilinkPreviewCache,
@@ -11,8 +20,8 @@ import { invalidateWikilinkSuggestions } from "./wikilinkAutocomplete";
 
 /**
  * 双链交互（对齐 Obsidian）：
- * - 单击 [[双链]]：已存在 → 跳转；不存在 → 新建同名笔记并跳转
- * - ⌘/Ctrl + 悬停：浮层预览目标笔记内容（由 WikilinkPreviewCard 独立组件渲染）
+ * - 单击 [[双链]]：已存在笔记 → 跳转；非 md 附件（如 epub、pdf） → 系统关联应用打开；不存在 → 新建同名笔记并跳转
+ * - ⌘/Ctrl + 悬停：浮层预览目标笔记/图片内容（epub 等无法预览的文件直接过滤，不弹浮层）
  */
 
 interface CacheEntry<T> {
@@ -45,15 +54,31 @@ export async function resolveWikilinkWithCache(
 	return relPath;
 }
 
-/** 解析并跳转双链目标：已存在 → 跳转；不存在 → 新建同名笔记并跳转 */
+/** 解析并跳转双链目标：已存在笔记 → 跳转；非 md 附件 → 系统默认应用打开；不存在 → 新建同名笔记并跳转 */
 export async function followWikilinkTarget(
 	target: string,
 	options: LivePreviewOptions,
 ): Promise<void> {
 	const relPath = await resolveWikilinkWithCache(target);
 	if (relPath) {
+		if (!isMarkdownFile(relPath)) {
+			// 非 Markdown 文件（如 .epub, .pdf, 音视频等）：使用操作系统默认程序打开
+			const fileName = relPath.split("/").pop() || target;
+			const res = await openVaultEntryRpc(relPath);
+			if (res.success) {
+				toast.success(`已在系统默认应用中打开「${fileName}」`);
+			} else {
+				toast.danger(res.error || `打开文件「${fileName}」失败`);
+			}
+			return;
+		}
 		options.onNavigateNote?.(relPath);
 	} else {
+		// 如果 target 带有非 md 扩展名（如 .epub, .pdf），说明是寻找附件/外部文件，不应误创建 .md 文档
+		if (hasNonMarkdownExtension(target)) {
+			toast.warning(`文件「${target}」未在当前 Vault 中找到`);
+			return;
+		}
 		options.onCreateNote?.(target);
 	}
 }
@@ -223,6 +248,15 @@ class WikilinkInteractionPlugin {
 
 	private async maybeShowPreview(target: string, x: number, y: number) {
 		const relPath = await resolveWikilinkWithCache(target);
+		// 预览过滤（产品约定）：仅支持 md 笔记和图片等可直观预览内容；
+		// 对于 epub、音视频、压缩包等无法在浮层预览的二进制文件，直接过滤不弹浮层；
+		// 未找到且带非 md 扩展名的外部文件同样不弹新建提示。
+		if (relPath) {
+			if (!canPreviewHover(relPath)) return;
+		} else {
+			if (hasNonMarkdownExtension(target)) return;
+		}
+
 		const key = relPath ?? `missing:${target}`;
 		if (this.hoverKey === key) return; // Already previewing the same target
 		this.clearHover();

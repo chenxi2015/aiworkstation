@@ -233,6 +233,23 @@ export async function revealVaultEntry(
 	}
 }
 
+/** 用系统默认程序打开文件（Vault 相对路径） */
+export async function openVaultEntry(
+	relPath: string,
+): Promise<ObsidianMutationResult> {
+	try {
+		const abs = entryAbsPath(relPath);
+		if (!existsSync(abs)) throw new Error("文件不存在");
+		await openInOs(abs, { reveal: false, skipRootCheck: true });
+		return { success: true };
+	} catch (err) {
+		return {
+			success: false,
+			error: errMessage(err, "打开文件失败"),
+		};
+	}
+}
+
 /** 移动到系统回收站（macOS ~/.Trash，重名追加时间戳；跨设备/失败时回退为永久删除） */
 async function moveToSystemTrash(abs: string): Promise<void> {
 	const trashDir = path.join(homedir(), ".Trash");

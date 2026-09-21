@@ -5,6 +5,7 @@ import {
 	type LivePreviewOptions,
 	lineTouchesSelection,
 } from "./dialectDecorations";
+import { followWikilinkTarget } from "./wikilink";
 
 type SyntaxNode = ReturnType<typeof syntaxTree>["topNode"];
 
@@ -124,7 +125,7 @@ class ExternalLinkInteractionPlugin {
 		if (link.isExternal) {
 			window.open(link.url, "_blank", "noopener,noreferrer");
 		} else {
-			this.options.onNavigateNote?.(link.url);
+			void followWikilinkTarget(link.url, this.options);
 		}
 	}
 }

@@ -13,6 +13,7 @@ import {
 	getObsidianTree,
 	listLocalDirectories,
 	moveVaultEntryFn,
+	openVaultEntryFn,
 	queryVaultDataview,
 	readVaultNoteFn,
 	renameVaultEntryFn,
@@ -311,6 +312,20 @@ export async function revealVaultEntryRpc(
 		return {
 			success: false,
 			error: errMessage(err, `打开${getFileManagerName()}失败`),
+		};
+	}
+}
+
+/** 用系统默认程序打开 Vault 内指定文件（如 epub、pdf、音视频等） */
+export async function openVaultEntryRpc(
+	relPath: string,
+): Promise<ObsidianMutationResult> {
+	try {
+		return await openVaultEntryFn({ data: { relPath } });
+	} catch (err) {
+		return {
+			success: false,
+			error: errMessage(err, "打开文件失败"),
 		};
 	}
 }

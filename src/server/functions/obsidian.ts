@@ -20,6 +20,7 @@ import {
 	createVaultNote,
 	deleteVaultEntry,
 	moveVaultEntry,
+	openVaultEntry,
 	readVaultNote,
 	renameVaultEntry,
 	resolveVaultWikilink,
@@ -266,4 +267,13 @@ export const revealVaultEntryFn = createServerFn({ method: "POST" })
 	.validator((data: { relPath: string }) => data)
 	.handler(async ({ data }): Promise<ObsidianMutationResult> => {
 		return await revealVaultEntry(data.relPath);
+	});
+
+/**
+ * Server Function: 用系统默认应用程序打开 Vault 内文件（如 epub、pdf、音视频等）
+ */
+export const openVaultEntryFn = createServerFn({ method: "POST" })
+	.validator((data: { relPath: string }) => data)
+	.handler(async ({ data }): Promise<ObsidianMutationResult> => {
+		return await openVaultEntry(data.relPath);
 	});
