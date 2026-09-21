@@ -14,6 +14,7 @@
   <img src="https://img.shields.io/badge/React-19-61dafb?style=flat-square&logo=react" alt="React 19" />
   <img src="https://img.shields.io/badge/TailwindCSS-v4-38bdf8?style=flat-square&logo=tailwindcss" alt="TailwindCSS v4" />
   <img src="https://img.shields.io/badge/HeroUI-v3-purple?style=flat-square" alt="HeroUI" />
+  <img src="https://img.shields.io/badge/CodeMirror-v6-red?style=flat-square" alt="CodeMirror 6" />
   <img src="https://img.shields.io/badge/TipTap-v3-black?style=flat-square" alt="TipTap" />
   <img src="https://img.shields.io/badge/Local--First-SQLite-green?style=flat-square" alt="Local-First" />
   <img src="https://img.shields.io/badge/License-MIT-gray?style=flat-square" alt="License" />
@@ -27,23 +28,25 @@
 
 日常在推特（X）、微信公众号、小红书、GitHub、技术博客等平台浏览时，优质内容往往散落各处、难以沉淀与再利用。市面上的书签管理工具（Raindrop / Pocket / Notion Web Clipper）多停留在「人驱动 → 系统响应」的被动存储模式。
 
-AI Workstation 打通了**浏览器采集端**、**本地知识治理中心**与**内容创作分发台**：
+AI Workstation 打通了**浏览器采集端**、**本地知识治理中心**、**双链笔记网络**与**内容创作分发台**：
 1. **输入端（手）**：Chrome 浏览器扩展（Sidepanel 侧边栏），一键提取正文 Markdown、整页/局部长截图、图片与富媒体素材，支持 Word / ZIP 归档。支持作为静默爬虫通道突破 SPA 和登录态屏障。
 2. **中心脑（脑）**：本地 TanStack Start 服务与 SQLite 单文件数据库。按工作主题沉淀资产，借助 RAG 混合检索激活沉睡收藏；内置自主 ReAct 多步 Agent，主动完成分类归档、健康巡检、知识重组与深度研报。
-3. **创作与分发（笔与桥）**：内置 TipTap AI 富文本创作台，支持划词润色、扩写、版本 Diff 与多格式导出；通过浏览器控制通道，辅助将二创内容安全、受控地回填至目标发布平台。
+3. **本地笔记网络（网）**：Obsidian 本地知识库（Vault）零配置直连，直接读写本地 `.md` 文件树。基于 CodeMirror 6 深度定制，支持双链跳转/新建、KaTeX 公式与 Mermaid 图表。
+4. **创作与分发（笔与桥）**：内置 TipTap AI 富文本创作台，支持划词润色、扩写、版本 Diff 与多格式导出；通过浏览器控制通道，辅助将二创内容安全、受控地回填至目标发布平台。
 
 > **核心原则**：
-> - **数据完全属于用户**：本地单文件持久化（`better-sqlite3`），可自由冷备份迁移，不上云。
+> - **数据完全属于用户**：本地单文件持久化（`better-sqlite3`）与本地原生 Markdown 文件直读直写，可自由冷备份迁移，不上云。
 > - **发布动作保留人工确认**：采集与 AI 处理自动化，最终外发保留确认闭环，保障账号安全。
 
 ---
 
 ## ✨ 核心特性
 
-### 1. 🗂️ 7 大核心功能模块体系
+### 1. 🗂️ 8 大核心功能模块体系
 采用「导航即能力地图、分类即数据维度」的设计理念（约定大于配置，支持用户自定义导航排序与显隐）：
-- **工作台 (`/workbench`)**：个人工作首页，沉淀高频入口、数据统计与功能卡片。
+- **工作台 (`/workbench`)**：个人工作首页，可自由拖拽组合的 Widget 仪表盘，跨模块汇总全景状态。
 - **书签 (`/bookmarks`)**：完整书签知识库与**未分类缓冲池**，按分类筛选、批量管理与标签沉淀。
+- **笔记 (`/obsidian`)**：Obsidian 本地知识库（Vault）零配置直连，双链网状互联，CodeMirror 6 深度定制 Markdown 引擎。
 - **自媒体 (`/creator`)**：专为自媒体打造的「采集 ➔ AI 二创 ➔ 审稿 ➔ 发布」流水线。
 - **创作台 (`/editor`)**：基于 TipTap 3 的 AI 富文本创作中心，深度融合素材库引用与划词交互。
 - **学习 (`/learn`)**：学习主题聚合与成长路径跟踪。
@@ -82,7 +85,26 @@ AI Workstation 打通了**浏览器采集端**、**本地知识治理中心**与
   - **版本 Diff 对比**：AI 改写前后直观呈现新增与删除差异，支持单段接受或还原；
 - **多模态导入导出**：支持 Markdown、Docx、PDF、Excel 导入与预览。
 
-### 5. 🔍 混合 RAG 检索与知识活化
+### 5. 📓 Obsidian 本地笔记与 CodeMirror 6 双链生态 (`/obsidian`)
+- **本地 Vault 零配置直连**：
+  - 直接读写本地真实 `.md` 知识库文件树，尊重用户本地文件系统，数据不落 SQLite 库，100% 兼容外部 Obsidian / Logseq 与 Git 同步生态；
+  - 支持多 Vault 快捷切换与自定义路径浏览选择。
+- **双链知识网络（Wikilink）**：
+  - 原生支持 `[[笔记名称]]` 语法高亮与点击快速跳转；
+  - **就地新建机制**：若双链指向的文件尚未创建，点击即可一键就地生成新的 `.md` 实体，实现网状知识体系渐进式生长。
+- **CodeMirror 6 深度定制 Markdown 引擎**：
+  - **双视图对比**：「编辑视图」与「阅读视图（全渲染态）」一键自由切换；
+  - **KaTeX 数学公式支持**：深度适配 LaTeX 公式，支持行内 `$E = mc^2$` 与块级 `$$\int f(x) dx$$` 精美排版；
+  - **Mermaid 交互图表**：流程图、时序图、架构图实时渲染与预览；
+  - **水平分割线 Widget**：所见即所得的视觉分割隔断组件；
+  - **任务复选框强化**：交互式 Task List 复选框，支持点击直接回写源码，并附带优雅的完成态删除线动画。
+- **桌面级工程体验与安全防护**：
+  - **侧边栏自由调宽**：文件树侧栏支持鼠标拖拽改变宽度，并自动记忆偏好宽度；
+  - **导航历史栈**：顶栏提供完整面包屑层级定位与前进/后退历史堆栈；
+  - **跨平台系统穿透**：一键在系统文件管理器（macOS Finder / Windows Explorer / Linux）快速定位并揭示文件；
+  - **回收站安全防护（Move to Trash）**：删除笔记配备二次确认弹窗，并统一移入操作系统回收站，绝不直接硬删除。
+
+### 6. 🔍 混合 RAG 检索与知识活化
 - **Hybrid Search 融合排序**：`0.6 * 语义向量相似度 (Embedding) + 0.4 * 关键词精准匹配 (BM25 权重)`，模糊记忆也能秒级定位目标。
 - **多 Provider Embedding 适配**：支持 SiliconFlow (`bge-m3`)、OpenAI (`text-embedding-3-small`)、本地 Ollama 向量模型等。
 - **Chat with Bookmarks**：基于个人知识库进行多轮问答对话，智能溯源定位参考出处。
@@ -97,12 +119,12 @@ AI Workstation 打通了**浏览器采集端**、**本地知识治理中心**与
 │      Chrome 插件端（"手"）             │       │              本地工作台 TanStack Start（"脑"）          │
 │      extensions/aicollector            │       │              src/                                      │
 │                                        │       │                                                        │
-│  - Sidepanel 交互侧边栏                │ ──1──>│  - 7 大核心模块 (Workbench / Bookmarks / Editor 等)    │
-│  - 网页 DOM 智能提纯 (转 MD)           │ (HTTP)│  - 本地 SQLite 存储 (better-sqlite3 + 本地单文件)      │
+│  - Sidepanel 交互侧边栏                │ ──1──>│  - 8 大核心模块 (Workbench / Bookmarks / Obsidian 等)  │
+│  - 网页 DOM 智能提纯 (转 MD)           │ (HTTP)│  - 本地 SQLite 存储 + 本地 Obsidian Vault 直读直写     │
 │  - 整页长截图 / 局部截屏               │       │  - 混合 RAG 引擎 (向量化 + 关键词加权)                 │
 │  - DOCX 导出 & ZIP 离线归档            │ <──2──│  - TanStack AI Agent 编排 (Claude / OpenAI / Gemini / │
 │  - 静默后台爬虫 (免登录态抓取)         │ (Job) │    DeepSeek / Ollama)                                  │
-│  - 网页编辑器回填驱动 (小红书/公众号)  │ <──3──│  - TipTap AI 富文本创作内核与版本对比引擎              │
+│  - 网页编辑器回填驱动 (小红书/公众号)  │ <──3──│  - TipTap 富文本创作 + CodeMirror 6 Markdown 双链引擎   │
 └────────────────────────────────────────┘(Port) └────────────────────────────────────────────────────────┘
 ```
 
@@ -121,26 +143,30 @@ AI Workstation 打通了**浏览器采集端**、**本地知识治理中心**与
 aiworkstation/
 ├── src/                          # 【本地工作台】TanStack Start 应用源码
 │   ├── components/               # 公共 UI 组件与业务组件
+│   │   ├── dashboard/            # 工作台仪表盘与自定义 Widget 卡片系统
 │   │   ├── workbench/            # 文件夹卡片、详情侧栏、新建弹窗、图标选择器
 │   │   ├── bookmarks/            # 书签列表、未分类缓冲池、同步弹窗、巡检面板
+│   │   ├── obsidian/             # Obsidian 笔记：文件树、CodeMirror、双链解析、阅读视图
 │   │   ├── editor/               # TipTap 编辑器、工具栏、AI 贡献面板与 Diff 视图
 │   │   └── chat/                 # Agent 对话面板、时间轴 (AgentStepTimeline)
 │   ├── routes/                   # TanStack Router 文件路由系统
 │   │   ├── __root.tsx            # 全局根布局（含统一顶部导航条）
 │   │   ├── index.tsx             # 重定向至 /workbench
-│   │   ├── workbench.tsx         # 工作台首页
+│   │   ├── workbench.tsx         # 工作台首页（Widget 仪表盘）
 │   │   ├── bookmarks.tsx         # 书签知识库与缓冲池
+│   │   ├── obsidian.tsx          # Obsidian 本地笔记模块
 │   │   ├── creator.tsx           # 自媒体工作流
 │   │   ├── editor.tsx            # AI 富文本创作台
 │   │   ├── learn.tsx             # 学习模块
 │   │   ├── ecommerce.tsx         # 电商模块
 │   │   └── skills.tsx            # Skills 模块
-│   ├── modules/                  # 模块注册表（registry.ts，统一路由与别名契约）
+│   ├── modules/                  # 模块注册表（registry.ts）与 Widget 注册表
 │   ├── server/                   # 服务端代码（Node 运行时）
 │   │   ├── ai/                   # AI 编排层
 │   │   │   ├── tools/            # Agent 治理工具体系 (17+ 维原子与复合 Tool)
 │   │   │   └── prompt.ts         # Agent System Prompt 与契约规范
 │   │   ├── db/                   # better-sqlite3 数据库配置、Schema 与迁移
+│   │   ├── services/obsidian/    # 本地 Vault 文件服务（扫描缓存、笔记 CRUD、回收站操作）
 │   │   └── functions/            # TanStack Start Server Functions (RPC)
 │   ├── stores/                   # 客户端状态管理与主题控制
 │   └── styles.css                # TailwindCSS v4 全局样式设计
@@ -171,6 +197,7 @@ aiworkstation/
 | **前端框架** | [TanStack Start](https://tanstack.com/start), [TanStack Router](https://tanstack.com/router), [React 19](https://react.dev/) |
 | **UI & 样式** | [TailwindCSS v4](https://tailwindcss.com/), [HeroUI v3](https://heroui.com/), [Lucide React](https://lucide.dev/) |
 | **富文本创作** | [TipTap v3](https://tiptap.dev/), `@tailwindcss/typography`, `@streamdown/mermaid` |
+| **Markdown & 笔记** | [CodeMirror 6](https://codemirror.net/), [KaTeX](https://katex.org/), `trash` (系统回收站) |
 | **AI 编排** | [TanStack AI](https://tanstack.com/ai) (支持 Claude, OpenAI, Gemini, DeepSeek, Ollama) |
 | **本地存储** | [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) (SQLite 本地单文件 + 向量存储) |
 | **浏览器扩展** | [WXT Framework](https://wxt.dev/) (Manifest V3 + React 19 + Vite) |
@@ -256,6 +283,12 @@ pnpm --filter ./extensions/aicollector dev
   - [x] Mermaid 图表与代码高亮静态渲染
   - [ ] 推文/小红书二创流水线与草稿生成
   - [ ] 控制通道回灌至网页编辑器并保留人工确认发布
+- [x] **M4.5: Obsidian 本地笔记与 CodeMirror 双链生态**
+  - [x] 本地 Vault 目录树直连扫描与多 Vault 切换
+  - [x] 基于 CodeMirror 6 深度定制 Markdown 编辑与阅读视图切换
+  - [x] 双链（Wikilink）高亮、点击跳转与一键就地新建缺失笔记
+  - [x] KaTeX 数学公式、Mermaid 图表、水平分割线与任务复选框
+  - [x] 跨平台系统文件管理器穿透与回收站（Trash）安全删除
 - [ ] **M5: 知识自治与跨源生态**
   - [ ] 后台自治 Agent（自动入库分类 / 定期知识库体检周报）
   - [ ] 跨源知识联邦（Connector Plugin：联动 Notion、Raindrop 等外部源）

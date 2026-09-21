@@ -85,6 +85,9 @@
 5. **插件采集失败要进 chrome.storage 队列**，检测到工作台恢复后批量补发 —— 不丢数据
 6. **服务端绑定 127.0.0.1 + 本地 token 认证**（⚠️ 目标态，当前 `/api/collect` middleware 尚未做 token 校验，仅有 CORS 放行）—— 防本机其他网页恶意调用
 7. **不 hook 目标站点的 fetch/XHR** —— DOM 级监听（MutationObserver）够用且稳定，hook 网络层易碎且有合规风险
+8. **Obsidian 模块纯本地文件直读直写，不进 SQLite 数据库** —— 保证 100% 兼容用户已有的 Obsidian / Logseq 等外部生态与 Git 版本控制；目录即分类，杜绝双重状态不同步；与 `editor` 模块创作文档库（documents 表）严格解耦
+9. **文件删除绝对安全化（Move to Trash）** —— 本地笔记删除严禁直接 `fs.unlink`，统一通过 `trash` 移入操作系统回收站，提供二次确认弹窗与错误回滚保护
+10. **双链寻址与就地新建闭环** —— 双链 `[[笔记名]]` 支持模糊与相对寻址，未命中的目标点击可一键在当前目录快速建立 `.md` 实体，实现网状知识库就地生长
 
 ## 插件能力清单（规划）
 
@@ -133,6 +136,7 @@
 src/routes/            # 工作台 UI（文件夹网格、详情侧栏、未分类、设置）
 src/modules/           # 模块注册表 + widget 注册表（导航与仪表盘的单一事实源）
 src/components/dashboard/ # 工作台仪表盘：WidgetCard 外壳 + widgets/ 各卡片组件
+src/components/obsidian/  # Obsidian 笔记组件：文件树、CodeMirror 编辑器、双链解析、阅读视图、目录选择器等
 src/server/functions/  # server functions：workbench / search(embedding) / rag / models
 src/server/db/         # better-sqlite3 + 原生 SQL schema 与迁移
 src/server/ai/tools/   # ReAct Agent 的 10 个书签/文件夹/统计与批量归集 Tool
@@ -272,7 +276,13 @@ extensions/aicollector/ # Chrome 插件（WXT 框架）：background / content /
    - 写作时自动关联并引用收藏库中的工具/素材
    - 推文/小红书/视频脚本二创与草稿生成
    - 指令通道回灌至网页编辑器并保留人工确认发布
-5. **M5 打磨与分发矩阵**：
+5. **M4.5 Obsidian 本地笔记生态与 Markdown 渲染引擎**（✅ 已完成）：
+   - 本地 Vault 目录即分类直读直写（完全兼容外部 Obsidian/Git 库，数据不落 SQLite 库）
+   - CodeMirror 6 深度定制专业 Markdown 编辑器，支持编辑/阅读视图自由切换
+   - 双链系统（Wikilink）：`[[笔记名]]` 语法高亮、点击跳转、目标缺失时一键就地新建笔记
+   - 丰富渲染扩展：KaTeX 数学公式（`$...$` 与 `$$...$$`）、Mermaid 交互图表、水平分割线 Widget、完成状态任务复选框
+   - 桌面级工程体验：侧栏拖拽调宽记忆、面包屑与前进后退、跨平台直接在系统文件管理器打开、删除文件移入系统回收站（Trash）
+6. **M5 打磨与分发矩阵**：
    - Chrome side panel 深度联动
    - 个人专属视觉导航页（Showcase）一键导出
    - 数据备份迁移与 skills 深度集成
