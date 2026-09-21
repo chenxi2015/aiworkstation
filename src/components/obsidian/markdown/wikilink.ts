@@ -1,22 +1,19 @@
 import type { Extension } from "@codemirror/state";
 import { type EditorView, ViewPlugin } from "@codemirror/view";
-import {
-	fetchVaultNote,
-	resolveWikilinkRpc,
-} from "../../../services/api/obsidianClient";
-import { markdownToHtml } from "../../editor/markdown";
+import { resolveWikilinkRpc } from "../../../services/api/obsidianClient";
 import type { LivePreviewOptions } from "./livePreview";
+import {
+	clearWikilinkPreviewCache,
+	mountWikilinkPreview,
+	unmountWikilinkPreview,
+} from "./WikilinkPreviewCard";
 import { invalidateWikilinkSuggestions } from "./wikilinkAutocomplete";
 
 /**
  * 双链交互（对齐 Obsidian）：
  * - 单击 [[双链]]：已存在 → 跳转；不存在 → 新建同名笔记并跳转
- * - ⌘/Ctrl + 悬停：浮层预览目标笔记内容（Markdown 渲染，含缓存）
+ * - ⌘/Ctrl + 悬停：浮层预览目标笔记内容（由 WikilinkPreviewCard 独立组件渲染）
  */
-
-function stripFrontmatter(content: string): string {
-	return content.replace(/^---\n[\s\S]*?\n---\n?/, "").trim();
-}
 
 interface CacheEntry<T> {
 	data: T;
@@ -26,18 +23,12 @@ interface CacheEntry<T> {
 const resolveCache = new Map<string, CacheEntry<string | null>>();
 const RESOLVE_CACHE_TTL_MS = 60_000;
 
-const previewCache = new Map<string, CacheEntry<string>>();
-const PREVIEW_CACHE_TTL_MS = 30_000;
-const PREVIEW_MAX_CHARS = 1500;
-
 /** Clear wikilink caches (specific path or all) */
 export function clearWikilinkCaches(relPath?: string): void {
 	invalidateWikilinkSuggestions();
-	if (relPath) {
-		previewCache.delete(relPath);
-	} else {
+	clearWikilinkPreviewCache(relPath);
+	if (!relPath) {
 		resolveCache.clear();
-		previewCache.clear();
 	}
 }
 
@@ -67,33 +58,7 @@ export async function followWikilinkTarget(
 	}
 }
 
-function renderWikilinksInHtml(html: string): string {
-	return html.replace(/\[\[([^\]\n]+)\]\]/g, (_m, inner: string) => {
-		const [rawTarget, alias] = inner.split("|");
-		const target = (rawTarget ?? "").split("#")[0]?.trim() ?? "";
-		const label = alias?.trim() || target;
-		return `<span class="cm-live-wikilink" data-target="${target}" style="cursor: pointer; text-decoration: underline; text-underline-offset: 2px;">${label}</span>`;
-	});
-}
-
-async function loadPreviewHtml(relPath: string): Promise<string> {
-	const cached = previewCache.get(relPath);
-	if (cached && Date.now() - cached.at < PREVIEW_CACHE_TTL_MS) {
-		return cached.data;
-	}
-	const { note } = await fetchVaultNote(relPath);
-	const body = stripFrontmatter(note?.content ?? "").slice(
-		0,
-		PREVIEW_MAX_CHARS,
-	);
-	const rawHtml = note ? markdownToHtml(body) : "";
-	const html = renderWikilinksInHtml(rawHtml);
-	previewCache.set(relPath, { data: html, at: Date.now() });
-	return html;
-}
-
 class WikilinkInteractionPlugin {
-	private previewEl: HTMLElement | null = null;
 	private hoverTimer = 0;
 	private closeTimer = 0;
 	private isHoveringCard = false;
@@ -148,10 +113,7 @@ class WikilinkInteractionPlugin {
 			this.hoverTimer = 0;
 		}
 		this.hoverKey = "";
-		if (this.previewEl) {
-			this.previewEl.remove();
-			this.previewEl = null;
-		}
+		unmountWikilinkPreview();
 	}
 
 	handleMouseLeave = () => {
@@ -230,7 +192,7 @@ class WikilinkInteractionPlugin {
 				clearTimeout(this.hoverTimer);
 				this.hoverTimer = 0;
 			}
-			if (this.previewEl) {
+			if (this.hoverKey) {
 				this.scheduleClose(260);
 			}
 			return;
@@ -262,72 +224,28 @@ class WikilinkInteractionPlugin {
 	private async maybeShowPreview(target: string, x: number, y: number) {
 		const relPath = await resolveWikilinkWithCache(target);
 		const key = relPath ?? `missing:${target}`;
-		if (this.previewEl && this.hoverKey === key) return; // Already previewing the same target
+		if (this.hoverKey === key) return; // Already previewing the same target
 		this.clearHover();
 		this.hoverKey = key;
 
-		const card = document.createElement("div");
-		card.className = "cm-live-hover-preview";
-
-		// Keep preview open when mouse moves into card for scrolling and reading
-		card.addEventListener("mouseenter", () => {
-			this.isHoveringCard = true;
-			this.cancelClose();
+		mountWikilinkPreview({
+			target,
+			relPath,
+			x,
+			y,
+			onFollow: (hitTarget) => {
+				this.clearHover();
+				void this.follow(hitTarget);
+			},
+			onMouseEnter: () => {
+				this.isHoveringCard = true;
+				this.cancelClose();
+			},
+			onMouseLeave: () => {
+				this.isHoveringCard = false;
+				this.scheduleClose(240);
+			},
 		});
-		card.addEventListener("mouseleave", (e: MouseEvent) => {
-			this.isHoveringCard = false;
-			const toEl = e.relatedTarget as HTMLElement | null;
-			if (toEl?.closest?.(".cm-live-wikilink")) {
-				return;
-			}
-			this.scheduleClose(240);
-		});
-
-		// Allow clicking internal wikilinks inside preview card
-		card.addEventListener("click", (e) => {
-			const targetEl = (e.target as HTMLElement | null)?.closest?.(
-				"[data-target]",
-			);
-			const target = targetEl?.getAttribute("data-target");
-			if (target) {
-				e.preventDefault();
-				void this.follow(target);
-			}
-		});
-
-		if (relPath) {
-			const title = document.createElement("div");
-			title.className = "cm-live-hover-preview-title";
-			title.textContent = target;
-			card.appendChild(title);
-			const body = document.createElement("div");
-			body.className = "cm-live-hover-preview-body";
-			body.textContent = "加载中…";
-			card.appendChild(body);
-			void loadPreviewHtml(relPath).then((html) => {
-				if (this.previewEl !== card) return;
-				body.textContent = "";
-				body.innerHTML = html || "<i>（空笔记）</i>";
-			});
-		} else {
-			card.textContent = `笔记「${target}」尚未创建，点击新建`;
-		}
-
-		// Position: below cursor, constrain to viewport boundaries with flip if needed
-		const cardWidth = 400;
-		const cardHeight = 300;
-		const left = Math.min(
-			Math.max(8, x - 20),
-			window.innerWidth - cardWidth - 16,
-		);
-		let top = y + 14;
-		if (top + cardHeight > window.innerHeight - 16 && y - cardHeight - 16 > 0) {
-			top = y - cardHeight - 10;
-		}
-		card.style.left = `${left}px`;
-		card.style.top = `${top}px`;
-		document.body.appendChild(card);
-		this.previewEl = card;
 	}
 }
 

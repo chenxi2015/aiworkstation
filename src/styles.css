@@ -1048,14 +1048,15 @@ blockquote::after {
 .cm-live-hover-preview {
 	position: fixed;
 	z-index: 100;
-	width: 400px;
-	max-height: 300px;
-	overflow: auto;
+	width: 440px;
+	max-height: 380px;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
 	background: var(--surface);
 	border: 1px solid var(--border);
 	border-radius: 12px;
 	box-shadow: 0 10px 28px rgb(0 0 0 / 0.16);
-	padding: 12px 14px;
 	font-size: 13px;
 	line-height: 1.6;
 	color: var(--foreground);
@@ -1074,12 +1075,62 @@ blockquote::after {
 	}
 }
 
+.cm-live-hover-preview-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 10px 12px 8px 14px;
+	border-bottom: 1px solid var(--border);
+	flex-shrink: 0;
+	gap: 8px;
+}
+
 .cm-live-hover-preview-title {
 	font-weight: 600;
 	font-size: 14px;
-	margin-bottom: 6px;
-	padding-bottom: 6px;
-	border-bottom: 1px solid var(--border);
+	line-height: 1.4;
+	color: var(--foreground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	flex: 1;
+}
+
+.cm-live-hover-preview-expand-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	border: 1px solid transparent;
+	border-radius: 6px;
+	background: transparent;
+	color: var(--foreground-muted);
+	cursor: pointer;
+	flex-shrink: 0;
+	transition: background-color 0.15s, color 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+.cm-live-hover-preview-expand-btn:hover {
+	background: var(--surface-secondary, rgb(0 0 0 / 0.05));
+	color: var(--foreground);
+	border-color: var(--border);
+	transform: scale(1.05);
+}
+
+.cm-live-hover-preview-body {
+	flex: 1;
+	overflow-y: auto;
+	padding: 10px 14px 14px;
+}
+
+.cm-live-hover-preview-body > *:first-child {
+	margin-top: 0;
+}
+
+.cm-live-hover-preview-body > *:last-child {
+	margin-bottom: 0;
 }
 
 .cm-live-hover-preview-body img {
@@ -1092,6 +1143,16 @@ blockquote::after {
 	padding: 8px;
 	overflow-x: auto;
 	font-size: 12px;
+}
+
+.cm-live-hover-preview-empty {
+	padding: 14px 16px;
+	cursor: pointer;
+	color: var(--foreground-muted);
+}
+
+.cm-live-hover-preview-empty:hover {
+	color: var(--foreground);
 }
 
 /* ============ CodeMirror 双链自动补全下拉面板 ============ */
