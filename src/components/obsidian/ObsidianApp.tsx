@@ -2,6 +2,7 @@ import { Button, Tooltip, toast } from "@heroui/react";
 import {
 	ChevronsDownUp,
 	ChevronsUpDown,
+	Crosshair,
 	FilePlus2,
 	FolderOpen,
 	FolderPlus,
@@ -25,6 +26,10 @@ import { saveSettings } from "../../services/storage/settingsStorage";
 import { useWorkbenchQuickActions } from "../workbench/layout/useWorkbenchQuickActions";
 import { WorkbenchHeader } from "../workbench/layout/WorkbenchHeader";
 import type { Folder, WorkbenchSettings } from "../workbench/types";
+import {
+	DeleteEntryDialog,
+	shouldSkipDeleteConfirm,
+} from "./DeleteEntryDialog";
 import { DirectoryPickerModal } from "./DirectoryPickerModal";
 import { useObsidianAiBridge } from "./hooks/useObsidianAiBridge";
 import { NotePanel } from "./NotePanel";
@@ -63,6 +68,9 @@ export function ObsidianApp({
 	const [expanded, setExpanded] = useState<Set<string>>(new Set());
 	const [renamingPath, setRenamingPath] = useState<string | null>(null);
 	const [menu, setMenu] = useState<TreeMenuTarget | null>(null);
+	const [deleteTarget, setDeleteTarget] = useState<
+		ObsidianTree["tree"][number] | null
+	>(null);
 	const [pickerOpen, setPickerOpen] = useState(false);
 	// Debounced search: raw query drives the input, debouncedQuery drives filtering
 	const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -213,6 +221,37 @@ export function ObsidianApp({
 		});
 	}, []);
 
+	/** 自动显示当前文件（Obsidian 同款开关）：选中笔记变化时展开祖先链并滚动到可见 */
+	const [autoReveal, setAutoReveal] = useState(
+		() =>
+			typeof window === "undefined" ||
+			window.localStorage.getItem("obsidian_auto_reveal") !== "0",
+	);
+	const handleToggleAutoReveal = useCallback(() => {
+		setAutoReveal((prev) => {
+			const next = !prev;
+			try {
+				window.localStorage.setItem("obsidian_auto_reveal", next ? "1" : "0");
+			} catch {}
+			return next;
+		});
+	}, []);
+
+	useEffect(() => {
+		if (!autoReveal || !selectedNotePath) return;
+		const parent = selectedNotePath.includes("/")
+			? selectedNotePath.split("/").slice(0, -1).join("/")
+			: "";
+		expandDirChain(parent);
+		// 等展开动画/渲染后滚动到目标行
+		const timer = setTimeout(() => {
+			document
+				.querySelector(`[data-reveal-path="${CSS.escape(selectedNotePath)}"]`)
+				?.scrollIntoView({ block: "nearest" });
+		}, 50);
+		return () => clearTimeout(timer);
+	}, [autoReveal, selectedNotePath, expandDirChain]);
+
 	/** 新建笔记：不弹窗，直接以「未命名文件」落在目标目录并进入内联重命名 */
 	const handleCreateNote = useCallback(
 		async (dir?: string) => {
@@ -303,16 +342,9 @@ export function ObsidianApp({
 		[load],
 	);
 
-	/** 删除条目（笔记/文件夹递归），清理受影响的选中态 */
-	const handleDeleteEntry = useCallback(
+	/** 执行删除（移动到系统回收站），清理受影响的选中态 */
+	const performDeleteEntry = useCallback(
 		async (node: ObsidianTree["tree"][number]) => {
-			const label =
-				node.kind === "folder" ? "文件夹（含其中全部内容）" : "笔记";
-			if (
-				!window.confirm(`确认删除${label}「${node.name}」？此操作不可恢复。`)
-			) {
-				return;
-			}
 			const res = await deleteVaultEntryRpc(node.relPath);
 			if (!res.success) {
 				toast.danger(res.error ?? "删除失败");
@@ -323,10 +355,22 @@ export function ObsidianApp({
 			setSelectedNotePath((prev) => (affected(prev) ? null : prev));
 			setCurrentDir((prev) => (affected(prev) ? "" : prev));
 			setRenamingPath((prev) => (affected(prev) ? null : prev));
-			toast.success("已删除");
+			toast.success("已移动到系统回收站");
 			await load(true);
 		},
 		[load],
+	);
+
+	/** 删除入口：勾选过「不再询问」则直接执行，否则弹确认框 */
+	const handleDeleteEntry = useCallback(
+		(node: ObsidianTree["tree"][number]) => {
+			if (shouldSkipDeleteConfirm()) {
+				void performDeleteEntry(node);
+				return;
+			}
+			setDeleteTarget(node);
+		},
+		[performDeleteEntry],
 	);
 
 	const handleCopyPath = useCallback((node: ObsidianTree["tree"][number]) => {
@@ -469,6 +513,26 @@ export function ObsidianApp({
 										{anyExpanded ? "收起全部文件夹" : "展开全部文件夹"}
 									</Tooltip.Content>
 								</Tooltip>
+								<Tooltip>
+									<Tooltip.Trigger>
+										<button
+											type="button"
+											onClick={handleToggleAutoReveal}
+											aria-label="自动显示当前文件"
+											aria-pressed={autoReveal}
+											className={`p-1.5 rounded-md transition-colors ${
+												autoReveal
+													? "text-accent bg-accent/10"
+													: "text-muted hover:text-foreground hover:bg-surface-secondary/60"
+											}`}
+										>
+											<Crosshair className="w-3.5 h-3.5" />
+										</button>
+									</Tooltip.Trigger>
+									<Tooltip.Content placement="bottom">
+										自动显示当前文件
+									</Tooltip.Content>
+								</Tooltip>
 							</div>
 						</div>
 						{/* biome-ignore lint/a11y/noStaticElementInteractions lint/a11y/useKeyWithClickEvents: 点击空白区域清除文件夹选中态，新建落回根目录；行内交互在各自 button 上 */}
@@ -587,6 +651,13 @@ export function ObsidianApp({
 				onDelete={(node) => void handleDeleteEntry(node)}
 				onCopyPath={handleCopyPath}
 				onReveal={(node) => void handleRevealEntry(node)}
+			/>
+			<DeleteEntryDialog
+				target={deleteTarget}
+				onClose={() => setDeleteTarget(null)}
+				onConfirm={async () => {
+					if (deleteTarget) await performDeleteEntry(deleteTarget);
+				}}
 			/>
 			{pickerOpen && (
 				<DirectoryPickerModal

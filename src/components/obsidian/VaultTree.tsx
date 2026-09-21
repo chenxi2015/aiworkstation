@@ -130,6 +130,7 @@ function RowShell({
 		// biome-ignore lint/a11y/noStaticElementInteractions: 行容器仅承载右键菜单，主交互在内部 button 上
 		<div
 			style={indent}
+			data-reveal-path={node.relPath}
 			onContextMenu={handleContextMenu}
 			className={`group w-full flex items-center gap-1.5 py-1.5 pr-1 text-left text-xs transition-colors ${
 				active

@@ -17,6 +17,7 @@ import {
 	type Range,
 	selectionTouches,
 } from "./dialectDecorations";
+import { externalLinkInteractions, parseExternalUrl } from "./externalLink";
 import { MermaidWidget } from "./MermaidWidget";
 import {
 	MediaWidget,
@@ -30,6 +31,9 @@ import {
 	CalloutIconWidget,
 	CheckboxWidget,
 	HEADING_CLASSES,
+	HtmlBlockWidget,
+	InlineHtmlWidget,
+	isVoidHtmlTag,
 	TableWidget,
 } from "./widgets";
 import { wikilinkInteractions } from "./wikilink";
@@ -49,6 +53,16 @@ function buildDecorations(
 	const blockWidgets: DecoItem[] = [];
 	const codeBlockRanges: Range[] = [];
 	const calloutMarkRanges: Range[] = [];
+	// Ranges claimed by paired inline HTML (`<span>…</span>`); later nodes inside are skipped
+	const consumedHtml: Range[] = [];
+
+	/** Rewrites relative src attributes inside raw HTML to vault asset URLs */
+	const resolveHtmlAssetSrc = (html: string) =>
+		html.replace(
+			/(\ssrc\s*=\s*)(["'])([^"']+)\2/gi,
+			(_m, pre: string, quote: string, url: string) =>
+				`${pre}${quote}${resolveAssetUrl(url, options.noteRelPath)}${quote}`,
+		);
 
 	const sourceReveal = state.field(mediaSourceField, false);
 	const isSourceRevealed = (from: number, to: number) =>
@@ -77,7 +91,33 @@ function buildDecorations(
 			to: range.to,
 			enter(node) {
 				if (inReplacedBlock(node.from, node.to)) return false;
+				if (consumedHtml.some((r) => node.from >= r.from && node.to <= r.to))
+					return false;
 				const { from, to, name } = node;
+
+				// Raw HTML block: rendered (sanitized) when cursor is outside
+				if (name === "HTMLBlock") {
+					if (!selectionTouches(state, from, to)) {
+						const fromLine = state.doc.lineAt(from);
+						const toLine = state.doc.lineAt(to);
+						const blockFrom = fromLine.from;
+						const blockTo = toLine.to;
+						replacedBlocks.push({ from: blockFrom, to: blockTo });
+						blockWidgets.push({
+							from: blockFrom,
+							to: blockTo,
+							deco: Decoration.replace({
+								widget: new HtmlBlockWidget(
+									resolveHtmlAssetSrc(
+										state.doc.sliceString(blockFrom, blockTo),
+									),
+								),
+								block: true,
+							}),
+						});
+					}
+					return false;
+				}
 
 				// GFM Table: rendered as HTML table when cursor is outside
 				if (name === "Table") {
@@ -112,7 +152,16 @@ function buildDecorations(
 					case "HeaderMark": {
 						const line = state.doc.lineAt(from);
 						if (!selectionTouches(state, line.from, line.to)) {
-							marks.push({ from, to });
+							// Lezer 的 HeaderMark 只覆盖 "#" 字符，不含其后空格；
+							// 连空格一起隐藏，否则标题行会残留一个空格导致与正文左边缘错位
+							let end = to;
+							while (
+								end < line.to &&
+								/[ \t]/.test(state.doc.sliceString(end, end + 1))
+							) {
+								end++;
+							}
+							marks.push({ from, to: end });
 						}
 						return;
 					}
@@ -285,13 +334,20 @@ function buildDecorations(
 						return;
 					}
 					case "Link":
-					case "Autolink":
+					case "Autolink": {
+						const isExternal =
+							parseExternalUrl(state.doc.sliceString(from, to), name) != null;
 						inlineItems.push({
 							from,
 							to,
-							deco: Decoration.mark({ class: "cm-live-link" }),
+							deco: Decoration.mark({
+								class: isExternal
+									? "cm-live-link cm-live-external-link"
+									: "cm-live-link",
+							}),
 						});
 						return;
+					}
 					case "LinkMark":
 					case "LinkTitle":
 						if (
@@ -320,7 +376,9 @@ function buildDecorations(
 						inlineItems.push({
 							from,
 							to,
-							deco: Decoration.mark({ class: "cm-live-link" }),
+							deco: Decoration.mark({
+								class: "cm-live-link cm-live-external-link",
+							}),
 						});
 						return;
 					case "Image": {
@@ -359,6 +417,76 @@ function buildDecorations(
 					case "HorizontalRule":
 						pushLine(from, to, "cm-live-hr");
 						return;
+					case "HTMLTag": {
+						// Skip tags inside code spans/blocks
+						for (let p = node.node.parent; p; p = p.parent) {
+							if (
+								p.name === "InlineCode" ||
+								p.name === "CodeText" ||
+								p.name === "FencedCode" ||
+								p.name === "CodeBlock" ||
+								p.name === "HTMLBlock"
+							) {
+								return;
+							}
+						}
+						const tagText = state.doc.sliceString(from, to);
+						const openMatch = tagText.match(/^<([a-zA-Z][\w-]*)[\s\S]*?\/?>$/);
+						// Close tags / comments / declarations stay raw
+						if (!openMatch || tagText.startsWith("</")) return;
+						const tagName = (openMatch[1] ?? "").toLowerCase();
+
+						// Self-closing / void tags render standalone
+						if (tagText.endsWith("/>") || isVoidHtmlTag(tagName)) {
+							if (selectionTouches(state, from, to)) return;
+							inlineItems.push({
+								from,
+								to,
+								deco: Decoration.replace({
+									widget: new InlineHtmlWidget(
+										resolveHtmlAssetSrc(tagText),
+										null,
+									),
+								}),
+							});
+							return;
+						}
+
+						// Pair with the matching close tag among following siblings
+						let depth = 0;
+						let closeFrom = -1;
+						let closeTo = -1;
+						for (let sib = node.node.nextSibling; sib; sib = sib.nextSibling) {
+							if (sib.name !== "HTMLTag") continue;
+							const sibText = state.doc.sliceString(sib.from, sib.to);
+							const m = sibText.match(/^<(\/?)([a-zA-Z][\w-]*)/);
+							if (!m || (m[2] ?? "").toLowerCase() !== tagName) continue;
+							if (m[1] === "/") {
+								if (depth === 0) {
+									closeFrom = sib.from;
+									closeTo = sib.to;
+									break;
+								}
+								depth--;
+							} else if (!sibText.endsWith("/>")) {
+								depth++;
+							}
+						}
+						if (closeTo < 0) return; // 未闭合 → 保留源码原文
+						if (selectionTouches(state, from, closeTo)) return;
+						consumedHtml.push({ from, to: closeTo });
+						inlineItems.push({
+							from,
+							to: closeTo,
+							deco: Decoration.replace({
+								widget: new InlineHtmlWidget(
+									resolveHtmlAssetSrc(tagText),
+									state.doc.sliceString(to, closeFrom),
+								),
+							}),
+						});
+						return;
+					}
 					default:
 						return;
 				}
@@ -423,5 +551,6 @@ export function livePreview(options: LivePreviewOptions = {}): Extension {
 		mediaSourceField,
 		createLivePreviewField(options),
 		wikilinkInteractions(options),
+		externalLinkInteractions(),
 	];
 }

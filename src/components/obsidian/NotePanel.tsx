@@ -11,6 +11,10 @@ import {
 	saveVaultNoteRpc,
 } from "../../services/api/obsidianClient";
 import { ImagePreviewProvider } from "../workbench/ai/shared/ImagePreviewModal";
+import {
+	DeleteEntryDialog,
+	shouldSkipDeleteConfirm,
+} from "./DeleteEntryDialog";
 import { MarkdownAiBubbleMenu } from "./markdown/MarkdownAiBubbleMenu";
 import { MarkdownEditor } from "./markdown/MarkdownEditor";
 import type { ObsidianNoteApi, ObsidianNoteContent } from "./types";
@@ -61,6 +65,7 @@ export function NotePanel({
 	const [editingTitle, setEditingTitle] = useState(false);
 	const [titleDraft, setTitleDraft] = useState("");
 	const titleInputRef = useRef<HTMLInputElement | null>(null);
+	const [deleteOpen, setDeleteOpen] = useState(false);
 
 	// 进入标题编辑态时聚焦并全选（Obsidian 式内联重命名）
 	useEffect(() => {
@@ -223,20 +228,27 @@ export function NotePanel({
 		[note, onMutated, onRenamed],
 	);
 
-	const handleDelete = useCallback(async () => {
+	const performDelete = useCallback(async () => {
 		if (!note) return;
-		if (!window.confirm(`确认删除笔记「${note.name}」？此操作不可恢复。`)) {
-			return;
-		}
 		const res = await deleteVaultEntryRpc(note.relPath);
 		if (!res.success) {
 			toast.danger(res.error ?? "删除失败");
 			return;
 		}
-		toast.success("已删除");
+		toast.success("已移动到系统回收站");
 		onMutated();
 		onDeleted();
 	}, [note, onMutated, onDeleted]);
+
+	/** 删除入口：勾选过「不再询问」则直接执行，否则弹确认框 */
+	const handleDelete = useCallback(() => {
+		if (!note) return;
+		if (shouldSkipDeleteConfirm()) {
+			void performDelete();
+			return;
+		}
+		setDeleteOpen(true);
+	}, [note, performDelete]);
 
 	// 供 AI 侧边栏桥接调用的笔记操作句柄（写入 draft 后经 CodeMirror 回流触发自动保存）
 	useEffect(() => {
@@ -425,6 +437,13 @@ export function NotePanel({
 			<MarkdownAiBubbleMenu
 				view={note.truncated ? null : editorView}
 				onGenerate={(prompt) => generateAiBarTextRpc(prompt)}
+			/>
+			<DeleteEntryDialog
+				target={
+					deleteOpen && note ? { name: `${note.name}.md`, kind: "note" } : null
+				}
+				onClose={() => setDeleteOpen(false)}
+				onConfirm={performDelete}
 			/>
 		</div>
 	);

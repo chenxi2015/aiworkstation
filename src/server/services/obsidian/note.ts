@@ -1,4 +1,6 @@
+import { execFile } from "node:child_process";
 import { existsSync, promises as fs, statSync } from "node:fs";
+import { homedir } from "node:os";
 import path from "node:path";
 import type {
 	ObsidianMutationResult,
@@ -231,14 +233,41 @@ export async function revealVaultEntry(
 	}
 }
 
-/** 删除笔记或文件夹（文件夹递归删除，敏感操作走 confirm 由 UI 保证） */
+/** 移动到系统回收站（macOS ~/.Trash，重名追加时间戳；跨设备/失败时回退为永久删除） */
+async function moveToSystemTrash(abs: string): Promise<void> {
+	const trashDir = path.join(homedir(), ".Trash");
+	let target = path.join(trashDir, path.basename(abs));
+	if (existsSync(target)) {
+		target = path.join(trashDir, `${path.basename(abs)}.${Date.now()}`);
+	}
+	try {
+		await fs.rename(abs, target);
+	} catch {
+		// 跨设备 rename 失败等场景：回退 shell mv，仍失败则永久删除
+		try {
+			await new Promise<void>((resolvePromise, rejectPromise) => {
+				execFile("mv", [abs, target], (err) =>
+					err ? rejectPromise(err) : resolvePromise(),
+				);
+			});
+		} catch {
+			await fs.rm(abs, { recursive: true });
+		}
+	}
+}
+
+/** 删除笔记或文件夹：移动到系统回收站（可恢复），敏感操作走确认弹窗由 UI 保证 */
 export async function deleteVaultEntry(
 	relPath: string,
 ): Promise<ObsidianMutationResult> {
 	try {
 		const abs = entryAbsPath(relPath);
 		assertWritablePath(abs);
-		await fs.rm(abs, { recursive: true });
+		if (process.platform === "darwin") {
+			await moveToSystemTrash(abs);
+		} else {
+			await fs.rm(abs, { recursive: true });
+		}
 		invalidateVaultTreeCache();
 		return { success: true };
 	} catch (err) {

@@ -130,6 +130,27 @@ export const appTheme = EditorView.theme({
 		color: "var(--accent)",
 		textUnderlineOffset: "2px",
 	},
+	// 外链：Obsidian 风格 ↗ 角标 + 指针光标（点击直接打开）
+	".cm-live-external-link": {
+		cursor: "pointer",
+	},
+	".cm-live-external-link::after": {
+		content: '""',
+		display: "inline-block",
+		width: "0.68em",
+		height: "0.68em",
+		marginLeft: "1px",
+		verticalAlign: "baseline",
+		backgroundColor: "currentColor",
+		WebkitMaskImage:
+			"url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 17L17 7'/%3E%3Cpath d='M7 7h10v10'/%3E%3C/svg%3E\")",
+		maskImage:
+			"url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 17L17 7'/%3E%3Cpath d='M7 7h10v10'/%3E%3C/svg%3E\")",
+		WebkitMaskRepeat: "no-repeat",
+		maskRepeat: "no-repeat",
+		WebkitMaskSize: "contain",
+		maskSize: "contain",
+	},
 	".cm-live-image": { color: "var(--muted)" },
 	".cm-live-hr": {
 		borderTop: "1px solid var(--border)",
@@ -242,7 +263,7 @@ export const appTheme = EditorView.theme({
 		cursor: "pointer",
 	},
 	".cm-live-bullet": {
-		color: "var(--accent)",
+		color: "var(--muted)",
 		fontWeight: "600",
 	},
 	// ── Callouts ──────────────────────────────────────────
@@ -373,6 +394,19 @@ export const appTheme = EditorView.theme({
 		margin: "6px 0 2px",
 	},
 	// ── Mermaid ───────────────────────────────────────────────
+	// ── Raw HTML (inline & block) ─────────────────────────────
+	".cm-live-html": {
+		cursor: "text",
+	},
+	".cm-live-html-block": {
+		margin: "4px 0",
+	},
+	".cm-live-html-raw": {
+		color: "var(--muted)",
+		fontFamily:
+			"ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+		fontSize: "0.92em",
+	},
 	".cm-live-mermaid": {
 		margin: "8px 0",
 		backgroundColor: "var(--surface)",

@@ -289,3 +289,145 @@ export class MathWidget extends WidgetType {
 		return true;
 	}
 }
+
+// ── Raw HTML rendering (Obsidian-style) ──────────────────────────────
+
+/** Void elements: renderable without a closing tag */
+const VOID_HTML_TAGS = new Set([
+	"area",
+	"base",
+	"br",
+	"col",
+	"embed",
+	"hr",
+	"img",
+	"input",
+	"link",
+	"meta",
+	"source",
+	"track",
+	"wbr",
+]);
+
+/** Tags never rendered from raw HTML (XSS / global-style pollution) */
+const BLOCKED_HTML_TAGS = new Set(["script", "style", "title", "textarea"]);
+
+export function isVoidHtmlTag(tag: string): boolean {
+	return VOID_HTML_TAGS.has(tag.toLowerCase());
+}
+
+function isSafeUrlAttr(value: string): boolean {
+	return !/^\s*(javascript|vbscript):/i.test(value);
+}
+
+/** Sets attributes parsed from an open-tag string onto el, dropping on* handlers and javascript: URLs */
+function applyHtmlAttributes(el: HTMLElement, openTagText: string): void {
+	const attrSource =
+		openTagText.match(/^<[a-zA-Z][\w-]*([\s\S]*?)\/?>$/)?.[1] ?? "";
+	const attrRe = /([\w-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+)))?/g;
+	for (let m = attrRe.exec(attrSource); m; m = attrRe.exec(attrSource)) {
+		const name = (m[1] ?? "").toLowerCase();
+		if (!name || name.startsWith("on")) continue;
+		const value = m[2] ?? m[3] ?? m[4] ?? "";
+		if (
+			(name === "href" || name === "src" || name === "xlink:href") &&
+			!isSafeUrlAttr(value)
+		)
+			continue;
+		try {
+			el.setAttribute(name, value);
+		} catch {
+			// 非法属性名静默跳过
+		}
+	}
+}
+
+/**
+ * Builds a live DOM element from an inline open tag + plain-text inner content.
+ * Returns null when the tag must not be rendered (script/style/...).
+ */
+export function buildInlineHtmlElement(
+	openTagText: string,
+	innerText: string | null,
+): HTMLElement | null {
+	const m = openTagText.match(/^<([a-zA-Z][\w-]*)[\s\S]*?\/?>$/);
+	if (!m) return null;
+	const tag = (m[1] ?? "").toLowerCase();
+	if (BLOCKED_HTML_TAGS.has(tag)) return null;
+	const el = document.createElement(tag);
+	applyHtmlAttributes(el, openTagText);
+	if (innerText != null && !isVoidHtmlTag(tag)) el.textContent = innerText;
+	return el;
+}
+
+/** Sanitizes an HTML block: strips script/style and event-handler / javascript: attributes */
+export function sanitizeHtmlBlock(html: string): string {
+	const tpl = document.createElement("template");
+	tpl.innerHTML = html;
+	const walk = (root: ParentNode) => {
+		for (const child of Array.from(root.children)) {
+			if (BLOCKED_HTML_TAGS.has(child.tagName.toLowerCase())) {
+				child.remove();
+				continue;
+			}
+			for (const attr of Array.from(child.attributes)) {
+				const name = attr.name.toLowerCase();
+				if (name.startsWith("on")) {
+					child.removeAttribute(attr.name);
+				} else if (
+					(name === "href" || name === "src" || name === "xlink:href") &&
+					!isSafeUrlAttr(attr.value)
+				) {
+					child.removeAttribute(attr.name);
+				}
+			}
+			walk(child);
+		}
+	};
+	walk(tpl.content);
+	return tpl.innerHTML;
+}
+
+/** Inline HTML widget: `<span style="…">text</span>` rendered as a live element */
+export class InlineHtmlWidget extends WidgetType {
+	constructor(
+		readonly openTag: string,
+		readonly innerText: string | null,
+	) {
+		super();
+	}
+
+	override eq(other: InlineHtmlWidget) {
+		return other.openTag === this.openTag && other.innerText === this.innerText;
+	}
+
+	override toDOM() {
+		const el = buildInlineHtmlElement(this.openTag, this.innerText);
+		if (el) {
+			el.classList.add("cm-live-html");
+			return el;
+		}
+		const span = document.createElement("span");
+		span.className = "cm-live-html-raw";
+		span.textContent = this.innerText ?? this.openTag;
+		return span;
+	}
+}
+
+/** HTML block widget: multi-line raw HTML rendered when cursor is outside */
+export class HtmlBlockWidget extends WidgetType {
+	constructor(readonly source: string) {
+		super();
+	}
+
+	override eq(other: HtmlBlockWidget) {
+		return other.source === this.source;
+	}
+
+	override toDOM() {
+		const div = document.createElement("div");
+		div.className = "cm-live-html-block";
+		div.innerHTML = sanitizeHtmlBlock(this.source);
+		return div;
+	}
+}
