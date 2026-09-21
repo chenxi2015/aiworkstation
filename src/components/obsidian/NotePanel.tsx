@@ -1,12 +1,21 @@
 import type { EditorView } from "@codemirror/view";
 import { Tooltip, toast } from "@heroui/react";
 import dayjs from "dayjs";
-import { AlertTriangle, Loader2, Pencil, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+	AlertTriangle,
+	BookOpen,
+	ChevronLeft,
+	ChevronRight,
+	Loader2,
+	PenLine,
+	Trash2,
+} from "lucide-react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { generateAiBarTextRpc } from "../../services/api/editorClient";
 import {
 	deleteVaultEntryRpc,
 	fetchVaultNote,
+	getCachedVaultNote,
 	renameVaultEntryRpc,
 	saveVaultNoteRpc,
 } from "../../services/api/obsidianClient";
@@ -17,6 +26,7 @@ import {
 } from "./DeleteEntryDialog";
 import { MarkdownAiBubbleMenu } from "./markdown/MarkdownAiBubbleMenu";
 import { MarkdownEditor } from "./markdown/MarkdownEditor";
+import { clearWikilinkCaches } from "./markdown/wikilink";
 import type { ObsidianNoteApi, ObsidianNoteContent } from "./types";
 import { tryReapplyChanges } from "./utils/merge";
 
@@ -38,11 +48,18 @@ export interface NotePanelProps {
 	onNavigateNote?: (relPath: string) => void;
 	/** 双链目标不存在时的新建回调（name 不含 .md 后缀） */
 	onCreateNote?: (name: string) => void;
+	/** 导航历史（Obsidian 同款返回/前进） */
+	canGoBack?: boolean;
+	canGoForward?: boolean;
+	onBack?: () => void;
+	onForward?: () => void;
+	/** 面包屑点击文件夹：左侧树选中并展开该目录 */
+	onSelectFolder?: (dir: string) => void;
 }
 
 /**
  * 笔记面板：所见即所得（Live Preview）Markdown 编辑 + 划词 AI，mtime 冲突检测。
- * 无编辑/预览切换：底层是纯 Markdown 文本，装饰层实时渲染样式。
+ * 顶栏 Obsidian 同款：左侧返回/前进，中间面包屑路径，右侧阅读/编辑视图切换。
  */
 export function NotePanel({
 	relPath,
@@ -52,11 +69,17 @@ export function NotePanel({
 	onRegisterNoteApi,
 	onNavigateNote,
 	onCreateNote,
+	canGoBack,
+	canGoForward,
+	onBack,
+	onForward,
+	onSelectFolder,
 }: NotePanelProps) {
-	const [note, setNote] = useState<ObsidianNoteContent | null>(null);
-	const [loading, setLoading] = useState(true);
+	const initialCached = getCachedVaultNote(relPath);
+	const [note, setNote] = useState<ObsidianNoteContent | null>(initialCached);
+	const [loading, setLoading] = useState(!initialCached);
 	const [error, setError] = useState<string | null>(null);
-	const [draft, setDraft] = useState("");
+	const [draft, setDraft] = useState(initialCached?.content ?? "");
 	const [saveState, setSaveState] = useState<NoteSaveState>("idle");
 	const [savedAt, setSavedAt] = useState<number | null>(null);
 	const [conflict, setConflict] = useState<{ mtime?: number } | null>(null);
@@ -66,6 +89,22 @@ export function NotePanel({
 	const [titleDraft, setTitleDraft] = useState("");
 	const titleInputRef = useRef<HTMLInputElement | null>(null);
 	const [deleteOpen, setDeleteOpen] = useState(false);
+	// 阅读/编辑视图切换（Obsidian 同款），全局记住上次选择
+	const [viewMode, setViewMode] = useState<"editing" | "reading">(() =>
+		typeof window !== "undefined" &&
+		window.localStorage.getItem("obsidian_note_view_mode") === "reading"
+			? "reading"
+			: "editing",
+	);
+	const toggleViewMode = useCallback(() => {
+		setViewMode((prev) => {
+			const next = prev === "editing" ? "reading" : "editing";
+			try {
+				window.localStorage.setItem("obsidian_note_view_mode", next);
+			} catch {}
+			return next;
+		});
+	}, []);
 
 	// 进入标题编辑态时聚焦并全选（Obsidian 式内联重命名）
 	useEffect(() => {
@@ -76,15 +115,27 @@ export function NotePanel({
 
 	const load = useCallback(async (target: string) => {
 		const seq = ++loadSeqRef.current;
-		setLoading(true);
-		setError(null);
-		setConflict(null);
+		const cached = getCachedVaultNote(target);
+		if (cached) {
+			setNote(cached);
+			setDraft(cached.content);
+			setLoading(false);
+			setError(null);
+			setConflict(null);
+		} else {
+			setLoading(true);
+			setError(null);
+			setConflict(null);
+		}
 		const { note: data, error: err } = await fetchVaultNote(target);
 		if (seq !== loadSeqRef.current) return;
 		if (data) {
 			setNote(data);
-			setDraft(data.content);
-		} else {
+			setDraft((prev) =>
+				!cached || prev === cached.content ? data.content : prev,
+			);
+			setError(null);
+		} else if (!cached) {
 			setNote(null);
 			setError(err ?? "读取笔记失败");
 		}
@@ -159,6 +210,7 @@ export function NotePanel({
 			setConflict(null);
 			setSaveState("saved");
 			setSavedAt(Date.now());
+			clearWikilinkCaches(targetPath);
 			const now = Date.now();
 			if (now - lastTreeSyncRef.current > TREE_SYNC_THROTTLE) {
 				lastTreeSyncRef.current = now;
@@ -278,78 +330,139 @@ export function NotePanel({
 		return () => onRegisterNoteApi(null);
 	}, [onRegisterNoteApi]);
 
-	if (loading) {
-		return (
-			<div className="h-full flex items-center justify-center text-muted">
-				<Loader2 className="w-5 h-5 animate-spin" />
-			</div>
-		);
-	}
-	if (error || !note) {
+	if (error && !note && !loading) {
 		return (
 			<div className="h-full flex flex-col items-center justify-center text-center px-8">
 				<AlertTriangle className="w-6 h-6 text-danger mb-3" />
-				<p className="text-xs text-muted">{error ?? "笔记不存在"}</p>
+				<p className="text-xs text-muted">{error}</p>
 			</div>
 		);
 	}
 
+	const activeRelPath = note?.relPath ?? relPath;
+	const activeName =
+		note?.name ?? relPath.split("/").pop()?.replace(/\.md$/i, "") ?? "";
+
 	return (
 		<div className="h-full flex flex-col overflow-hidden">
-			<div className="flex items-center gap-2 px-4 py-2.5 border-b border-border shrink-0">
-				<div className="min-w-0 flex-1">
-					<div className="flex items-center gap-1">
-						{editingTitle ? (
-							<input
-								ref={titleInputRef}
-								type="text"
-								value={titleDraft}
-								onChange={(e) => setTitleDraft(e.target.value)}
-								onKeyDown={(e) => {
-									if (e.key === "Enter") {
-										setEditingTitle(false);
-										void handleRename(titleDraft);
-									}
-									if (e.key === "Escape") setEditingTitle(false);
-								}}
-								onBlur={() => {
+			<div className="flex items-center gap-1 px-2 py-1.5 border-b border-border shrink-0">
+				{/* 左：返回 / 前进（Obsidian 同款导航历史） */}
+				<div className="flex items-center shrink-0">
+					<Tooltip>
+						<Tooltip.Trigger>
+							<button
+								type="button"
+								aria-label="返回"
+								onClick={onBack}
+								disabled={!canGoBack}
+								className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/60 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+							>
+								<ChevronLeft className="w-4 h-4" />
+							</button>
+						</Tooltip.Trigger>
+						<Tooltip.Content placement="bottom">返回</Tooltip.Content>
+					</Tooltip>
+					<Tooltip>
+						<Tooltip.Trigger>
+							<button
+								type="button"
+								aria-label="前进"
+								onClick={onForward}
+								disabled={!canGoForward}
+								className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/60 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+							>
+								<ChevronRight className="w-4 h-4" />
+							</button>
+						</Tooltip.Trigger>
+						<Tooltip.Content placement="bottom">前进</Tooltip.Content>
+					</Tooltip>
+				</div>
+				{/* 中：面包屑路径（文件夹可点击定位，笔记名点击进入重命名） */}
+				<div className="flex-1 min-w-0 flex justify-center px-2">
+					{editingTitle ? (
+						<input
+							ref={titleInputRef}
+							type="text"
+							value={titleDraft}
+							onChange={(e) => setTitleDraft(e.target.value)}
+							onKeyDown={(e) => {
+								if (e.key === "Enter") {
 									setEditingTitle(false);
 									void handleRename(titleDraft);
-								}}
-								className="min-w-0 flex-1 px-1.5 py-0.5 rounded-md border border-accent/60 bg-surface text-sm font-semibold text-foreground focus:outline-none"
-							/>
-						) : (
-							<>
-								<h2 className="text-sm font-semibold text-foreground truncate">
-									{note.name}
-								</h2>
-								<Tooltip>
-									<Tooltip.Trigger>
+								}
+								if (e.key === "Escape") setEditingTitle(false);
+							}}
+							onBlur={() => {
+								setEditingTitle(false);
+								void handleRename(titleDraft);
+							}}
+							className="w-72 max-w-full px-1.5 py-0.5 rounded-md border border-accent/60 bg-surface text-xs font-medium text-foreground focus:outline-none"
+						/>
+					) : (
+						<nav
+							className="flex items-center min-w-0 max-w-full text-xs text-muted"
+							title={activeRelPath}
+						>
+							{activeRelPath
+								.split("/")
+								.slice(0, -1)
+								.map((seg, i, arr) => (
+									<Fragment key={arr.slice(0, i + 1).join("/")}>
 										<button
 											type="button"
-											aria-label="重命名笔记"
-											onClick={() => {
-												setTitleDraft(note.name);
-												setEditingTitle(true);
-											}}
-											className="p-1 rounded-md text-muted/70 hover:text-foreground hover:bg-surface-secondary/60 transition-colors shrink-0"
+											onClick={() =>
+												onSelectFolder?.(arr.slice(0, i + 1).join("/"))
+											}
+											className="shrink-0 max-w-36 truncate px-1 py-0.5 rounded hover:text-foreground hover:bg-surface-secondary/60 transition-colors"
 										>
-											<Pencil className="w-3 h-3" />
+											{seg}
 										</button>
-									</Tooltip.Trigger>
-									<Tooltip.Content placement="bottom">重命名</Tooltip.Content>
-								</Tooltip>
-							</>
-						)}
-					</div>
-					<p className="text-[10px] text-muted truncate font-mono">
-						{note.relPath} · {new Date(note.mtime).toLocaleString()}
-					</p>
+										<span className="shrink-0 text-muted/50">/</span>
+									</Fragment>
+								))}
+							<button
+								type="button"
+								aria-label="重命名笔记"
+								onClick={() => {
+									if (!note) return;
+									setTitleDraft(activeName);
+									setEditingTitle(true);
+								}}
+								className="min-w-0 truncate px-1 py-0.5 rounded text-foreground font-medium hover:bg-surface-secondary/60 transition-colors"
+							>
+								{activeName}
+							</button>
+						</nav>
+					)}
 				</div>
-				{note.truncated && (
+				{/* 右：阅读/编辑视图切换 + 删除 */}
+				{note?.truncated && (
 					<span className="text-[10px] text-warning shrink-0">
 						文件过大已截断，只读
 					</span>
+				)}
+				{!note?.truncated && (
+					<Tooltip>
+						<Tooltip.Trigger>
+							<button
+								type="button"
+								aria-label={
+									viewMode === "editing" ? "切换到阅读视图" : "切换到编辑视图"
+								}
+								onClick={toggleViewMode}
+								className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/60 transition-colors shrink-0"
+							>
+								{viewMode === "editing" ? (
+									<BookOpen className="w-3.5 h-3.5" />
+								) : (
+									<PenLine className="w-3.5 h-3.5" />
+								)}
+							</button>
+						</Tooltip.Trigger>
+						<Tooltip.Content placement="bottom">
+							{viewMode === "editing" ? "阅读视图" : "编辑视图"}
+						</Tooltip.Content>
+					</Tooltip>
 				)}
 				<Tooltip>
 					<Tooltip.Trigger>
@@ -357,7 +470,8 @@ export function NotePanel({
 							type="button"
 							aria-label="删除笔记"
 							onClick={handleDelete}
-							className="p-1.5 rounded-md text-danger/80 hover:text-danger hover:bg-danger/10 transition-colors shrink-0"
+							disabled={!note}
+							className="p-1.5 rounded-md text-danger/80 hover:text-danger hover:bg-danger/10 transition-colors shrink-0 disabled:opacity-30 disabled:pointer-events-none"
 						>
 							<Trash2 className="w-3.5 h-3.5" />
 						</button>
@@ -365,6 +479,12 @@ export function NotePanel({
 					<Tooltip.Content placement="bottom">删除</Tooltip.Content>
 				</Tooltip>
 			</div>
+			{/* 微型加载进度条（静默加载，不破坏编辑器 DOM 与选区） */}
+			{loading && (
+				<div className="h-0.5 w-full bg-accent/20 overflow-hidden shrink-0">
+					<div className="h-full bg-accent animate-pulse w-full" />
+				</div>
+			)}
 			{conflict && (
 				<div className="flex items-center gap-3 px-4 py-2.5 bg-warning/10 border-b border-warning/30 shrink-0">
 					<AlertTriangle className="w-4 h-4 text-warning shrink-0" />
@@ -389,19 +509,30 @@ export function NotePanel({
 					</button>
 				</div>
 			)}
-			<div className="flex-1 overflow-hidden">
-				<ImagePreviewProvider>
-					<MarkdownEditor
-						value={draft}
-						onChange={handleDraftChange}
-						onReady={setEditorView}
-						readOnly={note.truncated}
-						noteRelPath={note.relPath}
-						onSaveShortcut={() => void flushSave()}
-						onNavigateNote={onNavigateNote}
-						onCreateNote={onCreateNote}
-					/>
-				</ImagePreviewProvider>
+			<div className="flex-1 overflow-hidden relative">
+				{note ? (
+					<ImagePreviewProvider>
+						<MarkdownEditor
+							key={viewMode}
+							value={draft}
+							onChange={handleDraftChange}
+							onReady={setEditorView}
+							readOnly={Boolean(note.truncated)}
+							reading={viewMode === "reading"}
+							noteRelPath={note.relPath}
+							onSaveShortcut={() => void flushSave()}
+							onNavigateNote={onNavigateNote}
+							onCreateNote={onCreateNote}
+						/>
+					</ImagePreviewProvider>
+				) : (
+					<div className="h-full p-6 space-y-4 animate-pulse">
+						<div className="h-7 bg-surface-secondary rounded w-1/4" />
+						<div className="h-4 bg-surface-secondary rounded w-3/4" />
+						<div className="h-4 bg-surface-secondary rounded w-1/2" />
+						<div className="h-4 bg-surface-secondary rounded w-2/3" />
+					</div>
+				)}
 			</div>
 			{/* 底部状态栏：与创作模块一致，为后续快照/导出/分发等动作预留位置 */}
 			<div className="shrink-0 border-t border-border bg-surface px-4 py-1.5 flex items-center gap-2 text-[11px] text-muted">
@@ -428,14 +559,14 @@ export function NotePanel({
 					>
 						保存失败，点击重试
 					</button>
-				) : note.truncated ? (
+				) : note?.truncated ? (
 					<span>只读</span>
 				) : (
 					<span className="text-muted/50">自动保存</span>
 				)}
 			</div>
 			<MarkdownAiBubbleMenu
-				view={note.truncated ? null : editorView}
+				view={note?.truncated || viewMode === "reading" ? null : editorView}
 				onGenerate={(prompt) => generateAiBarTextRpc(prompt)}
 			/>
 			<DeleteEntryDialog

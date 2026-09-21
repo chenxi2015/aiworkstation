@@ -1054,11 +1054,24 @@ blockquote::after {
 	background: var(--surface);
 	border: 1px solid var(--border);
 	border-radius: 12px;
-	box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
+	box-shadow: 0 10px 28px rgb(0 0 0 / 0.16);
 	padding: 12px 14px;
 	font-size: 13px;
 	line-height: 1.6;
 	color: var(--foreground);
+	animation: cm-preview-fade-in 0.12s ease-out;
+	backdrop-filter: blur(8px);
+}
+
+@keyframes cm-preview-fade-in {
+	from {
+		opacity: 0;
+		transform: translateY(3px) scale(0.985);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+	}
 }
 
 .cm-live-hover-preview-title {
@@ -1079,4 +1092,57 @@ blockquote::after {
 	padding: 8px;
 	overflow-x: auto;
 	font-size: 12px;
+}
+
+/* ============ CodeMirror 双链自动补全下拉面板 ============ */
+.cm-tooltip.cm-tooltip-autocomplete {
+	background: var(--surface) !important;
+	border: 1px solid var(--border) !important;
+	border-radius: 10px !important;
+	box-shadow: 0 10px 30px rgb(0 0 0 / 0.18) !important;
+	overflow: hidden;
+	padding: 4px !important;
+	font-size: 13px !important;
+	min-width: 260px;
+	max-height: 280px;
+	animation: cm-preview-fade-in 0.1s ease-out;
+}
+
+.cm-tooltip-autocomplete > ul {
+	max-height: 270px;
+	padding: 2px 0;
+}
+
+.cm-tooltip-autocomplete > ul > li {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 6px 10px !important;
+	border-radius: 6px !important;
+	color: var(--foreground) !important;
+	line-height: 1.4 !important;
+	cursor: pointer;
+	transition: background-color 0.1s ease;
+}
+
+.cm-tooltip-autocomplete > ul > li[aria-selected] {
+	background: var(--surface-secondary) !important;
+	color: var(--accent) !important;
+}
+
+.cm-tooltip-autocomplete .cm-completionLabel {
+	font-weight: 500;
+}
+
+.cm-tooltip-autocomplete .cm-completionDetail {
+	color: var(--muted) !important;
+	font-size: 11px !important;
+	margin-left: 12px;
+	font-style: normal !important;
+}
+
+.cm-tooltip-autocomplete .cm-completionMatchedText {
+	color: var(--accent) !important;
+	text-decoration: none !important;
+	font-weight: 600;
 }

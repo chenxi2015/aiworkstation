@@ -126,13 +126,20 @@ function RowShell({
 		onOpenMenu(node, rect.right - 176, rect.bottom + 4);
 	};
 
+	const handleRowClick = () => {
+		if (isRenaming) return;
+		onRowClick();
+	};
+
 	return (
-		// biome-ignore lint/a11y/noStaticElementInteractions: 行容器仅承载右键菜单，主交互在内部 button 上
+		// biome-ignore lint/a11y/noStaticElementInteractions: Row container is clickable for note/folder selection
+		// biome-ignore lint/a11y/useKeyWithClickEvents: Keyboard navigation is handled by global vault shortcuts
 		<div
 			style={indent}
 			data-reveal-path={node.relPath}
+			onClick={handleRowClick}
 			onContextMenu={handleContextMenu}
-			className={`group w-full flex items-center gap-1.5 py-1.5 pr-1 text-left text-xs transition-colors ${
+			className={`group w-full flex items-center gap-1.5 py-1.5 pr-1 text-left text-xs cursor-pointer select-none transition-colors ${
 				active
 					? "text-accent bg-accent/10"
 					: "text-foreground/80 hover:bg-surface-secondary/60"
@@ -149,14 +156,10 @@ function RowShell({
 					/>
 				</>
 			) : (
-				<button
-					type="button"
-					onClick={onRowClick}
-					className="flex-1 flex items-center gap-1.5 min-w-0 text-left"
-				>
+				<div className="flex-1 flex items-center gap-1.5 min-w-0 text-left">
 					{leading}
 					<span className={`truncate ${nameClassName}`}>{node.name}</span>
-				</button>
+				</div>
 			)}
 			{!isRenaming && (
 				<button

@@ -17,9 +17,16 @@ const SKIP_DIRS = new Set([".obsidian", ".trash", "node_modules"]);
 let treeCache: { data: ObsidianTree; at: number } | null = null;
 let treeInflight: Promise<ObsidianTree> | null = null;
 
+interface WikilinkIndex {
+	byName: Map<string, string[]>;
+	allNotes: Array<{ bare: string; relPath: string }>;
+}
+let wikilinkIndexCache: WikilinkIndex | null = null;
+
 /** 结构变更（增删改移动）后调用，强制下次扫描重读磁盘 */
 export function invalidateVaultTreeCache(): void {
 	treeCache = null;
+	wikilinkIndexCache = null;
 	invalidateDataviewCache();
 }
 
@@ -36,6 +43,34 @@ export async function scanVaultTree(force = false): Promise<ObsidianTree> {
 	} finally {
 		if (treeInflight === task) treeInflight = null;
 	}
+}
+
+function buildWikilinkIndex(tree: ObsidianTreeNode[]): WikilinkIndex {
+	const byName = new Map<string, string[]>();
+	const allNotes: Array<{ bare: string; relPath: string }> = [];
+
+	const walk = (nodes: ObsidianTreeNode[]) => {
+		for (const node of nodes) {
+			if (node.kind === "note") {
+				const list = byName.get(node.name) ?? [];
+				list.push(node.relPath);
+				byName.set(node.name, list);
+
+				const bare = node.relPath.replace(/\.md$/i, "");
+				allNotes.push({ bare, relPath: node.relPath });
+			} else {
+				walk(node.children ?? []);
+			}
+		}
+	};
+	walk(tree);
+
+	for (const list of byName.values()) {
+		list.sort((a, b) => a.length - b.length);
+	}
+	allNotes.sort((a, b) => a.relPath.length - b.relPath.length);
+
+	return { byName, allNotes };
 }
 
 async function doScanVaultTree(): Promise<ObsidianTree> {
@@ -59,6 +94,7 @@ async function doScanVaultTree(): Promise<ObsidianTree> {
 		scannedAt: Date.now(),
 	};
 	treeCache = { data, at: Date.now() };
+	wikilinkIndexCache = buildWikilinkIndex(tree);
 	return data;
 }
 
@@ -73,32 +109,21 @@ export async function resolveVaultWikilink(
 ): Promise<string | null> {
 	const cleaned = target.trim().replace(/\.md$/i, "");
 	if (!cleaned) return null;
-	const { tree } = await scanVaultTree();
-	const notes: { name: string; relPath: string }[] = [];
-	const walk = (nodes: ObsidianTreeNode[]) => {
-		for (const node of nodes) {
-			if (node.kind === "note") {
-				notes.push({ name: node.name, relPath: node.relPath });
-			} else {
-				walk(node.children ?? []);
-			}
-		}
-	};
-	walk(tree);
+	const treeData = await scanVaultTree();
+	if (!wikilinkIndexCache) {
+		wikilinkIndexCache = buildWikilinkIndex(treeData.tree);
+	}
+
 	if (cleaned.includes("/")) {
 		// 完整路径优先，其次路径后缀匹配（Obsidian 允许省略上层目录）
-		const candidates = notes
-			.filter((n) => {
-				const bare = n.relPath.replace(/\.md$/i, "");
-				return bare === cleaned || bare.endsWith(`/${cleaned}`);
-			})
-			.sort((a, b) => a.relPath.length - b.relPath.length);
-		return candidates[0]?.relPath ?? null;
+		const match = wikilinkIndexCache.allNotes.find(
+			(n) => n.bare === cleaned || n.bare.endsWith(`/${cleaned}`),
+		);
+		return match?.relPath ?? null;
 	}
-	const candidates = notes
-		.filter((n) => n.name === cleaned)
-		.sort((a, b) => a.relPath.length - b.relPath.length);
-	return candidates[0]?.relPath ?? null;
+
+	const candidates = wikilinkIndexCache.byName.get(cleaned);
+	return candidates?.[0] ?? null;
 }
 
 async function scanDir(

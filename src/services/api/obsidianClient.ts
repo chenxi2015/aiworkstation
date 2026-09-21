@@ -124,12 +124,39 @@ export async function fetchObsidianTree(force = false): Promise<ObsidianTree> {
 	}
 }
 
-/** 读取单篇笔记全文（含 mtime 冲突检测基线） */
+/** 客户端笔记内存缓存（LRU/Map），支持切换笔记时 0ms 秒开 */
+const vaultNoteCache = new Map<string, ObsidianNoteContent>();
+
+/** 同步读取已缓存笔记（如无缓存返回 null） */
+export function getCachedVaultNote(
+	relPath: string,
+): ObsidianNoteContent | null {
+	return vaultNoteCache.get(relPath) ?? null;
+}
+
+/** 手动更新笔记缓存 */
+export function setCachedVaultNote(note: ObsidianNoteContent): void {
+	vaultNoteCache.set(note.relPath, note);
+}
+
+/** 清除特定笔记或全部笔记缓存 */
+export function invalidateVaultNoteCache(relPath?: string): void {
+	if (relPath) {
+		vaultNoteCache.delete(relPath);
+	} else {
+		vaultNoteCache.clear();
+	}
+}
+
+/** 读取单篇笔记全文（含 mtime 冲突检测基线，自动回填内存缓存） */
 export async function fetchVaultNote(
 	relPath: string,
 ): Promise<{ note: ObsidianNoteContent | null; error?: string }> {
 	try {
 		const res = await readVaultNoteFn({ data: { relPath } });
+		if (res.note) {
+			vaultNoteCache.set(relPath, res.note);
+		}
 		return { note: res.note, error: res.error };
 	} catch (err) {
 		return { note: null, error: errMessage(err, "读取笔记失败") };
@@ -151,7 +178,7 @@ export async function saveVaultNoteRpc(
 	options?: SaveVaultNoteOptions,
 ): Promise<ObsidianSaveResult> {
 	try {
-		return await saveVaultNoteFn({
+		const res = await saveVaultNoteFn({
 			data: {
 				relPath,
 				content,
@@ -160,6 +187,17 @@ export async function saveVaultNoteRpc(
 				force: options?.force,
 			},
 		});
+		if (res.success) {
+			const existing = vaultNoteCache.get(relPath);
+			if (existing) {
+				vaultNoteCache.set(relPath, {
+					...existing,
+					content: res.merged ?? content,
+					mtime: res.mtime ?? existing.mtime,
+				});
+			}
+		}
+		return res;
 	} catch (err) {
 		return { success: false, error: errMessage(err, "保存笔记失败") };
 	}
@@ -206,7 +244,21 @@ export async function renameVaultEntryRpc(
 	isNote: boolean,
 ): Promise<ObsidianMutationResult> {
 	try {
-		return await renameVaultEntryFn({ data: { relPath, newName, isNote } });
+		const res = await renameVaultEntryFn({
+			data: { relPath, newName, isNote },
+		});
+		if (res.success) {
+			const cached = vaultNoteCache.get(relPath);
+			vaultNoteCache.delete(relPath);
+			if (cached && res.relPath) {
+				vaultNoteCache.set(res.relPath, {
+					...cached,
+					relPath: res.relPath,
+					name: newName.replace(/\.md$/i, ""),
+				});
+			}
+		}
+		return res;
 	} catch (err) {
 		return { success: false, error: errMessage(err, "重命名失败") };
 	}
@@ -217,7 +269,18 @@ export async function moveVaultEntryRpc(
 	targetDir: string,
 ): Promise<ObsidianMutationResult> {
 	try {
-		return await moveVaultEntryFn({ data: { relPath, targetDir } });
+		const res = await moveVaultEntryFn({ data: { relPath, targetDir } });
+		if (res.success && res.relPath) {
+			const cached = vaultNoteCache.get(relPath);
+			vaultNoteCache.delete(relPath);
+			if (cached) {
+				vaultNoteCache.set(res.relPath, {
+					...cached,
+					relPath: res.relPath,
+				});
+			}
+		}
+		return res;
 	} catch (err) {
 		return { success: false, error: errMessage(err, "移动失败") };
 	}
@@ -227,7 +290,11 @@ export async function deleteVaultEntryRpc(
 	relPath: string,
 ): Promise<ObsidianMutationResult> {
 	try {
-		return await deleteVaultEntryFn({ data: { relPath } });
+		const res = await deleteVaultEntryFn({ data: { relPath } });
+		if (res.success) {
+			vaultNoteCache.delete(relPath);
+		}
+		return res;
 	} catch (err) {
 		return { success: false, error: errMessage(err, "删除失败") };
 	}

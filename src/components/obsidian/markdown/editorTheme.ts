@@ -43,7 +43,7 @@ export const appTheme = EditorView.theme({
 		height: "100%",
 		backgroundColor: "transparent",
 		color: "var(--foreground)",
-		fontSize: "14px",
+		fontSize: "16px",
 	},
 	".cm-content": {
 		fontFamily: "inherit",
@@ -129,6 +129,10 @@ export const appTheme = EditorView.theme({
 	".cm-live-link": {
 		color: "var(--accent)",
 		textUnderlineOffset: "2px",
+		cursor: "pointer",
+	},
+	".cm-live-link-active, .cm-live-link-active.cm-live-external-link": {
+		cursor: "text",
 	},
 	// 外链：Obsidian 风格 ↗ 角标 + 指针光标（点击直接打开）
 	".cm-live-external-link": {
@@ -165,6 +169,9 @@ export const appTheme = EditorView.theme({
 		color: "var(--accent)",
 		fontWeight: "500",
 		cursor: "pointer",
+	},
+	".cm-live-wikilink-active": {
+		cursor: "text",
 	},
 	".cm-live-highlight": {
 		backgroundColor: "color-mix(in srgb, gold 30%, transparent)",

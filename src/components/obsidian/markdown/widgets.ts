@@ -76,12 +76,18 @@ export function parseYamlProps(yaml: string): PropEntry[] {
 
 /** Frontmatter properties panel widget */
 export class FrontmatterWidget extends WidgetType {
-	constructor(readonly yamlText: string) {
+	constructor(
+		readonly yamlText: string,
+		readonly onFollowWikilink?: (target: string) => void,
+	) {
 		super();
 	}
 
 	override eq(other: FrontmatterWidget) {
-		return other.yamlText === this.yamlText;
+		return (
+			other.yamlText === this.yamlText &&
+			other.onFollowWikilink === this.onFollowWikilink
+		);
 	}
 
 	override toDOM(view: EditorView) {
@@ -115,6 +121,14 @@ export class FrontmatterWidget extends WidgetType {
 				if (wikilink) {
 					chip.className = "cm-live-wikilink cm-live-props-link";
 					chip.textContent = (wikilink[1] ?? "").split("|").pop() ?? v;
+					// 属性面板里的双链：单击跳转（阻止冒泡，避免触发面板的选区重置）
+					const target =
+						(wikilink[1] ?? "").split("|")[0]?.split("#")[0]?.trim() ?? "";
+					chip.addEventListener("mousedown", (e) => {
+						e.stopPropagation();
+						e.preventDefault();
+						if (target) this.onFollowWikilink?.(target);
+					});
 				} else {
 					chip.className = "cm-live-props-chip";
 					chip.textContent = v;

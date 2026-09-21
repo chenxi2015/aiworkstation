@@ -22,6 +22,8 @@ export interface HiddenMark {
 export interface LivePreviewOptions {
 	/** Note relative path within vault root */
 	noteRelPath?: string;
+	/** 阅读视图：永不因光标位置展开 Markdown 源码，全部保持渲染态 */
+	readingMode?: boolean;
 	/** Image click preview callback */
 	onPreviewImage?: (data: { src: string; alt: string }) => void;
 	/** Note navigation link callback */
@@ -39,10 +41,26 @@ export function selectionTouches(
 	return state.selection.ranges.some((r) => from <= r.to && to >= r.from);
 }
 
+/** Check if the line(s) spanned by [from, to] touch the current selection */
+export function lineTouchesSelection(
+	state: EditorState,
+	from: number,
+	to: number,
+): boolean {
+	const startLine = state.doc.lineAt(from);
+	const endLine = state.doc.lineAt(Math.min(to, state.doc.length));
+	return state.selection.ranges.some(
+		(r) => r.from <= endLine.to && r.to >= startLine.from,
+	);
+}
+
 /** Process YAML frontmatter: show props panel when cursor is outside, gray out lines when inside */
 export function processFrontmatter(
 	state: EditorState,
 	ctx: {
+		readingMode?: boolean;
+		/** 属性面板双链点击跳转回调 */
+		onFollowWikilink?: (target: string) => void;
 		replacedBlocks: Range[];
 		blockWidgets: DecoItem[];
 		pushLine: (from: number, to: number, cls: string) => void;
@@ -58,7 +76,7 @@ export function processFrontmatter(
 		}
 		if (endLineNo > 0) {
 			const blockTo = state.doc.line(endLineNo).to;
-			if (!selectionTouches(state, 0, blockTo)) {
+			if (ctx.readingMode || !selectionTouches(state, 0, blockTo)) {
 				const yamlText = state.doc.sliceString(
 					state.doc.line(2).from,
 					state.doc.line(endLineNo).from,
@@ -68,7 +86,7 @@ export function processFrontmatter(
 					from: 0,
 					to: blockTo,
 					deco: Decoration.replace({
-						widget: new FrontmatterWidget(yamlText),
+						widget: new FrontmatterWidget(yamlText, ctx.onFollowWikilink),
 						block: true,
 					}),
 				});
@@ -103,6 +121,9 @@ export function processDialects(
 		pushLine: (from: number, to: number, cls: string) => void;
 	},
 ) {
+	// 阅读视图下视为光标永不相交：所有语法标记保持渲染态；编辑视图下按光标所在行判定
+	const isLineActive = (from: number, to: number) =>
+		options.readingMode ? false : lineTouchesSelection(state, from, to);
 	// Collect inline code ranges to avoid matching # tags / math inside code
 	const codeRanges: Range[] = [];
 	for (const item of ctx.inlineItems) {
@@ -188,12 +209,19 @@ export function processDialects(
 			const inner = wikilinkMatch[1] ?? "";
 			wikilinkMatch = wikilinkRe.exec(text);
 			if (inCode(from, to) || inReplacedBlock(from, to)) continue;
+			const target = inner.split("|")[0]?.split("#")[0]?.trim() ?? "";
+			const isTouching = isLineActive(from, to);
 			ctx.inlineItems.push({
 				from,
 				to,
-				deco: Decoration.mark({ class: "cm-live-wikilink" }),
+				deco: Decoration.mark({
+					class: isTouching
+						? "cm-live-wikilink cm-live-wikilink-active"
+						: "cm-live-wikilink",
+					attributes: target ? { "data-target": target } : undefined,
+				}),
 			});
-			if (selectionTouches(state, from, to)) continue;
+			if (isTouching) continue;
 			const aliasIdx = inner.indexOf("|");
 			const hidePrefixTo = aliasIdx >= 0 ? from + 2 + aliasIdx + 1 : from + 2;
 			ctx.marks.push({ from, to: hidePrefixTo });
@@ -213,7 +241,7 @@ export function processDialects(
 				to,
 				deco: Decoration.mark({ class: "cm-live-highlight" }),
 			});
-			if (selectionTouches(state, from, to)) continue;
+			if (isLineActive(from, to)) continue;
 			ctx.marks.push({ from, to: from + 2 });
 			ctx.marks.push({ from: to - 2, to });
 		}
@@ -227,7 +255,7 @@ export function processDialects(
 			commentMatch = commentRe.exec(text);
 			if (inCode(from, to) || inReplacedBlock(from, to)) continue;
 			skipRanges.push({ from, to });
-			if (selectionTouches(state, from, to)) {
+			if (isLineActive(from, to)) {
 				ctx.inlineItems.push({
 					from,
 					to,
@@ -248,7 +276,7 @@ export function processDialects(
 			blockMathMatch = blockMathRe.exec(text);
 			if (inCode(from, to) || inReplacedBlock(from, to) || !tex) continue;
 			skipRanges.push({ from, to });
-			if (selectionTouches(state, from, to)) continue;
+			if (isLineActive(from, to)) continue;
 			ctx.blockWidgets.push({
 				from,
 				to,
@@ -269,7 +297,7 @@ export function processDialects(
 			inlineMathMatch = inlineMathRe.exec(text);
 			if (inCode(from, to) || inReplacedBlock(from, to) || !tex) continue;
 			skipRanges.push({ from, to });
-			if (selectionTouches(state, from, to)) continue;
+			if (isLineActive(from, to)) continue;
 			ctx.inlineItems.push({
 				from,
 				to,

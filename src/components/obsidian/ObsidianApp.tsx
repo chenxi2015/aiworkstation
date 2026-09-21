@@ -32,6 +32,7 @@ import {
 } from "./DeleteEntryDialog";
 import { DirectoryPickerModal } from "./DirectoryPickerModal";
 import { useObsidianAiBridge } from "./hooks/useObsidianAiBridge";
+import { clearWikilinkCaches } from "./markdown/wikilink";
 import { NotePanel } from "./NotePanel";
 import { TreeContextMenu, type TreeMenuTarget } from "./TreeContextMenu";
 import type { ObsidianNoteApi, ObsidianTree } from "./types";
@@ -63,7 +64,93 @@ export function ObsidianApp({
 	const [loading, setLoading] = useState(true);
 	const [refreshing, setRefreshing] = useState(false);
 	const [query, setQuery] = useState("");
-	const [selectedNotePath, setSelectedNotePath] = useState<string | null>(null);
+	// 笔记导航历史（Obsidian 同款返回/前进）：栈 + 游标，新跳转截断前向分支
+	const [noteHistory, setNoteHistory] = useState<{
+		stack: string[];
+		index: number;
+	}>({ stack: [], index: -1 });
+	const selectedNotePath =
+		noteHistory.index >= 0
+			? (noteHistory.stack[noteHistory.index] ?? null)
+			: null;
+	const openNote = useCallback((path: string) => {
+		setNoteHistory((prev) => {
+			if (prev.stack[prev.index] === path) return prev;
+			const stack = [...prev.stack.slice(0, prev.index + 1), path];
+			return { stack, index: stack.length - 1 };
+		});
+	}, []);
+	const clearNoteHistory = useCallback(() => {
+		setNoteHistory({ stack: [], index: -1 });
+	}, []);
+	const goBack = useCallback(() => {
+		setNoteHistory((prev) =>
+			prev.index > 0 ? { ...prev, index: prev.index - 1 } : prev,
+		);
+	}, []);
+	const goForward = useCallback(() => {
+		setNoteHistory((prev) =>
+			prev.index < prev.stack.length - 1
+				? { ...prev, index: prev.index + 1 }
+				: prev,
+		);
+	}, []);
+	/** 重命名/移动后原地替换历史条目（不产生新历史） */
+	const remapNoteHistory = useCallback((remap: (p: string) => string) => {
+		setNoteHistory((prev) => ({
+			stack: prev.stack.map(remap),
+			index: prev.index,
+		}));
+	}, []);
+	/** 当前笔记被删除：从历史移除该条目并回退到上一条 */
+	const removeCurrentNote = useCallback(() => {
+		setNoteHistory((prev) => {
+			if (prev.index < 0) return prev;
+			const stack = prev.stack.filter((_, i) => i !== prev.index);
+			return { stack, index: Math.min(prev.index, stack.length - 1) };
+		});
+	}, []);
+	/** 笔记内重命名：原地替换当前历史条目（不产生新历史） */
+	const handleNoteRenamed = useCallback((newPath: string) => {
+		setNoteHistory((prev) => {
+			if (prev.index < 0) return prev;
+			const stack = [...prev.stack];
+			stack[prev.index] = newPath;
+			return { stack, index: prev.index };
+		});
+	}, []);
+	/** 面包屑点击文件夹：左侧树选中该目录并展开祖先链 */
+	const handleSelectFolder = useCallback((dir: string) => {
+		setCurrentDir(dir);
+		setExpanded((prev) => {
+			const next = new Set(prev);
+			let cur = dir;
+			while (cur) {
+				next.add(cur);
+				const idx = cur.lastIndexOf("/");
+				cur = idx > 0 ? cur.slice(0, idx) : "";
+			}
+			return next;
+		});
+	}, []);
+	const canGoBack = noteHistory.index > 0;
+	const canGoForward = noteHistory.index < noteHistory.stack.length - 1;
+
+	// 导航快捷键（对齐 Obsidian：⌘/Ctrl+Alt+←/→ 返回/前进）
+	useEffect(() => {
+		const onKeyDown = (e: KeyboardEvent) => {
+			if (!(e.altKey && (e.metaKey || e.ctrlKey))) return;
+			if (e.key === "ArrowLeft") {
+				e.preventDefault();
+				goBack();
+			} else if (e.key === "ArrowRight") {
+				e.preventDefault();
+				goForward();
+			}
+		};
+		window.addEventListener("keydown", onKeyDown);
+		return () => window.removeEventListener("keydown", onKeyDown);
+	}, [goBack, goForward]);
 	const [currentDir, setCurrentDir] = useState("");
 	const [expanded, setExpanded] = useState<Set<string>>(new Set());
 	const [renamingPath, setRenamingPath] = useState<string | null>(null);
@@ -104,8 +191,8 @@ export function ObsidianApp({
 	useEffect(() => {
 		if (initialNoteHandledRef.current || !initialNotePath) return;
 		initialNoteHandledRef.current = true;
-		setSelectedNotePath(initialNotePath);
-	}, [initialNotePath]);
+		openNote(initialNotePath);
+	}, [initialNotePath, openNote]);
 
 	const filteredTree = useMemo(
 		() => (treeData ? filterVaultTree(treeData.tree, debouncedQuery) : []),
@@ -148,13 +235,14 @@ export function ObsidianApp({
 		(path: string) => {
 			const next = path.trim();
 			saveSettings({ ...settings, obsidianVaultDir: next || undefined });
-			setSelectedNotePath(null);
+			clearNoteHistory();
+			clearWikilinkCaches();
 			setCurrentDir("");
 			setExpanded(new Set());
 			toast.success("Vault 路径已保存，正在重新扫描");
 			load(true);
 		},
-		[settings, load],
+		[settings, load, clearNoteHistory],
 	);
 
 	/** VaultSwitcher 应用新设置；rescan 时清空选中状态并重扫目录树 */
@@ -162,12 +250,13 @@ export function ObsidianApp({
 		(next: WorkbenchSettings, rescan: boolean) => {
 			saveSettings(next);
 			if (!rescan) return;
-			setSelectedNotePath(null);
+			clearNoteHistory();
+			clearWikilinkCaches();
 			setCurrentDir("");
 			setExpanded(new Set());
 			load(true);
 		},
-		[load],
+		[load, clearNoteHistory],
 	);
 
 	/** 在目标目录下生成不冲突的名称：base → base 1 → base 2（对齐 Obsidian「未命名」行为） */
@@ -265,11 +354,11 @@ export function ObsidianApp({
 			expandDirChain(targetDir);
 			await load(true);
 			if (res.relPath) {
-				setSelectedNotePath(res.relPath);
+				openNote(res.relPath);
 				setRenamingPath(res.relPath);
 			}
 		},
-		[currentDir, nextAvailableName, expandDirChain, load],
+		[currentDir, nextAvailableName, expandDirChain, load, openNote],
 	);
 
 	/** 双链跳转新建：落在当前笔记所在目录（对齐 Obsidian 默认行为），静默创建后直接打开 */
@@ -285,9 +374,9 @@ export function ObsidianApp({
 			}
 			toast.success(`已新建笔记「${name}」`);
 			await load(true);
-			if (res.relPath) setSelectedNotePath(res.relPath);
+			if (res.relPath) openNote(res.relPath);
 		},
-		[selectedNotePath, load],
+		[selectedNotePath, load, openNote],
 	);
 
 	/** 新建文件夹：不弹窗，直接以「未命名」落在目标目录并进入内联重命名 */
@@ -330,16 +419,17 @@ export function ObsidianApp({
 					return newPath + p.slice(relPath.length);
 				return p;
 			};
-			setSelectedNotePath((prev) => remap(prev));
+			remapNoteHistory((p) => remap(p) ?? p);
 			setCurrentDir((prev) => remap(prev) ?? "");
 			setExpanded((prev) => {
 				const next = new Set<string>();
 				for (const p of prev) next.add(remap(p) ?? p);
 				return next;
 			});
+			clearWikilinkCaches();
 			await load(true);
 		},
-		[load],
+		[load, remapNoteHistory],
 	);
 
 	/** 执行删除（移动到系统回收站），清理受影响的选中态 */
@@ -352,9 +442,19 @@ export function ObsidianApp({
 			}
 			const affected = (p: string | null) =>
 				p !== null && (p === node.relPath || p.startsWith(`${node.relPath}/`));
-			setSelectedNotePath((prev) => (affected(prev) ? null : prev));
+			setNoteHistory((prev) => {
+				if (!prev.stack.some((p) => affected(p))) return prev;
+				const current = prev.index >= 0 ? prev.stack[prev.index] : null;
+				const stack = prev.stack.filter((p) => !affected(p));
+				const index =
+					current && !affected(current)
+						? stack.lastIndexOf(current)
+						: Math.min(prev.index, stack.length) - 1;
+				return { stack, index };
+			});
 			setCurrentDir((prev) => (affected(prev) ? "" : prev));
 			setRenamingPath((prev) => (affected(prev) ? null : prev));
+			clearWikilinkCaches();
 			toast.success("已移动到系统回收站");
 			await load(true);
 		},
@@ -551,7 +651,7 @@ export function ObsidianApp({
 									renamingPath={renamingPath}
 									onToggleFolder={toggleFolder}
 									onSelectFolder={setCurrentDir}
-									onSelectNote={setSelectedNotePath}
+									onSelectNote={openNote}
 									onOpenMenu={handleOpenMenu}
 									onRenameCommit={(p, name, isFolder) =>
 										void handleRenameCommit(p, name, isFolder)
@@ -615,14 +715,18 @@ export function ObsidianApp({
 							</div>
 						) : selectedNotePath ? (
 							<NotePanel
-								key={selectedNotePath}
 								relPath={selectedNotePath}
 								onMutated={() => load(true)}
-								onRenamed={setSelectedNotePath}
-								onDeleted={() => setSelectedNotePath(null)}
+								onRenamed={handleNoteRenamed}
+								onDeleted={removeCurrentNote}
 								onRegisterNoteApi={handleRegisterNoteApi}
-								onNavigateNote={setSelectedNotePath}
+								onNavigateNote={openNote}
 								onCreateNote={(name) => void handleCreateNoteFromLink(name)}
+								canGoBack={canGoBack}
+								canGoForward={canGoForward}
+								onBack={goBack}
+								onForward={goForward}
+								onSelectFolder={handleSelectFolder}
 							/>
 						) : (
 							<div className="h-full flex flex-col items-center justify-center text-center px-8">
