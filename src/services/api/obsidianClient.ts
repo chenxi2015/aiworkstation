@@ -93,6 +93,7 @@ export interface LocalDirListing {
 	parent: string | null;
 	currentIsVault: boolean;
 	dirs: LocalDirEntry[];
+	drives?: string[];
 	error?: string;
 }
 

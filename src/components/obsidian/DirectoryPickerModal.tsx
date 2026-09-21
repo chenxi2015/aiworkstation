@@ -1,5 +1,12 @@
 import { Button, Modal } from "@heroui/react";
-import { ArrowUp, BadgeCheck, Folder, Loader2 } from "lucide-react";
+import {
+	ArrowRight,
+	ArrowUp,
+	BadgeCheck,
+	Folder,
+	HardDrive,
+	Loader2,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import {
 	type LocalDirListing,
@@ -31,6 +38,7 @@ export function DirectoryPickerModal({
 	onClose,
 }: DirectoryPickerModalProps) {
 	const [listing, setListing] = useState<LocalDirListing | null>(null);
+	const [pathInput, setPathInput] = useState(initialPath?.trim() || "");
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 
@@ -40,6 +48,7 @@ export function DirectoryPickerModal({
 		const res = await listLocalDirectoriesRpc(dirPath);
 		if (res.success) {
 			setListing(res);
+			setPathInput(res.path);
 		} else {
 			setError(res.error ?? "读取目录失败");
 		}
@@ -49,6 +58,14 @@ export function DirectoryPickerModal({
 	useEffect(() => {
 		navigate(initialPath?.trim() || undefined);
 	}, [initialPath, navigate]);
+
+	const handlePathSubmit = (e: React.FormEvent) => {
+		e.preventDefault();
+		const trimmed = pathInput.trim();
+		if (trimmed) {
+			navigate(trimmed);
+		}
+	};
 
 	return (
 		<Modal.Backdrop
@@ -80,9 +97,28 @@ export function DirectoryPickerModal({
 									{s.label}
 								</Button>
 							))}
+							{listing?.drives && listing.drives.length > 0 && (
+								<div className="flex items-center gap-1 pl-1 border-l border-border/80">
+									{listing.drives.map((drive) => (
+										<Button
+											key={drive}
+											variant="secondary"
+											size="sm"
+											onPress={() => navigate(drive)}
+											className="rounded-full h-6 px-2 text-[10px] font-medium flex items-center gap-1"
+										>
+											<HardDrive className="w-2.5 h-2.5 text-muted" />
+											<span>{drive}</span>
+										</Button>
+									))}
+								</div>
+							)}
 						</div>
 
-						<div className="flex items-center gap-2 py-1.5 border-y border-border shrink-0">
+						<form
+							onSubmit={handlePathSubmit}
+							className="flex items-center gap-1.5 py-1.5 border-y border-border shrink-0"
+						>
 							<button
 								type="button"
 								onClick={() => listing?.parent && navigate(listing.parent)}
@@ -92,19 +128,31 @@ export function DirectoryPickerModal({
 							>
 								<ArrowUp className="w-3.5 h-3.5" />
 							</button>
-							<span
-								className="text-[11px] font-mono text-muted truncate flex-1"
-								title={listing?.path}
-							>
-								{listing?.path || "…"}
-							</span>
+							<div className="relative flex-1 flex items-center min-w-0">
+								<input
+									type="text"
+									value={pathInput}
+									onChange={(e) => setPathInput(e.target.value)}
+									placeholder="输入路径，按回车跳转..."
+									className="w-full bg-surface-secondary/40 hover:bg-surface-secondary/70 focus:bg-surface text-[11px] font-mono text-foreground placeholder:text-muted/60 px-2 py-1 rounded-md border border-border/60 focus:border-accent focus:outline-none transition-colors"
+								/>
+							</div>
+							{pathInput.trim() !== listing?.path && (
+								<button
+									type="submit"
+									className="p-1 rounded-md bg-accent text-accent-foreground hover:opacity-90 transition-opacity shrink-0"
+									title="跳转到该路径"
+								>
+									<ArrowRight className="w-3.5 h-3.5" />
+								</button>
+							)}
 							{listing?.currentIsVault && (
-								<span className="flex items-center gap-1 text-[10px] text-success shrink-0">
+								<span className="flex items-center gap-1 text-[10px] text-success shrink-0 whitespace-nowrap px-1">
 									<BadgeCheck className="w-3.5 h-3.5" />
 									当前目录是 Vault
 								</span>
 							)}
-						</div>
+						</form>
 
 						<div className="flex-1 overflow-y-auto min-h-48">
 							{loading ? (

@@ -8,6 +8,7 @@ import type {
 	ObsidianSaveResult,
 	ObsidianTree,
 } from "../../components/obsidian/types.ts";
+import { detectHostOS } from "../../lib/platform.ts";
 import { resolveUserPath } from "../ai/fs/fsSafety.ts";
 import {
 	type DataviewResult,
@@ -46,6 +47,29 @@ export const resolveVaultWikilinkFn = createServerFn({ method: "POST" })
 	});
 
 /**
+ * Detect available drive letters on Windows (e.g. C:\, D:\).
+ * Returns an empty array on non-Windows platforms.
+ */
+function getAvailableDrives(): string[] {
+	if (detectHostOS() !== "windows") {
+		return [];
+	}
+	const drives: string[] = [];
+	const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+	for (const letter of letters) {
+		const driveRoot = `${letter}:\\`;
+		try {
+			if (existsSync(driveRoot)) {
+				drives.push(driveRoot);
+			}
+		} catch {
+			// Skip unreadable or unmounted drives
+		}
+	}
+	return drives;
+}
+
+/**
  * Server Function: 列出本机目录的子文件夹（目录选择器数据源）。
  * dirPath 为空时从用户主目录开始；跳过隐藏目录与 node_modules；
  * 附带 isVault 标记（含 .obsidian 元数据目录的即为 Obsidian Vault）。
@@ -61,6 +85,7 @@ export const listLocalDirectories = createServerFn({ method: "POST" })
 			parent: string | null;
 			currentIsVault: boolean;
 			dirs: Array<{ name: string; path: string; isVault: boolean }>;
+			drives?: string[];
 			error?: string;
 		}> => {
 			const empty = {
@@ -68,6 +93,7 @@ export const listLocalDirectories = createServerFn({ method: "POST" })
 				parent: null,
 				currentIsVault: false,
 				dirs: [] as Array<{ name: string; path: string; isVault: boolean }>,
+				drives: getAvailableDrives(),
 			};
 			try {
 				const target = data.dirPath?.trim()
@@ -100,6 +126,7 @@ export const listLocalDirectories = createServerFn({ method: "POST" })
 					parent: parent === target ? null : parent,
 					currentIsVault: existsSync(join(target, ".obsidian")),
 					dirs,
+					drives: getAvailableDrives(),
 				};
 			} catch (err) {
 				return {
