@@ -124,7 +124,7 @@ export function DirectoryPickerModal({
 										className="w-full flex items-center gap-2 px-5 py-2 text-left text-xs text-foreground/80 hover:bg-surface-secondary/60 transition-colors"
 										title={dir.path}
 									>
-										<Folder className="w-3.5 h-3.5 shrink-0 text-accent/80" />
+										<Folder className="w-3.5 h-3.5 shrink-0 text-muted group-hover:text-foreground/80" />
 										<span className="truncate flex-1">{dir.name}</span>
 										{dir.isVault && (
 											<span className="flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 rounded-full bg-success/10 text-success border border-success/30 shrink-0">

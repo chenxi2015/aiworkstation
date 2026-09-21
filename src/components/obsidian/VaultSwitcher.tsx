@@ -159,7 +159,7 @@ export function VaultSwitcher({
 						aria-label="切换仓库"
 						className="justify-start gap-2 px-3 py-2.5 h-auto rounded-none hover:bg-surface-secondary/60"
 					>
-						<Database className="w-3.5 h-3.5 text-accent shrink-0" />
+						<Database className="w-3.5 h-3.5 text-foreground/70 shrink-0" />
 						<span className="flex-1 min-w-0 text-xs font-medium text-foreground truncate text-left">
 							{active ? vaultNameOf(active) : "选择仓库"}
 						</span>
@@ -169,7 +169,7 @@ export function VaultSwitcher({
 				<Popover.Content
 					placement="top start"
 					offset={6}
-					className="w-60 rounded-xl border border-border/80 bg-surface shadow-xl overflow-hidden"
+					className="w-72 rounded-xl border border-border/80 bg-surface shadow-xl overflow-hidden"
 				>
 					<Popover.Dialog aria-label="仓库管理" className="outline-none">
 						<div className="px-3 pt-2.5 pb-1.5 flex items-baseline gap-2">
@@ -211,7 +211,7 @@ export function VaultSwitcher({
 												</span>
 											</span>
 											{entry.path === active && (
-												<Check className="w-3.5 h-3.5 text-accent shrink-0" />
+												<Check className="w-3.5 h-3.5 text-foreground shrink-0" />
 											)}
 										</button>
 										<button

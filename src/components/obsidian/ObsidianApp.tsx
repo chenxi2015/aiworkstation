@@ -64,6 +64,39 @@ export function ObsidianApp({
 	const [loading, setLoading] = useState(true);
 	const [refreshing, setRefreshing] = useState(false);
 	const [query, setQuery] = useState("");
+	// 侧边栏宽度：默认 300px（加宽，避免深层文件名截断），支持拖拽微调并持久化
+	const [sidebarWidth, setSidebarWidth] = useState(() => {
+		if (typeof window === "undefined") return 300;
+		try {
+			const saved = Number(localStorage.getItem("obsidian_sidebar_width"));
+			if (saved >= 240 && saved <= 600) return saved;
+		} catch {}
+		return 300;
+	});
+	const sidebarWidthRef = useRef(sidebarWidth);
+	sidebarWidthRef.current = sidebarWidth;
+
+	const handleSidebarResizeStart = useCallback((e: React.MouseEvent) => {
+		e.preventDefault();
+		const startX = e.clientX;
+		const startWidth = sidebarWidthRef.current;
+
+		const onMouseMove = (ev: MouseEvent) => {
+			const next = Math.max(240, Math.min(600, startWidth + (ev.clientX - startX)));
+			setSidebarWidth(next);
+		};
+
+		const onMouseUp = () => {
+			window.removeEventListener("mousemove", onMouseMove);
+			window.removeEventListener("mouseup", onMouseUp);
+			try {
+				localStorage.setItem("obsidian_sidebar_width", String(sidebarWidthRef.current));
+			} catch {}
+		};
+
+		window.addEventListener("mousemove", onMouseMove);
+		window.addEventListener("mouseup", onMouseUp);
+	}, []);
 	// 笔记导航历史（Obsidian 同款返回/前进）：栈 + 游标，新跳转截断前向分支
 	const [noteHistory, setNoteHistory] = useState<{
 		stack: string[];
@@ -526,7 +559,10 @@ export function ObsidianApp({
 				</div>
 			) : (
 				<div className="flex-1 flex overflow-hidden">
-					<aside className="w-64 shrink-0 border-r border-border flex flex-col overflow-hidden">
+					<aside
+						style={{ width: `${sidebarWidth}px` }}
+						className="relative shrink-0 border-r border-border flex flex-col overflow-hidden"
+					>
 						<div className="px-2.5 pt-2.5 pb-1.5 space-y-1.5 shrink-0">
 							<div className="relative">
 								<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted pointer-events-none" />
@@ -535,7 +571,7 @@ export function ObsidianApp({
 									value={query}
 									onChange={(e) => handleQueryChange(e.target.value)}
 									placeholder="筛选笔记/文件夹…"
-									className="w-full pl-7 pr-2 py-1.5 rounded-lg border border-border bg-surface-secondary/40 text-[11px] text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/40"
+									className="w-full pl-7 pr-2 py-1.5 rounded-lg border border-border bg-surface-secondary/40 text-[11px] text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-zinc-400/40 dark:focus:ring-zinc-600/40"
 								/>
 							</div>
 							<div className="flex items-center gap-0.5 px-1">
@@ -622,7 +658,7 @@ export function ObsidianApp({
 											aria-pressed={autoReveal}
 											className={`p-1.5 rounded-md transition-colors ${
 												autoReveal
-													? "text-accent bg-accent/10"
+													? "text-zinc-900 bg-zinc-200/80 dark:text-zinc-100 dark:bg-zinc-700/80 font-medium"
 													: "text-muted hover:text-foreground hover:bg-surface-secondary/60"
 											}`}
 										>
@@ -674,11 +710,17 @@ export function ObsidianApp({
 							scannedAt={treeData?.scannedAt}
 							onApply={handleApplyVaultSettings}
 						/>
+						{/* 拖拽调整侧边栏宽度 */}
+						<div
+							onMouseDown={handleSidebarResizeStart}
+							className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-zinc-400/50 active:bg-zinc-500 transition-colors z-10 select-none"
+							title="拖拽调整侧边栏宽度"
+						/>
 					</aside>
 					<section className="flex-1 overflow-hidden">
 						{vaultMissing ? (
 							<div className="h-full flex flex-col items-center justify-center text-center px-8">
-								<div className="w-14 h-14 rounded-2xl bg-accent-soft text-accent flex items-center justify-center mb-4">
+								<div className="w-14 h-14 rounded-2xl bg-surface-secondary text-foreground/70 flex items-center justify-center mb-4">
 									<FolderOpen className="w-6 h-6" />
 								</div>
 								<h2 className="text-sm font-semibold text-foreground">
@@ -730,7 +772,7 @@ export function ObsidianApp({
 							/>
 						) : (
 							<div className="h-full flex flex-col items-center justify-center text-center px-8">
-								<div className="w-14 h-14 rounded-2xl bg-accent-soft text-accent flex items-center justify-center mb-4">
+								<div className="w-14 h-14 rounded-2xl bg-surface-secondary text-foreground/70 flex items-center justify-center mb-4">
 									<NotebookPen className="w-6 h-6" />
 								</div>
 								<h2 className="text-sm font-semibold text-foreground">

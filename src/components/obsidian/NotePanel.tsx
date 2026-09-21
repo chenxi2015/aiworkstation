@@ -396,7 +396,7 @@ export function NotePanel({
 								setEditingTitle(false);
 								void handleRename(titleDraft);
 							}}
-							className="w-72 max-w-full px-1.5 py-0.5 rounded-md border border-accent/60 bg-surface text-xs font-medium text-foreground focus:outline-none"
+							className="w-72 max-w-full px-1.5 py-0.5 rounded-md border border-zinc-400 dark:border-zinc-600 bg-surface text-xs font-medium text-foreground focus:outline-none focus:border-zinc-900 dark:focus:border-zinc-100"
 						/>
 					) : (
 						<nav

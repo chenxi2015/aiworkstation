@@ -74,7 +74,7 @@ function RenameInput({
 				if (e.key === "Escape") cancel();
 			}}
 			onBlur={commit}
-			className="flex-1 min-w-0 px-1 py-0 rounded border border-accent/60 bg-surface text-xs text-foreground focus:outline-none"
+			className="flex-1 min-w-0 px-1 py-0 rounded border border-zinc-400 dark:border-zinc-600 bg-surface text-xs text-foreground focus:outline-none focus:border-zinc-900 dark:focus:border-zinc-100"
 			onPointerDown={(e) => e.stopPropagation()}
 		/>
 	);
@@ -141,7 +141,7 @@ function RowShell({
 			onContextMenu={handleContextMenu}
 			className={`group w-full flex items-center gap-1.5 py-1.5 pr-1 text-left text-xs cursor-pointer select-none transition-colors ${
 				active
-					? "text-accent bg-accent/10"
+					? "text-zinc-900 dark:text-zinc-100 bg-zinc-200/70 dark:bg-zinc-800 font-medium"
 					: "text-foreground/80 hover:bg-surface-secondary/60"
 			}`}
 			title={node.relPath}
@@ -237,9 +237,21 @@ const FolderNode = memo(function FolderNode({
 							<ChevronRight className="w-3 h-3 shrink-0 text-muted" />
 						)}
 						{isExpanded ? (
-							<FolderOpen className="w-3.5 h-3.5 shrink-0 text-accent/80" />
+							<FolderOpen
+								className={`w-3.5 h-3.5 shrink-0 transition-colors ${
+									isCurrent
+										? "text-zinc-900 dark:text-zinc-100"
+										: "text-muted group-hover:text-foreground/80"
+								}`}
+							/>
 						) : (
-							<Folder className="w-3.5 h-3.5 shrink-0 text-accent/80" />
+							<Folder
+								className={`w-3.5 h-3.5 shrink-0 transition-colors ${
+									isCurrent
+										? "text-zinc-900 dark:text-zinc-100"
+										: "text-muted group-hover:text-foreground/80"
+								}`}
+							/>
 						)}
 					</>
 				}
@@ -299,11 +311,21 @@ const NoteNode = memo(function NoteNode({
 			onOpenMenu={onOpenMenu}
 			onRenameCommit={onRenameCommit}
 			onRenameCancel={onRenameCancel}
-			nameClassName={isSelected ? "font-medium" : "text-foreground/70"}
+			nameClassName={
+				isSelected
+					? "font-medium text-zinc-900 dark:text-zinc-100"
+					: "text-foreground/70"
+			}
 			leading={
 				<>
 					<span className="w-3 shrink-0" />
-					<FileText className="w-3.5 h-3.5 shrink-0 text-muted" />
+					<FileText
+						className={`w-3.5 h-3.5 shrink-0 transition-colors ${
+							isSelected
+								? "text-zinc-900 dark:text-zinc-100"
+								: "text-muted group-hover:text-foreground/80"
+						}`}
+					/>
 				</>
 			}
 		/>
