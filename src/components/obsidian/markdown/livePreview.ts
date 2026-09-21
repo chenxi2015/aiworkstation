@@ -320,8 +320,26 @@ function buildDecorations(
 						if (markerMatch) {
 							const rawType = (markerMatch[1] ?? "note").toLowerCase();
 							const type = CALLOUT_ALIASES[rawType] ?? rawType;
-							pushLine(from, to, "cm-live-callout");
-							pushLine(from, to, `cm-live-callout-${type}`);
+							const startLine = state.doc.lineAt(from);
+							const endLine = state.doc.lineAt(
+								Math.max(from, Math.min(to, state.doc.length)),
+							);
+							for (let l = startLine.number; l <= endLine.number; l++) {
+								const lineObj = state.doc.line(l);
+								const classes = [
+									"cm-live-callout",
+									`cm-live-callout-${type}`,
+									rawType !== type ? `cm-live-callout-${rawType}` : "",
+									l === startLine.number ? "cm-live-callout-first" : "",
+									l === endLine.number ? "cm-live-callout-last" : "",
+								]
+									.filter(Boolean)
+									.join(" ");
+								lineItems.push({
+									pos: lineObj.from,
+									deco: Decoration.line({ class: classes }),
+								});
+							}
 							if (!lineTouches(firstLine.from, firstLine.to)) {
 								const markTo = firstLine.from + markerMatch[0].length;
 								calloutMarkRanges.push({ from: firstLine.from, to: markTo });
@@ -332,6 +350,15 @@ function buildDecorations(
 										widget: new CalloutIconWidget(rawType),
 									}),
 								});
+								if (markTo < firstLine.to) {
+									inlineItems.push({
+										from: markTo,
+										to: firstLine.to,
+										deco: Decoration.mark({
+											class: "cm-live-callout-title",
+										}),
+									});
+								}
 							}
 							return;
 						}

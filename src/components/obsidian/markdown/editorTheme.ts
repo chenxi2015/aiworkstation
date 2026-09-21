@@ -262,12 +262,47 @@ export const appTheme = EditorView.theme({
 		padding: "0 2px",
 	},
 	".cm-live-checkbox": {
-		accentColor: "var(--accent)",
-		width: "13px",
-		height: "13px",
-		margin: "0 6px 0 0",
-		verticalAlign: "-1px",
+		appearance: "none",
+		WebkitAppearance: "none",
+		width: "16px",
+		height: "16px",
+		borderRadius: "4.5px",
+		border: "1.5px solid var(--border)",
+		backgroundColor: "var(--surface)",
 		cursor: "pointer",
+		display: "inline-block",
+		verticalAlign: "-2.5px",
+		margin: "0 8px 0 2px",
+		transition: "all 0.15s cubic-bezier(0.4, 0, 0.2, 1)",
+		boxShadow: "0 1px 2px rgba(0, 0, 0, 0.04)",
+		flexShrink: "0",
+		position: "relative",
+		outline: "none",
+	},
+	".cm-live-checkbox:hover": {
+		borderColor: "var(--accent)",
+		backgroundColor: "color-mix(in srgb, var(--accent) 8%, var(--surface))",
+		boxShadow: "0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent)",
+	},
+	".cm-live-checkbox:active": {
+		transform: "scale(0.92)",
+	},
+	".cm-live-checkbox:checked": {
+		backgroundColor: "var(--accent)",
+		borderColor: "var(--accent)",
+		backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolyline points='3.5 8.5 6.5 11.5 12.5 4.5'/%3E%3C/svg%3E")`,
+		backgroundSize: "100% 100%",
+		backgroundPosition: "center",
+		backgroundRepeat: "no-repeat",
+		boxShadow: "0 1px 3px color-mix(in srgb, var(--accent) 35%, transparent)",
+	},
+	".cm-live-checkbox:checked:hover": {
+		filter: "brightness(1.08)",
+		boxShadow: "0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent)",
+	},
+	".cm-live-checkbox:disabled": {
+		cursor: "default",
+		opacity: "0.6",
 	},
 	".cm-live-bullet": {
 		color: "var(--muted)",
@@ -275,10 +310,24 @@ export const appTheme = EditorView.theme({
 	},
 	// ── Callouts ──────────────────────────────────────────
 	".cm-live-callout": {
-		borderLeft: "3px solid var(--callout-color, var(--accent))",
 		backgroundColor:
-			"color-mix(in srgb, var(--callout-color, var(--accent)) 8%, transparent)",
-		paddingLeft: "12px",
+			"color-mix(in srgb, var(--callout-color, var(--accent)) 10%, transparent)",
+		paddingLeft: "16px",
+		paddingRight: "16px",
+		borderLeft: "none",
+	},
+	".cm-live-callout-first": {
+		borderTopLeftRadius: "6px",
+		borderTopRightRadius: "6px",
+		paddingTop: "10px",
+		paddingBottom: "3px",
+		marginTop: "8px",
+	},
+	".cm-live-callout-last": {
+		borderBottomLeftRadius: "6px",
+		borderBottomRightRadius: "6px",
+		paddingBottom: "10px",
+		marginBottom: "8px",
 	},
 	".cm-live-callout-note, .cm-live-callout-info, .cm-live-callout-todo": {
 		"--callout-color": "rgb(2, 122, 255)",
@@ -287,7 +336,7 @@ export const appTheme = EditorView.theme({
 		"--callout-color": "rgb(0, 180, 120)",
 	},
 	".cm-live-callout-question": {
-		"--callout-color": "rgb(146, 102, 255)",
+		"--callout-color": "rgb(236, 117, 0)",
 	},
 	".cm-live-callout-warning": {
 		"--callout-color": "rgb(255, 170, 0)",
@@ -301,11 +350,27 @@ export const appTheme = EditorView.theme({
 	".cm-live-callout-quote": {
 		"--callout-color": "rgb(158, 158, 158)",
 	},
-	".cm-live-callout-abstract": {
-		"--callout-color": "rgb(0, 190, 220)",
+	".cm-live-callout-abstract, .cm-live-callout-summary, .cm-live-callout-tldr": {
+		"--callout-color": "rgb(0, 191, 188)",
 	},
 	".cm-live-callout-icon": {
-		marginRight: "4px",
+		display: "inline-flex",
+		alignItems: "center",
+		justifyContent: "center",
+		verticalAlign: "-2.5px",
+		marginRight: "6px",
+		color: "var(--callout-color, var(--accent))",
+	},
+	".cm-live-callout-svg": {
+		width: "16px",
+		height: "16px",
+		strokeWidth: "2",
+		display: "inline-block",
+		verticalAlign: "middle",
+	},
+	".cm-live-callout-title": {
+		fontWeight: "600",
+		color: "var(--callout-color, var(--accent))",
 	},
 	// ── Comment / Math / Footnote / Task Done ─────────────
 	".cm-live-comment": {
@@ -323,7 +388,10 @@ export const appTheme = EditorView.theme({
 	},
 	".cm-live-task-done": {
 		textDecoration: "line-through",
+		textDecorationColor: "var(--muted)",
 		color: "var(--muted)",
+		opacity: "0.65",
+		transition: "opacity 0.2s ease, color 0.2s ease",
 	},
 	// ── Frontmatter properties panel ──────────────────────
 	".cm-live-props": {
