@@ -20,6 +20,7 @@ import {
 	saveVaultNoteRpc,
 } from "../../services/api/obsidianClient";
 import { ImagePreviewProvider } from "../workbench/ai/shared/ImagePreviewModal";
+import { ObsidianNoteBodySkeleton } from "../workbench/skeletons";
 import {
 	DeleteEntryDialog,
 	shouldSkipDeleteConfirm,
@@ -526,12 +527,7 @@ export function NotePanel({
 						/>
 					</ImagePreviewProvider>
 				) : (
-					<div className="h-full p-6 space-y-4 animate-pulse">
-						<div className="h-7 bg-surface-secondary rounded w-1/4" />
-						<div className="h-4 bg-surface-secondary rounded w-3/4" />
-						<div className="h-4 bg-surface-secondary rounded w-1/2" />
-						<div className="h-4 bg-surface-secondary rounded w-2/3" />
-					</div>
+					<ObsidianNoteBodySkeleton />
 				)}
 			</div>
 			{/* 底部状态栏：与创作模块一致，为后续快照/导出/分发等动作预留位置 */}

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ObsidianApp } from "../components/obsidian/ObsidianApp";
-import { ModuleSkeleton } from "../components/workbench/skeletons";
+import { ObsidianSkeleton } from "../components/workbench/skeletons";
 import { workbenchLoader } from "./-workbenchLoader";
 
 /** Obsidian 模块深链参数：按相对路径直接打开某篇笔记 */
@@ -14,7 +14,7 @@ export const Route = createFileRoute("/obsidian")({
 			typeof search.note === "string" && search.note ? search.note : undefined,
 	}),
 	loader: workbenchLoader,
-	pendingComponent: ModuleSkeleton,
+	pendingComponent: ObsidianSkeleton,
 	pendingMs: 200,
 	component: ObsidianPage,
 });
