@@ -5,6 +5,7 @@ import type {
 	ObsidianTree,
 } from "../../components/obsidian/types";
 import {
+	createLocalVaultFn,
 	createVaultFolderFn,
 	createVaultNoteFn,
 	deleteVaultEntryFn,
@@ -15,6 +16,7 @@ import {
 	readVaultNoteFn,
 	renameVaultEntryFn,
 	resolveVaultWikilinkFn,
+	revealVaultEntryFn,
 	saveVaultNoteFn,
 } from "../../server/functions/obsidian";
 import type { DataviewResult } from "../../server/services/obsidian/dataview";
@@ -185,6 +187,18 @@ export async function createVaultFolderRpc(
 	}
 }
 
+/** 新建本地 Vault（创建文件夹 + .obsidian 标记目录），返回绝对路径 */
+export async function createLocalVaultRpc(
+	parentDir: string,
+	name: string,
+): Promise<{ success: boolean; path?: string; error?: string }> {
+	try {
+		return await createLocalVaultFn({ data: { parentDir, name } });
+	} catch (err) {
+		return { success: false, error: errMessage(err, "新建仓库失败") };
+	}
+}
+
 export async function renameVaultEntryRpc(
 	relPath: string,
 	newName: string,
@@ -215,5 +229,16 @@ export async function deleteVaultEntryRpc(
 		return await deleteVaultEntryFn({ data: { relPath } });
 	} catch (err) {
 		return { success: false, error: errMessage(err, "删除失败") };
+	}
+}
+
+/** 在访达中显示笔记/文件夹 */
+export async function revealVaultEntryRpc(
+	relPath: string,
+): Promise<ObsidianMutationResult> {
+	try {
+		return await revealVaultEntryFn({ data: { relPath } });
+	} catch (err) {
+		return { success: false, error: errMessage(err, "打开访达失败") };
 	}
 }

@@ -1,7 +1,7 @@
 import type { EditorView } from "@codemirror/view";
-import { toast } from "@heroui/react";
+import { Tooltip, toast } from "@heroui/react";
 import dayjs from "dayjs";
-import { AlertTriangle, Loader2, Trash2 } from "lucide-react";
+import { AlertTriangle, Loader2, Pencil, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { generateAiBarTextRpc } from "../../services/api/editorClient";
 import {
@@ -58,6 +58,16 @@ export function NotePanel({
 	const [conflict, setConflict] = useState<{ mtime?: number } | null>(null);
 	const [editorView, setEditorView] = useState<EditorView | null>(null);
 	const loadSeqRef = useRef(0);
+	const [editingTitle, setEditingTitle] = useState(false);
+	const [titleDraft, setTitleDraft] = useState("");
+	const titleInputRef = useRef<HTMLInputElement | null>(null);
+
+	// 进入标题编辑态时聚焦并全选（Obsidian 式内联重命名）
+	useEffect(() => {
+		if (!editingTitle) return;
+		titleInputRef.current?.focus();
+		titleInputRef.current?.select();
+	}, [editingTitle]);
 
 	const load = useCallback(async (target: string) => {
 		const seq = ++loadSeqRef.current;
@@ -196,19 +206,22 @@ export function NotePanel({
 		};
 	}, []);
 
-	const handleRename = useCallback(async () => {
-		if (!note) return;
-		const newName = window.prompt("新的笔记名称（无需 .md 后缀）", note.name);
-		if (!newName || !newName.trim() || newName.trim() === note.name) return;
-		const res = await renameVaultEntryRpc(note.relPath, newName.trim(), true);
-		if (!res.success || !res.relPath) {
-			toast.danger(res.error ?? "重命名失败");
-			return;
-		}
-		toast.success("已重命名");
-		onMutated();
-		onRenamed(res.relPath);
-	}, [note, onMutated, onRenamed]);
+	const handleRename = useCallback(
+		async (newName: string) => {
+			if (!note) return;
+			const trimmed = newName.trim();
+			if (!trimmed || trimmed === note.name) return;
+			const res = await renameVaultEntryRpc(note.relPath, trimmed, true);
+			if (!res.success || !res.relPath) {
+				toast.danger(res.error ?? "重命名失败");
+				return;
+			}
+			toast.success("已重命名");
+			onMutated();
+			onRenamed(res.relPath);
+		},
+		[note, onMutated, onRenamed],
+	);
 
 	const handleDelete = useCallback(async () => {
 		if (!note) return;
@@ -273,9 +286,50 @@ export function NotePanel({
 		<div className="h-full flex flex-col overflow-hidden">
 			<div className="flex items-center gap-2 px-4 py-2.5 border-b border-border shrink-0">
 				<div className="min-w-0 flex-1">
-					<h2 className="text-sm font-semibold text-foreground truncate">
-						{note.name}
-					</h2>
+					<div className="flex items-center gap-1">
+						{editingTitle ? (
+							<input
+								ref={titleInputRef}
+								type="text"
+								value={titleDraft}
+								onChange={(e) => setTitleDraft(e.target.value)}
+								onKeyDown={(e) => {
+									if (e.key === "Enter") {
+										setEditingTitle(false);
+										void handleRename(titleDraft);
+									}
+									if (e.key === "Escape") setEditingTitle(false);
+								}}
+								onBlur={() => {
+									setEditingTitle(false);
+									void handleRename(titleDraft);
+								}}
+								className="min-w-0 flex-1 px-1.5 py-0.5 rounded-md border border-accent/60 bg-surface text-sm font-semibold text-foreground focus:outline-none"
+							/>
+						) : (
+							<>
+								<h2 className="text-sm font-semibold text-foreground truncate">
+									{note.name}
+								</h2>
+								<Tooltip>
+									<Tooltip.Trigger>
+										<button
+											type="button"
+											aria-label="重命名笔记"
+											onClick={() => {
+												setTitleDraft(note.name);
+												setEditingTitle(true);
+											}}
+											className="p-1 rounded-md text-muted/70 hover:text-foreground hover:bg-surface-secondary/60 transition-colors shrink-0"
+										>
+											<Pencil className="w-3 h-3" />
+										</button>
+									</Tooltip.Trigger>
+									<Tooltip.Content placement="bottom">重命名</Tooltip.Content>
+								</Tooltip>
+							</>
+						)}
+					</div>
 					<p className="text-[10px] text-muted truncate font-mono">
 						{note.relPath} · {new Date(note.mtime).toLocaleString()}
 					</p>
@@ -285,21 +339,19 @@ export function NotePanel({
 						文件过大已截断，只读
 					</span>
 				)}
-				<button
-					type="button"
-					onClick={handleRename}
-					className="px-2.5 py-1.5 rounded-lg border border-border text-[11px] text-foreground/80 hover:bg-surface-secondary/60 transition-colors shrink-0"
-				>
-					重命名
-				</button>
-				<button
-					type="button"
-					onClick={handleDelete}
-					className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-danger/30 text-[11px] text-danger hover:bg-danger/10 transition-colors shrink-0"
-				>
-					<Trash2 className="w-3 h-3" />
-					删除
-				</button>
+				<Tooltip>
+					<Tooltip.Trigger>
+						<button
+							type="button"
+							aria-label="删除笔记"
+							onClick={handleDelete}
+							className="p-1.5 rounded-md text-danger/80 hover:text-danger hover:bg-danger/10 transition-colors shrink-0"
+						>
+							<Trash2 className="w-3.5 h-3.5" />
+						</button>
+					</Tooltip.Trigger>
+					<Tooltip.Content placement="bottom">删除</Tooltip.Content>
+				</Tooltip>
 			</div>
 			{conflict && (
 				<div className="flex items-center gap-3 px-4 py-2.5 bg-warning/10 border-b border-warning/30 shrink-0">

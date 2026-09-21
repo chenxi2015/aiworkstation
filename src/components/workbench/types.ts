@@ -105,6 +105,12 @@ export interface Folder {
 	items: WorkbenchItem[];
 }
 
+/** Obsidian 仓库条目：name 为展示名（默认取目录名），path 支持 ~ 开头 */
+export interface ObsidianVaultEntry {
+	name: string;
+	path: string;
+}
+
 export interface WorkbenchSettings {
 	// Universal LLM Configuration (supports DeepSeek, Kimi, GLM, OpenAI, Claude, Ollama, Custom)
 	apiKey: string;
@@ -125,6 +131,8 @@ export interface WorkbenchSettings {
 	filesRootDir?: string;
 	// Obsidian Vault 根目录（笔记模块直接读写该目录，未配置时回退 ~/Documents/Obsidian）
 	obsidianVaultDir?: string;
+	// Obsidian 多仓库列表（已登记的 Vault；obsidianVaultDir 为当前激活项的路径）
+	obsidianVaults?: ObsidianVaultEntry[];
 	// 已废弃：旧版下载目录设置，读取时作为 filesRootDir 的 alias 免迁移兼容，写入只写 filesRootDir
 	downloadsDir?: string;
 	// Whether the first-time setup wizard has been completed

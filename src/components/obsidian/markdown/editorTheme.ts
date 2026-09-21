@@ -68,6 +68,7 @@ export const appTheme = EditorView.theme({
 		textAlign: "center",
 		padding: "0 4px",
 		minWidth: "28px",
+		fontSize: "12px",
 	},
 	".cm-activeLine": {
 		backgroundColor: "var(--surface)",

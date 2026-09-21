@@ -1,11 +1,12 @@
 import {
 	ChevronDown,
 	ChevronRight,
+	Ellipsis,
 	FileText,
 	Folder,
 	FolderOpen,
 } from "lucide-react";
-import { memo, useCallback } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import type { ObsidianTreeNode } from "./types";
 
 export interface VaultTreeProps {
@@ -14,9 +15,160 @@ export interface VaultTreeProps {
 	selectedNotePath: string | null;
 	currentDir: string;
 	expanded: Set<string>;
+	/** 正在内联重命名的条目路径（新建后自动进入重命名） */
+	renamingPath?: string | null;
 	onToggleFolder: (relPath: string) => void;
 	onSelectFolder: (relPath: string) => void;
 	onSelectNote: (relPath: string) => void;
+	/** 打开条目操作菜单（右键或悬浮「...」），坐标为页面 clientX/Y */
+	onOpenMenu: (node: ObsidianTreeNode, x: number, y: number) => void;
+	/** 内联重命名提交（newName 不含 .md 后缀） */
+	onRenameCommit: (relPath: string, newName: string, isFolder: boolean) => void;
+	onRenameCancel: () => void;
+}
+
+// ── 行内重命名输入框 ──
+
+function RenameInput({
+	defaultValue,
+	onCommit,
+	onCancel,
+}: {
+	defaultValue: string;
+	onCommit: (value: string) => void;
+	onCancel: () => void;
+}) {
+	const [value, setValue] = useState(defaultValue);
+	const inputRef = useRef<HTMLInputElement | null>(null);
+	// blur 提交后不再重复提交（React 18 严格模式下双调用保护）
+	const doneRef = useRef(false);
+
+	useEffect(() => {
+		const input = inputRef.current;
+		if (!input) return;
+		input.focus();
+		input.select();
+	}, []);
+
+	const commit = () => {
+		if (doneRef.current) return;
+		doneRef.current = true;
+		onCommit(value);
+	};
+	const cancel = () => {
+		if (doneRef.current) return;
+		doneRef.current = true;
+		onCancel();
+	};
+
+	return (
+		<input
+			ref={inputRef}
+			type="text"
+			value={value}
+			onChange={(e) => setValue(e.target.value)}
+			onClick={(e) => e.stopPropagation()}
+			onKeyDown={(e) => {
+				e.stopPropagation();
+				if (e.key === "Enter") commit();
+				if (e.key === "Escape") cancel();
+			}}
+			onBlur={commit}
+			className="flex-1 min-w-0 px-1 py-0 rounded border border-accent/60 bg-surface text-xs text-foreground focus:outline-none"
+			onPointerDown={(e) => e.stopPropagation()}
+		/>
+	);
+}
+
+// ── 行共用：悬浮「...」按钮 + 右键菜单 + 可选内联重命名 ──
+
+interface RowShellProps {
+	node: ObsidianTreeNode;
+	depth: number;
+	active: boolean;
+	isRenaming: boolean;
+	onRowClick: () => void;
+	onOpenMenu: (node: ObsidianTreeNode, x: number, y: number) => void;
+	onRenameCommit: (relPath: string, newName: string, isFolder: boolean) => void;
+	onRenameCancel: () => void;
+	/** 左侧图标区（chevron/占位 + 类型图标） */
+	leading: React.ReactNode;
+	nameClassName: string;
+}
+
+function RowShell({
+	node,
+	depth,
+	active,
+	isRenaming,
+	onRowClick,
+	onOpenMenu,
+	onRenameCommit,
+	onRenameCancel,
+	leading,
+	nameClassName,
+}: RowShellProps) {
+	const indent = { paddingLeft: `${depth * 14 + 8}px` };
+	const isFolder = node.kind === "folder";
+	const defaultName =
+		!isFolder && node.name.toLowerCase().endsWith(".md")
+			? node.name.slice(0, -3)
+			: node.name;
+
+	const handleContextMenu = (e: React.MouseEvent) => {
+		e.preventDefault();
+		e.stopPropagation();
+		onOpenMenu(node, e.clientX, e.clientY);
+	};
+	const handleDotsClick = (e: React.MouseEvent) => {
+		e.stopPropagation();
+		const rect = e.currentTarget.getBoundingClientRect();
+		onOpenMenu(node, rect.right - 176, rect.bottom + 4);
+	};
+
+	return (
+		// biome-ignore lint/a11y/noStaticElementInteractions: 行容器仅承载右键菜单，主交互在内部 button 上
+		<div
+			style={indent}
+			onContextMenu={handleContextMenu}
+			className={`group w-full flex items-center gap-1.5 py-1.5 pr-1 text-left text-xs transition-colors ${
+				active
+					? "text-accent bg-accent/10"
+					: "text-foreground/80 hover:bg-surface-secondary/60"
+			}`}
+			title={node.relPath}
+		>
+			{isRenaming ? (
+				<>
+					{leading}
+					<RenameInput
+						defaultValue={defaultName}
+						onCommit={(value) => onRenameCommit(node.relPath, value, isFolder)}
+						onCancel={onRenameCancel}
+					/>
+				</>
+			) : (
+				<button
+					type="button"
+					onClick={onRowClick}
+					className="flex-1 flex items-center gap-1.5 min-w-0 text-left"
+				>
+					{leading}
+					<span className={`truncate ${nameClassName}`}>{node.name}</span>
+				</button>
+			)}
+			{!isRenaming && (
+				<button
+					type="button"
+					aria-label={`「${node.name}」操作`}
+					onClick={handleDotsClick}
+					className="p-0.5 rounded text-muted/70 opacity-0 group-hover:opacity-100 hover:text-foreground hover:bg-surface-secondary transition-all shrink-0"
+				>
+					<Ellipsis className="w-3.5 h-3.5" />
+				</button>
+			)}
+		</div>
+	);
 }
 
 // ── Memoized single row: only re-renders when its own relevant props change ──
@@ -26,12 +178,17 @@ interface FolderNodeProps {
 	depth: number;
 	isCurrent: boolean;
 	isExpanded: boolean;
+	isRenaming: boolean;
 	selectedNotePath: string | null;
 	currentDir: string;
 	expanded: Set<string>;
+	renamingPath?: string | null;
 	onToggleFolder: (relPath: string) => void;
 	onSelectFolder: (relPath: string) => void;
 	onSelectNote: (relPath: string) => void;
+	onOpenMenu: (node: ObsidianTreeNode, x: number, y: number) => void;
+	onRenameCommit: (relPath: string, newName: string, isFolder: boolean) => void;
+	onRenameCancel: () => void;
 }
 
 const FolderNode = memo(function FolderNode({
@@ -39,14 +196,18 @@ const FolderNode = memo(function FolderNode({
 	depth,
 	isCurrent,
 	isExpanded,
+	isRenaming,
 	selectedNotePath,
 	currentDir,
 	expanded,
+	renamingPath,
 	onToggleFolder,
 	onSelectFolder,
 	onSelectNote,
+	onOpenMenu,
+	onRenameCommit,
+	onRenameCancel,
 }: FolderNodeProps) {
-	const indent = { paddingLeft: `${depth * 14 + 8}px` };
 	const handleClick = useCallback(() => {
 		onToggleFolder(node.relPath);
 		onSelectFolder(node.relPath);
@@ -54,29 +215,31 @@ const FolderNode = memo(function FolderNode({
 
 	return (
 		<div>
-			<button
-				type="button"
-				style={indent}
-				onClick={handleClick}
-				className={`w-full flex items-center gap-1.5 py-1.5 pr-2 text-left text-xs transition-colors ${
-					isCurrent
-						? "text-accent bg-accent/10"
-						: "text-foreground/80 hover:bg-surface-secondary/60"
-				}`}
-				title={node.relPath}
-			>
-				{isExpanded ? (
-					<ChevronDown className="w-3 h-3 shrink-0 text-muted" />
-				) : (
-					<ChevronRight className="w-3 h-3 shrink-0 text-muted" />
-				)}
-				{isExpanded ? (
-					<FolderOpen className="w-3.5 h-3.5 shrink-0 text-accent/80" />
-				) : (
-					<Folder className="w-3.5 h-3.5 shrink-0 text-accent/80" />
-				)}
-				<span className="truncate font-medium">{node.name}</span>
-			</button>
+			<RowShell
+				node={node}
+				depth={depth}
+				active={isCurrent}
+				isRenaming={isRenaming}
+				onRowClick={handleClick}
+				onOpenMenu={onOpenMenu}
+				onRenameCommit={onRenameCommit}
+				onRenameCancel={onRenameCancel}
+				nameClassName="font-medium"
+				leading={
+					<>
+						{isExpanded ? (
+							<ChevronDown className="w-3 h-3 shrink-0 text-muted" />
+						) : (
+							<ChevronRight className="w-3 h-3 shrink-0 text-muted" />
+						)}
+						{isExpanded ? (
+							<FolderOpen className="w-3.5 h-3.5 shrink-0 text-accent/80" />
+						) : (
+							<Folder className="w-3.5 h-3.5 shrink-0 text-accent/80" />
+						)}
+					</>
+				}
+			/>
 			{isExpanded && node.children && node.children.length > 0 && (
 				<VaultTree
 					nodes={node.children}
@@ -84,9 +247,13 @@ const FolderNode = memo(function FolderNode({
 					selectedNotePath={selectedNotePath}
 					currentDir={currentDir}
 					expanded={expanded}
+					renamingPath={renamingPath}
 					onToggleFolder={onToggleFolder}
 					onSelectFolder={onSelectFolder}
 					onSelectNote={onSelectNote}
+					onOpenMenu={onOpenMenu}
+					onRenameCommit={onRenameCommit}
+					onRenameCancel={onRenameCancel}
 				/>
 			)}
 		</div>
@@ -97,36 +264,45 @@ interface NoteNodeProps {
 	node: ObsidianTreeNode;
 	depth: number;
 	isSelected: boolean;
+	isRenaming: boolean;
 	onSelectNote: (relPath: string) => void;
+	onOpenMenu: (node: ObsidianTreeNode, x: number, y: number) => void;
+	onRenameCommit: (relPath: string, newName: string, isFolder: boolean) => void;
+	onRenameCancel: () => void;
 }
 
 const NoteNode = memo(function NoteNode({
 	node,
 	depth,
 	isSelected,
+	isRenaming,
 	onSelectNote,
+	onOpenMenu,
+	onRenameCommit,
+	onRenameCancel,
 }: NoteNodeProps) {
-	const indent = { paddingLeft: `${depth * 14 + 8}px` };
 	const handleClick = useCallback(() => {
 		onSelectNote(node.relPath);
 	}, [node.relPath, onSelectNote]);
 
 	return (
-		<button
-			type="button"
-			style={indent}
-			onClick={handleClick}
-			className={`w-full flex items-center gap-1.5 py-1.5 pr-2 text-left text-xs transition-colors ${
-				isSelected
-					? "text-accent bg-accent/10 font-medium"
-					: "text-foreground/70 hover:bg-surface-secondary/60"
-			}`}
-			title={node.relPath}
-		>
-			<span className="w-3 shrink-0" />
-			<FileText className="w-3.5 h-3.5 shrink-0 text-muted" />
-			<span className="truncate">{node.name}</span>
-		</button>
+		<RowShell
+			node={node}
+			depth={depth}
+			active={isSelected}
+			isRenaming={isRenaming}
+			onRowClick={handleClick}
+			onOpenMenu={onOpenMenu}
+			onRenameCommit={onRenameCommit}
+			onRenameCancel={onRenameCancel}
+			nameClassName={isSelected ? "font-medium" : "text-foreground/70"}
+			leading={
+				<>
+					<span className="w-3 shrink-0" />
+					<FileText className="w-3.5 h-3.5 shrink-0 text-muted" />
+				</>
+			}
+		/>
 	);
 });
 
@@ -137,9 +313,13 @@ export const VaultTree = memo(function VaultTree({
 	selectedNotePath,
 	currentDir,
 	expanded,
+	renamingPath,
 	onToggleFolder,
 	onSelectFolder,
 	onSelectNote,
+	onOpenMenu,
+	onRenameCommit,
+	onRenameCancel,
 }: VaultTreeProps) {
 	return (
 		<div>
@@ -152,12 +332,17 @@ export const VaultTree = memo(function VaultTree({
 							depth={depth}
 							isCurrent={currentDir === node.relPath}
 							isExpanded={expanded.has(node.relPath)}
+							isRenaming={renamingPath === node.relPath}
 							selectedNotePath={selectedNotePath}
 							currentDir={currentDir}
 							expanded={expanded}
+							renamingPath={renamingPath}
 							onToggleFolder={onToggleFolder}
 							onSelectFolder={onSelectFolder}
 							onSelectNote={onSelectNote}
+							onOpenMenu={onOpenMenu}
+							onRenameCommit={onRenameCommit}
+							onRenameCancel={onRenameCancel}
 						/>
 					);
 				}
@@ -167,7 +352,11 @@ export const VaultTree = memo(function VaultTree({
 						node={node}
 						depth={depth}
 						isSelected={selectedNotePath === node.relPath}
+						isRenaming={renamingPath === node.relPath}
 						onSelectNote={onSelectNote}
+						onOpenMenu={onOpenMenu}
+						onRenameCommit={onRenameCommit}
+						onRenameCancel={onRenameCancel}
 					/>
 				);
 			})}

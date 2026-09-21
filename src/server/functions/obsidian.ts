@@ -14,6 +14,7 @@ import {
 	runDataviewQuery,
 } from "../services/obsidian/dataview.ts";
 import {
+	createLocalVault,
 	createVaultFolder,
 	createVaultNote,
 	deleteVaultEntry,
@@ -21,6 +22,7 @@ import {
 	readVaultNote,
 	renameVaultEntry,
 	resolveVaultWikilink,
+	revealVaultEntry,
 	saveVaultNote,
 	scanVaultTree,
 } from "../services/obsidian/index.ts";
@@ -106,6 +108,19 @@ export const listLocalDirectories = createServerFn({ method: "POST" })
 					error: err instanceof Error ? err.message : "读取目录失败",
 				};
 			}
+		},
+	);
+
+/**
+ * Server Function: 新建本地 Vault（创建文件夹 + .obsidian 标记目录）
+ */
+export const createLocalVaultFn = createServerFn({ method: "POST" })
+	.validator((data: { parentDir: string; name: string }) => data)
+	.handler(
+		async ({
+			data,
+		}): Promise<{ success: boolean; path?: string; error?: string }> => {
+			return createLocalVault(data.parentDir ?? "", data.name ?? "");
 		},
 	);
 
@@ -215,4 +230,13 @@ export const deleteVaultEntryFn = createServerFn({ method: "POST" })
 	.validator((data: { relPath: string }) => data)
 	.handler(async ({ data }): Promise<ObsidianMutationResult> => {
 		return await deleteVaultEntry(data.relPath);
+	});
+
+/**
+ * Server Function: 在访达中显示笔记/文件夹（macOS open -R）
+ */
+export const revealVaultEntryFn = createServerFn({ method: "POST" })
+	.validator((data: { relPath: string }) => data)
+	.handler(async ({ data }): Promise<ObsidianMutationResult> => {
+		return await revealVaultEntry(data.relPath);
 	});

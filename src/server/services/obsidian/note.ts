@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process";
 import { existsSync, promises as fs, statSync } from "node:fs";
 import path from "node:path";
 import type {
@@ -209,6 +210,27 @@ export async function moveVaultEntry(
 		return { success: true, relPath: path.relative(vaultRoot(), target) };
 	} catch (err) {
 		return { success: false, error: errMessage(err, "移动失败") };
+	}
+}
+
+/** 在访达中显示（macOS open -R；非 macOS 平台返回不支持） */
+export async function revealVaultEntry(
+	relPath: string,
+): Promise<ObsidianMutationResult> {
+	try {
+		if (process.platform !== "darwin") {
+			throw new Error("当前平台不支持在文件管理器中显示");
+		}
+		const abs = entryAbsPath(relPath);
+		if (!existsSync(abs)) throw new Error("文件不存在");
+		await new Promise<void>((resolvePromise, rejectPromise) => {
+			execFile("open", ["-R", abs], (err) =>
+				err ? rejectPromise(err) : resolvePromise(),
+			);
+		});
+		return { success: true };
+	} catch (err) {
+		return { success: false, error: errMessage(err, "打开访达失败") };
 	}
 }
 
