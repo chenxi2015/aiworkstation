@@ -129,6 +129,7 @@
 > `downloadsDir` → `filesRootDir` 文件管理根目录升级、M4-α/β/γ 分期均以该文档为准。
 > 创作（editor）模块的产品规划已定稿于 `docs/editor-plan.md`：`documents` / `document_versions` 表、
 > TipTap 富文本内核、右侧 AI 面板模块人格（ai-contributions 能力包）升级、Editor-α/β/γ/δ 分期均以该文档为准。
+> 笔记（obsidian）模块的产品与技术规范定稿于 `docs/obsidian-plan.md`：本地 Vault 零配置直连、CodeMirror 6 深度定制、双链新建与跳转、安全回收站保护等均以该文档为准。
 
 ## 目录约定
 
