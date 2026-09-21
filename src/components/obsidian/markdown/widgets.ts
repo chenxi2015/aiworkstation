@@ -31,6 +31,40 @@ export class TableWidget extends WidgetType {
 	}
 }
 
+/** Horizontal rule widget: renders a divider line when cursor is outside */
+export class HorizontalRuleWidget extends WidgetType {
+	override eq(_other: HorizontalRuleWidget) {
+		return true;
+	}
+
+	override toDOM(view: EditorView) {
+		const wrap = document.createElement("div");
+		wrap.className = "cm-live-hr-container";
+		const hr = document.createElement("hr");
+		hr.className = "cm-live-hr-line";
+		wrap.appendChild(hr);
+
+		// Click divider line to place selection and switch to markdown edit mode
+		wrap.addEventListener("mousedown", (e) => {
+			const pos = view.posAtDOM(wrap);
+			if (pos >= 0) {
+				e.preventDefault();
+				view.dispatch({
+					selection: { anchor: pos },
+					scrollIntoView: true,
+				});
+				view.focus();
+			}
+		});
+
+		return wrap;
+	}
+
+	override ignoreEvent() {
+		return false;
+	}
+}
+
 export interface PropEntry {
 	key: string;
 	values: string[];

@@ -156,9 +156,27 @@ export const appTheme = EditorView.theme({
 		maskSize: "contain",
 	},
 	".cm-live-image": { color: "var(--muted)" },
+	".cm-live-hr-container": {
+		display: "flex",
+		alignItems: "center",
+		width: "100%",
+		padding: "8px 0",
+		cursor: "pointer",
+		userSelect: "none",
+	},
+	".cm-live-hr-line": {
+		border: "none",
+		borderTop: "1px solid var(--border)",
+		margin: "0",
+		width: "100%",
+		opacity: "0.85",
+	},
+	".cm-live-hr-active": {
+		color: "var(--muted)",
+		letterSpacing: "0.15em",
+	},
 	".cm-live-hr": {
 		borderTop: "1px solid var(--border)",
-		color: "transparent",
 	},
 	".cm-live-frontmatter": {
 		color: "var(--muted)",

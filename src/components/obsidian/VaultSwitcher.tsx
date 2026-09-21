@@ -152,7 +152,7 @@ export function VaultSwitcher({
 	return (
 		<div className="border-t border-border shrink-0">
 			<Popover isOpen={open} onOpenChange={setOpen}>
-				<Popover.Trigger>
+				<Popover.Trigger className="w-full">
 					<Button
 						variant="ghost"
 						fullWidth

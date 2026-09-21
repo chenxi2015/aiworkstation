@@ -32,6 +32,7 @@ import {
 	CalloutIconWidget,
 	CheckboxWidget,
 	HEADING_CLASSES,
+	HorizontalRuleWidget,
 	HtmlBlockWidget,
 	InlineHtmlWidget,
 	isVoidHtmlTag,
@@ -444,9 +445,21 @@ function buildDecorations(
 						});
 						return;
 					}
-					case "HorizontalRule":
-						pushLine(from, to, "cm-live-hr");
+					case "HorizontalRule": {
+						const line = state.doc.lineAt(from);
+						if (!lineTouches(line.from, line.to)) {
+							inlineItems.push({
+								from: line.from,
+								to: line.to,
+								deco: Decoration.replace({
+									widget: new HorizontalRuleWidget(),
+								}),
+							});
+						} else {
+							pushLine(line.from, line.to, "cm-live-hr-active");
+						}
 						return;
+					}
 					case "HTMLTag": {
 						// Skip tags inside code spans/blocks
 						for (let p = node.node.parent; p; p = p.parent) {
