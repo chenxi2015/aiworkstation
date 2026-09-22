@@ -1207,3 +1207,9 @@ blockquote::after {
 	text-decoration: none !important;
 	font-weight: 600;
 }
+
+/* Obsidian canvas: reveal connection handles on node hover/selection (edit mode) */
+.react-flow__node:hover .canvas-node-handle,
+.react-flow__node.selected .canvas-node-handle {
+	opacity: 1;
+}
