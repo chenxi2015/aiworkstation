@@ -78,4 +78,11 @@ export interface ObsidianNoteApi {
 	appendMarkdown: (md: string) => boolean;
 	/** 用 Markdown 替换整篇笔记（调用方需先确认） */
 	replaceMarkdown: (md: string) => boolean;
+	/** 发起双栏通篇改写/创作流程 */
+	onStartRewritePipeline?: (
+		instruction?: string,
+		modeLabel?: string,
+	) => Promise<void>;
+	/** 切换双栏比对视图 */
+	toggleSplitCompare?: () => void;
 }

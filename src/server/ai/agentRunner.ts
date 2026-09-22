@@ -31,6 +31,7 @@ export async function runAgentStream(
 		module,
 		activeDocumentId,
 		activeMaterialId,
+		activeNotePath,
 	} = params;
 
 	const q = question?.trim();
@@ -52,6 +53,7 @@ export async function runAgentStream(
 		module,
 		activeDocumentId,
 		activeMaterialId,
+		activeNotePath,
 	});
 
 	if (prepared.emptyFallbackMessage) {

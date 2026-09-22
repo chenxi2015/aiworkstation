@@ -3,9 +3,9 @@ import { useCallback, useMemo } from "react";
 import type { ActiveChatScope } from "../../components/workbench/ai/chat/ChatScopePill";
 import type { Folder } from "../../components/workbench/types";
 import {
+	type WorkbenchContextState,
 	workbenchContextActions,
 	workbenchContextStore,
-	type WorkbenchContextState,
 } from "../../stores/workbenchContextStore";
 
 export interface UseChatScopeOptions {
@@ -72,12 +72,35 @@ const MODULE_SCOPE_RESOLVERS: Record<string, ScopeResolver> = {
 			},
 		};
 	},
+	obsidian: (state) => {
+		const rawNote = state.activeNote;
+		if (!rawNote) return { scope: null, toggle: () => {} };
+		const isDetached = state.detachedNotePath === rawNote.path;
+		return {
+			scope: {
+				type: "note",
+				name:
+					rawNote.title ||
+					rawNote.path.split("/").pop()?.replace(/\.md$/i, "") ||
+					"未命名笔记",
+				isActive: !isDetached,
+			},
+			toggle: () => {
+				if (isDetached) {
+					workbenchContextActions.attachNoteContext();
+				} else {
+					workbenchContextActions.detachNoteContext(rawNote.path);
+				}
+			},
+		};
+	},
 };
 
 const SCOPE_TYPE_NAMES: Record<string, string> = {
 	document: "文档",
 	material: "素材",
 	folder: "文件夹",
+	note: "笔记",
 };
 
 /**

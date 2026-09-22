@@ -15,6 +15,11 @@ export interface ActiveFolderContext {
 	name: string;
 }
 
+export interface ActiveNoteContext {
+	path: string;
+	title: string;
+}
+
 export interface WorkbenchContextState {
 	/** Current active module code, e.g. 'editor', 'creator', 'bookmarks' */
 	activeModule: string;
@@ -24,10 +29,14 @@ export interface WorkbenchContextState {
 	activeMaterial: ActiveMaterialContext | null;
 	/** Currently active bookmark folder */
 	activeFolder: ActiveFolderContext | null;
+	/** Currently active obsidian note */
+	activeNote: ActiveNoteContext | null;
 	/** When set to a document id, this document is detached from the chat prompt context */
 	detachedDocumentId: number | null;
 	/** When set to a material id, this material is detached from the chat prompt context */
 	detachedMaterialId: number | null;
+	/** When set to a note path, this note is detached from the chat prompt context */
+	detachedNotePath: string | null;
 }
 
 const initialState: WorkbenchContextState = {
@@ -35,8 +44,10 @@ const initialState: WorkbenchContextState = {
 	activeDocument: null,
 	activeMaterial: null,
 	activeFolder: null,
+	activeNote: null,
 	detachedDocumentId: null,
 	detachedMaterialId: null,
+	detachedNotePath: null,
 };
 
 /**
@@ -105,6 +116,30 @@ export const workbenchContextActions = {
 		workbenchContextStore.setState((prev) => ({
 			...prev,
 			detachedMaterialId: null,
+		}));
+	},
+
+	setActiveNote(note: ActiveNoteContext | null) {
+		const current = workbenchContextStore.state.activeNote;
+		if (current?.path === note?.path && current?.title === note?.title) return;
+		workbenchContextStore.setState((prev) => ({
+			...prev,
+			activeNote: note,
+			detachedNotePath: null,
+		}));
+	},
+
+	detachNoteContext(notePath: string) {
+		workbenchContextStore.setState((prev) => ({
+			...prev,
+			detachedNotePath: notePath,
+		}));
+	},
+
+	attachNoteContext() {
+		workbenchContextStore.setState((prev) => ({
+			...prev,
+			detachedNotePath: null,
 		}));
 	},
 

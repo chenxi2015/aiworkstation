@@ -51,4 +51,6 @@ export interface AgentChatParams {
 	activeDocumentId?: number;
 	/** creator 模块：当前选中的素材 id */
 	activeMaterialId?: number;
+	/** obsidian 模块：当前活跃笔记相对路径（供服务端注入笔记全文上下文） */
+	activeNotePath?: string;
 }

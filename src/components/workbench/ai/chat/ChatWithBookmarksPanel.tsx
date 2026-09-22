@@ -6,9 +6,9 @@ import { useChatScope } from "../../../../hooks/ai/useChatScope";
 import { useItemFolderAssign } from "../../../../hooks/ai/useItemFolderAssign";
 import { getAiContribution } from "../../../../modules/ai-contributions";
 import { getModuleByCode } from "../../../../modules/registry";
+import { fetchSkillDetail } from "../../../../services/api/skillsClient";
 import { workbenchContextStore } from "../../../../stores/workbenchContextStore";
 import type { ChatContextItem } from "../../../../types/chatContext";
-import { fetchSkillDetail } from "../../../../services/api/skillsClient";
 import type { PageBridge } from "../../../../types/pageBridge";
 import { AiAssistantLogoIcon } from "../../Icons";
 import type {
@@ -77,9 +77,7 @@ async function resolveSkillContextItems(
 	for (const item of items) {
 		if (item.type === "skill" && item.data?.dirPath && !item.data?.content) {
 			try {
-				const detail = await fetchSkillDetail(
-					item.data.dirPath as string,
-				);
+				const detail = await fetchSkillDetail(item.data.dirPath as string);
 				if (detail?.markdown) {
 					resolved.push({
 						...item,
@@ -205,6 +203,7 @@ export const ChatWithBookmarksPanel = forwardRef<
 			contextItems?: ChatContextItem[];
 			module?: string;
 			activeDocumentId?: number | null;
+			activeNotePath?: string | null;
 		},
 	) => {
 		// Flush any pending unsaved document changes so AI reads full up-to-date text
@@ -235,10 +234,22 @@ export const ChatWithBookmarksPanel = forwardRef<
 					? undefined
 					: (rawDocId ?? undefined);
 
+		const rawNotePath =
+			pageBridge?.activeNotePath ?? storeState.activeNote?.path;
+		const isNoteDetached =
+			rawNotePath != null && storeState.detachedNotePath === rawNotePath;
+		const effectiveNotePath =
+			options?.activeNotePath !== undefined
+				? options.activeNotePath
+				: isNoteDetached
+					? undefined
+					: (rawNotePath ?? undefined);
+
 		sendPrompt(prompt, {
 			...folderScope,
 			module: effectiveModule,
 			activeDocumentId: effectiveDocId,
+			activeNotePath: effectiveNotePath,
 			...options,
 		});
 	};
@@ -464,7 +475,8 @@ export const ChatWithBookmarksPanel = forwardRef<
 							// Resolve skill content before sending
 							let resolvedItems = extraContextItems;
 							if (extraContextItems && extraContextItems.length > 0) {
-								resolvedItems = await resolveSkillContextItems(extraContextItems);
+								resolvedItems =
+									await resolveSkillContextItems(extraContextItems);
 							}
 							handleSendPrompt(undefined, {
 								contextItems: resolvedItems

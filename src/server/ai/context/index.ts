@@ -4,6 +4,7 @@ import type { ChatContextItem } from "../../../types/chatContext.ts";
 import { buildSystemPrompt } from "../prompts/index.ts";
 import { resolveActiveDocumentPrompt } from "./formatters/activeDocument.ts";
 import { resolveActiveMaterialPrompt } from "./formatters/activeMaterial.ts";
+import { resolveActiveNotePrompt } from "./formatters/activeNote.ts";
 import { resolveAttachmentsPrompt } from "./formatters/attachments.ts";
 import { resolveFolderScopePrompt } from "./formatters/folderScope.ts";
 import { getFormattedDate, getFormattedTime } from "./formatters/time.ts";
@@ -28,6 +29,8 @@ export interface RagAgentParams {
 	activeDocumentId?: number;
 	/** ID of the material currently selected in the creator page */
 	activeMaterialId?: number;
+	/** Relative path of the obsidian note currently active in the page */
+	activeNotePath?: string;
 }
 
 /**
@@ -44,6 +47,7 @@ export async function prepareRagAgentContext(
 		module,
 		activeDocumentId,
 		activeMaterialId,
+		activeNotePath,
 	} = params;
 
 	// 1. Semantic bookmark RAG retrieval (pure data + early-exit fallback)
@@ -68,12 +72,17 @@ export async function prepareRagAgentContext(
 	const activeDocumentPrompt = resolveActiveDocumentPrompt(activeDocumentId);
 	// Active material (injected via Creator/Store) for creator module
 	const activeMaterialPrompt = resolveActiveMaterialPrompt(activeMaterialId);
+	// Active obsidian note (injected via PageBridge when viewing/editing note in obsidian module)
+	const activeNotePrompt = await resolveActiveNotePrompt(activeNotePath);
 	const { attachmentsPrompt, draggedDocumentPrompt } =
 		await resolveAttachmentsPrompt(contextItems, params.question);
 
 	const documentContextPrompt = activeDocumentPrompt || draggedDocumentPrompt;
 	const combinedContextPrompt =
-		attachmentsPrompt + documentContextPrompt + activeMaterialPrompt;
+		attachmentsPrompt +
+		documentContextPrompt +
+		activeMaterialPrompt +
+		activeNotePrompt;
 
 	// 3. Assemble the final system prompt
 	const systemPrompt = buildSystemPrompt({

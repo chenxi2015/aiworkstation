@@ -7,6 +7,7 @@ import {
 	ChevronLeft,
 	ChevronRight,
 	Code2,
+	Columns2,
 	ExternalLink,
 	FileQuestion,
 	Loader2,
@@ -34,6 +35,7 @@ import {
 } from "./DeleteEntryDialog";
 import { MarkdownAiBubbleMenu } from "./markdown/MarkdownAiBubbleMenu";
 import { MarkdownEditor } from "./markdown/MarkdownEditor";
+import { SplitNoteCompareView } from "./markdown/SplitNoteCompareView";
 import { clearWikilinkCaches } from "./markdown/wikilink";
 import { JsonEditor } from "./panels/JsonEditor";
 import { MediaPanel } from "./panels/MediaPanel";
@@ -247,6 +249,35 @@ function TextNotePanel({
 		});
 	}, []);
 
+	// 双栏比对与 AI 改写会话状态（仅限 Markdown 文件）
+	const [splitSession, setSplitSession] = useState<{
+		isOpen: boolean;
+		instruction?: string;
+		modeLabel?: string;
+	} | null>(null);
+
+	const toggleSplitCompare = useCallback(() => {
+		if (isCanvas) return;
+		setSplitSession((prev) => (prev?.isOpen ? null : { isOpen: true }));
+	}, [isCanvas]);
+
+	const startRewritePipeline = useCallback(
+		async (instruction?: string, modeLabel?: string) => {
+			if (isCanvas) return;
+			const currentContent = draftRef.current.trim();
+			if (!currentContent && !instruction?.trim()) {
+				toast.warning("当前笔记内容为空，无需改写比对");
+				return;
+			}
+			setSplitSession({
+				isOpen: true,
+				instruction,
+				modeLabel,
+			});
+		},
+		[isCanvas],
+	);
+
 	// 进入标题编辑态时聚焦并全选（Obsidian 式内联重命名）
 	useEffect(() => {
 		if (!editingTitle) return;
@@ -391,6 +422,39 @@ function TextNotePanel({
 		[scheduleSave],
 	);
 
+	const handleAcceptSplit = useCallback(
+		(newContent: string) => {
+			handleDraftChange(newContent);
+			setSplitSession(null);
+			toast.success("已采纳 AI 改写并同步保存到 Vault");
+		},
+		[handleDraftChange],
+	);
+
+	const handleSaveAsNewNote = useCallback(
+		async (newContent: string) => {
+			const current = noteRef.current;
+			if (!current) return;
+			const dir = current.relPath.includes("/")
+				? current.relPath.split("/").slice(0, -1).join("/")
+				: "";
+			const baseName = current.name.replace(/\.md$/i, "");
+			const newName = `${baseName} · 改写版`;
+
+			const res = await createVaultNoteRpc(dir, newName);
+			if (res.success && res.relPath) {
+				await saveVaultNoteRpc(res.relPath, newContent);
+				toast.success(`已另存为新笔记「${newName}」`);
+				setSplitSession(null);
+				onMutatedRef.current();
+				onNavigateNote?.(res.relPath);
+			} else {
+				toast.danger(res.error ?? "另存为新笔记失败");
+			}
+		},
+		[onNavigateNote],
+	);
+
 	// Canvas 连线/搜索添加"新建笔记"：在当前 canvas 所在目录新建笔记，返回 relPath（不跳转）
 	const handleCanvasCreateNote = useCallback(
 		async (customName?: string): Promise<string | null> => {
@@ -434,7 +498,8 @@ function TextNotePanel({
 	);
 
 	useEffect(() => {
-		// 切换笔记前把当前未保存改动后台落盘（flushSave 内部按 relPath 防串扰）
+		// 切换笔记前把当前未保存改动后台落盘，并退出双栏状态
+		setSplitSession(null);
 		void flushSaveRef.current();
 		load(relPath);
 	}, [relPath, load]);
@@ -510,9 +575,11 @@ function TextNotePanel({
 				setDraft(md);
 				return true;
 			},
+			onStartRewritePipeline: startRewritePipeline,
+			toggleSplitCompare,
 		});
 		return () => onRegisterNoteApi(null);
-	}, [onRegisterNoteApi]);
+	}, [onRegisterNoteApi, startRewritePipeline, toggleSplitCompare]);
 
 	if (error && !note && !loading) {
 		return (
@@ -649,27 +716,50 @@ function TextNotePanel({
 					</Tooltip>
 				)}
 				{!note?.truncated && !isCanvas && (
-					<Tooltip>
-						<Tooltip.Trigger>
-							<button
-								type="button"
-								aria-label={
-									viewMode === "editing" ? "切换到阅读视图" : "切换到编辑视图"
-								}
-								onClick={toggleViewMode}
-								className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/60 transition-colors shrink-0"
-							>
-								{viewMode === "editing" ? (
-									<BookOpen className="w-3.5 h-3.5" />
-								) : (
-									<PenLine className="w-3.5 h-3.5" />
-								)}
-							</button>
-						</Tooltip.Trigger>
-						<Tooltip.Content placement="bottom">
-							{viewMode === "editing" ? "阅读视图" : "编辑视图"}
-						</Tooltip.Content>
-					</Tooltip>
+					<>
+						<Tooltip>
+							<Tooltip.Trigger>
+								<button
+									type="button"
+									aria-label={
+										splitSession?.isOpen ? "退出双栏比对" : "开启双栏比对"
+									}
+									onClick={toggleSplitCompare}
+									className={`p-1.5 rounded-md transition-colors shrink-0 ${
+										splitSession?.isOpen
+											? "bg-accent/15 text-accent"
+											: "text-muted hover:text-foreground hover:bg-surface-secondary/60"
+									}`}
+								>
+									<Columns2 className="w-3.5 h-3.5" />
+								</button>
+							</Tooltip.Trigger>
+							<Tooltip.Content placement="bottom">
+								{splitSession?.isOpen ? "退出双栏比对" : "开启双栏比对"}
+							</Tooltip.Content>
+						</Tooltip>
+						<Tooltip>
+							<Tooltip.Trigger>
+								<button
+									type="button"
+									aria-label={
+										viewMode === "editing" ? "切换到阅读视图" : "切换到编辑视图"
+									}
+									onClick={toggleViewMode}
+									className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/60 transition-colors shrink-0"
+								>
+									{viewMode === "editing" ? (
+										<BookOpen className="w-3.5 h-3.5" />
+									) : (
+										<PenLine className="w-3.5 h-3.5" />
+									)}
+								</button>
+							</Tooltip.Trigger>
+							<Tooltip.Content placement="bottom">
+								{viewMode === "editing" ? "阅读视图" : "编辑视图"}
+							</Tooltip.Content>
+						</Tooltip>
+					</>
 				)}
 				<Tooltip>
 					<Tooltip.Trigger>
@@ -716,7 +806,7 @@ function TextNotePanel({
 					</button>
 				</div>
 			)}
-			<div className="flex-1 overflow-hidden relative">
+			<div className="flex-1 min-h-0 overflow-hidden relative">
 				{note ? (
 					isCanvas ? (
 						canvasMode === "visual" ? (
@@ -737,6 +827,17 @@ function TextNotePanel({
 								onSaveShortcut={() => void flushSave()}
 							/>
 						)
+					) : splitSession?.isOpen ? (
+						<SplitNoteCompareView
+							key={note.relPath}
+							originalContent={draft}
+							docTitle={activeName}
+							instruction={splitSession.instruction}
+							modeLabel={splitSession.modeLabel}
+							onAccept={handleAcceptSplit}
+							onCancel={() => setSplitSession(null)}
+							onSaveAsNewNote={handleSaveAsNewNote}
+						/>
 					) : (
 						<ImagePreviewProvider>
 							<MarkdownEditor

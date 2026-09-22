@@ -1,7 +1,16 @@
 import { toast } from "@heroui/react";
-import { ArrowDownToLine, FileText, Replace, Sparkles } from "lucide-react";
+import {
+	ArrowDownToLine,
+	Columns2,
+	FileText,
+	ListTree,
+	Replace,
+	Shuffle,
+	Sparkles,
+} from "lucide-react";
 import type React from "react";
 import { useEffect, useRef } from "react";
+import { workbenchContextActions } from "../../../stores/workbenchContextStore";
 import { useAiPanel } from "../../shell/AppShell";
 import type { ObsidianNoteApi } from "../types";
 
@@ -17,21 +26,38 @@ export interface UseObsidianAiBridgeOptions {
 
 /**
  * 将 Obsidian 笔记页桥接到全局 AI 侧边栏：
- * - 空态快捷入口：总结 / 润色当前笔记（携带笔记原文进对话）
- * - 消息级动作：把 AI 回复一键追加/替换进当前笔记（写入 draft 后自动保存落盘）
+ * - 空态快捷入口：双栏二创改写、双栏全文润色、结构化整理、提炼总结
+ * - 消息级动作：把 AI 回复一键追加/替换进当前笔记
  */
 export function useObsidianAiBridge({
 	noteApiRef,
 	selectedNotePath,
 }: UseObsidianAiBridgeOptions) {
 	const { registerPageBridge, sendPrompt } = useAiPanel();
-	// sendPrompt 的引用随 context 重建，用 ref 固定，避免桥接反复重注册
 	const sendPromptRef = useRef(sendPrompt);
 	sendPromptRef.current = sendPrompt;
 
 	const noteTitle = selectedNotePath
 		? (selectedNotePath.split("/").pop()?.replace(/\.md$/i, "") ?? null)
 		: null;
+
+	// 同步全局 activeNote 状态，供输入框 ChatScopePill 切换「限定笔记」与「全局检索」
+	useEffect(() => {
+		if (selectedNotePath) {
+			workbenchContextActions.setActiveNote({
+				path: selectedNotePath,
+				title:
+					noteTitle ||
+					selectedNotePath.split("/").pop()?.replace(/\.md$/i, "") ||
+					"未命名笔记",
+			});
+		} else {
+			workbenchContextActions.setActiveNote(null);
+		}
+		return () => {
+			workbenchContextActions.setActiveNote(null);
+		};
+	}, [selectedNotePath, noteTitle]);
 
 	useEffect(() => {
 		const sendWithNote = (instruction: string) => {
@@ -87,40 +113,94 @@ export function useObsidianAiBridge({
 			module: "obsidian",
 			activeDocumentId: null,
 			activeDocumentTitle: noteTitle,
+			activeNotePath: selectedNotePath,
 			flushSave: async () => {
 				await noteApiRef.current?.flushSave();
 			},
 			actions: [
 				{
+					id: "stream_spin_rewrite",
+					label: "二创洗稿重构",
+					icon: Shuffle,
+					variant: "accent" as const,
+					tooltip:
+						"基于当前笔记事实进行深度二创与结构重组，在双栏视图中实时 Diff 审阅",
+					emptyState: {
+						title: "二创洗稿重构",
+						subtitle:
+							"在双栏视图中对当前笔记进行叙事与表达重构，支持红绿 Diff 审阅。",
+						badge: "二创",
+						actionText: "开启重构 ↗",
+					},
+					onAction: async (payload?: string) => {
+						const api = noteApiRef.current;
+						if (!api?.hasNote()) {
+							toast.info("请先在左侧打开一篇笔记");
+							return;
+						}
+						await api.flushSave();
+						await api.onStartRewritePipeline?.(payload, "二创洗稿");
+					},
+				},
+				{
+					id: "stream_full_rewrite",
+					label: "双栏全文润色",
+					icon: Sparkles,
+					variant: "default" as const,
+					tooltip: "在双栏中逐句润色语言表达、排版结构，红绿 Diff 直观对比",
+					emptyState: {
+						title: "双栏全文润色",
+						subtitle: "保持 Markdown 原结构与链接，双栏实时对比精细润色。",
+						badge: "Diff",
+						actionText: "开始润色 ↗",
+					},
+					onAction: async (payload?: string) => {
+						const api = noteApiRef.current;
+						if (!api?.hasNote()) {
+							toast.info("请先在左侧打开一篇笔记");
+							return;
+						}
+						await api.flushSave();
+						await api.onStartRewritePipeline?.(payload, "全文润色");
+					},
+				},
+				{
+					id: "stream_structure_rewrite",
+					label: "结构化整理",
+					icon: ListTree,
+					tooltip: "将凌乱速记重新梳理为层级规范、要点清晰的知识笔记",
+					onAction: async (payload?: string) => {
+						const api = noteApiRef.current;
+						if (!api?.hasNote()) {
+							toast.info("请先在左侧打开一篇笔记");
+							return;
+						}
+						await api.flushSave();
+						await api.onStartRewritePipeline?.(payload, "结构化整理");
+					},
+				},
+				{
+					id: "toggle_split_compare",
+					label: "切换双栏比对",
+					icon: Columns2,
+					tooltip: "手动开启或关闭左右双栏并排比对视图",
+					onAction: () => {
+						noteApiRef.current?.toggleSplitCompare?.();
+					},
+				},
+				{
 					id: "note_summarize",
 					label: "总结当前笔记",
 					icon: FileText,
-					variant: "accent" as const,
 					emptyState: {
 						title: "总结当前笔记",
-						subtitle: "提炼当前打开笔记的核心要点与结构脉络。",
-						badge: "笔记",
+						subtitle: "提炼当前打开笔记的核心要点与结构脉络进对话。",
+						badge: "对话",
 						actionText: "立即总结 ↗",
 					},
 					onAction: () => {
 						sendWithNote(
 							"请总结这篇笔记：提炼核心要点（分条列出），并简述其结构与可改进之处。",
-						);
-					},
-				},
-				{
-					id: "note_polish",
-					label: "润色当前笔记",
-					icon: Sparkles,
-					emptyState: {
-						title: "润色当前笔记",
-						subtitle: "保持原意与 Markdown 结构，优化语言表达与流畅度。",
-						badge: "Markdown",
-						actionText: "立即润色 ↗",
-					},
-					onAction: () => {
-						sendWithNote(
-							"请润色这篇笔记：保持原意、Wiki 链接与 Markdown 结构不变，优化语言表达，直接输出润色后的完整笔记 Markdown（不要用代码块包裹）。",
 						);
 					},
 				},
@@ -143,5 +223,5 @@ export function useObsidianAiBridge({
 			],
 		});
 		return () => registerPageBridge(null);
-	}, [registerPageBridge, noteApiRef, noteTitle]);
+	}, [registerPageBridge, noteApiRef, noteTitle, selectedNotePath]);
 }

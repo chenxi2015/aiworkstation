@@ -218,6 +218,7 @@ export function useAiChat(options?: UseAiChatOptions) {
 				contextItems?: ChatContextItem[];
 				module?: string;
 				activeDocumentId?: number | null;
+				activeNotePath?: string | null;
 			},
 		) => {
 			const rawText = (userPrompt || input).trim();
@@ -341,6 +342,10 @@ export function useAiChat(options?: UseAiChatOptions) {
 							workbenchContextStore.state.activeMaterial?.id
 								? undefined
 								: (workbenchContextStore.state.activeMaterial?.id ?? undefined),
+						activeNotePath:
+							sendOptions?.activeNotePath !== undefined
+								? (sendOptions.activeNotePath ?? undefined)
+								: undefined,
 					},
 					{
 						onStepStart: (step) => {
