@@ -6,16 +6,24 @@ import {
 	NodeToolbar,
 	Position,
 	ResizeControlVariant,
+	useReactFlow,
 } from "@xyflow/react";
 import {
 	ExternalLink,
 	FileText,
-	PenLine,
+	Palette,
+	ScanSearch,
+	SquarePen,
 	Trash2,
 	Waypoints,
 	X,
 } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	fetchVaultNote,
+	getCachedVaultNote,
+} from "../../../services/api/obsidianClient";
+import { markdownToHtml } from "../../editor/markdown";
 import { getVaultFileCategory, vaultAssetUrl } from "../utils/vaultFileUtils";
 import {
 	type CanvasNode,
@@ -102,6 +110,7 @@ interface SelectionToolbarProps extends CanvasNodeActions {
 	readOnly?: boolean;
 	canEdit?: boolean;
 	editing?: boolean;
+	onEdit?: () => void;
 }
 
 const RESIZE_CORNERS = [
@@ -140,9 +149,9 @@ function CornerResizer({
 }
 
 const toolbarButtonClass =
-	"p-1 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/60 transition-colors cursor-pointer";
+	"p-1.5 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/70 transition-colors cursor-pointer";
 
-/** Obsidian-style floating toolbar above a selected node: delete / color / edit */
+/** Compact action toolbar above a selected node: delete / palette / focus / edit */
 function SelectionToolbar({
 	id,
 	color,
@@ -152,16 +161,34 @@ function SelectionToolbar({
 	editing,
 	onDeleteNode,
 	onSetColor,
-	onStartEdit,
+	onEdit,
 }: SelectionToolbarProps) {
+	const [paletteOpen, setPaletteOpen] = useState(false);
+	const { fitView } = useReactFlow();
+
+	// Close palette popover when node becomes unselected
+	useEffect(() => {
+		if (!selected) setPaletteOpen(false);
+	}, [selected]);
+
+	const handleFocus = useCallback(() => {
+		fitView({
+			nodes: [{ id }],
+			duration: 350,
+			padding: 0.25,
+		});
+	}, [fitView, id]);
+
 	if (readOnly) return null;
+
 	return (
 		<NodeToolbar
 			isVisible={selected && !editing}
 			position={Position.Top}
 			offset={8}
 		>
-			<div className="nodrag flex items-center gap-1.5 rounded-lg border border-border bg-surface px-1.5 py-1 shadow-md">
+			<div className="nodrag relative flex items-center gap-0.5 rounded-lg border border-border bg-surface p-1 shadow-md">
+				{/* 1. 删除 */}
 				<button
 					type="button"
 					aria-label="删除"
@@ -171,40 +198,76 @@ function SelectionToolbar({
 				>
 					<Trash2 className="w-3.5 h-3.5" />
 				</button>
-				<div className="flex items-center gap-1">
-					{Object.entries(COLOR_PRESETS).map(([key, value]) => (
-						<button
-							key={key}
-							type="button"
-							aria-label={`颜色 ${key}`}
-							title={`颜色 ${key}`}
-							onClick={() => onSetColor?.(id, color === key ? undefined : key)}
-							className={`w-3.5 h-3.5 rounded-full cursor-pointer transition-transform hover:scale-110 ${
-								color === key ? "ring-2 ring-offset-1 ring-foreground/50" : ""
-							}`}
-							style={{ backgroundColor: value }}
-						/>
-					))}
-					<button
-						type="button"
-						aria-label="清除颜色"
-						title="清除颜色"
-						onClick={() => onSetColor?.(id, undefined)}
-						className={toolbarButtonClass}
-					>
-						<X className="w-3 h-3" />
-					</button>
-				</div>
+
+				{/* 2. 替换颜色 */}
+				<button
+					type="button"
+					aria-label="替换颜色"
+					title="替换颜色"
+					onClick={() => setPaletteOpen((prev) => !prev)}
+					className={`${toolbarButtonClass} ${
+						paletteOpen ? "text-accent bg-surface-secondary" : ""
+					}`}
+				>
+					<Palette className="w-3.5 h-3.5" />
+				</button>
+
+				{/* 3. 聚焦到当前卡片 */}
+				<button
+					type="button"
+					aria-label="聚焦到当前卡片"
+					title="聚焦到当前卡片"
+					onClick={handleFocus}
+					className={toolbarButtonClass}
+				>
+					<ScanSearch className="w-3.5 h-3.5" />
+				</button>
+
+				{/* 4. 编辑 */}
 				{canEdit && (
 					<button
 						type="button"
 						aria-label="编辑"
 						title="编辑"
-						onClick={() => onStartEdit?.(id)}
+						onClick={onEdit}
 						className={toolbarButtonClass}
 					>
-						<PenLine className="w-3.5 h-3.5" />
+						<SquarePen className="w-3.5 h-3.5" />
 					</button>
+				)}
+
+				{/* 调色板浮层 */}
+				{paletteOpen && (
+					<div className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 flex items-center gap-1.5 rounded-lg border border-border bg-surface px-2 py-1.5 shadow-lg z-30 animate-in fade-in zoom-in-95 duration-100">
+						{Object.entries(COLOR_PRESETS).map(([key, value]) => (
+							<button
+								key={key}
+								type="button"
+								aria-label={`颜色 ${key}`}
+								title={`颜色 ${key}`}
+								onClick={() => {
+									onSetColor?.(id, color === key ? undefined : key);
+									setPaletteOpen(false);
+								}}
+								className={`w-4 h-4 rounded-full cursor-pointer transition-transform hover:scale-110 ${
+									color === key ? "ring-2 ring-offset-1 ring-foreground/60" : ""
+								}`}
+								style={{ backgroundColor: value }}
+							/>
+						))}
+						<button
+							type="button"
+							aria-label="清除颜色"
+							title="清除颜色"
+							onClick={() => {
+								onSetColor?.(id, undefined);
+								setPaletteOpen(false);
+							}}
+							className={toolbarButtonClass}
+						>
+							<X className="w-3.5 h-3.5" />
+						</button>
+					</div>
 				)}
 			</div>
 		</NodeToolbar>
@@ -212,7 +275,7 @@ function SelectionToolbar({
 }
 
 const cardClass =
-	"w-full h-full rounded-lg border border-border bg-surface shadow-sm overflow-hidden";
+	"w-full h-full rounded-lg border border-border bg-surface shadow-sm overflow-hidden transition-[border-color,box-shadow] duration-150";
 
 function autoFocus(el: HTMLTextAreaElement | HTMLInputElement | null) {
 	if (!el) return;
@@ -220,12 +283,25 @@ function autoFocus(el: HTMLTextAreaElement | HTMLInputElement | null) {
 	el.select();
 }
 
-export function CanvasGroupNode({
+/** Memoized CanvasGroupNode component */
+export const CanvasGroupNode = memo(function CanvasGroupNode({
 	id,
 	data,
 	selected,
 }: NodeProps<CanvasGroupFlowNode>) {
 	const color = resolveColor(data.color);
+	const activeColor = color ?? "#7853ee";
+	const groupBorderStyle: React.CSSProperties = selected
+		? {
+				borderColor: activeColor,
+				boxShadow: `0 0 0 1px ${activeColor}, 0 4px 14px -2px ${
+					color ? `${color}40` : "rgba(120, 83, 238, 0.28)"
+				}`,
+			}
+		: {
+				borderColor: color ?? "rgba(128,128,128,0.3)",
+			};
+
 	return (
 		<>
 			<NodeHandles readOnly={data.readOnly} />
@@ -243,11 +319,11 @@ export function CanvasGroupNode({
 				editing={data.editing}
 				onDeleteNode={data.onDeleteNode}
 				onSetColor={data.onSetColor}
-				onStartEdit={data.onStartEdit}
+				onEdit={() => data.onStartEdit?.(id)}
 			/>
 			<div
-				className="w-full h-full rounded-xl border bg-surface/30 dark:bg-white/[0.03]"
-				style={{ borderColor: color ?? "rgba(128,128,128,0.3)" }}
+				className="w-full h-full rounded-xl border bg-surface/30 dark:bg-white/[0.03] transition-[border-color,box-shadow] duration-150"
+				style={groupBorderStyle}
 			>
 				{data.editing ? (
 					<input
@@ -275,7 +351,7 @@ export function CanvasGroupNode({
 			</div>
 		</>
 	);
-}
+});
 
 function TextCardBody({
 	node,
@@ -321,14 +397,107 @@ function TextCardBody({
 	);
 }
 
-export function CanvasCardNode({
+// In-memory LRU cache for rendered Markdown HTML strings to avoid expensive re-parsing
+const MAX_MARKDOWN_CACHE_SIZE = 150;
+const markdownCache = new Map<string, string>();
+
+function getRenderedMarkdownHtml(raw: string): string {
+	if (!raw) return "";
+	const cached = markdownCache.get(raw);
+	if (cached !== undefined) return cached;
+
+	// Strip YAML frontmatter
+	const body = raw.replace(/^---\n[\s\S]*?\n---\n?/, "").trim();
+	const html = markdownToHtml(body);
+
+	if (markdownCache.size >= MAX_MARKDOWN_CACHE_SIZE) {
+		const firstKey = markdownCache.keys().next().value;
+		if (firstKey !== undefined) markdownCache.delete(firstKey);
+	}
+	markdownCache.set(raw, html);
+	return html;
+}
+
+function MarkdownCardBody({
+	file,
+	borderStyle,
+}: {
+	file: string;
+	borderStyle: React.CSSProperties;
+}) {
+	const [content, setContent] = useState<string>(() => {
+		const cached = getCachedVaultNote(file);
+		return cached?.content ?? "";
+	});
+	const [loading, setLoading] = useState(!content);
+
+	useEffect(() => {
+		let active = true;
+		void fetchVaultNote(file).then(({ note }) => {
+			if (!active) return;
+			if (note?.content !== undefined) {
+				setContent(note.content);
+			}
+			setLoading(false);
+		});
+		return () => {
+			active = false;
+		};
+	}, [file]);
+
+	const html = useMemo(() => getRenderedMarkdownHtml(content), [content]);
+	const displayName = file.split("/").pop()?.replace(/\.md$/i, "") ?? file;
+
+	return (
+		<div className="relative w-full h-full flex flex-col">
+			{/* Top note title bar / badge */}
+			<div
+				className="absolute -top-5 left-1 text-[11px] text-muted truncate max-w-[95%] select-none pointer-events-none font-medium"
+				title={displayName}
+			>
+				{displayName}
+			</div>
+			<div
+				className={`${cardClass} nowheel p-4 overflow-y-auto text-xs text-foreground/90 leading-relaxed cursor-default`}
+				style={borderStyle}
+			>
+				{loading && !html ? (
+					<div className="flex items-center justify-center h-full text-xs text-muted">
+						加载笔记中...
+					</div>
+				) : html ? (
+					<div
+						className="canvas-markdown-preview prose prose-sm dark:prose-invert max-w-none break-words"
+						// biome-ignore lint/security/noDangerouslySetInnerHtml: rendered markdown HTML
+						dangerouslySetInnerHTML={{ __html: html }}
+					/>
+				) : (
+					<div className="text-muted italic text-center py-4">（空笔记）</div>
+				)}
+			</div>
+		</div>
+	);
+}
+
+/** Memoized CanvasCardNode component */
+export const CanvasCardNode = memo(function CanvasCardNode({
 	id,
 	data,
 	selected,
 }: NodeProps<CanvasCardFlowNode>) {
 	const { canvasNode: node, onNavigateNote } = data;
 	const color = resolveColor(node.color);
-	const borderStyle = { borderColor: color };
+	const activeColor = color ?? "#7853ee";
+	const borderStyle: React.CSSProperties = selected
+		? {
+				borderColor: activeColor,
+				boxShadow: `0 0 0 1px ${activeColor}, 0 4px 14px -2px ${
+					color ? `${color}40` : "rgba(120, 83, 238, 0.28)"
+				}`,
+			}
+		: {
+				borderColor: color,
+			};
 	const isImage =
 		node.type === "file" &&
 		Boolean(node.file) &&
@@ -356,18 +525,12 @@ export function CanvasCardNode({
 					/>
 				</div>
 			);
+		} else if (category === "markdown") {
+			body = <MarkdownCardBody file={file} borderStyle={borderStyle} />;
 		} else {
-			const isNavigable = category === "markdown" || category === "canvas";
 			body = (
-				<button
-					type="button"
-					disabled={!isNavigable}
-					onClick={() => isNavigable && onNavigateNote?.(file)}
-					className={`${cardClass} flex flex-col items-center justify-center gap-2 p-3 transition-colors ${
-						isNavigable
-							? "hover:border-accent cursor-pointer"
-							: "cursor-default"
-					}`}
+				<div
+					className={`${cardClass} flex flex-col items-center justify-center gap-2 p-3`}
 					style={borderStyle}
 					title={file}
 				>
@@ -377,9 +540,9 @@ export function CanvasCardNode({
 						<FileText className="w-5 h-5 text-muted" />
 					)}
 					<span className="text-xs text-foreground/90 text-center break-all leading-snug">
-						{category === "markdown" ? name.replace(/\.md$/i, "") : name}
+						{name}
 					</span>
-				</button>
+				</div>
 			);
 		}
 	} else if (node.type === "link" && node.url) {
@@ -405,6 +568,9 @@ export function CanvasCardNode({
 
 	if (!body) return null;
 
+	const canEdit =
+		node.type === "text" || (node.type === "file" && Boolean(node.file));
+
 	return (
 		<>
 			<NodeHandles readOnly={data.readOnly} />
@@ -419,13 +585,19 @@ export function CanvasCardNode({
 				color={node.color}
 				selected={selected}
 				readOnly={data.readOnly}
-				canEdit={node.type === "text"}
+				canEdit={canEdit}
 				editing={data.editing}
 				onDeleteNode={data.onDeleteNode}
 				onSetColor={data.onSetColor}
-				onStartEdit={data.onStartEdit}
+				onEdit={() => {
+					if (node.type === "text") {
+						data.onStartEdit?.(id);
+					} else if (node.type === "file" && node.file) {
+						onNavigateNote?.(node.file);
+					}
+				}}
 			/>
 			{body}
 		</>
 	);
-}
+});

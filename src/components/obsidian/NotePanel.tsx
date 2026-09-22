@@ -391,31 +391,47 @@ function TextNotePanel({
 		[scheduleSave],
 	);
 
-	// Canvas 连线菜单"添加笔记"：在当前 canvas 所在目录新建笔记，返回 relPath（不跳转）
-	const handleCanvasCreateNote = useCallback(async (): Promise<
-		string | null
-	> => {
-		const current = noteRef.current;
-		if (!current) return null;
-		const dir = current.relPath.includes("/")
-			? current.relPath.split("/").slice(0, -1).join("/")
-			: "";
-		for (let i = 0; i < 1000; i++) {
-			const name = i === 0 ? "未命名文件" : `未命名文件 ${i}`;
-			const res = await createVaultNoteRpc(dir, name);
-			if (res.success && res.relPath) {
-				toast.success(`已新建笔记「${name}」`);
-				onMutatedRef.current();
-				return res.relPath;
+	// Canvas 连线/搜索添加"新建笔记"：在当前 canvas 所在目录新建笔记，返回 relPath（不跳转）
+	const handleCanvasCreateNote = useCallback(
+		async (customName?: string): Promise<string | null> => {
+			const current = noteRef.current;
+			if (!current) return null;
+			const dir = current.relPath.includes("/")
+				? current.relPath.split("/").slice(0, -1).join("/")
+				: "";
+
+			const trimmed = customName?.trim();
+			if (trimmed) {
+				const res = await createVaultNoteRpc(dir, trimmed);
+				if (res.success && res.relPath) {
+					toast.success(`已新建笔记「${trimmed}」`);
+					onMutatedRef.current();
+					return res.relPath;
+				}
+				if (res.error) {
+					toast.danger(res.error);
+					return null;
+				}
 			}
-			if (res.error && !res.error.includes("已存在")) {
-				toast.danger(res.error);
-				return null;
+
+			for (let i = 0; i < 1000; i++) {
+				const name = i === 0 ? "未命名文件" : `未命名文件 ${i}`;
+				const res = await createVaultNoteRpc(dir, name);
+				if (res.success && res.relPath) {
+					toast.success(`已新建笔记「${name}」`);
+					onMutatedRef.current();
+					return res.relPath;
+				}
+				if (res.error && !res.error.includes("已存在")) {
+					toast.danger(res.error);
+					return null;
+				}
 			}
-		}
-		toast.danger("新建笔记失败");
-		return null;
-	}, []);
+			toast.danger("新建笔记失败");
+			return null;
+		},
+		[],
+	);
 
 	useEffect(() => {
 		// 切换笔记前把当前未保存改动后台落盘（flushSave 内部按 relPath 防串扰）
