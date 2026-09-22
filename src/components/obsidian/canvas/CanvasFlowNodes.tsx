@@ -26,8 +26,15 @@ import {
 import { markdownToHtml } from "../../editor/markdown";
 import { getVaultFileCategory, vaultAssetUrl } from "../utils/vaultFileUtils";
 import {
+	AlignToolIcon,
+	CanvasAlignDropdown,
+} from "./CanvasMultiSelectionToolbar";
+import { useCanvasSelection } from "./CanvasSelectionContext";
+import type { AlignmentType } from "./canvasAlignment";
+import {
 	type CanvasNode,
 	COLOR_PRESETS,
+	colorToAlpha,
 	resolveColor,
 	type Side,
 } from "./canvasUtils";
@@ -36,6 +43,7 @@ export interface CanvasNodeActions {
 	onDeleteNode?: (id: string) => void;
 	onSetColor?: (id: string, color: string | undefined) => void;
 	onStartEdit?: (id: string) => void;
+	onAlignGroup?: (groupId: string, type: AlignmentType) => void;
 }
 
 export interface CanvasCardData
@@ -110,7 +118,9 @@ interface SelectionToolbarProps extends CanvasNodeActions {
 	readOnly?: boolean;
 	canEdit?: boolean;
 	editing?: boolean;
+	isGroup?: boolean;
 	onEdit?: () => void;
+	onAlignGroup?: (groupId: string, type: AlignmentType) => void;
 }
 
 const RESIZE_CORNERS = [
@@ -151,7 +161,7 @@ function CornerResizer({
 const toolbarButtonClass =
 	"p-1.5 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/70 transition-colors cursor-pointer";
 
-/** Compact action toolbar above a selected node: delete / palette / focus / edit */
+/** Compact action toolbar above a selected node: delete / palette / focus / edit / align */
 function SelectionToolbar({
 	id,
 	color,
@@ -159,20 +169,23 @@ function SelectionToolbar({
 	readOnly,
 	canEdit,
 	editing,
+	isGroup,
 	onDeleteNode,
 	onSetColor,
 	onEdit,
+	onAlignGroup,
 }: SelectionToolbarProps) {
 	const [paletteOpen, setPaletteOpen] = useState(false);
-	const { fitView, getNodes } = useReactFlow();
+	const [alignOpen, setAlignOpen] = useState(false);
+	const { fitView } = useReactFlow();
+	const { isSelecting, selectedNodesCount } = useCanvasSelection();
 
-	// Check if multiple nodes are selected to hide single-node toolbar
-	const isMultiSelected =
-		selected && getNodes().filter((n) => n.selected).length >= 2;
-
-	// Close palette popover when node becomes unselected
+	// Close popovers when node becomes unselected
 	useEffect(() => {
-		if (!selected) setPaletteOpen(false);
+		if (!selected) {
+			setPaletteOpen(false);
+			setAlignOpen(false);
+		}
 	}, [selected]);
 
 	const handleFocus = useCallback(() => {
@@ -187,7 +200,12 @@ function SelectionToolbar({
 
 	return (
 		<NodeToolbar
-			isVisible={Boolean(selected) && !editing && !isMultiSelected}
+			isVisible={
+				Boolean(selected) &&
+				!editing &&
+				!isSelecting &&
+				selectedNodesCount === 1
+			}
 			position={Position.Top}
 			offset={8}
 		>
@@ -208,7 +226,10 @@ function SelectionToolbar({
 					type="button"
 					aria-label="替换颜色"
 					title="替换颜色"
-					onClick={() => setPaletteOpen((prev) => !prev)}
+					onClick={() => {
+						setPaletteOpen((prev) => !prev);
+						setAlignOpen(false);
+					}}
 					className={`${toolbarButtonClass} ${
 						paletteOpen ? "text-accent bg-surface-secondary" : ""
 					}`}
@@ -237,6 +258,24 @@ function SelectionToolbar({
 						className={toolbarButtonClass}
 					>
 						<SquarePen className="w-3.5 h-3.5" />
+					</button>
+				)}
+
+				{/* 5. 分组内部内容对齐与分布工具 */}
+				{isGroup && (
+					<button
+						type="button"
+						aria-label="对齐分组内容"
+						title="对齐分组内容"
+						onClick={() => {
+							setAlignOpen((prev) => !prev);
+							setPaletteOpen(false);
+						}}
+						className={`${toolbarButtonClass} ${
+							alignOpen ? "text-accent bg-surface-secondary" : ""
+						}`}
+					>
+						<AlignToolIcon />
 					</button>
 				)}
 
@@ -273,6 +312,17 @@ function SelectionToolbar({
 						</button>
 					</div>
 				)}
+
+				{/* 分组对齐与分布下拉菜单 */}
+				{isGroup && (
+					<CanvasAlignDropdown
+						isOpen={alignOpen}
+						onSelect={(type) => {
+							onAlignGroup?.(id, type);
+							setAlignOpen(false);
+						}}
+					/>
+				)}
 			</div>
 		</NodeToolbar>
 	);
@@ -294,16 +344,22 @@ export const CanvasGroupNode = memo(function CanvasGroupNode({
 	selected,
 }: NodeProps<CanvasGroupFlowNode>) {
 	const color = resolveColor(data.color);
+	const defaultBorder = "rgba(128, 128, 128, 0.3)";
 	const activeColor = color ?? "#7853ee";
+	const currentBorder = color ?? defaultBorder;
+
 	const groupBorderStyle: React.CSSProperties = selected
 		? {
 				borderColor: activeColor,
-				boxShadow: `0 0 0 1px ${activeColor}, 0 4px 14px -2px ${
-					color ? `${color}40` : "rgba(120, 83, 238, 0.28)"
-				}`,
+				boxShadow: `0 0 0 1px ${activeColor}, 0 4px 14px -2px ${colorToAlpha(
+					activeColor,
+					0.25,
+				)}`,
+				background: colorToAlpha(activeColor, color ? 0.08 : 0.06),
 			}
 		: {
-				borderColor: color ?? "rgba(128,128,128,0.3)",
+				borderColor: currentBorder,
+				background: colorToAlpha(currentBorder, color ? 0.08 : 0.06),
 			};
 
 	return (
@@ -321,9 +377,11 @@ export const CanvasGroupNode = memo(function CanvasGroupNode({
 				readOnly={data.readOnly}
 				canEdit
 				editing={data.editing}
+				isGroup
 				onDeleteNode={data.onDeleteNode}
 				onSetColor={data.onSetColor}
 				onEdit={() => data.onStartEdit?.(id)}
+				onAlignGroup={data.onAlignGroup}
 			/>
 			<div
 				className="w-full h-full rounded-xl border bg-surface/30 dark:bg-white/[0.03] transition-[border-color,box-shadow] duration-150"
@@ -538,10 +596,6 @@ export const CanvasCardNode = memo(function CanvasCardNode({
 		: {
 				borderColor: color,
 			};
-	const isImage =
-		node.type === "file" &&
-		Boolean(node.file) &&
-		getVaultFileCategory(node.file ?? "") === "image";
 
 	let body: React.ReactNode = null;
 

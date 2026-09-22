@@ -1,6 +1,7 @@
 import { useReactFlow, useViewport } from "@xyflow/react";
 import { FolderPlus, Palette, ScanSearch, Trash2, X } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCanvasSelection } from "./CanvasSelectionContext";
 import { type AlignmentType, getNodesBoundingBox } from "./canvasAlignment";
 import { COLOR_PRESETS } from "./canvasUtils";
 
@@ -297,7 +298,7 @@ function StretchHeightIcon() {
 	);
 }
 
-function AlignToolIcon() {
+export function AlignToolIcon() {
 	return (
 		<svg
 			aria-hidden="true"
@@ -319,7 +320,7 @@ function AlignToolIcon() {
 }
 
 /** 5 groups of alignment options matching image 1 */
-const ALIGN_GROUPS: { groupName: string; items: AlignMenuItem[] }[] = [
+export const ALIGN_GROUPS: { groupName: string; items: AlignMenuItem[] }[] = [
 	{
 		groupName: "horizontal-align",
 		items: [
@@ -367,6 +368,45 @@ const ALIGN_GROUPS: { groupName: string; items: AlignMenuItem[] }[] = [
 		],
 	},
 ];
+
+export interface CanvasAlignDropdownProps {
+	isOpen: boolean;
+	onSelect: (type: AlignmentType) => void;
+	className?: string;
+}
+
+/** Reusable alignment dropdown menu matching Figure 1 */
+export function CanvasAlignDropdown({
+	isOpen,
+	onSelect,
+	className = "right-0",
+}: CanvasAlignDropdownProps) {
+	if (!isOpen) return null;
+	return (
+		<div
+			className={`absolute top-full mt-1.5 w-44 rounded-lg border border-border bg-surface py-1.5 shadow-xl z-30 animate-in fade-in zoom-in-95 duration-100 text-xs ${className}`}
+		>
+			{ALIGN_GROUPS.map((group, groupIdx) => (
+				<div key={group.groupName}>
+					{groupIdx > 0 && <div className="my-1 border-t border-border/60" />}
+					{group.items.map((item) => (
+						<button
+							key={item.id}
+							type="button"
+							onClick={() => onSelect(item.id)}
+							className="flex w-full items-center gap-2.5 px-3 py-1.5 text-foreground/80 hover:bg-surface-secondary/70 hover:text-foreground transition-colors text-left cursor-pointer"
+						>
+							<span className="text-muted shrink-0 flex items-center justify-center">
+								{item.icon}
+							</span>
+							<span className="font-normal">{item.label}</span>
+						</button>
+					))}
+				</div>
+			))}
+		</div>
+	);
+}
 
 const toolbarButtonClass =
 	"p-1.5 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/70 transition-colors cursor-pointer";
@@ -456,7 +496,9 @@ export const CanvasMultiSelectionToolbar = memo(
 			[onAlign],
 		);
 
-		if (readOnly || selectedNodes.length < 2 || !box) {
+		const { isSelecting } = useCanvasSelection();
+
+		if (readOnly || isSelecting || selectedNodes.length < 2 || !box) {
 			return null;
 		}
 
@@ -598,31 +640,11 @@ export const CanvasMultiSelectionToolbar = memo(
 							</div>
 						)}
 
-						{/* 对齐与分布下拉菜单 (Shown in image 1) */}
-						{alignMenuOpen && (
-							<div className="absolute top-full right-0 mt-1.5 w-44 rounded-lg border border-border bg-surface py-1.5 shadow-xl z-30 animate-in fade-in zoom-in-95 duration-100 text-xs">
-								{ALIGN_GROUPS.map((group, groupIdx) => (
-									<div key={group.groupName}>
-										{groupIdx > 0 && (
-											<div className="my-1 border-t border-border/60" />
-										)}
-										{group.items.map((item) => (
-											<button
-												key={item.id}
-												type="button"
-												onClick={() => handleAlignSelect(item.id)}
-												className="flex w-full items-center gap-2.5 px-3 py-1.5 text-foreground/80 hover:bg-surface-secondary/70 hover:text-foreground transition-colors text-left cursor-pointer"
-											>
-												<span className="text-muted shrink-0 flex items-center justify-center">
-													{item.icon}
-												</span>
-												<span className="font-normal">{item.label}</span>
-											</button>
-										))}
-									</div>
-								))}
-							</div>
-						)}
+						{/* 对齐与分布下拉菜单 */}
+						<CanvasAlignDropdown
+							isOpen={alignMenuOpen}
+							onSelect={handleAlignSelect}
+						/>
 					</div>
 				</div>
 			</>

@@ -19,6 +19,7 @@ import {
 	X,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { useCanvasSelection } from "./CanvasSelectionContext";
 import { COLOR_PRESETS } from "./canvasUtils";
 
 export interface CanvasEdgeData extends Record<string, unknown> {
@@ -94,9 +95,12 @@ function EdgeSelectionToolbar({
 
 	return (
 		<div
+			role="toolbar"
+			aria-label="连线工具栏"
 			className="nodrag nopan absolute pointer-events-auto z-30"
 			onMouseDown={(e) => e.stopPropagation()}
 			onClick={(e) => e.stopPropagation()}
+			onKeyDown={(e) => e.stopPropagation()}
 			style={{
 				transform: `translate(-50%, -100%) translate(${labelX}px, ${labelY - 14}px)`,
 			}}
@@ -307,6 +311,10 @@ export function CanvasEdgeComponent({
 		targetPosition,
 	});
 	const color = typeof style?.stroke === "string" ? style.stroke : undefined;
+	const { isSelecting, selectedNodesCount } = useCanvasSelection();
+	const { getNodes } = useReactFlow();
+	const hasSelectedNodes =
+		selectedNodesCount > 0 || getNodes().some((n) => n.selected);
 
 	return (
 		<>
@@ -319,8 +327,8 @@ export function CanvasEdgeComponent({
 				interactionWidth={interactionWidth ?? 24}
 			/>
 
-			{/* Edge floating action toolbar matching screenshot */}
-			{selected && !data?.editing && (
+			{/* Edge floating action toolbar only when individually selected and not marquee selecting */}
+			{selected && !data?.editing && !isSelecting && !hasSelectedNodes && (
 				<EdgeLabelRenderer>
 					<EdgeSelectionToolbar
 						id={id}

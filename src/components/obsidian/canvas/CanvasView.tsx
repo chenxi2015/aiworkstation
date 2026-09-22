@@ -3,6 +3,7 @@ import {
 	BackgroundVariant,
 	type ColorMode,
 	ConnectionMode,
+	type Edge,
 	MiniMap,
 	type Node,
 	ReactFlow,
@@ -11,11 +12,12 @@ import {
 	useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CanvasEdgeComponent } from "./CanvasFlowEdge";
 import { CanvasCardNode, CanvasGroupNode } from "./CanvasFlowNodes";
 import { CanvasMultiSelectionToolbar } from "./CanvasMultiSelectionToolbar";
 import { CanvasNoteSearchModal } from "./CanvasNoteSearchModal";
+import { CanvasSelectionContext } from "./CanvasSelectionContext";
 import {
 	CanvasBottomBar,
 	CanvasEmptyHint,
@@ -90,6 +92,7 @@ function CanvasFlow({
 		"select",
 	);
 	const [isSpacePressed, setIsSpacePressed] = useState(false);
+	const [isSelecting, setIsSelecting] = useState(false);
 
 	const {
 		parsed,
@@ -251,6 +254,56 @@ function CanvasFlow({
 		[readOnly, setEditingId],
 	);
 
+	const handleEdgeClick = useCallback(
+		(_: React.MouseEvent, clickedEdge: Edge) => {
+			if (readOnly) return;
+			// Explicitly select the clicked edge, deselect other edges and nodes
+			setEdges((prev) =>
+				prev.map((e) => ({
+					...e,
+					selected: e.id === clickedEdge.id,
+				})),
+			);
+			setNodes((prev) =>
+				prev.some((n) => n.selected)
+					? prev.map((n) => (n.selected ? { ...n, selected: false } : n))
+					: prev,
+			);
+		},
+		[readOnly, setEdges, setNodes],
+	);
+
+	const handleNodeClick = useCallback(() => {
+		if (readOnly) return;
+		// Clicking a card deselects all edges
+		setEdges((prev) =>
+			prev.some((e) => e.selected)
+				? prev.map((e) => (e.selected ? { ...e, selected: false } : e))
+				: prev,
+		);
+	}, [readOnly, setEdges]);
+
+	const handlePaneClick = useCallback(() => {
+		setPendingConn(null);
+		// Clicking canvas empty area deselects all edges
+		setEdges((prev) =>
+			prev.some((e) => e.selected)
+				? prev.map((e) => (e.selected ? { ...e, selected: false } : e))
+				: prev,
+		);
+	}, [setPendingConn, setEdges]);
+
+	const selectedNodesCount = useMemo(
+		() => nodes.filter((n) => n.selected).length,
+		[nodes],
+	);
+
+	useEffect(() => {
+		const handlePointerUp = () => setIsSelecting(false);
+		window.addEventListener("pointerup", handlePointerUp);
+		return () => window.removeEventListener("pointerup", handlePointerUp);
+	}, []);
+
 	if (parsed.error) {
 		return <CanvasParseError error={parsed.error} />;
 	}
@@ -258,130 +311,165 @@ function CanvasFlow({
 	const isPanning = isSpacePressed || interactionMode === "pan";
 
 	return (
-		<div
-			ref={wrapperRef}
-			className={`relative h-full bg-surface/40 dark:bg-black/20 canvas-flow-container ${
-				isPanning ? "cursor-grab active:cursor-grabbing" : ""
-			}`}
+		<CanvasSelectionContext.Provider
+			value={{ isSelecting, selectedNodesCount }}
 		>
-			{/* Obsidian-styled box selection (marquee) styling */}
-			<style>{`
-				.canvas-flow-container .react-flow__selection {
-					background-color: rgba(120, 83, 238, 0.08) !important;
-					border: 1.5px solid #7853ee !important;
-					border-radius: 4px !important;
-					box-shadow: 0 0 12px rgba(120, 83, 238, 0.15);
-				}
-			`}</style>
-
-			<CanvasEmptyHint count={nodes.length} readOnly={readOnly} />
-
-			<ReactFlow
-				nodes={nodes}
-				edges={displayEdges}
-				nodeTypes={nodeTypes}
-				edgeTypes={edgeTypes}
-				colorMode={colorMode}
-				onNodesChange={handleNodesChange}
-				onEdgesChange={handleEdgesChange}
-				onConnect={readOnly ? undefined : handleConnect}
-				onConnectEnd={readOnly ? undefined : handleConnectEnd}
-				onReconnect={readOnly ? undefined : handleReconnect}
-				edgesReconnectable={!readOnly}
-				onPaneClick={() => setPendingConn(null)}
-				onDoubleClick={handleDoubleClick}
-				onNodeDoubleClick={handleNodeDoubleClick}
-				onEdgeDoubleClick={handleEdgeDoubleClick}
-				connectionMode={ConnectionMode.Loose}
-				fitView
-				fitViewOptions={{ padding: 0.1, maxZoom: 1 }}
-				minZoom={0.1}
-				maxZoom={4}
-				nodesDraggable={!readOnly && !isPanning}
-				nodesConnectable={!readOnly && !isPanning}
-				elementsSelectable={!readOnly}
-				selectionMode={SelectionMode.Partial}
-				selectionOnDrag={
-					!readOnly && interactionMode === "select" && !isSpacePressed
-				}
-				panOnDrag={
-					readOnly || interactionMode === "pan" || isSpacePressed
-						? true
-						: [1, 2]
-				}
-				deleteKeyCode={readOnly ? null : ["Backspace", "Delete"]}
-				zoomOnDoubleClick={false}
-				panOnScroll
-				zoomOnScroll={false}
-				onlyRenderVisibleElements
+			<div
+				ref={wrapperRef}
+				className={`relative h-full bg-surface/40 dark:bg-black/20 canvas-flow-container ${
+					isPanning ? "cursor-grab active:cursor-grabbing" : ""
+				}`}
 			>
-				<Background variant={BackgroundVariant.Dots} gap={24} size={1.5} />
-				<CanvasViewControls
-					undo={undo}
-					redo={redo}
-					canUndo={canUndo}
-					canRedo={canRedo}
-					readOnly={readOnly}
-				/>
-				<MiniMap
-					pannable
-					zoomable
-					position="bottom-left"
-					nodeColor={(node) =>
-						node.type === "canvasGroup"
-							? "rgba(128,128,128,0.2)"
-							: (resolveColor(
-									(node.data as { canvasNode?: { color?: string } }).canvasNode
-										?.color,
-								) ?? "#8b8b8b")
+				{/* Obsidian-styled box selection (marquee) styling */}
+				<style>{`
+					.canvas-flow-container .react-flow__selection {
+						background-color: rgba(120, 83, 238, 0.08) !important;
+						border: 1.5px solid #7853ee !important;
+						border-radius: 4px !important;
+						box-shadow: 0 0 12px rgba(120, 83, 238, 0.15);
 					}
-				/>
+				`}</style>
 
-				{/* Floating multi-selection toolbar and bounding box */}
-				<CanvasMultiSelectionToolbar
-					readOnly={readOnly}
-					onBatchDelete={batchDeleteNodes}
-					onBatchSetColor={batchSetNodeColor}
-					onCreateGroupFromSelection={createGroupFromSelection}
-					onAlign={alignSelectedNodes}
-				/>
+				<CanvasEmptyHint count={nodes.length} readOnly={readOnly} />
 
-				{pendingConn && (
-					<PendingConnectionMenu
-						pendingConn={pendingConn}
-						onAddText={addConnectedTextCard}
-						onOpenNoteSearch={() => {
-							setSearchCategory("note");
-							handleOpenNoteSearch();
-						}}
-					/>
-				)}
-
-				<CanvasNoteSearchModal
-					isOpen={Boolean(noteSearchTarget)}
-					filterCategory={searchCategory}
-					onClose={() => setNoteSearchTarget(null)}
-					onSelect={(relPath) => {
-						if (noteSearchTarget) {
-							addFileNode(relPath, noteSearchTarget);
-						}
-						setNoteSearchTarget(null);
+				<ReactFlow
+					nodes={nodes}
+					edges={displayEdges}
+					nodeTypes={nodeTypes}
+					edgeTypes={edgeTypes}
+					colorMode={colorMode}
+					onNodesChange={handleNodesChange}
+					onEdgesChange={handleEdgesChange}
+					onConnect={readOnly ? undefined : handleConnect}
+					onConnectEnd={readOnly ? undefined : handleConnectEnd}
+					onReconnect={readOnly ? undefined : handleReconnect}
+					edgesReconnectable={!readOnly}
+					onPaneClick={handlePaneClick}
+					onNodeClick={handleNodeClick}
+					onEdgeClick={handleEdgeClick}
+					onDoubleClick={handleDoubleClick}
+					onNodeDoubleClick={handleNodeDoubleClick}
+					onEdgeDoubleClick={handleEdgeDoubleClick}
+					onSelectionStart={() => {
+						setIsSelecting(true);
+						setEdges((prev) =>
+							prev.some((e) => e.selected)
+								? prev.map((e) => (e.selected ? { ...e, selected: false } : e))
+								: prev,
+						);
 					}}
-					onCreate={onCreateNoteFile}
-				/>
-
-				<CanvasBottomBar
-					readOnly={readOnly}
-					interactionMode={interactionMode}
-					onToggleInteractionMode={() =>
-						setInteractionMode((prev) => (prev === "select" ? "pan" : "select"))
+					onSelectionDragStart={() => {
+						setIsSelecting(true);
+						setEdges((prev) =>
+							prev.some((e) => e.selected)
+								? prev.map((e) => (e.selected ? { ...e, selected: false } : e))
+								: prev,
+						);
+					}}
+					onSelectionDrag={() => {
+						setIsSelecting(true);
+					}}
+					onSelectionEnd={() => {
+						setIsSelecting(false);
+						setEdges((prev) =>
+							prev.some((e) => e.selected)
+								? prev.map((e) => (e.selected ? { ...e, selected: false } : e))
+								: prev,
+						);
+					}}
+					connectionMode={ConnectionMode.Loose}
+					fitView
+					fitViewOptions={{ padding: 0.1, maxZoom: 1 }}
+					minZoom={0.1}
+					maxZoom={4}
+					nodesDraggable={!readOnly && !isPanning}
+					nodesConnectable={!readOnly && !isPanning}
+					elementsSelectable={!readOnly}
+					selectionMode={SelectionMode.Partial}
+					selectionOnDrag={
+						!readOnly && interactionMode === "select" && !isSpacePressed
 					}
-					onAddCard={handleAddCardCenter}
-					onAddNote={handleAddNoteCenter}
-					onAddMedia={handleAddMediaCenter}
-				/>
-			</ReactFlow>
-		</div>
+					panOnDrag={
+						readOnly || interactionMode === "pan" || isSpacePressed
+							? true
+							: [1, 2]
+					}
+					deleteKeyCode={readOnly ? null : ["Backspace", "Delete"]}
+					zoomOnDoubleClick={false}
+					panOnScroll
+					zoomOnScroll={false}
+					onlyRenderVisibleElements
+				>
+					<Background variant={BackgroundVariant.Dots} gap={24} size={1.5} />
+					<CanvasViewControls
+						undo={undo}
+						redo={redo}
+						canUndo={canUndo}
+						canRedo={canRedo}
+						readOnly={readOnly}
+					/>
+					<MiniMap
+						pannable
+						zoomable
+						position="bottom-left"
+						nodeColor={(node) =>
+							node.type === "canvasGroup"
+								? "rgba(128,128,128,0.2)"
+								: (resolveColor(
+										(node.data as { canvasNode?: { color?: string } })
+											.canvasNode?.color,
+									) ?? "#8b8b8b")
+						}
+					/>
+
+					{/* Floating multi-selection toolbar and bounding box */}
+					<CanvasMultiSelectionToolbar
+						readOnly={readOnly}
+						onBatchDelete={batchDeleteNodes}
+						onBatchSetColor={batchSetNodeColor}
+						onCreateGroupFromSelection={createGroupFromSelection}
+						onAlign={alignSelectedNodes}
+					/>
+
+					{pendingConn && (
+						<PendingConnectionMenu
+							pendingConn={pendingConn}
+							onAddText={addConnectedTextCard}
+							onOpenNoteSearch={() => {
+								setSearchCategory("note");
+								handleOpenNoteSearch();
+							}}
+						/>
+					)}
+
+					<CanvasNoteSearchModal
+						isOpen={Boolean(noteSearchTarget)}
+						filterCategory={searchCategory}
+						onClose={() => setNoteSearchTarget(null)}
+						onSelect={(relPath) => {
+							if (noteSearchTarget) {
+								addFileNode(relPath, noteSearchTarget);
+							}
+							setNoteSearchTarget(null);
+						}}
+						onCreate={onCreateNoteFile}
+					/>
+
+					<CanvasBottomBar
+						readOnly={readOnly}
+						interactionMode={interactionMode}
+						onToggleInteractionMode={() =>
+							setInteractionMode((prev) =>
+								prev === "select" ? "pan" : "select",
+							)
+						}
+						onAddCard={handleAddCardCenter}
+						onAddNote={handleAddNoteCenter}
+						onAddMedia={handleAddMediaCenter}
+					/>
+				</ReactFlow>
+			</div>
+		</CanvasSelectionContext.Provider>
 	);
 }
 

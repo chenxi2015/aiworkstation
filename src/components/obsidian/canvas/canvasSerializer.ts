@@ -65,10 +65,11 @@ export function sideOf(
  */
 export function defaultEdgeProps(): Pick<
 	Edge,
-	"type" | "style" | "labelStyle" | "markerEnd" | "interactionWidth"
+	"type" | "selectable" | "style" | "labelStyle" | "markerEnd" | "interactionWidth"
 > {
 	return {
 		type: "canvasEdge",
+		selectable: false,
 		style: { stroke: DEFAULT_EDGE_COLOR, strokeWidth: 1.5 },
 		labelStyle: { fill: DEFAULT_EDGE_COLOR },
 		markerEnd: {
@@ -101,6 +102,7 @@ export function toFlowEdge(
 	return {
 		id: edge.id,
 		type: "canvasEdge",
+		selectable: false,
 		source: edge.fromNode,
 		target: edge.toNode,
 		sourceHandle: `s-${edge.fromSide ?? guessed.fromSide}`,
@@ -155,6 +157,7 @@ export function toFlowNodes(
 					onDeleteNode: opts.onDeleteNode,
 					onSetColor: opts.onSetColor,
 					onStartEdit: opts.onStartEdit,
+					onAlignGroup: opts.onAlignGroup,
 				},
 				width: node.width,
 				height: node.height,

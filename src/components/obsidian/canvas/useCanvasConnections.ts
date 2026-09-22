@@ -6,6 +6,7 @@ import {
 	type Node,
 } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { getVaultFileCategory, vaultAssetUrl } from "../utils/vaultFileUtils";
 import type { CanvasCardFlowNode } from "./CanvasFlowNodes";
 import {
 	DEFAULT_EDGE_COLOR,
@@ -13,7 +14,6 @@ import {
 	genId,
 } from "./canvasSerializer";
 import { type CanvasNode, guessSides, resolveColor } from "./canvasUtils";
-import { getVaultFileCategory, vaultAssetUrl } from "../utils/vaultFileUtils";
 
 export interface PendingConnection {
 	screenX: number;
@@ -543,6 +543,7 @@ export function useCanvasConnections({
 		() =>
 			edges.map((edge) => ({
 				...edge,
+				selectable: false,
 				data: {
 					...edge.data,
 					editing: edge.id === editingEdgeId,

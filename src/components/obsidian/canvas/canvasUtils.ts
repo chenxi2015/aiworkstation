@@ -45,6 +45,34 @@ export function resolveColor(color?: string): string | undefined {
 	return COLOR_PRESETS[color] ?? (color.startsWith("#") ? color : undefined);
 }
 
+/**
+ * Converts a hex or rgba/rgb color string into an rgba string with the specified alpha.
+ */
+export function colorToAlpha(color: string, alpha: number): string {
+	if (color.startsWith("#")) {
+		let hex = color.slice(1);
+		if (hex.length === 3) {
+			hex = hex
+				.split("")
+				.map((c) => c + c)
+				.join("");
+		}
+		const r = parseInt(hex.slice(0, 2), 16);
+		const g = parseInt(hex.slice(2, 4), 16);
+		const b = parseInt(hex.slice(4, 6), 16);
+		if (!Number.isNaN(r) && !Number.isNaN(g) && !Number.isNaN(b)) {
+			return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+		}
+	}
+	if (color.startsWith("rgba(")) {
+		return color.replace(/[\d.]+\)$/, `${alpha})`);
+	}
+	if (color.startsWith("rgb(")) {
+		return color.replace("rgb(", "rgba(").replace(/\)$/, `, ${alpha})`);
+	}
+	return color;
+}
+
 export type Side = NonNullable<CanvasEdge["fromSide"]>;
 
 /** Guess optimal sides based on node center orientation */

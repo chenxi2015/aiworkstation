@@ -8,7 +8,12 @@ import {
 } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CanvasCardFlowNode } from "./CanvasFlowNodes";
-import { type AlignmentType, applyAlignment } from "./canvasAlignment";
+import {
+	type AlignmentType,
+	applyAlignment,
+	getNodeDimensions,
+	getNodesBoundingBox,
+} from "./canvasAlignment";
 import {
 	type FlowBuildOptions,
 	genId,
@@ -183,6 +188,66 @@ export function useCanvasGraph({
 
 	const startEdit = useCallback((id: string) => setEditingId(id), []);
 
+	// Align cards contained inside a group
+	const alignGroupChildren = useCallback(
+		(groupId: string, type: AlignmentType) => {
+			const group = nodesRef.current.find((n) => n.id === groupId);
+			if (!group) return;
+
+			const gx = group.position.x;
+			const gy = group.position.y;
+			const gw =
+				group.width ??
+				(group.data as { canvasNode?: CanvasNode })?.canvasNode?.width ??
+				300;
+			const gh =
+				group.height ??
+				(group.data as { canvasNode?: CanvasNode })?.canvasNode?.height ??
+				200;
+
+			const childIds = new Set<string>();
+			for (const node of nodesRef.current) {
+				if (node.id === groupId || node.type === "canvasGroup") continue;
+				const { width: nw, height: nh } = getNodeDimensions(node);
+				const inside =
+					node.position.x >= gx - 10 &&
+					node.position.y >= gy - 10 &&
+					node.position.x + nw <= gx + gw + 10 &&
+					node.position.y + nh <= gy + gh + 10;
+				if (inside) childIds.add(node.id);
+			}
+
+			if (childIds.size < 2) return;
+
+			let nextNodes = applyAlignment(nodesRef.current, childIds, type);
+
+			// Dynamically adjust group dimensions if arranged children exceed boundary
+			const updatedChildren = nextNodes.filter((n) => childIds.has(n.id));
+			const childBox = getNodesBoundingBox(updatedChildren);
+			if (childBox) {
+				const padding = 32;
+				const newGx = Math.min(gx, Math.round(childBox.minX - padding));
+				const newGy = Math.min(gy, Math.round(childBox.minY - padding));
+				const newGw = Math.max(gw, Math.round(childBox.maxX + padding - newGx));
+				const newGh = Math.max(gh, Math.round(childBox.maxY + padding - newGy));
+
+				nextNodes = nextNodes.map((n) => {
+					if (n.id !== groupId) return n;
+					return {
+						...n,
+						position: { x: newGx, y: newGy },
+						width: newGw,
+						height: newGh,
+					};
+				});
+			}
+
+			setNodes(nextNodes);
+			emitRef.current(nextNodes, edgesRef.current);
+		},
+		[],
+	);
+
 	// Create a new group enclosing selected nodes
 	const createGroupFromSelection = useCallback(
 		(
@@ -209,24 +274,40 @@ export function useCanvasGraph({
 				data: {
 					label: "Group",
 					readOnly,
-					editing: false,
+					editing: true,
 					onCommitLabel: commitLabel,
 					onDeleteNode: deleteNode,
 					onSetColor: setNodeColor,
 					onStartEdit: startEdit,
+					onAlignGroup: alignGroupChildren,
 				},
 				width: groupCanvasNode.width,
 				height: groupCanvasNode.height,
 				draggable: !readOnly,
 				selectable: !readOnly,
+				selected: true,
 			};
 
+			// Deselect all previously selected cards so multi-selection box disappears immediately
+			const unselectedPrev = nodesRef.current.map((n) => ({
+				...n,
+				selected: false,
+			}));
+
 			// Put group in front of list so cards render on top of it
-			const nextNodes = [newGroupNode, ...nodesRef.current];
+			const nextNodes = [newGroupNode, ...unselectedPrev];
 			setNodes(nextNodes);
+			setEditingId(groupId);
 			emitRef.current(nextNodes, edgesRef.current);
 		},
-		[readOnly, commitLabel, deleteNode, setNodeColor, startEdit],
+		[
+			readOnly,
+			commitLabel,
+			deleteNode,
+			setNodeColor,
+			startEdit,
+			alignGroupChildren,
+		],
 	);
 
 	// Align selected nodes according to alignment type
@@ -251,6 +332,7 @@ export function useCanvasGraph({
 			onDeleteNode: deleteNode,
 			onSetColor: setNodeColor,
 			onStartEdit: startEdit,
+			onAlignGroup: alignGroupChildren,
 		}),
 		[
 			readOnly,
@@ -261,6 +343,7 @@ export function useCanvasGraph({
 			deleteNode,
 			setNodeColor,
 			startEdit,
+			alignGroupChildren,
 		],
 	);
 
@@ -500,9 +583,12 @@ export function useCanvasGraph({
 	);
 
 	const handleEdgesChange = useCallback((changes: EdgeChange<Edge>[]) => {
-		const next = applyEdgeChanges(changes, edgesRef.current);
+		// Filter out select changes so edge selection is solely controlled explicitly via click
+		const nonSelectChanges = changes.filter((c) => c.type !== "select");
+		if (nonSelectChanges.length === 0) return;
+		const next = applyEdgeChanges(nonSelectChanges, edgesRef.current);
 		setEdges(next);
-		if (changes.some((c) => c.type === "remove" || c.type === "add")) {
+		if (nonSelectChanges.some((c) => c.type === "remove" || c.type === "add")) {
 			emitRef.current(nodesRef.current, next);
 		}
 	}, []);
@@ -566,6 +652,7 @@ export function useCanvasGraph({
 		batchSetNodeColor,
 		createGroupFromSelection,
 		alignSelectedNodes,
+		alignGroupChildren,
 		startEdit,
 		handleNodesChange,
 		handleEdgesChange,
