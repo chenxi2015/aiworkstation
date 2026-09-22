@@ -167,8 +167,8 @@ function AiOrbTrigger({
 			}`}
 		>
 			<Warp
-				width="100px"
-				height="100px"
+				width="50px"
+				height="50px"
 				colors={["#a855f7", "#ec4899", "#6366f1", "#f472b6"]}
 				proportion={0.45}
 				softness={1}

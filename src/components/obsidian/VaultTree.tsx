@@ -12,11 +12,12 @@ import {
 	FolderOpen,
 	Image,
 	Music,
+	Waypoints,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { openVaultEntryRpc } from "../../services/api/obsidianClient";
 import type { ObsidianTreeNode } from "./types";
-import { getVaultFileCategory } from "./utils/vaultFileUtils";
+import { getVaultFileCategory, isViewableInApp } from "./utils/vaultFileUtils";
 
 export interface FlatTreeNode {
 	node: ObsidianTreeNode;
@@ -229,7 +230,11 @@ const FlatRow = memo(function FlatRow({
 			onToggleFolder(node.relPath);
 			onSelectFolder(node.relPath);
 		} else if (node.kind === "file") {
-			// 非 Markdown 附件文件：直接调用系统默认应用打开
+			// 应用内可展示的类型（canvas/图片/音视频/PDF）进右侧面板，其余调系统默认应用
+			if (isViewableInApp(getVaultFileCategory(node.relPath))) {
+				onSelectNote(node.relPath);
+				return;
+			}
 			const res = await openVaultEntryRpc(node.relPath);
 			if (res.success) {
 				toast.success(`已在系统默认应用中打开「${node.name}」`);
@@ -303,6 +308,8 @@ const FlatRow = memo(function FlatRow({
 		}
 		const category = getVaultFileCategory(node.name);
 		switch (category) {
+			case "canvas":
+				return <Waypoints className={iconClass} />;
 			case "book":
 				return <BookOpen className={iconClass} />;
 			case "image":

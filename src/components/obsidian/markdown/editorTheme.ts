@@ -451,6 +451,14 @@ export const appTheme = EditorView.theme({
 	".cm-live-props-link": {
 		cursor: "pointer",
 	},
+	// 属性面板里的纯 URL：链接颜色 + 下划线，可点击
+	".cm-live-props-url-link": {
+		color: "var(--accent)",
+		textDecoration: "underline",
+		textUnderlineOffset: "2px",
+		cursor: "pointer",
+		overflowWrap: "anywhere",
+	},
 	// ── Dataview query results ────────────────────────────
 	".cm-live-dataview": {
 		margin: "8px 0",

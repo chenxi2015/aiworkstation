@@ -151,6 +151,7 @@ export class FrontmatterWidget extends WidgetType {
 			}
 			for (const v of entry.values) {
 				const wikilink = v.match(/^\[\[([^\]]+)\]\]$/);
+				const bareUrl = v.match(/^https?:\/\/\S+$/i);
 				const chip = document.createElement("span");
 				if (wikilink) {
 					chip.className = "cm-live-wikilink cm-live-props-link";
@@ -162,6 +163,16 @@ export class FrontmatterWidget extends WidgetType {
 						e.stopPropagation();
 						e.preventDefault();
 						if (target) this.onFollowWikilink?.(target);
+					});
+				} else if (bareUrl) {
+					// 纯 URL：渲染成链接样式，点击在新标签页打开
+					chip.className = "cm-live-props-url-link";
+					chip.textContent = v;
+					chip.title = v;
+					chip.addEventListener("mousedown", (e) => {
+						e.stopPropagation();
+						e.preventDefault();
+						window.open(v, "_blank", "noopener,noreferrer");
 					});
 				} else {
 					chip.className = "cm-live-props-chip";

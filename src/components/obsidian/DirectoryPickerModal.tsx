@@ -1,4 +1,4 @@
-import { Button, Modal } from "@heroui/react";
+import { Button, Modal, ScrollShadow } from "@heroui/react";
 import {
 	ArrowRight,
 	ArrowUp,
@@ -154,9 +154,9 @@ export function DirectoryPickerModal({
 							)}
 						</form>
 
-						<div className="flex-1 overflow-y-auto min-h-48">
+						<ScrollShadow className="h-[45vh] min-h-48 overflow-y-auto">
 							{loading ? (
-								<div className="h-48 flex items-center justify-center text-muted">
+								<div className="h-full min-h-48 flex items-center justify-center text-muted">
 									<Loader2 className="w-5 h-5 animate-spin" />
 								</div>
 							) : error ? (
@@ -187,7 +187,7 @@ export function DirectoryPickerModal({
 									此目录下没有子文件夹
 								</p>
 							)}
-						</div>
+						</ScrollShadow>
 					</Modal.Body>
 
 					<Modal.Footer className="flex justify-end gap-2 shrink-0">

@@ -59,6 +59,7 @@ export function getExtension(pathOrTarget: string): string {
 
 export type VaultFileCategory =
 	| "markdown"
+	| "canvas"
 	| "book"
 	| "pdf"
 	| "image"
@@ -70,10 +71,28 @@ export type VaultFileCategory =
 export function getVaultFileCategory(pathOrTarget: string): VaultFileCategory {
 	if (isMarkdownFile(pathOrTarget)) return "markdown";
 	const ext = getExtension(pathOrTarget);
+	if (ext === "canvas") return "canvas";
 	if (BOOK_EXTS.has(ext)) return "book";
 	if (ext === "pdf") return "pdf";
 	if (IMAGE_EXTS.has(ext)) return "image";
 	if (AUDIO_EXTS.has(ext)) return "audio";
 	if (VIDEO_EXTS.has(ext)) return "video";
 	return "file";
+}
+
+/** 应用内可直接展示（canvas 可视化 / 媒体内嵌查看），其余走系统默认应用 */
+export function isViewableInApp(category: VaultFileCategory): boolean {
+	return (
+		category === "markdown" ||
+		category === "canvas" ||
+		category === "image" ||
+		category === "audio" ||
+		category === "video" ||
+		category === "pdf"
+	);
+}
+
+/** Vault 内资源的回读 URL（服务端带路径穿越防护，限 vault 根目录内） */
+export function vaultAssetUrl(relPath: string): string {
+	return `/api/obsidian/asset?path=${encodeURIComponent(relPath)}`;
 }

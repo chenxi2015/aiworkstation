@@ -6,9 +6,13 @@ import {
 	BookOpen,
 	ChevronLeft,
 	ChevronRight,
+	Code2,
+	ExternalLink,
+	FileQuestion,
 	Loader2,
 	PenLine,
 	Trash2,
+	Waypoints,
 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { generateAiBarTextRpc } from "../../services/api/editorClient";
@@ -16,11 +20,13 @@ import {
 	deleteVaultEntryRpc,
 	fetchVaultNote,
 	getCachedVaultNote,
+	openVaultEntryRpc,
 	renameVaultEntryRpc,
 	saveVaultNoteRpc,
 } from "../../services/api/obsidianClient";
 import { ImagePreviewProvider } from "../workbench/ai/shared/ImagePreviewModal";
 import { ObsidianNoteBodySkeleton } from "../workbench/skeletons";
+import { CanvasView } from "./canvas/CanvasView";
 import {
 	DeleteEntryDialog,
 	shouldSkipDeleteConfirm,
@@ -28,8 +34,11 @@ import {
 import { MarkdownAiBubbleMenu } from "./markdown/MarkdownAiBubbleMenu";
 import { MarkdownEditor } from "./markdown/MarkdownEditor";
 import { clearWikilinkCaches } from "./markdown/wikilink";
+import { JsonEditor } from "./panels/JsonEditor";
+import { MediaPanel } from "./panels/MediaPanel";
 import type { ObsidianNoteApi, ObsidianNoteContent } from "./types";
 import { tryReapplyChanges } from "./utils/merge";
+import { getVaultFileCategory } from "./utils/vaultFileUtils";
 
 /** 自动保存防抖间隔（与创作模块 AUTOSAVE_DELAY 一致） */
 const AUTOSAVE_DELAY = 800;
@@ -59,10 +68,123 @@ export interface NotePanelProps {
 }
 
 /**
- * 笔记面板：所见即所得（Live Preview）Markdown 编辑 + 划词 AI，mtime 冲突检测。
- * 顶栏 Obsidian 同款：左侧返回/前进，中间面包屑路径，右侧阅读/编辑视图切换。
+ * 面板分派器：按扩展名路由到 Markdown 编辑、Canvas 可视化或媒体查看器。
  */
 export function NotePanel({
+	relPath,
+	onMutated,
+	onDeleted,
+	canGoBack,
+	canGoForward,
+	onBack,
+	onForward,
+	onSelectFolder,
+	...rest
+}: NotePanelProps) {
+	const category = getVaultFileCategory(relPath);
+	if (
+		category === "image" ||
+		category === "video" ||
+		category === "audio" ||
+		category === "pdf"
+	) {
+		return (
+			<MediaPanel
+				relPath={relPath}
+				category={category}
+				onMutated={onMutated}
+				onDeleted={onDeleted}
+				canGoBack={canGoBack}
+				canGoForward={canGoForward}
+				onBack={onBack}
+				onForward={onForward}
+				onSelectFolder={onSelectFolder}
+			/>
+		);
+	}
+	if (category !== "markdown" && category !== "canvas") {
+		return (
+			<UnsupportedFilePanel
+				relPath={relPath}
+				canGoBack={canGoBack}
+				canGoForward={canGoForward}
+				onBack={onBack}
+				onForward={onForward}
+			/>
+		);
+	}
+	return (
+		<TextNotePanel
+			relPath={relPath}
+			onMutated={onMutated}
+			onDeleted={onDeleted}
+			canGoBack={canGoBack}
+			canGoForward={canGoForward}
+			onBack={onBack}
+			onForward={onForward}
+			onSelectFolder={onSelectFolder}
+			{...rest}
+		/>
+	);
+}
+
+/** 无法在应用内展示的文件类型：提示走系统默认应用 */
+function UnsupportedFilePanel({
+	relPath,
+	canGoBack,
+	canGoForward,
+	onBack,
+	onForward,
+}: Pick<
+	NotePanelProps,
+	"relPath" | "canGoBack" | "canGoForward" | "onBack" | "onForward"
+>) {
+	const fileName = relPath.split("/").pop() ?? relPath;
+	return (
+		<div className="h-full flex flex-col overflow-hidden">
+			<div className="flex items-center gap-1 px-2 py-1.5 border-b border-border shrink-0">
+				<button
+					type="button"
+					aria-label="返回"
+					onClick={onBack}
+					disabled={!canGoBack}
+					className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/60 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+				>
+					<ChevronLeft className="w-4 h-4" />
+				</button>
+				<button
+					type="button"
+					aria-label="前进"
+					onClick={onForward}
+					disabled={!canGoForward}
+					className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/60 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+				>
+					<ChevronRight className="w-4 h-4" />
+				</button>
+			</div>
+			<div className="flex-1 flex flex-col items-center justify-center text-center px-8">
+				<FileQuestion className="w-8 h-8 text-muted mb-3" />
+				<p className="text-sm text-foreground/80">{fileName}</p>
+				<p className="mt-1 text-xs text-muted">暂不支持在应用内预览该类型</p>
+				<button
+					type="button"
+					onClick={() => void openVaultEntryRpc(relPath)}
+					className="mt-4 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs text-foreground/80 hover:bg-surface-secondary/60 transition-colors"
+				>
+					<ExternalLink className="w-3.5 h-3.5" />
+					在系统应用中打开
+				</button>
+			</div>
+		</div>
+	);
+}
+
+/**
+ * 笔记面板：所见即所得（Live Preview）Markdown 编辑 + 划词 AI，mtime 冲突检测。
+ * Canvas 文件复用同一读取/保存/冲突管线，正文区在可视化视图与 JSON 源码间切换。
+ * 顶栏 Obsidian 同款：左侧返回/前进，中间面包屑路径，右侧视图切换。
+ */
+function TextNotePanel({
 	relPath,
 	onMutated,
 	onRenamed,
@@ -77,6 +199,7 @@ export function NotePanel({
 	onSelectFolder,
 }: NotePanelProps) {
 	const initialCached = getCachedVaultNote(relPath);
+	const isCanvas = relPath.toLowerCase().endsWith(".canvas");
 	const [note, setNote] = useState<ObsidianNoteContent | null>(initialCached);
 	const [loading, setLoading] = useState(!initialCached);
 	const [error, setError] = useState<string | null>(null);
@@ -102,6 +225,22 @@ export function NotePanel({
 			const next = prev === "editing" ? "reading" : "editing";
 			try {
 				window.localStorage.setItem("obsidian_note_view_mode", next);
+			} catch {}
+			return next;
+		});
+	}, []);
+	// Canvas：可视化视图 / JSON 源码切换，全局记住上次选择
+	const [canvasMode, setCanvasMode] = useState<"visual" | "source">(() =>
+		typeof window !== "undefined" &&
+		window.localStorage.getItem("obsidian_canvas_view_mode") === "source"
+			? "source"
+			: "visual",
+	);
+	const toggleCanvasMode = useCallback(() => {
+		setCanvasMode((prev) => {
+			const next = prev === "visual" ? "source" : "visual";
+			try {
+				window.localStorage.setItem("obsidian_canvas_view_mode", next);
 			} catch {}
 			return next;
 		});
@@ -269,7 +408,8 @@ export function NotePanel({
 			if (!note) return;
 			const trimmed = newName.trim();
 			if (!trimmed || trimmed === note.name) return;
-			const res = await renameVaultEntryRpc(note.relPath, trimmed, true);
+			// canvas 保留原扩展名，不走 .md 自动补后缀
+			const res = await renameVaultEntryRpc(note.relPath, trimmed, !isCanvas);
 			if (!res.success || !res.relPath) {
 				toast.danger(res.error ?? "重命名失败");
 				return;
@@ -278,7 +418,7 @@ export function NotePanel({
 			onMutated();
 			onRenamed(res.relPath);
 		},
-		[note, onMutated, onRenamed],
+		[note, isCanvas, onMutated, onRenamed],
 	);
 
 	const performDelete = useCallback(async () => {
@@ -436,13 +576,36 @@ export function NotePanel({
 						</nav>
 					)}
 				</div>
-				{/* 右：阅读/编辑视图切换 + 删除 */}
+				{/* 右：视图切换（Markdown 阅读/编辑，Canvas 可视化/源码）+ 删除 */}
 				{note?.truncated && (
 					<span className="text-[10px] text-warning shrink-0">
 						文件过大已截断，只读
 					</span>
 				)}
-				{!note?.truncated && (
+				{!note?.truncated && isCanvas && (
+					<Tooltip>
+						<Tooltip.Trigger>
+							<button
+								type="button"
+								aria-label={
+									canvasMode === "visual" ? "切换到源码模式" : "切换到画布视图"
+								}
+								onClick={toggleCanvasMode}
+								className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/60 transition-colors shrink-0"
+							>
+								{canvasMode === "visual" ? (
+									<Code2 className="w-3.5 h-3.5" />
+								) : (
+									<Waypoints className="w-3.5 h-3.5" />
+								)}
+							</button>
+						</Tooltip.Trigger>
+						<Tooltip.Content placement="bottom">
+							{canvasMode === "visual" ? "源码模式" : "画布视图"}
+						</Tooltip.Content>
+					</Tooltip>
+				)}
+				{!note?.truncated && !isCanvas && (
 					<Tooltip>
 						<Tooltip.Trigger>
 							<button
@@ -512,20 +675,38 @@ export function NotePanel({
 			)}
 			<div className="flex-1 overflow-hidden relative">
 				{note ? (
-					<ImagePreviewProvider>
-						<MarkdownEditor
-							key={viewMode}
-							value={draft}
-							onChange={handleDraftChange}
-							onReady={setEditorView}
-							readOnly={Boolean(note.truncated)}
-							reading={viewMode === "reading"}
-							noteRelPath={note.relPath}
-							onSaveShortcut={() => void flushSave()}
-							onNavigateNote={onNavigateNote}
-							onCreateNote={onCreateNote}
-						/>
-					</ImagePreviewProvider>
+					isCanvas ? (
+						canvasMode === "visual" ? (
+							<CanvasView
+								key={note.relPath}
+								content={draft}
+								onNavigateNote={onNavigateNote}
+							/>
+						) : (
+							<JsonEditor
+								key={note.relPath}
+								value={draft}
+								onChange={handleDraftChange}
+								readOnly={Boolean(note.truncated)}
+								onSaveShortcut={() => void flushSave()}
+							/>
+						)
+					) : (
+						<ImagePreviewProvider>
+							<MarkdownEditor
+								key={viewMode}
+								value={draft}
+								onChange={handleDraftChange}
+								onReady={setEditorView}
+								readOnly={Boolean(note.truncated)}
+								reading={viewMode === "reading"}
+								noteRelPath={note.relPath}
+								onSaveShortcut={() => void flushSave()}
+								onNavigateNote={onNavigateNote}
+								onCreateNote={onCreateNote}
+							/>
+						</ImagePreviewProvider>
+					)
 				) : (
 					<ObsidianNoteBodySkeleton />
 				)}
@@ -562,12 +743,20 @@ export function NotePanel({
 				)}
 			</div>
 			<MarkdownAiBubbleMenu
-				view={note?.truncated || viewMode === "reading" ? null : editorView}
+				view={
+					isCanvas || note?.truncated || viewMode === "reading"
+						? null
+						: editorView
+				}
 				onGenerate={(prompt) => generateAiBarTextRpc(prompt)}
 			/>
 			<DeleteEntryDialog
 				target={
-					deleteOpen && note ? { name: `${note.name}.md`, kind: "note" } : null
+					deleteOpen && note
+						? isCanvas
+							? { name: note.name, kind: "file" }
+							: { name: `${note.name}.md`, kind: "note" }
+						: null
 				}
 				onClose={() => setDeleteOpen(false)}
 				onConfirm={performDelete}
