@@ -1218,6 +1218,32 @@ blockquote::after {
 	opacity: 1;
 }
 
+/* Obsidian canvas: edge hover and selection styling (bold effect matching Figure 2) */
+.react-flow__edge {
+	cursor: pointer;
+}
+
+.react-flow__edge .react-flow__edge-path {
+	transition: stroke-width 0.15s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.15s ease, filter 0.15s ease, opacity 0.15s ease;
+}
+
+/* 鼠标移动到连线上呈现加粗效果（图二） */
+.react-flow__edge:hover .react-flow__edge-path {
+	stroke-width: 4px !important;
+	filter: drop-shadow(0 0 2.5px rgba(0, 0, 0, 0.25));
+}
+
+.dark .react-flow__edge:hover .react-flow__edge-path {
+	stroke-width: 4px !important;
+	filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.25));
+}
+
+/* 连线被点击选中时加粗且保留连线自身颜色，辅以微光晕反馈 */
+.react-flow__edge.selected .react-flow__edge-path {
+	stroke-width: 4px !important;
+	filter: drop-shadow(0 0 4px rgba(120, 83, 238, 0.45));
+}
+
 /* Obsidian canvas: markdown note preview inside card */
 .canvas-markdown-preview h1 {
 	font-size: 1.15rem;

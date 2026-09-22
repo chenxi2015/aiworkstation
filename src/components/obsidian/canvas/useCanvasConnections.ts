@@ -1,13 +1,19 @@
-import type {
-	Connection,
-	Edge,
-	FinalConnectionState,
-	Node,
+import {
+	type Connection,
+	type Edge,
+	type FinalConnectionState,
+	MarkerType,
+	type Node,
 } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CanvasCardFlowNode } from "./CanvasFlowNodes";
-import { defaultEdgeProps, genId } from "./canvasSerializer";
-import { type CanvasNode, guessSides } from "./canvasUtils";
+import {
+	DEFAULT_EDGE_COLOR,
+	defaultEdgeProps,
+	genId,
+} from "./canvasSerializer";
+import { type CanvasNode, guessSides, resolveColor } from "./canvasUtils";
+import { getVaultFileCategory, vaultAssetUrl } from "../utils/vaultFileUtils";
 
 export interface PendingConnection {
 	screenX: number;
@@ -25,6 +31,37 @@ export interface NoteSearchTarget {
 	fromNodeId?: string;
 	fromHandleId?: string | null;
 	fromHandleType?: "source" | "target";
+}
+
+function measureImageDimensions(
+	src: string,
+): Promise<{ width: number; height: number }> {
+	return new Promise((resolve) => {
+		if (typeof window === "undefined") {
+			resolve({ width: 340, height: 260 });
+			return;
+		}
+		const img = new window.Image();
+		img.onload = () => {
+			const nw = img.naturalWidth || 360;
+			const nh = img.naturalHeight || 300;
+			const maxDim = 400;
+			let w = nw;
+			let h = nh;
+			if (nw >= nh) {
+				w = Math.min(maxDim, nw);
+				h = Math.round(w * (nh / nw));
+			} else {
+				h = Math.min(maxDim, nh);
+				w = Math.round(h * (nw / nh));
+			}
+			resolve({ width: Math.max(160, w), height: Math.max(120, h) });
+		};
+		img.onerror = () => {
+			resolve({ width: 340, height: 260 });
+		};
+		img.src = src;
+	});
 }
 
 export interface UseCanvasConnectionsOptions {
@@ -90,6 +127,7 @@ export function useCanvasConnections({
 				data: {},
 			};
 			const nextEdges = [...edgesRef.current, next];
+			edgesRef.current = nextEdges;
 			setEdges(nextEdges);
 			emit(nodesRef.current, nextEdges);
 		},
@@ -105,11 +143,102 @@ export function useCanvasConnections({
 					? { ...edge, data: { ...edge.data, label: label || undefined } }
 					: edge,
 			);
+			edgesRef.current = next;
 			setEdges(next);
 			emit(nodesRef.current, next);
 		},
 		[edgesRef, nodesRef, setEdges, emit],
 	);
+
+	// Delete an edge
+	const deleteEdge = useCallback(
+		(id: string) => {
+			const next = edgesRef.current.filter((edge) => edge.id !== id);
+			edgesRef.current = next;
+			setEdges(next);
+			emit(nodesRef.current, next);
+		},
+		[edgesRef, nodesRef, setEdges, emit],
+	);
+
+	// Set or clear edge color
+	const setEdgeColor = useCallback(
+		(id: string, color: string | undefined) => {
+			const next = edgesRef.current.map((edge) => {
+				if (edge.id !== id) return edge;
+				const resolved = resolveColor(color) ?? DEFAULT_EDGE_COLOR;
+				const nextData = { ...(edge.data ?? {}), rawColor: color };
+				if (!color) delete nextData.rawColor;
+
+				const hasMarkerEnd = edge.data?.toEnd !== "none" && Boolean(edge.markerEnd);
+				const hasMarkerStart = edge.data?.fromEnd === "arrow" && Boolean(edge.markerStart);
+
+				return {
+					...edge,
+					style: { ...edge.style, stroke: resolved },
+					markerEnd: hasMarkerEnd
+						? { type: MarkerType.ArrowClosed, width: 16, height: 16, color: resolved }
+						: undefined,
+					markerStart: hasMarkerStart
+						? { type: MarkerType.ArrowClosed, width: 16, height: 16, color: resolved }
+						: undefined,
+					data: nextData,
+				};
+			});
+			edgesRef.current = next;
+			setEdges(next);
+			emit(nodesRef.current, next);
+		},
+		[edgesRef, nodesRef, setEdges, emit],
+	);
+
+	// Set edge direction: "none" | "one-way" | "bidirectional"
+	const setEdgeDirection = useCallback(
+		(id: string, direction: "none" | "one-way" | "bidirectional") => {
+			const next = edgesRef.current.map((edge) => {
+				if (edge.id !== id) return edge;
+				const color = (edge.style?.stroke as string) ?? DEFAULT_EDGE_COLOR;
+				const fromEnd: "none" | "arrow" =
+					direction === "bidirectional" ? "arrow" : "none";
+				const toEnd: "none" | "arrow" =
+					direction === "none" ? "none" : "arrow";
+
+				return {
+					...edge,
+					markerStart:
+						fromEnd === "arrow"
+							? { type: MarkerType.ArrowClosed, width: 16, height: 16, color }
+							: undefined,
+					markerEnd:
+						toEnd === "arrow"
+							? { type: MarkerType.ArrowClosed, width: 16, height: 16, color }
+							: undefined,
+					data: {
+						...(edge.data ?? {}),
+						fromEnd,
+						toEnd,
+					},
+				};
+			});
+			edgesRef.current = next;
+			setEdges(next);
+			emit(nodesRef.current, next);
+		},
+		[edgesRef, nodesRef, setEdges, emit],
+	);
+
+	// Clear edge label
+	const clearEdgeLabel = useCallback(
+		(id: string) => {
+			commitEdgeLabel(id, "");
+		},
+		[commitEdgeLabel],
+	);
+
+	// Start editing edge label
+	const startEditEdge = useCallback((id: string) => {
+		setEditingEdgeId(id);
+	}, []);
 
 	const handleEdgeDoubleClick = useCallback(
 		(_: React.MouseEvent, edge: Edge) => {
@@ -138,6 +267,7 @@ export function useCanvasConnections({
 						}
 					: edge,
 			);
+			edgesRef.current = next;
 			setEdges(next);
 			emit(nodesRef.current, next);
 		},
@@ -299,16 +429,29 @@ export function useCanvasConnections({
 
 	// Add file card (markdown/image/canvas) selected from modal
 	const addFileNode = useCallback(
-		(relPath: string, target: NoteSearchTarget) => {
+		async (relPath: string, target: NoteSearchTarget) => {
 			const id = genId();
+			const category = getVaultFileCategory(relPath);
+			let width = 280;
+			let height = 180;
+
+			if (category === "image") {
+				const dims = await measureImageDimensions(vaultAssetUrl(relPath));
+				width = dims.width;
+				height = dims.height;
+			} else if (category === "markdown") {
+				width = 360;
+				height = 280;
+			}
+
 			const canvasNode: CanvasNode = {
 				id,
 				type: "file",
 				file: relPath,
-				x: Math.round(target.flowX - 110),
-				y: Math.round(target.flowY - 60),
-				width: 220,
-				height: 120,
+				x: Math.round(target.flowX - width / 2),
+				y: Math.round(target.flowY - height / 2),
+				width,
+				height,
 			};
 
 			const newNode: CanvasCardFlowNode = {
@@ -384,7 +527,7 @@ export function useCanvasConnections({
 		],
 	);
 
-	// Display edges injected with transient editing flag
+	// Display edges injected with transient editing flag and action handlers
 	const displayEdges = useMemo(
 		() =>
 			edges.map((edge) => ({
@@ -393,9 +536,23 @@ export function useCanvasConnections({
 					...edge.data,
 					editing: edge.id === editingEdgeId,
 					onCommitEdgeLabel: commitEdgeLabel,
+					onDeleteEdge: deleteEdge,
+					onSetEdgeColor: setEdgeColor,
+					onSetEdgeDirection: setEdgeDirection,
+					onClearEdgeLabel: clearEdgeLabel,
+					onStartEditEdge: startEditEdge,
 				},
 			})),
-		[edges, editingEdgeId, commitEdgeLabel],
+		[
+			edges,
+			editingEdgeId,
+			commitEdgeLabel,
+			deleteEdge,
+			setEdgeColor,
+			setEdgeDirection,
+			clearEdgeLabel,
+			startEditEdge,
+		],
 	);
 
 	return {
@@ -410,6 +567,11 @@ export function useCanvasConnections({
 		handleReconnect,
 		handleEdgeDoubleClick,
 		commitEdgeLabel,
+		deleteEdge,
+		setEdgeColor,
+		setEdgeDirection,
+		clearEdgeLabel,
+		startEditEdge,
 		handleOpenNoteSearch,
 		addConnectedTextCard,
 		addFileNode,

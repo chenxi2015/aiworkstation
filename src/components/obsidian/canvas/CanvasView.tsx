@@ -18,7 +18,6 @@ import {
 	CanvasBottomBar,
 	CanvasEmptyHint,
 	CanvasParseError,
-	CanvasTopToolbar,
 	CanvasViewControls,
 	PendingConnectionMenu,
 } from "./CanvasToolbar";
@@ -289,7 +288,6 @@ function CanvasFlow({
 					onCreate={onCreateNoteFile}
 				/>
 
-				<CanvasTopToolbar readOnly={readOnly} onAddCard={addCardAt} />
 				<CanvasBottomBar
 					readOnly={readOnly}
 					onAddCard={handleAddCardCenter}

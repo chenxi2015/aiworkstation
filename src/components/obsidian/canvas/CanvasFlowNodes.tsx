@@ -479,6 +479,42 @@ function MarkdownCardBody({
 	);
 }
 
+function ImageCardBody({
+	file,
+	borderStyle,
+}: {
+	file: string;
+	borderStyle: React.CSSProperties;
+}) {
+	const name = file.split("/").pop() ?? file;
+	const src = vaultAssetUrl(file);
+
+	return (
+		<div className="relative w-full h-full flex flex-col">
+			{/* Top image title bar */}
+			<div
+				className="absolute -top-5 left-1 text-[11px] text-muted truncate max-w-[95%] select-none pointer-events-none font-medium"
+				title={name}
+			>
+				{name}
+			</div>
+			<div
+				className={`${cardClass} p-1.5 flex items-center justify-center bg-surface select-none overflow-hidden`}
+				style={borderStyle}
+			>
+				<img
+					src={src}
+					alt={name}
+					loading="lazy"
+					decoding="async"
+					className="max-w-full max-h-full w-auto h-auto object-contain pointer-events-none select-none"
+					draggable={false}
+				/>
+			</div>
+		</div>
+	);
+}
+
 /** Memoized CanvasCardNode component */
 export const CanvasCardNode = memo(function CanvasCardNode({
 	id,
@@ -513,18 +549,7 @@ export const CanvasCardNode = memo(function CanvasCardNode({
 		const name = file.split("/").pop() ?? file;
 
 		if (category === "image") {
-			body = (
-				<div className={cardClass} style={borderStyle}>
-					<img
-						src={vaultAssetUrl(file)}
-						alt={name}
-						loading="lazy"
-						decoding="async"
-						className="w-full h-full object-cover select-none"
-						draggable={false}
-					/>
-				</div>
-			);
+			body = <ImageCardBody file={file} borderStyle={borderStyle} />;
 		} else if (category === "markdown") {
 			body = <MarkdownCardBody file={file} borderStyle={borderStyle} />;
 		} else {
@@ -578,7 +603,7 @@ export const CanvasCardNode = memo(function CanvasCardNode({
 				visible={Boolean(selected) && !data.readOnly && !data.editing}
 				minWidth={120}
 				minHeight={40}
-				keepAspectRatio={isImage}
+				keepAspectRatio={false}
 			/>
 			<SelectionToolbar
 				id={id}

@@ -93,6 +93,10 @@ export function toFlowEdge(
 	if (!from || !to) return null;
 	const guessed = guessSides(from, to);
 	const color = resolveColor(edge.color) ?? DEFAULT_EDGE_COLOR;
+	const fromEnd = edge.fromEnd;
+	const toEnd = edge.toEnd;
+	const showMarkerStart = fromEnd === "arrow";
+	const showMarkerEnd = toEnd !== "none";
 
 	return {
 		id: edge.id,
@@ -102,9 +106,19 @@ export function toFlowEdge(
 		sourceHandle: `s-${edge.fromSide ?? guessed.fromSide}`,
 		targetHandle: `t-${edge.toSide ?? guessed.toSide}`,
 		style: { stroke: color, strokeWidth: 1.5 },
-		markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color },
-		interactionWidth: 20,
-		data: { rawColor: edge.color, label: edge.label },
+		markerStart: showMarkerStart
+			? { type: MarkerType.ArrowClosed, width: 16, height: 16, color }
+			: undefined,
+		markerEnd: showMarkerEnd
+			? { type: MarkerType.ArrowClosed, width: 16, height: 16, color }
+			: undefined,
+		interactionWidth: 24,
+		data: {
+			rawColor: edge.color,
+			label: edge.label,
+			fromEnd,
+			toEnd,
+		},
 	};
 }
 
@@ -205,21 +219,32 @@ export function serializeCanvas(nodes: Node[], edges: Edge[]): string {
 		}
 	}
 
-	const canvasEdges: CanvasEdge[] = edges.map((edge) => ({
-		id: edge.id,
-		fromNode: edge.source,
-		...(sideOf(edge.sourceHandle)
-			? { fromSide: sideOf(edge.sourceHandle) }
-			: {}),
-		toNode: edge.target,
-		...(sideOf(edge.targetHandle) ? { toSide: sideOf(edge.targetHandle) } : {}),
-		...((edge.data as { rawColor?: string } | undefined)?.rawColor
-			? { color: (edge.data as { rawColor?: string }).rawColor }
-			: {}),
-		...((edge.data as { label?: string } | undefined)?.label
-			? { label: (edge.data as { label?: string }).label }
-			: {}),
-	}));
+	const canvasEdges: CanvasEdge[] = edges.map((edge) => {
+		const data = edge.data as
+			| {
+					rawColor?: string;
+					label?: string;
+					fromEnd?: "none" | "arrow";
+					toEnd?: "none" | "arrow";
+			  }
+			| undefined;
+
+		return {
+			id: edge.id,
+			fromNode: edge.source,
+			...(sideOf(edge.sourceHandle)
+				? { fromSide: sideOf(edge.sourceHandle) }
+				: {}),
+			toNode: edge.target,
+			...(sideOf(edge.targetHandle)
+				? { toSide: sideOf(edge.targetHandle) }
+				: {}),
+			...(data?.rawColor ? { color: data.rawColor } : {}),
+			...(data?.label ? { label: data.label } : {}),
+			...(data?.fromEnd ? { fromEnd: data.fromEnd } : {}),
+			...(data?.toEnd ? { toEnd: data.toEnd } : {}),
+		};
+	});
 
 	return JSON.stringify({ nodes: canvasNodes, edges: canvasEdges }, null, "\t");
 }

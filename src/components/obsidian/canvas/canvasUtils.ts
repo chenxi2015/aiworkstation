@@ -20,6 +20,8 @@ export interface CanvasEdge {
 	toSide?: "top" | "right" | "bottom" | "left";
 	color?: string;
 	label?: string;
+	fromEnd?: "none" | "arrow";
+	toEnd?: "none" | "arrow";
 }
 
 export interface CanvasData {
