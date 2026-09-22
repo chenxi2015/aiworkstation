@@ -30,6 +30,7 @@ import {
 	PendingConnectionMenu,
 } from "./CanvasToolbar";
 import { resolveColor } from "./canvasUtils";
+import { markCanvasMoving } from "./cards/useSmartNodeScroll";
 import { useCanvasConnections } from "./useCanvasConnections";
 import { useCanvasGraph } from "./useCanvasGraph";
 
@@ -92,9 +93,6 @@ function CanvasFlow({
 	const [searchCategory, setSearchCategory] = useState<
 		"all" | "note" | "media"
 	>("all");
-	const [interactionMode, setInteractionMode] = useState<"select" | "pan">(
-		"select",
-	);
 	const [isSpacePressed, setIsSpacePressed] = useState(false);
 	const [isSelecting, setIsSelecting] = useState(false);
 
@@ -149,10 +147,6 @@ function CanvasFlow({
 
 			if (e.code === "Space" && !e.repeat) {
 				setIsSpacePressed(true);
-			} else if (e.key.toLowerCase() === "v" && !e.metaKey && !e.ctrlKey) {
-				setInteractionMode("select");
-			} else if (e.key.toLowerCase() === "h" && !e.metaKey && !e.ctrlKey) {
-				setInteractionMode("pan");
 			}
 		};
 
@@ -361,7 +355,7 @@ function CanvasFlow({
 		return <CanvasParseError error={parsed.error} />;
 	}
 
-	const isPanning = isSpacePressed || interactionMode === "pan";
+	const isPanning = isSpacePressed;
 
 	return (
 		<CanvasSelectionContext.Provider
@@ -374,8 +368,8 @@ function CanvasFlow({
 						isPanning ? "cursor-grab active:cursor-grabbing" : ""
 					}`}
 				>
-				{/* Obsidian-styled box selection (marquee) styling */}
-				<style>{`
+					{/* Obsidian-styled box selection (marquee) styling */}
+					<style>{`
 					.canvas-flow-container .react-flow__selection {
 						background-color: rgba(120, 83, 238, 0.08) !important;
 						border: 1.5px solid #7853ee !important;
@@ -384,145 +378,146 @@ function CanvasFlow({
 					}
 				`}</style>
 
-				<CanvasEmptyHint count={nodes.length} readOnly={readOnly} />
+					<CanvasEmptyHint count={nodes.length} readOnly={readOnly} />
 
-				<ReactFlow
-					nodes={nodes}
-					edges={displayEdges}
-					nodeTypes={nodeTypes}
-					edgeTypes={edgeTypes}
-					colorMode={colorMode}
-					onNodesChange={handleNodesChange}
-					onEdgesChange={handleEdgesChange}
-					onConnect={readOnly ? undefined : handleConnect}
-					onConnectEnd={readOnly ? undefined : handleConnectEnd}
-					onReconnect={readOnly ? undefined : handleReconnect}
-					edgesReconnectable={!readOnly}
-					onPaneClick={handlePaneClick}
-					onNodeClick={handleNodeClick}
-					onEdgeClick={handleEdgeClick}
-					onDoubleClick={handleDoubleClick}
-					onNodeDoubleClick={handleNodeDoubleClick}
-					onEdgeDoubleClick={handleEdgeDoubleClick}
-					onSelectionStart={() => {
-						setIsSelecting(true);
-						setEdges((prev) =>
-							prev.some((e) => e.selected)
-								? prev.map((e) => (e.selected ? { ...e, selected: false } : e))
-								: prev,
-						);
-					}}
-					onSelectionDragStart={() => {
-						setIsSelecting(true);
-						setEdges((prev) =>
-							prev.some((e) => e.selected)
-								? prev.map((e) => (e.selected ? { ...e, selected: false } : e))
-								: prev,
-						);
-					}}
-					onSelectionDrag={() => {
-						setIsSelecting(true);
-					}}
-					onSelectionEnd={() => {
-						setIsSelecting(false);
-						setEdges((prev) =>
-							prev.some((e) => e.selected)
-								? prev.map((e) => (e.selected ? { ...e, selected: false } : e))
-								: prev,
-						);
-					}}
-					connectionMode={ConnectionMode.Loose}
-					fitView
-					fitViewOptions={{ padding: 0.1, maxZoom: 1 }}
-					minZoom={0.1}
-					maxZoom={4}
-					nodesDraggable={!readOnly && !isPanning}
-					nodesConnectable={!readOnly && !isPanning}
-					elementsSelectable={!readOnly}
-					selectionMode={SelectionMode.Partial}
-					selectionOnDrag={
-						!readOnly && interactionMode === "select" && !isSpacePressed
-					}
-					panOnDrag={
-						readOnly || interactionMode === "pan" || isSpacePressed
-							? true
-							: [1, 2]
-					}
-					deleteKeyCode={readOnly ? null : ["Backspace", "Delete"]}
-					zoomOnDoubleClick={false}
-					panOnScroll
-					zoomOnScroll={false}
-					onlyRenderVisibleElements
-				>
-					<Background variant={BackgroundVariant.Dots} gap={24} size={1.5} />
-					<CanvasViewControls
-						undo={undo}
-						redo={redo}
-						canUndo={canUndo}
-						canRedo={canRedo}
-						readOnly={readOnly}
-					/>
-					<MiniMap
-						pannable
-						zoomable
-						position="bottom-left"
-						nodeColor={(node) =>
-							node.type === "canvasGroup"
-								? "rgba(128,128,128,0.2)"
-								: (resolveColor(
-										(node.data as { canvasNode?: { color?: string } })
-											.canvasNode?.color,
-									) ?? "#8b8b8b")
-						}
-					/>
-
-					{/* Floating multi-selection toolbar and bounding box */}
-					<CanvasMultiSelectionToolbar
-						readOnly={readOnly}
-						onBatchDelete={batchDeleteNodes}
-						onBatchSetColor={batchSetNodeColor}
-						onCreateGroupFromSelection={createGroupFromSelection}
-						onAlign={alignSelectedNodes}
-					/>
-
-					{pendingConn && (
-						<PendingConnectionMenu
-							pendingConn={pendingConn}
-							onAddText={addConnectedTextCard}
-							onOpenNoteSearch={() => {
-								setSearchCategory("note");
-								handleOpenNoteSearch();
-							}}
-						/>
-					)}
-
-					<CanvasNoteSearchModal
-						isOpen={Boolean(noteSearchTarget)}
-						filterCategory={searchCategory}
-						onClose={() => setNoteSearchTarget(null)}
-						onSelect={(relPath) => {
-							if (noteSearchTarget) {
-								addFileNode(relPath, noteSearchTarget);
-							}
-							setNoteSearchTarget(null);
+					<ReactFlow
+						nodes={nodes}
+						edges={displayEdges}
+						nodeTypes={nodeTypes}
+						edgeTypes={edgeTypes}
+						colorMode={colorMode}
+						onNodesChange={handleNodesChange}
+						onEdgesChange={handleEdgesChange}
+						onConnect={readOnly ? undefined : handleConnect}
+						onConnectEnd={readOnly ? undefined : handleConnectEnd}
+						onReconnect={readOnly ? undefined : handleReconnect}
+						edgesReconnectable={!readOnly}
+						onMoveStart={markCanvasMoving}
+						onMove={markCanvasMoving}
+						onPaneClick={handlePaneClick}
+						onPaneContextMenu={(e) => e.preventDefault()}
+						onNodeClick={handleNodeClick}
+						onEdgeClick={handleEdgeClick}
+						onDoubleClick={handleDoubleClick}
+						onNodeDoubleClick={handleNodeDoubleClick}
+						onEdgeDoubleClick={handleEdgeDoubleClick}
+						onSelectionStart={() => {
+							setIsSelecting(true);
+							setEdges((prev) =>
+								prev.some((e) => e.selected)
+									? prev.map((e) =>
+											e.selected ? { ...e, selected: false } : e,
+										)
+									: prev,
+							);
 						}}
-						onCreate={onCreateNoteFile}
-					/>
+						onSelectionDragStart={() => {
+							setIsSelecting(true);
+							setEdges((prev) =>
+								prev.some((e) => e.selected)
+									? prev.map((e) =>
+											e.selected ? { ...e, selected: false } : e,
+										)
+									: prev,
+							);
+						}}
+						onSelectionDrag={() => {
+							setIsSelecting(true);
+						}}
+						onSelectionDragStop={() => {
+							setIsSelecting(false);
+						}}
+						onSelectionEnd={() => {
+							setIsSelecting(false);
+							setEdges((prev) =>
+								prev.some((e) => e.selected)
+									? prev.map((e) =>
+											e.selected ? { ...e, selected: false } : e,
+										)
+									: prev,
+							);
+						}}
+						connectionMode={ConnectionMode.Loose}
+						fitView
+						fitViewOptions={{ padding: 0.1, maxZoom: 1 }}
+						minZoom={0.1}
+						maxZoom={4}
+						nodesDraggable={!readOnly && !isPanning}
+						nodesConnectable={!readOnly && !isPanning}
+						elementsSelectable={!readOnly}
+						selectionMode={SelectionMode.Partial}
+						selectionOnDrag={!readOnly && !isSpacePressed}
+						panOnDrag={readOnly || isSpacePressed ? true : [1, 2]}
+						deleteKeyCode={readOnly ? null : ["Backspace", "Delete"]}
+						zoomOnDoubleClick={false}
+						panOnScroll
+						zoomOnScroll={false}
+						onlyRenderVisibleElements
+					>
+						<Background variant={BackgroundVariant.Dots} gap={24} size={1.5} />
+						<CanvasViewControls
+							undo={undo}
+							redo={redo}
+							canUndo={canUndo}
+							canRedo={canRedo}
+							readOnly={readOnly}
+						/>
+						<MiniMap
+							pannable
+							zoomable
+							position="bottom-left"
+							nodeColor={(node) =>
+								node.type === "canvasGroup"
+									? "rgba(128,128,128,0.2)"
+									: (resolveColor(
+											(node.data as { canvasNode?: { color?: string } })
+												.canvasNode?.color,
+										) ?? "#8b8b8b")
+							}
+						/>
 
-					<CanvasBottomBar
-						readOnly={readOnly}
-						interactionMode={interactionMode}
-						onToggleInteractionMode={() =>
-							setInteractionMode((prev) =>
-								prev === "select" ? "pan" : "select",
-							)
-						}
-						onAddCard={handleAddCardCenter}
-						onAddNote={handleAddNoteCenter}
-						onAddMedia={handleAddMediaCenter}
-					/>
-				</ReactFlow>
-			</div>
+						{/* Floating multi-selection toolbar and bounding box */}
+						<CanvasMultiSelectionToolbar
+							nodes={nodes}
+							readOnly={readOnly}
+							onBatchDelete={batchDeleteNodes}
+							onBatchSetColor={batchSetNodeColor}
+							onCreateGroupFromSelection={createGroupFromSelection}
+							onAlign={alignSelectedNodes}
+						/>
+
+						{pendingConn && (
+							<PendingConnectionMenu
+								pendingConn={pendingConn}
+								onAddText={addConnectedTextCard}
+								onOpenNoteSearch={() => {
+									setSearchCategory("note");
+									handleOpenNoteSearch();
+								}}
+							/>
+						)}
+
+						<CanvasNoteSearchModal
+							isOpen={Boolean(noteSearchTarget)}
+							filterCategory={searchCategory}
+							onClose={() => setNoteSearchTarget(null)}
+							onSelect={(relPath) => {
+								if (noteSearchTarget) {
+									addFileNode(relPath, noteSearchTarget);
+								}
+								setNoteSearchTarget(null);
+							}}
+							onCreate={onCreateNoteFile}
+						/>
+
+						<CanvasBottomBar
+							readOnly={readOnly}
+							onAddCard={handleAddCardCenter}
+							onAddNote={handleAddNoteCenter}
+							onAddMedia={handleAddMediaCenter}
+						/>
+					</ReactFlow>
+				</div>
 			</CanvasActionContext.Provider>
 		</CanvasSelectionContext.Provider>
 	);

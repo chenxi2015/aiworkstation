@@ -34,10 +34,10 @@ import {
 	resolveColor,
 	type Side,
 } from "./canvasUtils";
+import { autoFocus, cardClass } from "./cards/cardShared";
 import { ImageCardBody } from "./cards/ImageCardBody";
 import { MarkdownCardBody } from "./cards/MarkdownCardBody";
 import { TextCardBody } from "./cards/TextCardBody";
-import { autoFocus, cardClass } from "./cards/cardShared";
 
 export interface CanvasNodeActions {
 	onDeleteNode?: (id: string) => void;
@@ -334,10 +334,7 @@ function SelectionToolbar({
 
 				{/* 分组对齐与分布下拉菜单 */}
 				{isGroup && (
-					<CanvasAlignDropdown
-						isOpen={alignOpen}
-						onSelect={handleAlign}
-					/>
+					<CanvasAlignDropdown isOpen={alignOpen} onSelect={handleAlign} />
 				)}
 			</div>
 		</NodeToolbar>
@@ -457,6 +454,7 @@ export const CanvasCardNode = memo(function CanvasCardNode({
 			<TextCardBody
 				node={node}
 				editing={data.editing}
+				selected={selected}
 				borderStyle={borderStyle}
 				onCommitText={data.onCommitText}
 			/>
@@ -469,7 +467,13 @@ export const CanvasCardNode = memo(function CanvasCardNode({
 		if (category === "image") {
 			body = <ImageCardBody file={file} borderStyle={borderStyle} />;
 		} else if (category === "markdown") {
-			body = <MarkdownCardBody file={file} borderStyle={borderStyle} />;
+			body = (
+				<MarkdownCardBody
+					file={file}
+					selected={selected}
+					borderStyle={borderStyle}
+				/>
+			);
 		} else {
 			body = (
 				<div

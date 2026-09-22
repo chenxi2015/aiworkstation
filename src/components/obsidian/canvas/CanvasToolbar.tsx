@@ -1,10 +1,8 @@
 import { Panel, useReactFlow } from "@xyflow/react";
 import {
 	AlertTriangle,
-	BoxSelect,
 	File,
 	FileText,
-	Hand,
 	Image as ImageIcon,
 	Maximize2,
 	Minus,
@@ -231,8 +229,6 @@ export function CanvasViewControls({
 
 export interface CanvasBottomBarProps {
 	readOnly?: boolean;
-	interactionMode?: "select" | "pan";
-	onToggleInteractionMode?: () => void;
 	onAddCard: () => void;
 	onAddNote: () => void;
 	onAddMedia: () => void;
@@ -242,16 +238,13 @@ const bottomBarBtnClass =
 	"p-2 rounded-lg text-muted hover:text-foreground hover:bg-surface-secondary/70 transition-colors cursor-pointer";
 
 /**
- * Bottom-center floating action bar matching Obsidian canvas (Figure 2):
- * - Interaction mode toggle (Box Selection 'V' vs Canvas Pan 'H')
+ * Bottom-center floating action bar matching Obsidian canvas:
  * - Add card (blank text card)
  * - Add note (markdown note from vault)
  * - Add media (image or media file from vault)
  */
 export function CanvasBottomBar({
 	readOnly,
-	interactionMode = "select",
-	onToggleInteractionMode,
 	onAddCard,
 	onAddNote,
 	onAddMedia,
@@ -261,41 +254,6 @@ export function CanvasBottomBar({
 	return (
 		<Panel position="bottom-center" className="!mb-3 select-none z-10">
 			<div className="flex items-center gap-1 px-1.5 py-1 rounded-xl border border-border/80 bg-surface/95 backdrop-blur-xs shadow-md">
-				{/* 0. 模式切换：框选 vs 抓手平移 */}
-				{onToggleInteractionMode && (
-					<>
-						<button
-							type="button"
-							aria-label={
-								interactionMode === "select"
-									? "当前为框选模式 (快捷键 V / 空格临时平移)"
-									: "当前为抓手平移模式 (快捷键 H)"
-							}
-							title={
-								interactionMode === "select"
-									? "框选模式 (V) - 空白处拖拽框选"
-									: "抓手模式 (H) - 拖动画布"
-							}
-							onClick={onToggleInteractionMode}
-							className={`${bottomBarBtnClass} ${
-								interactionMode === "select"
-									? "text-accent bg-surface-secondary/80 font-medium"
-									: ""
-							}`}
-						>
-							{interactionMode === "select" ? (
-								<BoxSelect className="w-4 h-4 text-accent" strokeWidth={1.8} />
-							) : (
-								<Hand
-									className="w-4 h-4 text-foreground/80"
-									strokeWidth={1.8}
-								/>
-							)}
-						</button>
-						<div className="h-4 w-px bg-border/60 mx-0.5" />
-					</>
-				)}
-
 				{/* 1. 添加卡片 */}
 				<button
 					type="button"

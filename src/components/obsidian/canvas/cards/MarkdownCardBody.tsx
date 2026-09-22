@@ -5,6 +5,7 @@ import {
 } from "../../../../services/api/obsidianClient";
 import { markdownToHtml } from "../../../editor/markdown";
 import { cardClass } from "./cardShared";
+import { useSmartNodeScroll } from "./useSmartNodeScroll";
 
 // In-memory LRU cache for rendered Markdown HTML strings to avoid expensive re-parsing
 const MAX_MARKDOWN_CACHE_SIZE = 150;
@@ -30,11 +31,13 @@ function getRenderedMarkdownHtml(raw: string): string {
 export interface MarkdownCardBodyProps {
 	file: string;
 	borderStyle: React.CSSProperties;
+	selected?: boolean;
 }
 
 export const MarkdownCardBody = memo(function MarkdownCardBody({
 	file,
 	borderStyle,
+	selected,
 }: MarkdownCardBodyProps) {
 	const [content, setContent] = useState<string>(() => {
 		const cached = getCachedVaultNote(file);
@@ -56,6 +59,7 @@ export const MarkdownCardBody = memo(function MarkdownCardBody({
 		};
 	}, [file]);
 
+	const scrollRef = useSmartNodeScroll<HTMLDivElement>({ selected });
 	const html = useMemo(() => getRenderedMarkdownHtml(content), [content]);
 	const displayName = file.split("/").pop()?.replace(/\.md$/i, "") ?? file;
 
@@ -69,7 +73,8 @@ export const MarkdownCardBody = memo(function MarkdownCardBody({
 				{displayName}
 			</div>
 			<div
-				className={`${cardClass} nowheel p-4 overflow-y-auto text-xs text-foreground/90 leading-relaxed cursor-default`}
+				ref={scrollRef}
+				className={`${cardClass} p-4 overflow-y-auto text-xs text-foreground/90 leading-relaxed cursor-default`}
 				style={borderStyle}
 			>
 				{loading && !html ? (

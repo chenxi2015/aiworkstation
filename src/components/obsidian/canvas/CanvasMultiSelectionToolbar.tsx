@@ -1,4 +1,4 @@
-import { useReactFlow, useViewport } from "@xyflow/react";
+import { type Node, useReactFlow, useViewport } from "@xyflow/react";
 import { FolderPlus, Palette, ScanSearch, Trash2, X } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -24,6 +24,7 @@ import { COLOR_PRESETS } from "./canvasUtils";
 export { AlignToolIcon };
 
 export interface CanvasMultiSelectionToolbarProps {
+	nodes?: Node[];
 	readOnly?: boolean;
 	onBatchDelete?: (ids: string[]) => void;
 	onBatchSetColor?: (ids: string[], color?: string) => void;
@@ -175,8 +176,7 @@ function ActiveMultiSelectionOverlay({
 			}
 		};
 		window.addEventListener("pointerdown", handleClickOutside);
-		return () =>
-			window.removeEventListener("pointerdown", handleClickOutside);
+		return () => window.removeEventListener("pointerdown", handleClickOutside);
 	}, [alignMenuOpen, paletteOpen]);
 
 	const selectedIds = useMemo(
@@ -184,23 +184,35 @@ function ActiveMultiSelectionOverlay({
 		[selectedNodes],
 	);
 
-	const handleFocusSelection = useCallback(() => {
-		if (selectedNodes.length === 0) return;
-		fitView({
-			nodes: selectedNodes,
-			duration: 350,
-			padding: 0.25,
-		});
-	}, [fitView, selectedNodes]);
+	const handleFocusSelection = useCallback(
+		(e: React.MouseEvent) => {
+			e.stopPropagation();
+			if (selectedNodes.length === 0) return;
+			fitView({
+				nodes: selectedNodes,
+				duration: 350,
+				padding: 0.25,
+			});
+		},
+		[fitView, selectedNodes],
+	);
 
-	const handleDelete = useCallback(() => {
-		onBatchDelete?.(selectedIds);
-	}, [onBatchDelete, selectedIds]);
+	const handleDelete = useCallback(
+		(e: React.MouseEvent) => {
+			e.stopPropagation();
+			onBatchDelete?.(selectedIds);
+		},
+		[onBatchDelete, selectedIds],
+	);
 
-	const handleCreateGroup = useCallback(() => {
-		if (!box) return;
-		onCreateGroupFromSelection?.(selectedIds, box);
-	}, [onCreateGroupFromSelection, selectedIds, box]);
+	const handleCreateGroup = useCallback(
+		(e: React.MouseEvent) => {
+			e.stopPropagation();
+			if (!box) return;
+			onCreateGroupFromSelection?.(selectedIds, box);
+		},
+		[onCreateGroupFromSelection, selectedIds, box],
+	);
 
 	const handleAlignSelect = useCallback(
 		(type: AlignmentType) => {
@@ -221,7 +233,7 @@ function ActiveMultiSelectionOverlay({
 		<>
 			{/* Multi-Selection Bounding Box */}
 			<div
-				className="pointer-events-none absolute z-10 transition-all duration-75"
+				className="pointer-events-none absolute z-10 select-none"
 				style={{
 					left: screenLeft,
 					top: screenTop,
@@ -245,11 +257,15 @@ function ActiveMultiSelectionOverlay({
 			{/* Floating Action Toolbar on top-center of selection box */}
 			<div
 				ref={menuRef}
-				className="absolute z-20 -translate-x-1/2 -translate-y-full mb-3 flex items-center"
+				role="toolbar"
+				aria-label="多选工具栏"
+				className="nodrag absolute z-20 -translate-x-1/2 -translate-y-full mb-3 flex items-center select-none"
 				style={{
 					left: screenLeft + screenWidth / 2,
 					top: screenTop - 8,
 				}}
+				onPointerDown={(e) => e.stopPropagation()}
+				onMouseDown={(e) => e.stopPropagation()}
 			>
 				<div className="relative flex items-center gap-0.5 rounded-lg border border-border bg-surface px-1.5 py-1 shadow-lg backdrop-blur-md">
 					{/* 1. 删除选中 */}
@@ -365,6 +381,7 @@ function ActiveMultiSelectionOverlay({
  */
 export const CanvasMultiSelectionToolbar = memo(
 	function CanvasMultiSelectionToolbar({
+		nodes: propNodes,
 		readOnly = false,
 		onBatchDelete,
 		onBatchSetColor,
@@ -376,8 +393,8 @@ export const CanvasMultiSelectionToolbar = memo(
 
 		if (readOnly || isSelecting) return null;
 
-		const nodes = getNodes();
-		const selectedNodes = nodes.filter((n) => n.selected);
+		const currentNodes = propNodes ?? getNodes();
+		const selectedNodes = currentNodes.filter((n) => n.selected);
 
 		if (selectedNodes.length < 2) return null;
 

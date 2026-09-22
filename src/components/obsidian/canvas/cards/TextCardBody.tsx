@@ -1,11 +1,13 @@
-import { memo, useEffect, useRef } from "react";
+import { memo, useCallback, useEffect, useRef } from "react";
 import { useCanvasActions } from "../CanvasActionContext";
 import type { CanvasNode } from "../canvasUtils";
 import { autoFocus, cardClass } from "./cardShared";
+import { useSmartNodeScroll } from "./useSmartNodeScroll";
 
 export interface TextCardBodyProps {
 	node: CanvasNode;
 	editing?: boolean;
+	selected?: boolean;
 	borderStyle: React.CSSProperties;
 	onCommitText?: (id: string, text: string) => void;
 }
@@ -13,11 +15,28 @@ export interface TextCardBodyProps {
 export const TextCardBody = memo(function TextCardBody({
 	node,
 	editing,
+	selected,
 	borderStyle,
 	onCommitText,
 }: TextCardBodyProps) {
 	const actions = useCanvasActions();
 	const draftRef = useRef<string>(node.text ?? "");
+	const textareaScrollRef = useSmartNodeScroll<HTMLTextAreaElement>({
+		selected: true,
+		editing: true,
+	});
+	const divScrollRef = useSmartNodeScroll<HTMLDivElement>({ selected });
+
+	// Merge autofocus and scroll ref for editing textarea
+	const setTextareaRef = useCallback(
+		(el: HTMLTextAreaElement | null) => {
+			(
+				textareaScrollRef as React.MutableRefObject<HTMLTextAreaElement | null>
+			).current = el;
+			autoFocus(el);
+		},
+		[textareaScrollRef],
+	);
 
 	// Keep draft in sync when the underlying text changes externally
 	useEffect(() => {
@@ -31,7 +50,7 @@ export const TextCardBody = memo(function TextCardBody({
 	if (editing) {
 		return (
 			<textarea
-				ref={autoFocus}
+				ref={setTextareaRef}
 				defaultValue={node.text ?? ""}
 				onChange={(e) => {
 					draftRef.current = e.target.value;
@@ -40,7 +59,7 @@ export const TextCardBody = memo(function TextCardBody({
 				onKeyDown={(e) => {
 					if (e.key === "Escape") commit(node.text ?? "");
 				}}
-				className={`${cardClass} nodrag nowheel p-3 text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap resize-none outline-none focus:border-accent`}
+				className={`${cardClass} nodrag p-3 text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap resize-none outline-none focus:border-accent`}
 				style={borderStyle}
 			/>
 		);
@@ -48,7 +67,8 @@ export const TextCardBody = memo(function TextCardBody({
 
 	return (
 		<div
-			className={`${cardClass} nowheel p-3 text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap overflow-y-auto cursor-default`}
+			ref={divScrollRef}
+			className={`${cardClass} p-3 text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap overflow-y-auto cursor-default`}
 			style={borderStyle}
 		>
 			{node.text ?? ""}
