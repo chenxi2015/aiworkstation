@@ -170,17 +170,29 @@ export function useCanvasConnections({
 				const nextData = { ...(edge.data ?? {}), rawColor: color };
 				if (!color) delete nextData.rawColor;
 
-				const hasMarkerEnd = edge.data?.toEnd !== "none" && Boolean(edge.markerEnd);
-				const hasMarkerStart = edge.data?.fromEnd === "arrow" && Boolean(edge.markerStart);
+				const hasMarkerEnd =
+					edge.data?.toEnd !== "none" && Boolean(edge.markerEnd);
+				const hasMarkerStart =
+					edge.data?.fromEnd === "arrow" && Boolean(edge.markerStart);
 
 				return {
 					...edge,
 					style: { ...edge.style, stroke: resolved },
 					markerEnd: hasMarkerEnd
-						? { type: MarkerType.ArrowClosed, width: 16, height: 16, color: resolved }
+						? {
+								type: MarkerType.ArrowClosed,
+								width: 16,
+								height: 16,
+								color: resolved,
+							}
 						: undefined,
 					markerStart: hasMarkerStart
-						? { type: MarkerType.ArrowClosed, width: 16, height: 16, color: resolved }
+						? {
+								type: MarkerType.ArrowClosed,
+								width: 16,
+								height: 16,
+								color: resolved,
+							}
 						: undefined,
 					data: nextData,
 				};
@@ -200,8 +212,7 @@ export function useCanvasConnections({
 				const color = (edge.style?.stroke as string) ?? DEFAULT_EDGE_COLOR;
 				const fromEnd: "none" | "arrow" =
 					direction === "bidirectional" ? "arrow" : "none";
-				const toEnd: "none" | "arrow" =
-					direction === "none" ? "none" : "arrow";
+				const toEnd: "none" | "arrow" = direction === "none" ? "none" : "arrow";
 
 				return {
 					...edge,

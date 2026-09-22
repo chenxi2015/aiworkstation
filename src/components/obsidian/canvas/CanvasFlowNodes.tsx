@@ -164,7 +164,11 @@ function SelectionToolbar({
 	onEdit,
 }: SelectionToolbarProps) {
 	const [paletteOpen, setPaletteOpen] = useState(false);
-	const { fitView } = useReactFlow();
+	const { fitView, getNodes } = useReactFlow();
+
+	// Check if multiple nodes are selected to hide single-node toolbar
+	const isMultiSelected =
+		selected && getNodes().filter((n) => n.selected).length >= 2;
 
 	// Close palette popover when node becomes unselected
 	useEffect(() => {
@@ -183,7 +187,7 @@ function SelectionToolbar({
 
 	return (
 		<NodeToolbar
-			isVisible={selected && !editing}
+			isVisible={Boolean(selected) && !editing && !isMultiSelected}
 			position={Position.Top}
 			offset={8}
 		>

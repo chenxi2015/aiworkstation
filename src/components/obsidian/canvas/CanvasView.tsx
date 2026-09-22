@@ -7,12 +7,14 @@ import {
 	type Node,
 	ReactFlow,
 	ReactFlowProvider,
+	SelectionMode,
 	useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CanvasEdgeComponent } from "./CanvasFlowEdge";
 import { CanvasCardNode, CanvasGroupNode } from "./CanvasFlowNodes";
+import { CanvasMultiSelectionToolbar } from "./CanvasMultiSelectionToolbar";
 import { CanvasNoteSearchModal } from "./CanvasNoteSearchModal";
 import {
 	CanvasBottomBar,
@@ -81,7 +83,13 @@ function CanvasFlow({
 	const colorMode = useColorMode();
 	const { screenToFlowPosition } = useReactFlow();
 	const wrapperRef = useRef<HTMLDivElement>(null);
-	const [searchCategory, setSearchCategory] = useState<"all" | "note" | "media">("all");
+	const [searchCategory, setSearchCategory] = useState<
+		"all" | "note" | "media"
+	>("all");
+	const [interactionMode, setInteractionMode] = useState<"select" | "pan">(
+		"select",
+	);
+	const [isSpacePressed, setIsSpacePressed] = useState(false);
 
 	const {
 		parsed,
@@ -94,7 +102,11 @@ function CanvasFlow({
 		setEditingId,
 		commitText,
 		deleteNode,
+		batchDeleteNodes,
 		setNodeColor,
+		batchSetNodeColor,
+		createGroupFromSelection,
+		alignSelectedNodes,
 		startEdit,
 		handleNodesChange,
 		handleEdgesChange,
@@ -110,6 +122,44 @@ function CanvasFlow({
 		onNavigateNote,
 		readOnly,
 	});
+
+	// Space key and V/H mode shortcuts
+	useEffect(() => {
+		if (readOnly) return;
+
+		const handleKeyDown = (e: KeyboardEvent) => {
+			const target = e.target as HTMLElement | null;
+			if (
+				target &&
+				(target.tagName === "INPUT" ||
+					target.tagName === "TEXTAREA" ||
+					target.isContentEditable)
+			) {
+				return;
+			}
+
+			if (e.code === "Space" && !e.repeat) {
+				setIsSpacePressed(true);
+			} else if (e.key.toLowerCase() === "v" && !e.metaKey && !e.ctrlKey) {
+				setInteractionMode("select");
+			} else if (e.key.toLowerCase() === "h" && !e.metaKey && !e.ctrlKey) {
+				setInteractionMode("pan");
+			}
+		};
+
+		const handleKeyUp = (e: KeyboardEvent) => {
+			if (e.code === "Space") {
+				setIsSpacePressed(false);
+			}
+		};
+
+		window.addEventListener("keydown", handleKeyDown);
+		window.addEventListener("keyup", handleKeyUp);
+		return () => {
+			window.removeEventListener("keydown", handleKeyDown);
+			window.removeEventListener("keyup", handleKeyUp);
+		};
+	}, [readOnly]);
 
 	const {
 		pendingConn,
@@ -205,11 +255,25 @@ function CanvasFlow({
 		return <CanvasParseError error={parsed.error} />;
 	}
 
+	const isPanning = isSpacePressed || interactionMode === "pan";
+
 	return (
 		<div
 			ref={wrapperRef}
-			className="relative h-full bg-surface/40 dark:bg-black/20"
+			className={`relative h-full bg-surface/40 dark:bg-black/20 canvas-flow-container ${
+				isPanning ? "cursor-grab active:cursor-grabbing" : ""
+			}`}
 		>
+			{/* Obsidian-styled box selection (marquee) styling */}
+			<style>{`
+				.canvas-flow-container .react-flow__selection {
+					background-color: rgba(120, 83, 238, 0.08) !important;
+					border: 1.5px solid #7853ee !important;
+					border-radius: 4px !important;
+					box-shadow: 0 0 12px rgba(120, 83, 238, 0.15);
+				}
+			`}</style>
+
 			<CanvasEmptyHint count={nodes.length} readOnly={readOnly} />
 
 			<ReactFlow
@@ -233,9 +297,18 @@ function CanvasFlow({
 				fitViewOptions={{ padding: 0.1, maxZoom: 1 }}
 				minZoom={0.1}
 				maxZoom={4}
-				nodesDraggable={!readOnly}
-				nodesConnectable={!readOnly}
+				nodesDraggable={!readOnly && !isPanning}
+				nodesConnectable={!readOnly && !isPanning}
 				elementsSelectable={!readOnly}
+				selectionMode={SelectionMode.Partial}
+				selectionOnDrag={
+					!readOnly && interactionMode === "select" && !isSpacePressed
+				}
+				panOnDrag={
+					readOnly || interactionMode === "pan" || isSpacePressed
+						? true
+						: [1, 2]
+				}
 				deleteKeyCode={readOnly ? null : ["Backspace", "Delete"]}
 				zoomOnDoubleClick={false}
 				panOnScroll
@@ -264,6 +337,15 @@ function CanvasFlow({
 					}
 				/>
 
+				{/* Floating multi-selection toolbar and bounding box */}
+				<CanvasMultiSelectionToolbar
+					readOnly={readOnly}
+					onBatchDelete={batchDeleteNodes}
+					onBatchSetColor={batchSetNodeColor}
+					onCreateGroupFromSelection={createGroupFromSelection}
+					onAlign={alignSelectedNodes}
+				/>
+
 				{pendingConn && (
 					<PendingConnectionMenu
 						pendingConn={pendingConn}
@@ -290,6 +372,10 @@ function CanvasFlow({
 
 				<CanvasBottomBar
 					readOnly={readOnly}
+					interactionMode={interactionMode}
+					onToggleInteractionMode={() =>
+						setInteractionMode((prev) => (prev === "select" ? "pan" : "select"))
+					}
 					onAddCard={handleAddCardCenter}
 					onAddNote={handleAddNoteCenter}
 					onAddMedia={handleAddMediaCenter}

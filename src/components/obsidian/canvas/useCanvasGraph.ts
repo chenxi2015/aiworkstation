@@ -8,6 +8,7 @@ import {
 } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CanvasCardFlowNode } from "./CanvasFlowNodes";
+import { type AlignmentType, applyAlignment } from "./canvasAlignment";
 import {
 	type FlowBuildOptions,
 	genId,
@@ -142,7 +143,103 @@ export function useCanvasGraph({
 		emitRef.current(next, edgesRef.current);
 	}, []);
 
+	// Batch delete multiple nodes and their connected edges
+	const batchDeleteNodes = useCallback((ids: string[]) => {
+		if (ids.length === 0) return;
+		const idSet = new Set(ids);
+		const nextNodes = nodesRef.current.filter((node) => !idSet.has(node.id));
+		const nextEdges = edgesRef.current.filter(
+			(edge) => !idSet.has(edge.source) && !idSet.has(edge.target),
+		);
+		setNodes(nextNodes);
+		setEdges(nextEdges);
+		emitRef.current(nextNodes, nextEdges);
+	}, []);
+
+	// Batch set color for multiple nodes
+	const batchSetNodeColor = useCallback(
+		(ids: string[], color: string | undefined) => {
+			if (ids.length === 0) return;
+			const idSet = new Set(ids);
+			const next = nodesRef.current.map((node) => {
+				if (!idSet.has(node.id)) return node;
+				if (node.type === "canvasGroup") {
+					return { ...node, data: { ...node.data, color } };
+				}
+				const { canvasNode } = node.data as { canvasNode: CanvasNode };
+				const nextCanvasNode = { ...canvasNode };
+				if (color) {
+					nextCanvasNode.color = color;
+				} else {
+					delete nextCanvasNode.color;
+				}
+				return { ...node, data: { ...node.data, canvasNode: nextCanvasNode } };
+			});
+			setNodes(next);
+			emitRef.current(next, edgesRef.current);
+		},
+		[],
+	);
+
 	const startEdit = useCallback((id: string) => setEditingId(id), []);
+
+	// Create a new group enclosing selected nodes
+	const createGroupFromSelection = useCallback(
+		(
+			ids: string[],
+			box: { minX: number; minY: number; width: number; height: number },
+		) => {
+			if (ids.length === 0) return;
+			const padding = 32;
+			const groupId = genId();
+			const groupCanvasNode: CanvasNode = {
+				id: groupId,
+				type: "group",
+				label: "Group",
+				x: Math.round(box.minX - padding),
+				y: Math.round(box.minY - padding),
+				width: Math.round(box.width + padding * 2),
+				height: Math.round(box.height + padding * 2),
+			};
+
+			const newGroupNode: Node = {
+				id: groupId,
+				type: "canvasGroup",
+				position: { x: groupCanvasNode.x, y: groupCanvasNode.y },
+				data: {
+					label: "Group",
+					readOnly,
+					editing: false,
+					onCommitLabel: commitLabel,
+					onDeleteNode: deleteNode,
+					onSetColor: setNodeColor,
+					onStartEdit: startEdit,
+				},
+				width: groupCanvasNode.width,
+				height: groupCanvasNode.height,
+				draggable: !readOnly,
+				selectable: !readOnly,
+			};
+
+			// Put group in front of list so cards render on top of it
+			const nextNodes = [newGroupNode, ...nodesRef.current];
+			setNodes(nextNodes);
+			emitRef.current(nextNodes, edgesRef.current);
+		},
+		[readOnly, commitLabel, deleteNode, setNodeColor, startEdit],
+	);
+
+	// Align selected nodes according to alignment type
+	const alignSelectedNodes = useCallback((type: AlignmentType) => {
+		const selectedIds = new Set(
+			nodesRef.current.filter((n) => n.selected).map((n) => n.id),
+		);
+		if (selectedIds.size < 2) return;
+
+		const nextNodes = applyAlignment(nodesRef.current, selectedIds, type);
+		setNodes(nextNodes);
+		emitRef.current(nextNodes, edgesRef.current);
+	}, []);
 
 	const buildOptions = useMemo<FlowBuildOptions>(
 		() => ({
@@ -464,7 +561,11 @@ export function useCanvasGraph({
 		commitText,
 		commitLabel,
 		deleteNode,
+		batchDeleteNodes,
 		setNodeColor,
+		batchSetNodeColor,
+		createGroupFromSelection,
+		alignSelectedNodes,
 		startEdit,
 		handleNodesChange,
 		handleEdgesChange,
