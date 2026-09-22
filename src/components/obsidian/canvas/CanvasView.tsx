@@ -13,6 +13,10 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	CanvasActionContext,
+	type CanvasActionContextValue,
+} from "./CanvasActionContext";
 import { CanvasEdgeComponent } from "./CanvasFlowEdge";
 import { CanvasCardNode, CanvasGroupNode } from "./CanvasFlowNodes";
 import { CanvasMultiSelectionToolbar } from "./CanvasMultiSelectionToolbar";
@@ -104,12 +108,14 @@ function CanvasFlow({
 		edgesRef,
 		setEditingId,
 		commitText,
+		commitLabel,
 		deleteNode,
 		batchDeleteNodes,
 		setNodeColor,
 		batchSetNodeColor,
 		createGroupFromSelection,
 		alignSelectedNodes,
+		alignGroupChildren,
 		startEdit,
 		handleNodesChange,
 		handleEdgesChange,
@@ -177,6 +183,12 @@ function CanvasFlow({
 		handleOpenNoteSearch,
 		addConnectedTextCard,
 		addFileNode,
+		deleteEdge,
+		setEdgeColor,
+		setEdgeDirection,
+		clearEdgeLabel,
+		startEditEdge,
+		commitEdgeLabel,
 	} = useCanvasConnections({
 		readOnly,
 		edges,
@@ -298,6 +310,47 @@ function CanvasFlow({
 		[nodes],
 	);
 
+	const actionContextValue = useMemo<CanvasActionContextValue>(
+		() => ({
+			deleteNode,
+			batchDeleteNodes,
+			setNodeColor,
+			batchSetNodeColor,
+			startEdit,
+			commitText,
+			commitLabel,
+			alignGroupChildren,
+			createGroupFromSelection,
+			alignSelectedNodes,
+			onNavigateNote,
+			deleteEdge,
+			setEdgeColor,
+			setEdgeDirection,
+			clearEdgeLabel,
+			startEditEdge,
+			commitEdgeLabel,
+		}),
+		[
+			deleteNode,
+			batchDeleteNodes,
+			setNodeColor,
+			batchSetNodeColor,
+			startEdit,
+			commitText,
+			commitLabel,
+			alignGroupChildren,
+			createGroupFromSelection,
+			alignSelectedNodes,
+			onNavigateNote,
+			deleteEdge,
+			setEdgeColor,
+			setEdgeDirection,
+			clearEdgeLabel,
+			startEditEdge,
+			commitEdgeLabel,
+		],
+	);
+
 	useEffect(() => {
 		const handlePointerUp = () => setIsSelecting(false);
 		window.addEventListener("pointerup", handlePointerUp);
@@ -314,12 +367,13 @@ function CanvasFlow({
 		<CanvasSelectionContext.Provider
 			value={{ isSelecting, selectedNodesCount }}
 		>
-			<div
-				ref={wrapperRef}
-				className={`relative h-full bg-surface/40 dark:bg-black/20 canvas-flow-container ${
-					isPanning ? "cursor-grab active:cursor-grabbing" : ""
-				}`}
-			>
+			<CanvasActionContext.Provider value={actionContextValue}>
+				<div
+					ref={wrapperRef}
+					className={`relative h-full bg-surface/40 dark:bg-black/20 canvas-flow-container ${
+						isPanning ? "cursor-grab active:cursor-grabbing" : ""
+					}`}
+				>
 				{/* Obsidian-styled box selection (marquee) styling */}
 				<style>{`
 					.canvas-flow-container .react-flow__selection {
@@ -469,6 +523,7 @@ function CanvasFlow({
 					/>
 				</ReactFlow>
 			</div>
+			</CanvasActionContext.Provider>
 		</CanvasSelectionContext.Provider>
 	);
 }

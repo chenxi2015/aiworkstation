@@ -18,13 +18,9 @@ import {
 	Waypoints,
 	X,
 } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-	fetchVaultNote,
-	getCachedVaultNote,
-} from "../../../services/api/obsidianClient";
-import { markdownToHtml } from "../../editor/markdown";
-import { getVaultFileCategory, vaultAssetUrl } from "../utils/vaultFileUtils";
+import { memo, useCallback, useEffect, useState } from "react";
+import { getVaultFileCategory } from "../utils/vaultFileUtils";
+import { useCanvasActions } from "./CanvasActionContext";
 import {
 	AlignToolIcon,
 	CanvasAlignDropdown,
@@ -38,6 +34,10 @@ import {
 	resolveColor,
 	type Side,
 } from "./canvasUtils";
+import { ImageCardBody } from "./cards/ImageCardBody";
+import { MarkdownCardBody } from "./cards/MarkdownCardBody";
+import { TextCardBody } from "./cards/TextCardBody";
+import { autoFocus, cardClass } from "./cards/cardShared";
 
 export interface CanvasNodeActions {
 	onDeleteNode?: (id: string) => void;
@@ -120,7 +120,6 @@ interface SelectionToolbarProps extends CanvasNodeActions {
 	editing?: boolean;
 	isGroup?: boolean;
 	onEdit?: () => void;
-	onAlignGroup?: (groupId: string, type: AlignmentType) => void;
 }
 
 const RESIZE_CORNERS = [
@@ -175,6 +174,7 @@ function SelectionToolbar({
 	onEdit,
 	onAlignGroup,
 }: SelectionToolbarProps) {
+	const actions = useCanvasActions();
 	const [paletteOpen, setPaletteOpen] = useState(false);
 	const [alignOpen, setAlignOpen] = useState(false);
 	const { fitView } = useReactFlow();
@@ -196,6 +196,25 @@ function SelectionToolbar({
 		});
 	}, [fitView, id]);
 
+	const handleDelete = useCallback(() => {
+		(onDeleteNode ?? actions.deleteNode)(id);
+	}, [onDeleteNode, actions.deleteNode, id]);
+
+	const handleSetColor = useCallback(
+		(col: string | undefined) => {
+			(onSetColor ?? actions.setNodeColor)(id, col);
+		},
+		[onSetColor, actions.setNodeColor, id],
+	);
+
+	const handleAlign = useCallback(
+		(type: AlignmentType) => {
+			(onAlignGroup ?? actions.alignGroupChildren)(id, type);
+			setAlignOpen(false);
+		},
+		[onAlignGroup, actions.alignGroupChildren, id],
+	);
+
 	if (readOnly) return null;
 
 	return (
@@ -215,7 +234,7 @@ function SelectionToolbar({
 					type="button"
 					aria-label="删除"
 					title="删除"
-					onClick={() => onDeleteNode?.(id)}
+					onClick={handleDelete}
 					className={`${toolbarButtonClass} hover:!text-danger`}
 				>
 					<Trash2 className="w-3.5 h-3.5" />
@@ -289,7 +308,7 @@ function SelectionToolbar({
 								aria-label={`颜色 ${key}`}
 								title={`颜色 ${key}`}
 								onClick={() => {
-									onSetColor?.(id, color === key ? undefined : key);
+									handleSetColor(color === key ? undefined : key);
 									setPaletteOpen(false);
 								}}
 								className={`w-4 h-4 rounded-full cursor-pointer transition-transform hover:scale-110 ${
@@ -303,7 +322,7 @@ function SelectionToolbar({
 							aria-label="清除颜色"
 							title="清除颜色"
 							onClick={() => {
-								onSetColor?.(id, undefined);
+								handleSetColor(undefined);
 								setPaletteOpen(false);
 							}}
 							className={toolbarButtonClass}
@@ -317,24 +336,12 @@ function SelectionToolbar({
 				{isGroup && (
 					<CanvasAlignDropdown
 						isOpen={alignOpen}
-						onSelect={(type) => {
-							onAlignGroup?.(id, type);
-							setAlignOpen(false);
-						}}
+						onSelect={handleAlign}
 					/>
 				)}
 			</div>
 		</NodeToolbar>
 	);
-}
-
-const cardClass =
-	"w-full h-full rounded-lg border border-border bg-surface shadow-sm overflow-hidden transition-[border-color,box-shadow] duration-150";
-
-function autoFocus(el: HTMLTextAreaElement | HTMLInputElement | null) {
-	if (!el) return;
-	el.focus();
-	el.select();
 }
 
 /** Memoized CanvasGroupNode component */
@@ -343,6 +350,7 @@ export const CanvasGroupNode = memo(function CanvasGroupNode({
 	data,
 	selected,
 }: NodeProps<CanvasGroupFlowNode>) {
+	const actions = useCanvasActions();
 	const color = resolveColor(data.color);
 	const defaultBorder = "rgba(128, 128, 128, 0.3)";
 	const activeColor = color ?? "#7853ee";
@@ -362,6 +370,13 @@ export const CanvasGroupNode = memo(function CanvasGroupNode({
 				background: colorToAlpha(currentBorder, color ? 0.08 : 0.06),
 			};
 
+	const handleCommitLabel = useCallback(
+		(lbl: string) => {
+			(data.onCommitLabel ?? actions.commitLabel)(id, lbl);
+		},
+		[data.onCommitLabel, actions.commitLabel, id],
+	);
+
 	return (
 		<>
 			<NodeHandles readOnly={data.readOnly} />
@@ -380,7 +395,7 @@ export const CanvasGroupNode = memo(function CanvasGroupNode({
 				isGroup
 				onDeleteNode={data.onDeleteNode}
 				onSetColor={data.onSetColor}
-				onEdit={() => data.onStartEdit?.(id)}
+				onEdit={() => (data.onStartEdit ?? actions.startEdit)(id)}
 				onAlignGroup={data.onAlignGroup}
 			/>
 			<div
@@ -391,11 +406,10 @@ export const CanvasGroupNode = memo(function CanvasGroupNode({
 					<input
 						ref={autoFocus}
 						defaultValue={data.label ?? ""}
-						onBlur={(e) => data.onCommitLabel?.(id, e.target.value)}
+						onBlur={(e) => handleCommitLabel(e.target.value)}
 						onKeyDown={(e) => {
 							if (e.key === "Enter") e.currentTarget.blur();
-							if (e.key === "Escape")
-								data.onCommitLabel?.(id, data.label ?? "");
+							if (e.key === "Escape") handleCommitLabel(data.label ?? "");
 						}}
 						className="nodrag absolute -top-6 left-1 text-sm font-semibold bg-transparent outline-none border-b border-accent w-40"
 						style={{ color: color ?? "inherit" }}
@@ -415,174 +429,13 @@ export const CanvasGroupNode = memo(function CanvasGroupNode({
 	);
 });
 
-function TextCardBody({
-	node,
-	data,
-	borderStyle,
-}: {
-	node: CanvasNode;
-	data: CanvasCardData;
-	borderStyle: React.CSSProperties;
-}) {
-	const draftRef = useRef<string>(node.text ?? "");
-
-	// Keep draft in sync when the underlying text changes externally
-	useEffect(() => {
-		draftRef.current = node.text ?? "";
-	}, [node.text]);
-
-	if (data.editing) {
-		return (
-			<textarea
-				ref={autoFocus}
-				defaultValue={node.text ?? ""}
-				onChange={(e) => {
-					draftRef.current = e.target.value;
-				}}
-				onBlur={() => data.onCommitText?.(node.id, draftRef.current)}
-				onKeyDown={(e) => {
-					if (e.key === "Escape") data.onCommitText?.(node.id, node.text ?? "");
-				}}
-				className={`${cardClass} nodrag nowheel p-3 text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap resize-none outline-none focus:border-accent`}
-				style={borderStyle}
-			/>
-		);
-	}
-
-	return (
-		<div
-			className={`${cardClass} nowheel p-3 text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap overflow-y-auto cursor-default`}
-			style={borderStyle}
-		>
-			{node.text ?? ""}
-		</div>
-	);
-}
-
-// In-memory LRU cache for rendered Markdown HTML strings to avoid expensive re-parsing
-const MAX_MARKDOWN_CACHE_SIZE = 150;
-const markdownCache = new Map<string, string>();
-
-function getRenderedMarkdownHtml(raw: string): string {
-	if (!raw) return "";
-	const cached = markdownCache.get(raw);
-	if (cached !== undefined) return cached;
-
-	// Strip YAML frontmatter
-	const body = raw.replace(/^---\n[\s\S]*?\n---\n?/, "").trim();
-	const html = markdownToHtml(body);
-
-	if (markdownCache.size >= MAX_MARKDOWN_CACHE_SIZE) {
-		const firstKey = markdownCache.keys().next().value;
-		if (firstKey !== undefined) markdownCache.delete(firstKey);
-	}
-	markdownCache.set(raw, html);
-	return html;
-}
-
-function MarkdownCardBody({
-	file,
-	borderStyle,
-}: {
-	file: string;
-	borderStyle: React.CSSProperties;
-}) {
-	const [content, setContent] = useState<string>(() => {
-		const cached = getCachedVaultNote(file);
-		return cached?.content ?? "";
-	});
-	const [loading, setLoading] = useState(!content);
-
-	useEffect(() => {
-		let active = true;
-		void fetchVaultNote(file).then(({ note }) => {
-			if (!active) return;
-			if (note?.content !== undefined) {
-				setContent(note.content);
-			}
-			setLoading(false);
-		});
-		return () => {
-			active = false;
-		};
-	}, [file]);
-
-	const html = useMemo(() => getRenderedMarkdownHtml(content), [content]);
-	const displayName = file.split("/").pop()?.replace(/\.md$/i, "") ?? file;
-
-	return (
-		<div className="relative w-full h-full flex flex-col">
-			{/* Top note title bar / badge */}
-			<div
-				className="absolute -top-5 left-1 text-[11px] text-muted truncate max-w-[95%] select-none pointer-events-none font-medium"
-				title={displayName}
-			>
-				{displayName}
-			</div>
-			<div
-				className={`${cardClass} nowheel p-4 overflow-y-auto text-xs text-foreground/90 leading-relaxed cursor-default`}
-				style={borderStyle}
-			>
-				{loading && !html ? (
-					<div className="flex items-center justify-center h-full text-xs text-muted">
-						加载笔记中...
-					</div>
-				) : html ? (
-					<div
-						className="canvas-markdown-preview prose prose-sm dark:prose-invert max-w-none break-words"
-						// biome-ignore lint/security/noDangerouslySetInnerHtml: rendered markdown HTML
-						dangerouslySetInnerHTML={{ __html: html }}
-					/>
-				) : (
-					<div className="text-muted italic text-center py-4">（空笔记）</div>
-				)}
-			</div>
-		</div>
-	);
-}
-
-function ImageCardBody({
-	file,
-	borderStyle,
-}: {
-	file: string;
-	borderStyle: React.CSSProperties;
-}) {
-	const name = file.split("/").pop() ?? file;
-	const src = vaultAssetUrl(file);
-
-	return (
-		<div className="relative w-full h-full flex flex-col">
-			{/* Top image title bar */}
-			<div
-				className="absolute -top-5 left-1 text-[11px] text-muted truncate max-w-[95%] select-none pointer-events-none font-medium"
-				title={name}
-			>
-				{name}
-			</div>
-			<div
-				className={`${cardClass} p-1.5 flex items-center justify-center bg-surface select-none overflow-hidden`}
-				style={borderStyle}
-			>
-				<img
-					src={src}
-					alt={name}
-					loading="lazy"
-					decoding="async"
-					className="max-w-full max-h-full w-auto h-auto object-contain pointer-events-none select-none"
-					draggable={false}
-				/>
-			</div>
-		</div>
-	);
-}
-
 /** Memoized CanvasCardNode component */
 export const CanvasCardNode = memo(function CanvasCardNode({
 	id,
 	data,
 	selected,
 }: NodeProps<CanvasCardFlowNode>) {
+	const actions = useCanvasActions();
 	const { canvasNode: node, onNavigateNote } = data;
 	const color = resolveColor(node.color);
 	const activeColor = color ?? "#7853ee";
@@ -600,7 +453,14 @@ export const CanvasCardNode = memo(function CanvasCardNode({
 	let body: React.ReactNode = null;
 
 	if (node.type === "text") {
-		body = <TextCardBody node={node} data={data} borderStyle={borderStyle} />;
+		body = (
+			<TextCardBody
+				node={node}
+				editing={data.editing}
+				borderStyle={borderStyle}
+				onCommitText={data.onCommitText}
+			/>
+		);
 	} else if (node.type === "file" && node.file) {
 		const file = node.file;
 		const category = getVaultFileCategory(file);
@@ -674,9 +534,9 @@ export const CanvasCardNode = memo(function CanvasCardNode({
 				onSetColor={data.onSetColor}
 				onEdit={() => {
 					if (node.type === "text") {
-						data.onStartEdit?.(id);
+						(data.onStartEdit ?? actions.startEdit)(id);
 					} else if (node.type === "file" && node.file) {
-						onNavigateNote?.(node.file);
+						(onNavigateNote ?? actions.onNavigateNote)?.(node.file);
 					}
 				}}
 			/>

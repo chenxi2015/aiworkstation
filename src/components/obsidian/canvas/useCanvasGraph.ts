@@ -23,6 +23,7 @@ import {
 	toFlowNodes,
 } from "./canvasSerializer";
 import type { CanvasNode } from "./canvasUtils";
+import { useCanvasHistory } from "./useCanvasHistory";
 
 export interface UseCanvasGraphOptions {
 	content: string;
@@ -48,37 +49,51 @@ export function useCanvasGraph({
 	const nodesRef = useRef<Node[]>([]);
 	const edgesRef = useRef<Edge[]>([]);
 
-	// Last JSON text emitted to parent, preventing self-echo re-renders
-	const lastEmittedRef = useRef(content);
+	// Cache of group children during active drag to eliminate O(N*M) geometry checks per frame
+	const groupChildIdsCacheRef = useRef<Map<string, string[]>>(new Map());
 
-	// History stacks for undo/redo
-	const MAX_HISTORY = 30;
-	const undoStackRef = useRef<string[]>([]);
-	const redoStackRef = useRef<string[]>([]);
-	const isHistoryActionRef = useRef(false);
-	const [, setHistoryVersion] = useState(0);
+	// Forward declaration for buildOptions used during restore
+	const buildOptionsRef = useRef<FlowBuildOptions | null>(null);
+
+	const restoreFromJson = useCallback((json: string) => {
+		const next = parseCanvas(json);
+		if (next.data && buildOptionsRef.current) {
+			const restoredNodes = toFlowNodes(
+				next.data.nodes,
+				buildOptionsRef.current,
+			);
+			const byId = new Map(next.data.nodes.map((node) => [node.id, node]));
+			const restoredEdges = next.data.edges
+				.map((edge) => toFlowEdge(edge, byId))
+				.filter((edge): edge is Edge => edge !== null);
+
+			setNodes(restoredNodes);
+			setEdges(restoredEdges);
+		}
+	}, []);
+
+	// Undo / Redo history management
+	const {
+		lastEmittedRef,
+		initHistory,
+		pushSnapshot,
+		undo,
+		redo,
+		canUndo,
+		canRedo,
+	} = useCanvasHistory({
+		readOnly,
+		onRestore: restoreFromJson,
+		onChange,
+	});
 
 	const emit = useCallback(
 		(nextNodes: Node[], nextEdges: Edge[]) => {
 			if (readOnly) return;
 			const json = serializeCanvas(nextNodes, nextEdges);
-			if (json === lastEmittedRef.current) return;
-
-			if (!isHistoryActionRef.current) {
-				undoStackRef.current.push(lastEmittedRef.current);
-				if (undoStackRef.current.length > MAX_HISTORY) {
-					undoStackRef.current.shift();
-				}
-				redoStackRef.current = [];
-				setHistoryVersion((v) => v + 1);
-			} else {
-				isHistoryActionRef.current = false;
-			}
-
-			lastEmittedRef.current = json;
-			onChange?.(json);
+			pushSnapshot(json);
 		},
-		[onChange, readOnly],
+		[readOnly, pushSnapshot],
 	);
 	const emitRef = useRef(emit);
 	emitRef.current = emit;
@@ -346,6 +361,7 @@ export function useCanvasGraph({
 			alignGroupChildren,
 		],
 	);
+	buildOptionsRef.current = buildOptions;
 
 	// Initialize state
 	const [nodes, setNodes] = useState<Node[]>(() =>
@@ -407,10 +423,7 @@ export function useCanvasGraph({
 	// External content sync
 	useEffect(() => {
 		if (content === lastEmittedRef.current) return;
-		lastEmittedRef.current = content;
-		undoStackRef.current = [];
-		redoStackRef.current = [];
-		setHistoryVersion((v) => v + 1);
+		initHistory(content);
 
 		const next = parseCanvas(content);
 		if (!next.data) return;
@@ -421,88 +434,11 @@ export function useCanvasGraph({
 				.map((edge) => toFlowEdge(edge, byId))
 				.filter((edge): edge is Edge => edge !== null),
 		);
-	}, [content, buildOptions]);
-
-	// Undo / Redo operations
-	const undo = useCallback(() => {
-		if (readOnly || undoStackRef.current.length === 0) return;
-		const prevJson = undoStackRef.current.pop();
-		if (!prevJson) return;
-
-		redoStackRef.current.push(lastEmittedRef.current);
-		isHistoryActionRef.current = true;
-		lastEmittedRef.current = prevJson;
-
-		const next = parseCanvas(prevJson);
-		if (next.data) {
-			const restoredNodes = toFlowNodes(next.data.nodes, buildOptions);
-			const byId = new Map(next.data.nodes.map((node) => [node.id, node]));
-			const restoredEdges = next.data.edges
-				.map((edge) => toFlowEdge(edge, byId))
-				.filter((edge): edge is Edge => edge !== null);
-
-			setNodes(restoredNodes);
-			setEdges(restoredEdges);
-			onChange?.(prevJson);
-		}
-		setHistoryVersion((v) => v + 1);
-	}, [readOnly, buildOptions, onChange]);
-
-	const redo = useCallback(() => {
-		if (readOnly || redoStackRef.current.length === 0) return;
-		const nextJson = redoStackRef.current.pop();
-		if (!nextJson) return;
-
-		undoStackRef.current.push(lastEmittedRef.current);
-		isHistoryActionRef.current = true;
-		lastEmittedRef.current = nextJson;
-
-		const next = parseCanvas(nextJson);
-		if (next.data) {
-			const restoredNodes = toFlowNodes(next.data.nodes, buildOptions);
-			const byId = new Map(next.data.nodes.map((node) => [node.id, node]));
-			const restoredEdges = next.data.edges
-				.map((edge) => toFlowEdge(edge, byId))
-				.filter((edge): edge is Edge => edge !== null);
-
-			setNodes(restoredNodes);
-			setEdges(restoredEdges);
-			onChange?.(nextJson);
-		}
-		setHistoryVersion((v) => v + 1);
-	}, [readOnly, buildOptions, onChange]);
-
-	// Canvas keyboard shortcuts: Cmd/Ctrl + Z (Undo), Cmd/Ctrl + Shift + Z / Cmd/Ctrl + Y (Redo)
-	useEffect(() => {
-		if (readOnly) return;
-		const handleKeyDown = (e: KeyboardEvent) => {
-			const target = e.target as HTMLElement | null;
-			if (
-				target &&
-				(target.tagName === "INPUT" ||
-					target.tagName === "TEXTAREA" ||
-					target.isContentEditable)
-			) {
-				return;
-			}
-			if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
-				e.preventDefault();
-				if (e.shiftKey) {
-					redo();
-				} else {
-					undo();
-				}
-			} else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "y") {
-				e.preventDefault();
-				redo();
-			}
-		};
-		window.addEventListener("keydown", handleKeyDown);
-		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [readOnly, undo, redo]);
+	}, [content, buildOptions, initHistory, lastEmittedRef]);
 
 	/**
-	 * Optimized group child shifting: moves cards fully enclosed inside a dragged group
+	 * Optimized group child shifting: moves cards fully enclosed inside a dragged group.
+	 * Uses drag lifecycle caching to avoid redundant O(N*M) geometry tests during continuous drag.
 	 */
 	const shiftGroupChildren = useCallback(
 		(prev: Node[], next: Node[], changes: NodeChange<Node>[]) => {
@@ -530,33 +466,48 @@ export function useCanvasGraph({
 				const dy = change.position.y - prevGroup.position.y;
 				if (dx === 0 && dy === 0) continue;
 
-				const gx = prevGroup.position.x;
-				const gy = prevGroup.position.y;
-				const gw = prevGroup.width ?? 0;
-				const gh = prevGroup.height ?? 0;
+				// Retrieve or build cached child node IDs for this dragged group
+				let childIds = groupChildIdsCacheRef.current.get(change.id);
+				if (!childIds) {
+					const gx = prevGroup.position.x;
+					const gy = prevGroup.position.y;
+					const gw = prevGroup.width ?? 0;
+					const gh = prevGroup.height ?? 0;
+					childIds = [];
+
+					for (const node of prev) {
+						if (node.type !== "canvasCard" || draggedIds.has(node.id)) {
+							continue;
+						}
+						const nw = node.width ?? 0;
+						const nh = node.height ?? 0;
+						const inside =
+							node.position.x >= gx &&
+							node.position.y >= gy &&
+							node.position.x + nw <= gx + gw &&
+							node.position.y + nh <= gy + gh;
+						if (inside) childIds.push(node.id);
+					}
+					groupChildIdsCacheRef.current.set(change.id, childIds);
+				}
+
+				if (childIds.length === 0) continue;
+				const childIdSet = new Set(childIds);
 
 				result = result.map((node) => {
-					if (node.type !== "canvasCard" || draggedIds.has(node.id)) {
-						return node;
-					}
-					const prevNode = prevMap.get(node.id);
-					if (!prevNode) return node;
-
-					const nw = prevNode.width ?? 0;
-					const nh = prevNode.height ?? 0;
-					const inside =
-						prevNode.position.x >= gx &&
-						prevNode.position.y >= gy &&
-						prevNode.position.x + nw <= gx + gw &&
-						prevNode.position.y + nh <= gy + gh;
-
-					if (!inside) return node;
+					if (!childIdSet.has(node.id)) return node;
 					return {
 						...node,
 						position: { x: node.position.x + dx, y: node.position.y + dy },
 					};
 				});
 			}
+
+			// Clear cache when drag finishes
+			if (changes.some((c) => c.type === "position" && !c.dragging)) {
+				groupChildIdsCacheRef.current.clear();
+			}
+
 			return result;
 		},
 		[],
@@ -660,7 +611,7 @@ export function useCanvasGraph({
 		emit,
 		undo,
 		redo,
-		canUndo: !readOnly && undoStackRef.current.length > 0,
-		canRedo: !readOnly && redoStackRef.current.length > 0,
+		canUndo,
+		canRedo,
 	};
 }

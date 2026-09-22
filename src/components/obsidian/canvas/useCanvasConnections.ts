@@ -538,34 +538,26 @@ export function useCanvasConnections({
 		],
 	);
 
-	// Display edges injected with transient editing flag and action handlers
-	const displayEdges = useMemo(
-		() =>
-			edges.map((edge) => ({
+	// Display edges injected with transient editing flag (optimized to avoid re-cloning unaffected edges)
+	const displayEdges = useMemo(() => {
+		let hasChanges = false;
+		const next = edges.map((edge) => {
+			const isEditing = edge.id === editingEdgeId;
+			if (edge.selectable === false && edge.data?.editing === isEditing) {
+				return edge;
+			}
+			hasChanges = true;
+			return {
 				...edge,
 				selectable: false,
 				data: {
 					...edge.data,
-					editing: edge.id === editingEdgeId,
-					onCommitEdgeLabel: commitEdgeLabel,
-					onDeleteEdge: deleteEdge,
-					onSetEdgeColor: setEdgeColor,
-					onSetEdgeDirection: setEdgeDirection,
-					onClearEdgeLabel: clearEdgeLabel,
-					onStartEditEdge: startEditEdge,
+					editing: isEditing,
 				},
-			})),
-		[
-			edges,
-			editingEdgeId,
-			commitEdgeLabel,
-			deleteEdge,
-			setEdgeColor,
-			setEdgeDirection,
-			clearEdgeLabel,
-			startEditEdge,
-		],
-	);
+			};
+		});
+		return hasChanges ? next : edges;
+	}, [edges, editingEdgeId]);
 
 	return {
 		pendingConn,

@@ -18,7 +18,8 @@ import {
 	Trash2,
 	X,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
+import { useCanvasActions } from "./CanvasActionContext";
 import { useCanvasSelection } from "./CanvasSelectionContext";
 import { COLOR_PRESETS } from "./canvasUtils";
 
@@ -70,6 +71,7 @@ function EdgeSelectionToolbar({
 	labelY,
 	selected,
 }: EdgeSelectionToolbarProps) {
+	const actions = useCanvasActions();
 	const [paletteOpen, setPaletteOpen] = useState(false);
 	const [directionMenuOpen, setDirectionMenuOpen] = useState(false);
 	const { setCenter } = useReactFlow();
@@ -93,6 +95,32 @@ function EdgeSelectionToolbar({
 		setCenter(labelX, labelY, { duration: 300, zoom: 1 });
 	}, [setCenter, labelX, labelY]);
 
+	const handleDelete = useCallback(() => {
+		(data?.onDeleteEdge ?? actions.deleteEdge)(id);
+	}, [data?.onDeleteEdge, actions.deleteEdge, id]);
+
+	const handleSetColor = useCallback(
+		(color: string | undefined) => {
+			(data?.onSetEdgeColor ?? actions.setEdgeColor)(id, color);
+		},
+		[data?.onSetEdgeColor, actions.setEdgeColor, id],
+	);
+
+	const handleSetDirection = useCallback(
+		(dir: "none" | "one-way" | "bidirectional") => {
+			(data?.onSetEdgeDirection ?? actions.setEdgeDirection)(id, dir);
+		},
+		[data?.onSetEdgeDirection, actions.setEdgeDirection, id],
+	);
+
+	const handleClearLabel = useCallback(() => {
+		(data?.onClearEdgeLabel ?? actions.clearEdgeLabel)(id);
+	}, [data?.onClearEdgeLabel, actions.clearEdgeLabel, id]);
+
+	const handleStartEdit = useCallback(() => {
+		(data?.onStartEditEdge ?? actions.startEditEdge)(id);
+	}, [data?.onStartEditEdge, actions.startEditEdge, id]);
+
 	return (
 		<div
 			role="toolbar"
@@ -111,7 +139,7 @@ function EdgeSelectionToolbar({
 					type="button"
 					aria-label="删除连线"
 					title="删除连线"
-					onClick={() => data?.onDeleteEdge?.(id)}
+					onClick={handleDelete}
 					className={`${toolbarButtonClass} hover:!text-danger`}
 				>
 					<Trash2 className="w-3.5 h-3.5" />
@@ -172,7 +200,7 @@ function EdgeSelectionToolbar({
 					aria-label="清空标签"
 					title="清空标签"
 					disabled={!data?.label}
-					onClick={() => data?.onClearEdgeLabel?.(id)}
+					onClick={handleClearLabel}
 					className={`${toolbarButtonClass} disabled:opacity-30 disabled:cursor-not-allowed`}
 				>
 					<SquareX className="w-3.5 h-3.5" />
@@ -183,7 +211,7 @@ function EdgeSelectionToolbar({
 					type="button"
 					aria-label="编辑标签"
 					title="编辑标签"
-					onClick={() => data?.onStartEditEdge?.(id)}
+					onClick={handleStartEdit}
 					className={toolbarButtonClass}
 				>
 					<SquarePen className="w-3.5 h-3.5" />
@@ -199,10 +227,7 @@ function EdgeSelectionToolbar({
 								aria-label={`颜色 ${key}`}
 								title={`颜色 ${key}`}
 								onClick={() => {
-									data?.onSetEdgeColor?.(
-										id,
-										data.rawColor === key ? undefined : key,
-									);
+									handleSetColor(data?.rawColor === key ? undefined : key);
 									setPaletteOpen(false);
 								}}
 								className={`w-4 h-4 rounded-full cursor-pointer transition-transform hover:scale-110 ${
@@ -218,7 +243,7 @@ function EdgeSelectionToolbar({
 							aria-label="清除颜色"
 							title="清除颜色"
 							onClick={() => {
-								data?.onSetEdgeColor?.(id, undefined);
+								handleSetColor(undefined);
 								setPaletteOpen(false);
 							}}
 							className={toolbarButtonClass}
@@ -234,7 +259,7 @@ function EdgeSelectionToolbar({
 						<button
 							type="button"
 							onClick={() => {
-								data?.onSetEdgeDirection?.(id, "none");
+								handleSetDirection("none");
 								setDirectionMenuOpen(false);
 							}}
 							className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-md text-xs text-foreground/85 hover:bg-surface-secondary/70 transition-colors cursor-pointer"
@@ -250,7 +275,7 @@ function EdgeSelectionToolbar({
 						<button
 							type="button"
 							onClick={() => {
-								data?.onSetEdgeDirection?.(id, "one-way");
+								handleSetDirection("one-way");
 								setDirectionMenuOpen(false);
 							}}
 							className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-md text-xs text-foreground/85 hover:bg-surface-secondary/70 transition-colors cursor-pointer"
@@ -266,7 +291,7 @@ function EdgeSelectionToolbar({
 						<button
 							type="button"
 							onClick={() => {
-								data?.onSetEdgeDirection?.(id, "bidirectional");
+								handleSetDirection("bidirectional");
 								setDirectionMenuOpen(false);
 							}}
 							className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-md text-xs text-foreground/85 hover:bg-surface-secondary/70 transition-colors cursor-pointer"
@@ -287,7 +312,7 @@ function EdgeSelectionToolbar({
 }
 
 /** Bezier edge with Obsidian-style centered label, double-click to edit */
-export function CanvasEdgeComponent({
+export const CanvasEdgeComponent = memo(function CanvasEdgeComponent({
 	id,
 	sourceX,
 	sourceY,
@@ -302,6 +327,7 @@ export function CanvasEdgeComponent({
 	interactionWidth,
 	selected,
 }: EdgeProps<CanvasFlowEdge>) {
+	const actions = useCanvasActions();
 	const [path, labelX, labelY] = getBezierPath({
 		sourceX,
 		sourceY,
@@ -315,6 +341,13 @@ export function CanvasEdgeComponent({
 	const { getNodes } = useReactFlow();
 	const hasSelectedNodes =
 		selectedNodesCount > 0 || getNodes().some((n) => n.selected);
+
+	const handleCommitLabel = useCallback(
+		(val: string) => {
+			(data?.onCommitEdgeLabel ?? actions.commitEdgeLabel)(id, val);
+		},
+		[data?.onCommitEdgeLabel, actions.commitEdgeLabel, id],
+	);
 
 	return (
 		<>
@@ -353,11 +386,11 @@ export function CanvasEdgeComponent({
 							<input
 								ref={autoFocus}
 								defaultValue={data.label ?? ""}
-								onBlur={(e) => data.onCommitEdgeLabel?.(id, e.target.value)}
+								onBlur={(e) => handleCommitLabel(e.target.value)}
 								onKeyDown={(e) => {
 									if (e.key === "Enter") e.currentTarget.blur();
 									if (e.key === "Escape") {
-										data.onCommitEdgeLabel?.(id, data.label ?? "");
+										handleCommitLabel(data.label ?? "");
 									}
 								}}
 								placeholder="标签"
@@ -376,4 +409,4 @@ export function CanvasEdgeComponent({
 			)}
 		</>
 	);
-}
+});
