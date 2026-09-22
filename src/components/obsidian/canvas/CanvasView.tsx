@@ -3,7 +3,6 @@ import {
 	BackgroundVariant,
 	type ColorMode,
 	ConnectionMode,
-	Controls,
 	MiniMap,
 	type Node,
 	ReactFlow,
@@ -16,9 +15,11 @@ import { CanvasEdgeComponent } from "./CanvasFlowEdge";
 import { CanvasCardNode, CanvasGroupNode } from "./CanvasFlowNodes";
 import { CanvasNoteSearchModal } from "./CanvasNoteSearchModal";
 import {
+	CanvasBottomBar,
 	CanvasEmptyHint,
 	CanvasParseError,
 	CanvasTopToolbar,
+	CanvasViewControls,
 	PendingConnectionMenu,
 } from "./CanvasToolbar";
 import { resolveColor } from "./canvasUtils";
@@ -81,6 +82,7 @@ function CanvasFlow({
 	const colorMode = useColorMode();
 	const { screenToFlowPosition } = useReactFlow();
 	const wrapperRef = useRef<HTMLDivElement>(null);
+	const [searchCategory, setSearchCategory] = useState<"all" | "note" | "media">("all");
 
 	const {
 		parsed,
@@ -99,6 +101,10 @@ function CanvasFlow({
 		handleEdgesChange,
 		addCardAtPosition,
 		emit,
+		undo,
+		redo,
+		canUndo,
+		canRedo,
 	} = useCanvasGraph({
 		content,
 		onChange,
@@ -144,6 +150,33 @@ function CanvasFlow({
 		},
 		[screenToFlowPosition, addCardAtPosition],
 	);
+
+	const getViewportCenterFlowPos = useCallback(() => {
+		const rect = wrapperRef.current?.getBoundingClientRect();
+		const cx = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;
+		const cy = rect ? rect.top + rect.height / 2 : window.innerHeight / 2;
+		return screenToFlowPosition({ x: cx, y: cy });
+	}, [screenToFlowPosition]);
+
+	const handleAddCardCenter = useCallback(() => {
+		if (readOnly) return;
+		const pos = getViewportCenterFlowPos();
+		addCardAtPosition(pos.x, pos.y);
+	}, [readOnly, getViewportCenterFlowPos, addCardAtPosition]);
+
+	const handleAddNoteCenter = useCallback(() => {
+		if (readOnly) return;
+		const pos = getViewportCenterFlowPos();
+		setSearchCategory("note");
+		setNoteSearchTarget({ flowX: pos.x, flowY: pos.y });
+	}, [readOnly, getViewportCenterFlowPos, setNoteSearchTarget]);
+
+	const handleAddMediaCenter = useCallback(() => {
+		if (readOnly) return;
+		const pos = getViewportCenterFlowPos();
+		setSearchCategory("media");
+		setNoteSearchTarget({ flowX: pos.x, flowY: pos.y });
+	}, [readOnly, getViewportCenterFlowPos, setNoteSearchTarget]);
 
 	const handleDoubleClick = useCallback(
 		(e: React.MouseEvent) => {
@@ -211,7 +244,13 @@ function CanvasFlow({
 				onlyRenderVisibleElements
 			>
 				<Background variant={BackgroundVariant.Dots} gap={24} size={1.5} />
-				<Controls showInteractive={false} position="bottom-right" />
+				<CanvasViewControls
+					undo={undo}
+					redo={redo}
+					canUndo={canUndo}
+					canRedo={canRedo}
+					readOnly={readOnly}
+				/>
 				<MiniMap
 					pannable
 					zoomable
@@ -230,12 +269,16 @@ function CanvasFlow({
 					<PendingConnectionMenu
 						pendingConn={pendingConn}
 						onAddText={addConnectedTextCard}
-						onOpenNoteSearch={handleOpenNoteSearch}
+						onOpenNoteSearch={() => {
+							setSearchCategory("note");
+							handleOpenNoteSearch();
+						}}
 					/>
 				)}
 
 				<CanvasNoteSearchModal
 					isOpen={Boolean(noteSearchTarget)}
+					filterCategory={searchCategory}
 					onClose={() => setNoteSearchTarget(null)}
 					onSelect={(relPath) => {
 						if (noteSearchTarget) {
@@ -247,6 +290,12 @@ function CanvasFlow({
 				/>
 
 				<CanvasTopToolbar readOnly={readOnly} onAddCard={addCardAt} />
+				<CanvasBottomBar
+					readOnly={readOnly}
+					onAddCard={handleAddCardCenter}
+					onAddNote={handleAddNoteCenter}
+					onAddMedia={handleAddMediaCenter}
+				/>
 			</ReactFlow>
 		</div>
 	);

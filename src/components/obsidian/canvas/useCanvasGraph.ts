@@ -45,10 +45,30 @@ export function useCanvasGraph({
 	// Last JSON text emitted to parent, preventing self-echo re-renders
 	const lastEmittedRef = useRef(content);
 
+	// History stacks for undo/redo
+	const MAX_HISTORY = 30;
+	const undoStackRef = useRef<string[]>([]);
+	const redoStackRef = useRef<string[]>([]);
+	const isHistoryActionRef = useRef(false);
+	const [, setHistoryVersion] = useState(0);
+
 	const emit = useCallback(
 		(nextNodes: Node[], nextEdges: Edge[]) => {
 			if (readOnly) return;
 			const json = serializeCanvas(nextNodes, nextEdges);
+			if (json === lastEmittedRef.current) return;
+
+			if (!isHistoryActionRef.current) {
+				undoStackRef.current.push(lastEmittedRef.current);
+				if (undoStackRef.current.length > MAX_HISTORY) {
+					undoStackRef.current.shift();
+				}
+				redoStackRef.current = [];
+				setHistoryVersion((v) => v + 1);
+			} else {
+				isHistoryActionRef.current = false;
+			}
+
 			lastEmittedRef.current = json;
 			onChange?.(json);
 		},
@@ -208,6 +228,10 @@ export function useCanvasGraph({
 	useEffect(() => {
 		if (content === lastEmittedRef.current) return;
 		lastEmittedRef.current = content;
+		undoStackRef.current = [];
+		redoStackRef.current = [];
+		setHistoryVersion((v) => v + 1);
+
 		const next = parseCanvas(content);
 		if (!next.data) return;
 		setNodes(toFlowNodes(next.data.nodes, buildOptions));
@@ -218,6 +242,84 @@ export function useCanvasGraph({
 				.filter((edge): edge is Edge => edge !== null),
 		);
 	}, [content, buildOptions]);
+
+	// Undo / Redo operations
+	const undo = useCallback(() => {
+		if (readOnly || undoStackRef.current.length === 0) return;
+		const prevJson = undoStackRef.current.pop();
+		if (!prevJson) return;
+
+		redoStackRef.current.push(lastEmittedRef.current);
+		isHistoryActionRef.current = true;
+		lastEmittedRef.current = prevJson;
+
+		const next = parseCanvas(prevJson);
+		if (next.data) {
+			const restoredNodes = toFlowNodes(next.data.nodes, buildOptions);
+			const byId = new Map(next.data.nodes.map((node) => [node.id, node]));
+			const restoredEdges = next.data.edges
+				.map((edge) => toFlowEdge(edge, byId))
+				.filter((edge): edge is Edge => edge !== null);
+
+			setNodes(restoredNodes);
+			setEdges(restoredEdges);
+			onChange?.(prevJson);
+		}
+		setHistoryVersion((v) => v + 1);
+	}, [readOnly, buildOptions, onChange]);
+
+	const redo = useCallback(() => {
+		if (readOnly || redoStackRef.current.length === 0) return;
+		const nextJson = redoStackRef.current.pop();
+		if (!nextJson) return;
+
+		undoStackRef.current.push(lastEmittedRef.current);
+		isHistoryActionRef.current = true;
+		lastEmittedRef.current = nextJson;
+
+		const next = parseCanvas(nextJson);
+		if (next.data) {
+			const restoredNodes = toFlowNodes(next.data.nodes, buildOptions);
+			const byId = new Map(next.data.nodes.map((node) => [node.id, node]));
+			const restoredEdges = next.data.edges
+				.map((edge) => toFlowEdge(edge, byId))
+				.filter((edge): edge is Edge => edge !== null);
+
+			setNodes(restoredNodes);
+			setEdges(restoredEdges);
+			onChange?.(nextJson);
+		}
+		setHistoryVersion((v) => v + 1);
+	}, [readOnly, buildOptions, onChange]);
+
+	// Canvas keyboard shortcuts: Cmd/Ctrl + Z (Undo), Cmd/Ctrl + Shift + Z / Cmd/Ctrl + Y (Redo)
+	useEffect(() => {
+		if (readOnly) return;
+		const handleKeyDown = (e: KeyboardEvent) => {
+			const target = e.target as HTMLElement | null;
+			if (
+				target &&
+				(target.tagName === "INPUT" ||
+					target.tagName === "TEXTAREA" ||
+					target.isContentEditable)
+			) {
+				return;
+			}
+			if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
+				e.preventDefault();
+				if (e.shiftKey) {
+					redo();
+				} else {
+					undo();
+				}
+			} else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "y") {
+				e.preventDefault();
+				redo();
+			}
+		};
+		window.addEventListener("keydown", handleKeyDown);
+		return () => window.removeEventListener("keydown", handleKeyDown);
+	}, [readOnly, undo, redo]);
 
 	/**
 	 * Optimized group child shifting: moves cards fully enclosed inside a dragged group
@@ -368,5 +470,9 @@ export function useCanvasGraph({
 		handleEdgesChange,
 		addCardAtPosition,
 		emit,
+		undo,
+		redo,
+		canUndo: !readOnly && undoStackRef.current.length > 0,
+		canRedo: !readOnly && redoStackRef.current.length > 0,
 	};
 }

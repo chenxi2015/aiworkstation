@@ -1,5 +1,17 @@
-import { Panel } from "@xyflow/react";
-import { AlertTriangle, FileText, Plus, Type } from "lucide-react";
+import { Panel, useReactFlow } from "@xyflow/react";
+import {
+	AlertTriangle,
+	File,
+	FileText,
+	Image as ImageIcon,
+	Maximize2,
+	Minus,
+	Plus,
+	Redo2,
+	RotateCw,
+	Type,
+	Undo2,
+} from "lucide-react";
 import type { PendingConnection } from "./useCanvasConnections";
 
 export interface PendingConnectionMenuProps {
@@ -113,5 +125,165 @@ export function CanvasParseError({ error }: CanvasParseErrorProps) {
 				可切换到源码模式修复
 			</p>
 		</div>
+	);
+}
+
+export interface CanvasViewControlsProps {
+	undo: () => void;
+	redo: () => void;
+	canUndo: boolean;
+	canRedo: boolean;
+	readOnly?: boolean;
+}
+
+const controlBtnClass =
+	"w-7 h-7 flex items-center justify-center text-muted hover:text-foreground hover:bg-surface-secondary/70 transition-colors cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-muted";
+
+/**
+ * Bottom-right controls matching Obsidian canvas (Figure 1):
+ * - Top block: Zoom In (+), Reset 100% (↻), Fit View (⛶), Zoom Out (-)
+ * - Bottom block: Undo (↶), Redo (↷)
+ */
+export function CanvasViewControls({
+	undo,
+	redo,
+	canUndo,
+	canRedo,
+	readOnly,
+}: CanvasViewControlsProps) {
+	const { zoomIn, zoomOut, zoomTo, fitView } = useReactFlow();
+
+	return (
+		<Panel position="bottom-right" className="!mr-3 !mb-3 flex flex-col gap-2 select-none z-10">
+			{/* 1. Zoom and View controls group */}
+			<div className="flex flex-col rounded-md border border-border/80 bg-surface/95 backdrop-blur-xs shadow-sm divide-y divide-border/60 overflow-hidden">
+				<button
+					type="button"
+					aria-label="放大"
+					title="放大"
+					onClick={() => zoomIn({ duration: 200 })}
+					className={controlBtnClass}
+				>
+					<Plus className="w-3.5 h-3.5" strokeWidth={1.75} />
+				</button>
+				<button
+					type="button"
+					aria-label="重置缩放到 100%"
+					title="重置缩放 (100%)"
+					onClick={() => zoomTo(1, { duration: 200 })}
+					className={controlBtnClass}
+				>
+					<RotateCw className="w-3.5 h-3.5" strokeWidth={1.75} />
+				</button>
+				<button
+					type="button"
+					aria-label="自适应视图"
+					title="自适应视图"
+					onClick={() => fitView({ padding: 0.15, duration: 200 })}
+					className={controlBtnClass}
+				>
+					<Maximize2 className="w-3.5 h-3.5" strokeWidth={1.75} />
+				</button>
+				<button
+					type="button"
+					aria-label="缩小"
+					title="缩小"
+					onClick={() => zoomOut({ duration: 200 })}
+					className={controlBtnClass}
+				>
+					<Minus className="w-3.5 h-3.5" strokeWidth={1.75} />
+				</button>
+			</div>
+
+			{/* 2. Undo/Redo history controls group */}
+			{!readOnly && (
+				<div className="flex flex-col rounded-md border border-border/80 bg-surface/95 backdrop-blur-xs shadow-sm divide-y divide-border/60 overflow-hidden">
+					<button
+						type="button"
+						aria-label="撤销"
+						title="撤销 (Cmd/Ctrl + Z)"
+						disabled={!canUndo}
+						onClick={undo}
+						className={controlBtnClass}
+					>
+						<Undo2 className="w-3.5 h-3.5" strokeWidth={1.75} />
+					</button>
+					<button
+						type="button"
+						aria-label="重做"
+						title="重做 (Cmd/Ctrl + Shift + Z)"
+						disabled={!canRedo}
+						onClick={redo}
+						className={controlBtnClass}
+					>
+						<Redo2 className="w-3.5 h-3.5" strokeWidth={1.75} />
+					</button>
+				</div>
+			)}
+		</Panel>
+	);
+}
+
+export interface CanvasBottomBarProps {
+	readOnly?: boolean;
+	onAddCard: () => void;
+	onAddNote: () => void;
+	onAddMedia: () => void;
+}
+
+const bottomBarBtnClass =
+	"p-2 rounded-lg text-muted hover:text-foreground hover:bg-surface-secondary/70 transition-colors cursor-pointer";
+
+/**
+ * Bottom-center floating action bar matching Obsidian canvas (Figure 2):
+ * - Add card (blank text card)
+ * - Add note (markdown note from vault)
+ * - Add media (image or media file from vault)
+ */
+export function CanvasBottomBar({
+	readOnly,
+	onAddCard,
+	onAddNote,
+	onAddMedia,
+}: CanvasBottomBarProps) {
+	if (readOnly) return null;
+
+	return (
+		<Panel position="bottom-center" className="!mb-3 select-none z-10">
+			<div className="flex items-center gap-1 px-1.5 py-1 rounded-xl border border-border/80 bg-surface/95 backdrop-blur-xs shadow-md">
+				{/* 1. 添加卡片 */}
+				<button
+					type="button"
+					aria-label="添加卡片"
+					title="添加卡片"
+					onClick={onAddCard}
+					className={bottomBarBtnClass}
+				>
+					<File className="w-4 h-4" strokeWidth={1.75} />
+				</button>
+
+				{/* 2. 添加笔记 */}
+				<button
+					type="button"
+					aria-label="添加笔记"
+					title="添加笔记"
+					onClick={onAddNote}
+					className={bottomBarBtnClass}
+				>
+					<FileText className="w-4 h-4" strokeWidth={1.75} />
+				</button>
+
+				{/* 3. 添加媒体文件 */}
+				<button
+					type="button"
+					aria-label="添加媒体文件"
+					title="添加媒体文件"
+					onClick={onAddMedia}
+					className={bottomBarBtnClass}
+				>
+					<ImageIcon className="w-4 h-4" strokeWidth={1.75} />
+				</button>
+			</div>
+		</Panel>
 	);
 }

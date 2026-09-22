@@ -2,12 +2,15 @@ import { X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchObsidianTree } from "../../../services/api/obsidianClient";
 import type { ObsidianTreeNode } from "../types";
+import { getVaultFileCategory } from "../utils/vaultFileUtils";
 
 export interface CanvasNoteSearchModalProps {
 	isOpen: boolean;
 	onClose: () => void;
 	onSelect: (relPath: string) => void;
 	onCreate?: (name?: string) => Promise<string | null>;
+	filterCategory?: "all" | "note" | "media";
+	title?: string;
 }
 
 interface FileItem {
@@ -51,6 +54,8 @@ export function CanvasNoteSearchModal({
 	onClose,
 	onSelect,
 	onCreate,
+	filterCategory = "all",
+	title,
 }: CanvasNoteSearchModalProps) {
 	const [allFiles, setAllFiles] = useState<FileItem[]>([]);
 	const [query, setQuery] = useState("");
@@ -87,32 +92,45 @@ export function CanvasNoteSearchModal({
 		}
 	}, [isOpen]);
 
-	// Filter files based on search query
+	// Filter files based on category and search query
 	const items: ListItem[] = useMemo(() => {
+		let scopedFiles = allFiles;
+		if (filterCategory === "note") {
+			scopedFiles = allFiles.filter(
+				(f) => getVaultFileCategory(f.relPath) === "markdown",
+			);
+		} else if (filterCategory === "media") {
+			scopedFiles = allFiles.filter(
+				(f) => getVaultFileCategory(f.relPath) === "image",
+			);
+		}
+
 		const trimmed = query.trim().toLowerCase();
 		const matchedFiles: FileItem[] = trimmed
-			? allFiles.filter(
+			? scopedFiles.filter(
 					(f) =>
 						f.name.toLowerCase().includes(trimmed) ||
 						f.relPath.toLowerCase().includes(trimmed),
 				)
-			: allFiles;
+			: scopedFiles;
 
 		const list: ListItem[] = matchedFiles.map((item) => ({
 			type: "file",
 			item,
 		}));
 
-		// If query is present and no exact match, or even if empty, show create option
-		const hasExactMatch = matchedFiles.some(
-			(f) => f.name.toLowerCase() === trimmed,
-		);
-		if (trimmed && !hasExactMatch) {
-			list.push({ type: "create", query: query.trim() });
+		// If query is present and no exact match, show create option (only for notes/all)
+		if (filterCategory !== "media") {
+			const hasExactMatch = matchedFiles.some(
+				(f) => f.name.toLowerCase() === trimmed,
+			);
+			if (trimmed && !hasExactMatch) {
+				list.push({ type: "create", query: query.trim() });
+			}
 		}
 
 		return list;
-	}, [allFiles, query]);
+	}, [allFiles, query, filterCategory]);
 
 	// Scroll active item into view
 	useEffect(() => {
@@ -182,12 +200,26 @@ export function CanvasNoteSearchModal({
 
 	if (!isOpen) return null;
 
+	const modalTitle =
+		title ??
+		(filterCategory === "media"
+			? "选择媒体文件"
+			: filterCategory === "note"
+				? "选择或搜索笔记"
+				: "搜索与关联文件");
+	const inputPlaceholder =
+		filterCategory === "media"
+			? "搜索媒体文件（图片等）..."
+			: filterCategory === "note"
+				? "搜索笔记..."
+				: "搜索文件...";
+
 	return (
 		<div
 			className="fixed inset-0 z-50 flex items-start justify-center pt-24 bg-black/40 backdrop-blur-xs select-none"
 			role="dialog"
 			aria-modal="true"
-			aria-label="搜索与关联笔记"
+			aria-label={modalTitle}
 		>
 			<button
 				type="button"
@@ -207,7 +239,7 @@ export function CanvasNoteSearchModal({
 							setSelectedIndex(0);
 						}}
 						onKeyDown={handleKeyDown}
-						placeholder="搜索..."
+						placeholder={inputPlaceholder}
 						className="w-full bg-transparent text-sm text-foreground placeholder:text-muted outline-none pr-7"
 					/>
 					{query ? (
