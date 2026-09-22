@@ -1,251 +1,826 @@
-import { AlertTriangle, Maximize2, ZoomIn, ZoomOut } from "lucide-react";
 import {
-	useCallback,
-	useEffect,
-	useLayoutEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
-import { CanvasEdges } from "./CanvasEdges";
-import { CanvasNodeCard } from "./CanvasNodeCard";
+	applyEdgeChanges,
+	applyNodeChanges,
+	Background,
+	BackgroundVariant,
+	type ColorMode,
+	type Connection,
+	ConnectionMode,
+	Controls,
+	type Edge,
+	type EdgeChange,
+	type FinalConnectionState,
+	MarkerType,
+	MiniMap,
+	type Node,
+	type NodeChange,
+	Panel,
+	ReactFlow,
+	ReactFlowProvider,
+	useReactFlow,
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+import { AlertTriangle, FileText, Plus, Type } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CanvasEdgeComponent } from "./CanvasFlowEdge";
+import {
+	type CanvasCardFlowNode,
+	CanvasCardNode,
+	type CanvasGroupFlowNode,
+	CanvasGroupNode,
+} from "./CanvasFlowNodes";
 import {
 	type CanvasData,
+	type CanvasEdge,
 	type CanvasNode,
-	getViewportRect,
-	isEdgeInViewport,
-	isNodeInViewport,
+	guessSides,
 	resolveColor,
-	type ViewTransform,
 } from "./canvasUtils";
 
 export interface CanvasViewProps {
 	/** .canvas file JSON text */
 	content: string;
+	/** Callback when the canvas graph is edited (serialized JSON Canvas text) */
+	onChange?: (json: string) => void;
 	/** Callback when clicking a note/canvas file card */
 	onNavigateNote?: (relPath: string) => void;
+	/** Disable all editing interactions (e.g. truncated oversized file) */
+	readOnly?: boolean;
+	/**
+	 * Create a new markdown note in the canvas file's directory.
+	 * Returns the new note's relPath, or null on failure.
+	 */
+	onCreateNoteFile?: () => Promise<string | null>;
 }
 
-/**
- * JSON Canvas read-only visualization:
- * - Viewport culling (renders only visible nodes and edges for high performance)
- * - Level of Detail (LOD) degradation under low zoom
- * - rAF-scheduled gesture pan & zoom
- * - GPU compositing acceleration with translate3d
- */
-export function CanvasView({ content, onNavigateNote }: CanvasViewProps) {
-	const containerRef = useRef<HTMLDivElement>(null);
-	const [transform, setTransform] = useState<ViewTransform>({
-		x: 0,
-		y: 0,
-		k: 1,
-	});
-	const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+const nodeTypes = {
+	canvasCard: CanvasCardNode,
+	canvasGroup: CanvasGroupNode,
+};
 
-	const dragRef = useRef<{
-		startX: number;
-		startY: number;
-		baseX: number;
-		baseY: number;
-	} | null>(null);
+const edgeTypes = {
+	canvasEdge: CanvasEdgeComponent,
+};
 
-	const rafMoveId = useRef<number | null>(null);
+function getColorMode(): ColorMode {
+	return document.documentElement.classList.contains("dark") ? "dark" : "light";
+}
 
-	// Observe container size for accurate viewport bounds calculation
+/** Track the app's class-based dark mode (.dark on <html>) for React Flow colorMode */
+function useColorMode(): ColorMode {
+	const [mode, setMode] = useState<ColorMode>(getColorMode);
+
 	useEffect(() => {
-		const container = containerRef.current;
-		if (!container) return;
-
-		const updateSize = () => {
-			setContainerSize({
-				width: container.clientWidth,
-				height: container.clientHeight,
-			});
-		};
-
-		updateSize();
-		const ro = new ResizeObserver(updateSize);
-		ro.observe(container);
-		return () => ro.disconnect();
+		const update = () => setMode(getColorMode());
+		const observer = new MutationObserver(update);
+		observer.observe(document.documentElement, {
+			attributes: true,
+			attributeFilter: ["class"],
+		});
+		return () => observer.disconnect();
 	}, []);
 
-	const parsed = useMemo<{
-		data: CanvasData | null;
-		error: string | null;
-	}>(() => {
-		try {
-			const raw = JSON.parse(content || "{}") as Partial<CanvasData>;
-			return {
+	return mode;
+}
+
+function parseCanvas(content: string): {
+	data: CanvasData | null;
+	error: string | null;
+} {
+	try {
+		const raw = JSON.parse(content || "{}") as Partial<CanvasData>;
+		return {
+			data: {
+				nodes: Array.isArray(raw.nodes) ? raw.nodes : [],
+				edges: Array.isArray(raw.edges) ? raw.edges : [],
+			},
+			error: null,
+		};
+	} catch (err) {
+		return {
+			data: null,
+			error: err instanceof Error ? err.message : "JSON 解析失败",
+		};
+	}
+}
+
+function genId(): string {
+	return Math.random().toString(16).slice(2, 10) + Date.now().toString(16);
+}
+
+function sideOf(handle: string | null | undefined): CanvasEdge["fromSide"] {
+	const side = handle?.replace(/^[st]-/, "");
+	return side === "top" ||
+		side === "right" ||
+		side === "bottom" ||
+		side === "left"
+		? side
+		: undefined;
+}
+
+const DEFAULT_EDGE_COLOR = "var(--muted, #8b8b8b)";
+
+function defaultEdgeProps(): Pick<
+	Edge,
+	"type" | "style" | "labelStyle" | "markerEnd" | "interactionWidth"
+> {
+	return {
+		type: "canvasEdge",
+		style: { stroke: DEFAULT_EDGE_COLOR, strokeWidth: 1.5 },
+		labelStyle: { fill: DEFAULT_EDGE_COLOR },
+		markerEnd: {
+			type: MarkerType.ArrowClosed,
+			width: 16,
+			height: 16,
+			color: DEFAULT_EDGE_COLOR,
+		},
+		interactionWidth: 20,
+	};
+}
+
+function toFlowEdge(
+	edge: CanvasEdge,
+	byId: Map<string, CanvasNode>,
+): Edge | null {
+	const from = byId.get(edge.fromNode);
+	const to = byId.get(edge.toNode);
+	if (!from || !to) return null;
+	const guessed = guessSides(from, to);
+	const color = resolveColor(edge.color) ?? DEFAULT_EDGE_COLOR;
+	return {
+		id: edge.id,
+		type: "canvasEdge",
+		source: edge.fromNode,
+		target: edge.toNode,
+		sourceHandle: `s-${edge.fromSide ?? guessed.fromSide}`,
+		targetHandle: `t-${edge.toSide ?? guessed.toSide}`,
+		style: { stroke: color, strokeWidth: 1.5 },
+		markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color },
+		interactionWidth: 20,
+		data: { rawColor: edge.color, label: edge.label },
+	};
+}
+
+interface FlowBuildOptions {
+	readOnly: boolean;
+	editingId: string | null;
+	onNavigateNote?: (relPath: string) => void;
+	onCommitText: (id: string, text: string) => void;
+	onCommitLabel: (id: string, label: string) => void;
+	onDeleteNode: (id: string) => void;
+	onSetColor: (id: string, color: string | undefined) => void;
+	onStartEdit: (id: string) => void;
+}
+
+function toFlowNodes(
+	canvasNodes: CanvasNode[],
+	opts: FlowBuildOptions,
+): Node[] {
+	const groups: Node[] = [];
+	const cards: Node[] = [];
+	for (const node of canvasNodes) {
+		if (node.type === "group") {
+			const groupNode: CanvasGroupFlowNode = {
+				id: node.id,
+				type: "canvasGroup",
+				position: { x: node.x, y: node.y },
 				data: {
-					nodes: Array.isArray(raw.nodes) ? raw.nodes : [],
-					edges: Array.isArray(raw.edges) ? raw.edges : [],
+					label: node.label,
+					color: node.color,
+					readOnly: opts.readOnly,
+					editing: opts.editingId === node.id,
+					onCommitLabel: opts.onCommitLabel,
+					onDeleteNode: opts.onDeleteNode,
+					onSetColor: opts.onSetColor,
+					onStartEdit: opts.onStartEdit,
 				},
-				error: null,
+				width: node.width,
+				height: node.height,
+				draggable: !opts.readOnly,
+				selectable: !opts.readOnly,
 			};
-		} catch (err) {
-			return {
-				data: null,
-				error: err instanceof Error ? err.message : "JSON 解析失败",
+			groups.push(groupNode);
+		} else {
+			const cardNode: CanvasCardFlowNode = {
+				id: node.id,
+				type: "canvasCard",
+				position: { x: node.x, y: node.y },
+				data: {
+					canvasNode: node,
+					onNavigateNote: opts.onNavigateNote,
+					readOnly: opts.readOnly,
+					editing: opts.editingId === node.id,
+					onCommitText: opts.onCommitText,
+					onDeleteNode: opts.onDeleteNode,
+					onSetColor: opts.onSetColor,
+					onStartEdit: opts.onStartEdit,
+				},
+				width: node.width,
+				height: node.height,
+				draggable: !opts.readOnly,
+				selectable: !opts.readOnly,
 			};
+			cards.push(cardNode);
 		}
-	}, [content]);
+	}
+	// Groups render first so cards paint above them
+	return [...groups, ...cards];
+}
 
-	const byId = useMemo(() => {
-		const map = new Map<string, CanvasNode>();
-		for (const node of parsed.data?.nodes ?? []) {
-			map.set(node.id, node);
+/** Serialize the current flow graph back to JSON Canvas text */
+function serializeCanvas(nodes: Node[], edges: Edge[]): string {
+	const canvasNodes: CanvasNode[] = [];
+	for (const node of nodes) {
+		const x = Math.round(node.position.x);
+		const y = Math.round(node.position.y);
+		const width = Math.round(node.measured?.width ?? node.width ?? 0);
+		const height = Math.round(node.measured?.height ?? node.height ?? 0);
+		if (node.type === "canvasGroup") {
+			const data = node.data as { label?: string; color?: string };
+			canvasNodes.push({
+				id: node.id,
+				type: "group",
+				x,
+				y,
+				width,
+				height,
+				...(data.color ? { color: data.color } : {}),
+				...(data.label ? { label: data.label } : {}),
+			});
+		} else {
+			const { canvasNode } = node.data as { canvasNode: CanvasNode };
+			canvasNodes.push({ ...canvasNode, x, y, width, height });
 		}
-		return map;
-	}, [parsed.data]);
+	}
+	const canvasEdges: CanvasEdge[] = edges.map((edge) => ({
+		id: edge.id,
+		fromNode: edge.source,
+		...(sideOf(edge.sourceHandle)
+			? { fromSide: sideOf(edge.sourceHandle) }
+			: {}),
+		toNode: edge.target,
+		...(sideOf(edge.targetHandle) ? { toSide: sideOf(edge.targetHandle) } : {}),
+		...((edge.data as { rawColor?: string } | undefined)?.rawColor
+			? { color: (edge.data as { rawColor?: string }).rawColor }
+			: {}),
+		...((edge.data as { label?: string } | undefined)?.label
+			? { label: (edge.data as { label?: string }).label }
+			: {}),
+	}));
+	return JSON.stringify({ nodes: canvasNodes, edges: canvasEdges }, null, "\t");
+}
 
-	const bounds = useMemo(() => {
-		const nodes = parsed.data?.nodes ?? [];
-		if (nodes.length === 0) return null;
-		let minX = Infinity;
-		let minY = Infinity;
-		let maxX = -Infinity;
-		let maxY = -Infinity;
-		for (const node of nodes) {
-			minX = Math.min(minX, node.x);
-			minY = Math.min(minY, node.y);
-			maxX = Math.max(maxX, node.x + node.width);
-			maxY = Math.max(maxY, node.y + node.height);
-		}
-		return { minX, minY, maxX, maxY };
-	}, [parsed.data]);
+function CanvasFlow({
+	content,
+	onChange,
+	onNavigateNote,
+	readOnly = false,
+	onCreateNoteFile,
+}: CanvasViewProps) {
+	const colorMode = useColorMode();
+	const { screenToFlowPosition } = useReactFlow();
+	const wrapperRef = useRef<HTMLDivElement>(null);
 
-	const fitToView = useCallback(() => {
-		const container = containerRef.current;
-		if (!container || !bounds) return;
-		const cw = container.clientWidth;
-		const ch = container.clientHeight;
-		const bw = Math.max(bounds.maxX - bounds.minX, 1);
-		const bh = Math.max(bounds.maxY - bounds.minY, 1);
-		const k = Math.min(cw / bw, ch / bh, 1) * 0.9;
-		setTransform({
-			k,
-			x: (cw - bw * k) / 2 - bounds.minX * k,
-			y: (ch - bh * k) / 2 - bounds.minY * k,
+	const parsed = useMemo(() => parseCanvas(content), [content]);
+
+	const [editingId, setEditingId] = useState<string | null>(null);
+
+	const commitText = useCallback((id: string, text: string) => {
+		setEditingId(null);
+		const next = nodesRef.current.map((node) =>
+			node.id === id && node.type === "canvasCard"
+				? {
+						...node,
+						data: {
+							...node.data,
+							canvasNode: {
+								...(node.data as { canvasNode: CanvasNode }).canvasNode,
+								text,
+							},
+						},
+					}
+				: node,
+		);
+		setNodes(next);
+		emitRef.current(next, edgesRef.current);
+	}, []);
+
+	const commitLabel = useCallback((id: string, label: string) => {
+		setEditingId(null);
+		const next = nodesRef.current.map((node) =>
+			node.id === id && node.type === "canvasGroup"
+				? { ...node, data: { ...node.data, label } }
+				: node,
+		);
+		setNodes(next);
+		emitRef.current(next, edgesRef.current);
+	}, []);
+
+	const deleteNode = useCallback((id: string) => {
+		const nextNodes = nodesRef.current.filter((node) => node.id !== id);
+		const nextEdges = edgesRef.current.filter(
+			(edge) => edge.source !== id && edge.target !== id,
+		);
+		setNodes(nextNodes);
+		setEdges(nextEdges);
+		emitRef.current(nextNodes, nextEdges);
+	}, []);
+
+	const setNodeColor = useCallback((id: string, color: string | undefined) => {
+		const next = nodesRef.current.map((node) => {
+			if (node.id !== id) return node;
+			if (node.type === "canvasGroup") {
+				return { ...node, data: { ...node.data, color } };
+			}
+			const { canvasNode } = node.data as { canvasNode: CanvasNode };
+			const nextCanvasNode = { ...canvasNode };
+			if (color) {
+				nextCanvasNode.color = color;
+			} else {
+				delete nextCanvasNode.color;
+			}
+			return { ...node, data: { ...node.data, canvasNode: nextCanvasNode } };
 		});
-	}, [bounds]);
+		setNodes(next);
+		emitRef.current(next, edgesRef.current);
+	}, []);
 
-	// Re-fit view when content or file changes
-	const fitRef = useRef(fitToView);
-	fitRef.current = fitToView;
-	// biome-ignore lint/correctness/useExhaustiveDependencies: fitRef preserves latest fitToView, only trigger on parsed.data change
-	useLayoutEffect(() => {
-		fitRef.current();
-	}, [parsed.data]);
+	const startEdit = useCallback((id: string) => setEditingId(id), []);
 
-	// Wheel event: normal scroll for panning, Ctrl/Cmd+wheel for zooming at cursor
+	const buildOptions = useMemo<FlowBuildOptions>(
+		() => ({
+			readOnly,
+			editingId,
+			onNavigateNote,
+			onCommitText: commitText,
+			onCommitLabel: commitLabel,
+			onDeleteNode: deleteNode,
+			onSetColor: setNodeColor,
+			onStartEdit: startEdit,
+		}),
+		[
+			readOnly,
+			editingId,
+			onNavigateNote,
+			commitText,
+			commitLabel,
+			deleteNode,
+			setNodeColor,
+			startEdit,
+		],
+	);
+
+	const [nodes, setNodes] = useState<Node[]>(() =>
+		toFlowNodes(parsed.data?.nodes ?? [], buildOptions),
+	);
+	const [edges, setEdges] = useState<Edge[]>(() => {
+		const canvasNodes = parsed.data?.nodes ?? [];
+		const byId = new Map(canvasNodes.map((node) => [node.id, node]));
+		return (parsed.data?.edges ?? [])
+			.map((edge) => toFlowEdge(edge, byId))
+			.filter((edge): edge is Edge => edge !== null);
+	});
+
+	const nodesRef = useRef(nodes);
+	nodesRef.current = nodes;
+	const edgesRef = useRef(edges);
+	edgesRef.current = edges;
+
+	// Last JSON text we emitted upward, to distinguish own edits from external changes
+	const lastEmittedRef = useRef(content);
+
+	const emit = useCallback(
+		(nextNodes: Node[], nextEdges: Edge[]) => {
+			if (readOnly) return;
+			const json = serializeCanvas(nextNodes, nextEdges);
+			lastEmittedRef.current = json;
+			onChange?.(json);
+		},
+		[onChange, readOnly],
+	);
+	const emitRef = useRef(emit);
+	emitRef.current = emit;
+
+	// Rebuild node data (editing flag, callbacks) without touching geometry
 	useEffect(() => {
-		const container = containerRef.current;
-		if (!container) return;
-
-		const onWheel = (e: WheelEvent) => {
-			e.preventDefault();
-			setTransform((prev) => {
-				if (e.ctrlKey || e.metaKey) {
-					const rect = container.getBoundingClientRect();
-					const px = e.clientX - rect.left;
-					const py = e.clientY - rect.top;
-					const factor = Math.exp(-e.deltaY * 0.002);
-					const k = Math.min(Math.max(prev.k * factor, 0.1), 4);
-					const scale = k / prev.k;
+		setNodes((prev) =>
+			prev.map((node) => {
+				if (node.type === "canvasGroup") {
 					return {
-						k,
-						x: px - (px - prev.x) * scale,
-						y: py - (py - prev.y) * scale,
+						...node,
+						draggable: !readOnly,
+						selectable: !readOnly,
+						data: {
+							...node.data,
+							readOnly,
+							editing: editingId === node.id,
+							onCommitLabel: commitLabel,
+							onDeleteNode: deleteNode,
+							onSetColor: setNodeColor,
+							onStartEdit: startEdit,
+						},
 					};
 				}
-				return { ...prev, x: prev.x - e.deltaX, y: prev.y - e.deltaY };
-			});
-		};
+				return {
+					...node,
+					draggable: !readOnly,
+					selectable: !readOnly,
+					data: {
+						...node.data,
+						readOnly,
+						editing: editingId === node.id,
+						onNavigateNote,
+						onCommitText: commitText,
+						onDeleteNode: deleteNode,
+						onSetColor: setNodeColor,
+						onStartEdit: startEdit,
+					},
+				};
+			}),
+		);
+	}, [
+		readOnly,
+		editingId,
+		onNavigateNote,
+		commitText,
+		commitLabel,
+		deleteNode,
+		setNodeColor,
+		startEdit,
+	]);
 
-		container.addEventListener("wheel", onWheel, { passive: false });
-		return () => container.removeEventListener("wheel", onWheel);
-	}, []);
+	// Sync inward when content changes externally (source mode edits, merge results)
+	useEffect(() => {
+		if (content === lastEmittedRef.current) return;
+		lastEmittedRef.current = content;
+		const next = parseCanvas(content);
+		if (!next.data) return;
+		setNodes(toFlowNodes(next.data.nodes, buildOptions));
+		const byId = new Map(next.data.nodes.map((node) => [node.id, node]));
+		setEdges(
+			next.data.edges
+				.map((edge) => toFlowEdge(edge, byId))
+				.filter((edge): edge is Edge => edge !== null),
+		);
+	}, [content, buildOptions]);
 
-	// Pointer gestures with rAF throttling for 60-120fps smooth panning
-	const onPointerDown = useCallback(
-		(e: React.PointerEvent<HTMLDivElement>) => {
-			if ((e.target as HTMLElement).closest("[data-canvas-node]")) return;
-			dragRef.current = {
-				startX: e.clientX,
-				startY: e.clientY,
-				baseX: transform.x,
-				baseY: transform.y,
-			};
-			e.currentTarget.setPointerCapture(e.pointerId);
+	// Shift cards fully inside a moved group (Obsidian group-drag semantics)
+	const shiftGroupChildren = useCallback(
+		(prev: Node[], next: Node[], changes: NodeChange<Node>[]) => {
+			const positionChanges = changes.filter(
+				(c): c is Extract<NodeChange<Node>, { type: "position" }> =>
+					c.type === "position" && Boolean(c.position),
+			);
+			if (positionChanges.length === 0) return next;
+			const draggedIds = new Set(positionChanges.map((c) => c.id));
+			let result = next;
+			for (const change of positionChanges) {
+				const prevGroup = prev.find(
+					(node) => node.id === change.id && node.type === "canvasGroup",
+				);
+				if (!prevGroup || !change.position) continue;
+				const dx = change.position.x - prevGroup.position.x;
+				const dy = change.position.y - prevGroup.position.y;
+				if (dx === 0 && dy === 0) continue;
+				const gx = prevGroup.position.x;
+				const gy = prevGroup.position.y;
+				const gw = prevGroup.width ?? 0;
+				const gh = prevGroup.height ?? 0;
+				result = result.map((node) => {
+					if (node.type !== "canvasCard" || draggedIds.has(node.id))
+						return node;
+					const prevNode = prev.find((candidate) => candidate.id === node.id);
+					if (!prevNode) return node;
+					const nw = prevNode.width ?? 0;
+					const nh = prevNode.height ?? 0;
+					const inside =
+						prevNode.position.x >= gx &&
+						prevNode.position.y >= gy &&
+						prevNode.position.x + nw <= gx + gw &&
+						prevNode.position.y + nh <= gy + gh;
+					if (!inside) return node;
+					return {
+						...node,
+						position: { x: node.position.x + dx, y: node.position.y + dy },
+					};
+				});
+			}
+			return result;
 		},
-		[transform],
+		[],
 	);
 
-	const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-		const drag = dragRef.current;
-		if (!drag) return;
+	const handleNodesChange = useCallback(
+		(changes: NodeChange<Node>[]) => {
+			const prev = nodesRef.current;
+			let next = applyNodeChanges(changes, prev);
+			next = shiftGroupChildren(prev, next, changes);
+			setNodes(next);
+			const shouldEmit = changes.some(
+				(c) =>
+					c.type === "remove" ||
+					c.type === "add" ||
+					(c.type === "position" && !c.dragging && c.position) ||
+					(c.type === "dimensions" && c.resizing === false),
+			);
+			if (shouldEmit) emitRef.current(next, edgesRef.current);
+		},
+		[shiftGroupChildren],
+	);
 
-		const nextX = drag.baseX + (e.clientX - drag.startX);
-		const nextY = drag.baseY + (e.clientY - drag.startY);
-
-		if (rafMoveId.current !== null) {
-			cancelAnimationFrame(rafMoveId.current);
-		}
-
-		rafMoveId.current = requestAnimationFrame(() => {
-			setTransform((prev) => ({
-				...prev,
-				x: nextX,
-				y: nextY,
-			}));
-			rafMoveId.current = null;
-		});
-	}, []);
-
-	const onPointerUp = useCallback(() => {
-		dragRef.current = null;
-		if (rafMoveId.current !== null) {
-			cancelAnimationFrame(rafMoveId.current);
-			rafMoveId.current = null;
+	const handleEdgesChange = useCallback((changes: EdgeChange<Edge>[]) => {
+		const next = applyEdgeChanges(changes, edgesRef.current);
+		setEdges(next);
+		if (changes.some((c) => c.type === "remove" || c.type === "add")) {
+			emitRef.current(nodesRef.current, next);
 		}
 	}, []);
 
-	// Viewport culling bounds with 250px extra margin
-	const viewportRect = useMemo(() => {
-		if (containerSize.width === 0 || containerSize.height === 0) return null;
-		return getViewportRect(
-			containerSize.width,
-			containerSize.height,
-			transform,
-			250,
+	const handleConnect = useCallback((connection: Connection) => {
+		if (!connection.source || !connection.target) return;
+		const id = genId();
+		const next: Edge = {
+			id,
+			source: connection.source,
+			target: connection.target,
+			sourceHandle: connection.sourceHandle,
+			targetHandle: connection.targetHandle,
+			...defaultEdgeProps(),
+			data: {},
+		};
+		const nextEdges = [...edgesRef.current, next];
+		setEdges(nextEdges);
+		emitRef.current(nodesRef.current, nextEdges);
+	}, []);
+
+	const [editingEdgeId, setEditingEdgeId] = useState<string | null>(null);
+
+	const commitEdgeLabel = useCallback((id: string, label: string) => {
+		setEditingEdgeId(null);
+		const next = edgesRef.current.map((edge) =>
+			edge.id === id
+				? { ...edge, data: { ...edge.data, label: label || undefined } }
+				: edge,
 		);
-	}, [containerSize.width, containerSize.height, transform]);
+		setEdges(next);
+		emitRef.current(nodesRef.current, next);
+	}, []);
 
-	const isLOD = transform.k < 0.35;
-
-	const allNodes = parsed.data?.nodes ?? [];
-	const allEdges = parsed.data?.edges ?? [];
-
-	// Filter nodes and edges visible inside viewport
-	const visibleNodes = useMemo(() => {
-		if (!viewportRect || allNodes.length < 30) return allNodes;
-		return allNodes.filter((node) => isNodeInViewport(node, viewportRect));
-	}, [allNodes, viewportRect]);
-
-	const visibleEdges = useMemo(() => {
-		if (!viewportRect || allEdges.length < 30) return allEdges;
-		return allEdges.filter((edge) =>
-			isEdgeInViewport(edge, byId, viewportRect),
-		);
-	}, [allEdges, byId, viewportRect]);
-
-	const groups = useMemo(
-		() => visibleNodes.filter((n) => n.type === "group"),
-		[visibleNodes],
+	const handleEdgeDoubleClick = useCallback(
+		(_: React.MouseEvent, edge: Edge) => {
+			if (!readOnly) setEditingEdgeId(edge.id);
+		},
+		[readOnly],
 	);
-	const cards = useMemo(
-		() => visibleNodes.filter((n) => n.type !== "group"),
-		[visibleNodes],
+
+	// Inject transient editing flag and commit callback into edge data at render time
+	const displayEdges = useMemo(
+		() =>
+			edges.map((edge) => ({
+				...edge,
+				data: {
+					...edge.data,
+					editing: edge.id === editingEdgeId,
+					onCommitEdgeLabel: commitEdgeLabel,
+				},
+			})),
+		[edges, editingEdgeId, commitEdgeLabel],
+	);
+
+	const [pendingConn, setPendingConn] = useState<{
+		screenX: number;
+		screenY: number;
+		flowX: number;
+		flowY: number;
+		fromNodeId: string;
+		fromHandleId: string | null;
+		fromHandleType: "source" | "target";
+	} | null>(null);
+
+	// Dropped a connection on empty pane: offer to create a connected node (Obsidian-style)
+	const handleConnectEnd = useCallback(
+		(event: MouseEvent | TouchEvent, connectionState: FinalConnectionState) => {
+			if (readOnly || connectionState.isValid || !connectionState.fromNode) {
+				return;
+			}
+			const point =
+				"changedTouches" in event
+					? event.changedTouches[0]
+					: (event as MouseEvent);
+			const flow = screenToFlowPosition({ x: point.clientX, y: point.clientY });
+			const rect = wrapperRef.current?.getBoundingClientRect();
+			setPendingConn({
+				screenX: point.clientX - (rect?.left ?? 0),
+				screenY: point.clientY - (rect?.top ?? 0),
+				flowX: flow.x,
+				flowY: flow.y,
+				fromNodeId: connectionState.fromNode.id,
+				fromHandleId: connectionState.fromHandle?.id ?? null,
+				fromHandleType:
+					connectionState.fromHandle?.type === "target" ? "target" : "source",
+			});
+		},
+		[readOnly, screenToFlowPosition],
+	);
+
+	// Dismiss the connection-drop menu with Escape
+	useEffect(() => {
+		if (!pendingConn) return;
+		const onKeyDown = (e: KeyboardEvent) => {
+			if (e.key === "Escape") setPendingConn(null);
+		};
+		window.addEventListener("keydown", onKeyDown);
+		return () => window.removeEventListener("keydown", onKeyDown);
+	}, [pendingConn]);
+
+	const addConnectedNode = useCallback(
+		async (kind: "text" | "note") => {
+			const pending = pendingConn;
+			setPendingConn(null);
+			if (!pending) return;
+
+			const id = genId();
+			let canvasNode: CanvasNode;
+			if (kind === "text") {
+				canvasNode = {
+					id,
+					type: "text",
+					text: "",
+					x: Math.round(pending.flowX - 125),
+					y: Math.round(pending.flowY - 30),
+					width: 250,
+					height: 60,
+				};
+			} else {
+				const relPath = await onCreateNoteFile?.();
+				if (!relPath) return;
+				canvasNode = {
+					id,
+					type: "file",
+					file: relPath,
+					x: Math.round(pending.flowX - 110),
+					y: Math.round(pending.flowY - 60),
+					width: 220,
+					height: 120,
+				};
+			}
+
+			const fromFlowNode = nodesRef.current.find(
+				(node) => node.id === pending.fromNodeId,
+			);
+			if (!fromFlowNode) return;
+			const fromCanvas: CanvasNode =
+				fromFlowNode.type === "canvasGroup"
+					? {
+							id: fromFlowNode.id,
+							type: "group",
+							x: fromFlowNode.position.x,
+							y: fromFlowNode.position.y,
+							width: fromFlowNode.width ?? 0,
+							height: fromFlowNode.height ?? 0,
+						}
+					: (fromFlowNode.data as { canvasNode: CanvasNode }).canvasNode;
+			const sides = guessSides(fromCanvas, canvasNode);
+			const edge: Edge =
+				pending.fromHandleType === "source"
+					? {
+							id: genId(),
+							source: pending.fromNodeId,
+							sourceHandle: pending.fromHandleId ?? `s-${sides.fromSide}`,
+							target: id,
+							targetHandle: `t-${sides.toSide}`,
+							...defaultEdgeProps(),
+							data: {},
+						}
+					: {
+							id: genId(),
+							source: id,
+							sourceHandle: `s-${sides.toSide}`,
+							target: pending.fromNodeId,
+							targetHandle: pending.fromHandleId ?? `t-${sides.fromSide}`,
+							...defaultEdgeProps(),
+							data: {},
+						};
+
+			const newNode: CanvasCardFlowNode = {
+				id,
+				type: "canvasCard",
+				position: { x: canvasNode.x, y: canvasNode.y },
+				data: {
+					canvasNode,
+					onNavigateNote,
+					readOnly,
+					editing: kind === "text",
+					onCommitText: commitText,
+					onDeleteNode: deleteNode,
+					onSetColor: setNodeColor,
+					onStartEdit: startEdit,
+				},
+				width: canvasNode.width,
+				height: canvasNode.height,
+				draggable: true,
+				selectable: true,
+			};
+			const nextNodes = [...nodesRef.current, newNode];
+			const nextEdges = [...edgesRef.current, edge];
+			setNodes(nextNodes);
+			setEdges(nextEdges);
+			if (kind === "text") setEditingId(id);
+			emitRef.current(nextNodes, nextEdges);
+		},
+		[
+			pendingConn,
+			onCreateNoteFile,
+			onNavigateNote,
+			readOnly,
+			commitText,
+			deleteNode,
+			setNodeColor,
+			startEdit,
+		],
+	);
+
+	// Edge endpoint reconnection; normalize handle prefixes per end (s- source, t- target)
+	const handleReconnect = useCallback((oldEdge: Edge, conn: Connection) => {
+		const normalize = (
+			handle: string | null | undefined,
+			end: "s" | "t",
+		): string | null | undefined =>
+			handle ? `${end}-${handle.replace(/^[st]-/, "")}` : handle;
+		const next = edgesRef.current.map((edge) =>
+			edge.id === oldEdge.id
+				? {
+						...edge,
+						source: conn.source,
+						target: conn.target,
+						sourceHandle: normalize(conn.sourceHandle, "s"),
+						targetHandle: normalize(conn.targetHandle, "t"),
+					}
+				: edge,
+		);
+		setEdges(next);
+		emitRef.current(nodesRef.current, next);
+	}, []);
+
+	const addCardAt = useCallback(
+		(clientX: number, clientY: number) => {
+			const point = screenToFlowPosition({ x: clientX, y: clientY });
+			const id = genId();
+			const canvasNode: CanvasNode = {
+				id,
+				type: "text",
+				text: "",
+				x: Math.round(point.x - 125),
+				y: Math.round(point.y - 30),
+				width: 250,
+				height: 60,
+			};
+			const next: CanvasCardFlowNode = {
+				id,
+				type: "canvasCard",
+				position: { x: canvasNode.x, y: canvasNode.y },
+				data: {
+					canvasNode,
+					onNavigateNote,
+					readOnly,
+					editing: true,
+					onCommitText: commitText,
+				},
+				width: canvasNode.width,
+				height: canvasNode.height,
+				draggable: true,
+				selectable: true,
+			};
+			const nextNodes = [...nodesRef.current, next];
+			setNodes(nextNodes);
+			setEditingId(id);
+			emitRef.current(nextNodes, edgesRef.current);
+		},
+		[screenToFlowPosition, onNavigateNote, readOnly, commitText],
+	);
+
+	const handleDoubleClick = useCallback(
+		(e: React.MouseEvent) => {
+			if (readOnly) return;
+			if (!(e.target as HTMLElement).classList.contains("react-flow__pane")) {
+				return;
+			}
+			addCardAt(e.clientX, e.clientY);
+		},
+		[readOnly, addCardAt],
+	);
+
+	const handleNodeDoubleClick = useCallback(
+		(_: React.MouseEvent, node: Node) => {
+			if (readOnly) return;
+			if (node.type === "canvasCard") {
+				const { canvasNode } = node.data as { canvasNode: CanvasNode };
+				if (canvasNode.type === "text") setEditingId(node.id);
+			} else if (node.type === "canvasGroup") {
+				setEditingId(node.id);
+			}
+		},
+		[readOnly],
 	);
 
 	if (parsed.error) {
@@ -263,96 +838,120 @@ export function CanvasView({ content, onNavigateNote }: CanvasViewProps) {
 
 	return (
 		<div
-			ref={containerRef}
-			className="relative h-full overflow-hidden bg-surface/40 dark:bg-black/20 touch-none cursor-grab active:cursor-grabbing"
-			onPointerDown={onPointerDown}
-			onPointerMove={onPointerMove}
-			onPointerUp={onPointerUp}
-			onPointerCancel={onPointerUp}
+			ref={wrapperRef}
+			className="relative h-full bg-surface/40 dark:bg-black/20"
 		>
-			{allNodes.length === 0 && (
-				<div className="absolute inset-0 flex items-center justify-center">
+			{nodes.length === 0 && (
+				<div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
 					<p className="text-xs text-muted">
-						空画布，可在源码模式或 Obsidian 中添加节点
+						{readOnly ? "空画布" : "空画布，双击空白处创建卡片"}
 					</p>
 				</div>
 			)}
-			<div
-				className="absolute left-0 top-0 will-change-transform"
-				style={{
-					transform: `translate3d(${transform.x}px, ${transform.y}px, 0) scale(${transform.k})`,
-					transformOrigin: "0 0",
-				}}
+			<ReactFlow
+				nodes={nodes}
+				edges={displayEdges}
+				nodeTypes={nodeTypes}
+				edgeTypes={edgeTypes}
+				colorMode={colorMode}
+				onNodesChange={handleNodesChange}
+				onEdgesChange={handleEdgesChange}
+				onConnect={readOnly ? undefined : handleConnect}
+				onConnectEnd={readOnly ? undefined : handleConnectEnd}
+				onReconnect={readOnly ? undefined : handleReconnect}
+				edgesReconnectable={!readOnly}
+				onPaneClick={() => setPendingConn(null)}
+				onDoubleClick={handleDoubleClick}
+				onNodeDoubleClick={handleNodeDoubleClick}
+				onEdgeDoubleClick={handleEdgeDoubleClick}
+				connectionMode={ConnectionMode.Loose}
+				fitView
+				fitViewOptions={{ padding: 0.1, maxZoom: 1 }}
+				minZoom={0.1}
+				maxZoom={4}
+				nodesDraggable={!readOnly}
+				nodesConnectable={!readOnly}
+				elementsSelectable={!readOnly}
+				deleteKeyCode={readOnly ? null : ["Backspace", "Delete"]}
+				zoomOnDoubleClick={false}
+				panOnScroll
+				zoomOnScroll={false}
+				onlyRenderVisibleElements
 			>
-				{groups.map((node) => {
-					const color = resolveColor(node.color);
-					return (
-						<div
-							key={node.id}
-							data-canvas-node
-							className="absolute rounded-xl border bg-surface/30 dark:bg-white/[0.03]"
-							style={{
-								left: node.x,
-								top: node.y,
-								width: node.width,
-								height: node.height,
-								borderColor: color ?? "rgba(128,128,128,0.3)",
-							}}
+				<Background variant={BackgroundVariant.Dots} gap={24} size={1.5} />
+				<Controls showInteractive={false} position="bottom-right" />
+				<MiniMap
+					pannable
+					zoomable
+					position="bottom-left"
+					nodeColor={(node) =>
+						node.type === "canvasGroup"
+							? "rgba(128,128,128,0.2)"
+							: (resolveColor(
+									(node.data as { canvasNode?: { color?: string } }).canvasNode
+										?.color,
+								) ?? "#8b8b8b")
+					}
+				/>
+				{pendingConn && (
+					<div
+						className="absolute z-20 flex flex-col rounded-lg border border-border bg-surface p-1 shadow-md"
+						style={{ left: pendingConn.screenX, top: pendingConn.screenY }}
+					>
+						<button
+							type="button"
+							onClick={() => void addConnectedNode("text")}
+							className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-foreground/90 hover:bg-surface-secondary/60 transition-colors cursor-pointer"
 						>
-							{node.label && (
-								<span
-									className="absolute -top-6 left-1 text-sm font-semibold select-none"
-									style={{ color: color ?? "inherit" }}
-								>
-									{node.label}
-								</span>
-							)}
-						</div>
-					);
-				})}
-
-				<CanvasEdges edges={visibleEdges} byId={byId} isLOD={isLOD} />
-
-				{cards.map((node) => (
-					<CanvasNodeCard
-						key={node.id}
-						node={node}
-						onNavigateNote={onNavigateNote}
-						isLOD={isLOD}
-					/>
-				))}
-			</div>
-
-			<div className="absolute right-3 bottom-3 flex flex-col gap-1 rounded-lg border border-border bg-surface/90 backdrop-blur p-1 shadow-sm">
-				<button
-					type="button"
-					aria-label="放大"
-					onClick={() =>
-						setTransform((p) => ({ ...p, k: Math.min(p.k * 1.25, 4) }))
-					}
-					className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/60 transition-colors"
-				>
-					<ZoomIn className="w-3.5 h-3.5" />
-				</button>
-				<button
-					type="button"
-					aria-label="缩小"
-					onClick={() =>
-						setTransform((p) => ({ ...p, k: Math.max(p.k / 1.25, 0.1) }))
-					}
-					className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/60 transition-colors"
-				>
-					<ZoomOut className="w-3.5 h-3.5" />
-				</button>
-				<button
-					type="button"
-					aria-label="适配视口"
-					onClick={fitToView}
-					className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/60 transition-colors"
-				>
-					<Maximize2 className="w-3.5 h-3.5" />
-				</button>
-			</div>
+							<Type className="w-3.5 h-3.5 text-muted" />
+							添加文本
+						</button>
+						<button
+							type="button"
+							onClick={() => void addConnectedNode("note")}
+							className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-foreground/90 hover:bg-surface-secondary/60 transition-colors cursor-pointer"
+						>
+							<FileText className="w-3.5 h-3.5 text-muted" />
+							添加笔记
+						</button>
+					</div>
+				)}
+				{!readOnly && (
+					<Panel position="top-right" className="flex items-center gap-2">
+						<span className="text-[10px] text-muted select-none">
+							双击空白新建卡片，悬停卡片边缘拖拽连线
+						</span>
+						<button
+							type="button"
+							aria-label="添加卡片"
+							title="添加卡片"
+							onClick={(e) =>
+								addCardAt(
+									e.currentTarget.getBoundingClientRect().left - 200,
+									e.currentTarget.getBoundingClientRect().top + 120,
+								)
+							}
+							className="p-1.5 rounded-md border border-border bg-surface text-muted hover:text-foreground hover:bg-surface-secondary/60 transition-colors"
+						>
+							<Plus className="w-3.5 h-3.5" />
+						</button>
+					</Panel>
+				)}
+			</ReactFlow>
 		</div>
+	);
+}
+
+/**
+ * JSON Canvas editor powered by @xyflow/react:
+ * - Drag cards/groups (group drag moves contained cards), inline text editing
+ * - Side-anchored edge drawing, Backspace/Delete removal, double-click to add cards
+ * - Changes serialize back to .canvas JSON through onChange
+ */
+export function CanvasView(props: CanvasViewProps) {
+	return (
+		<ReactFlowProvider>
+			<CanvasFlow {...props} />
+		</ReactFlowProvider>
 	);
 }
