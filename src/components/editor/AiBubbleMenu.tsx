@@ -67,6 +67,8 @@ export function AiBubbleMenu({
 		panelRef,
 		anchorRange: ai.state !== "idle" ? ai.targetRange : null,
 		bottom,
+		panelWidth: 396,
+		panelHeight: 260,
 	});
 
 	// ── Selection change → show / hide bubble ───────────────────
@@ -173,7 +175,7 @@ export function AiBubbleMenu({
 				// so the panel slides under them instead of covering them
 				zIndex: 40,
 			}}
-			className="flex flex-col bg-surface/98 dark:bg-surface/95 backdrop-blur-xl border border-border/80 rounded-2xl shadow-[0_16px_40px_-8px_rgba(0,0,0,0.16),0_4px_16px_-2px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.04] dark:ring-white/[0.08] text-xs select-none overflow-hidden transition-all duration-150"
+			className="flex flex-col bg-surface/98 dark:bg-surface/95 backdrop-blur-xl border border-border/80 rounded-2xl shadow-[0_16px_40px_-8px_rgba(0,0,0,0.16),0_4px_16px_-2px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.04] dark:ring-white/[0.08] text-xs select-none overflow-hidden transition-[opacity,box-shadow] duration-150"
 			// Prevent editor from losing focus when clicking toolbar buttons
 			onMouseDown={(e) => e.preventDefault()}
 		>

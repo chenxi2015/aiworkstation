@@ -60,8 +60,8 @@ export interface FloatingPositionResult {
 export function useFloatingPosition({
 	editor,
 	enabled,
-	panelWidth: defaultPanelW = 380,
-	panelHeight: defaultPanelH = 40,
+	panelWidth: defaultPanelW = 396,
+	panelHeight: defaultPanelH = 260,
 	panelRef,
 	anchorRange,
 	bottom = 16,
@@ -69,6 +69,7 @@ export function useFloatingPosition({
 }: UseFloatingPositionOptions): FloatingPositionResult {
 	const [pos, setPos] = useState<FloatPos>({ top: 0, left: 0 });
 	const [anchorVisible, setAnchorVisible] = useState(true);
+	const posRef = useRef<FloatPos>({ top: 0, left: 0 });
 
 	// Cache the scrollable ancestor once per editor mount
 	const scrollElRef = useRef<HTMLElement | null>(null);
@@ -76,13 +77,13 @@ export function useFloatingPosition({
 		scrollElRef.current = findScrollableAncestor(editor.view.dom.parentElement);
 	}, [editor]);
 
-	const computePosition = useCallback(() => {
+	const calculateCoords = useCallback(() => {
 		const range =
 			anchorRange ||
 			(!editor.state.selection.empty
 				? { from: editor.state.selection.from, to: editor.state.selection.to }
 				: null);
-		if (!range) return;
+		if (!range) return null;
 
 		const { view } = editor;
 		const maxDocPos = editor.state.doc.content.size;
@@ -94,11 +95,12 @@ export function useFloatingPosition({
 
 		// Anchor visibility check
 		const visible = isRangeVisible(start.top, end.bottom);
-		setAnchorVisible(visible);
-		if (!visible) return; // Skip heavy layout math when off-screen
+		if (!visible) {
+			return { visible: false, top: 0, left: 0 };
+		}
 
-		const panelH = panelRef?.current?.offsetHeight ?? defaultPanelH;
-		const panelW = panelRef?.current?.offsetWidth ?? defaultPanelW;
+		const panelH = panelRef?.current?.offsetHeight || defaultPanelH;
+		const panelW = panelRef?.current?.offsetWidth || defaultPanelW;
 
 		// Calculate vertical boundaries considering scroll container and viewport
 		const containerBottom = scrollElRef.current
@@ -118,23 +120,26 @@ export function useFloatingPosition({
 		const areaLeft = scrollElRef.current?.getBoundingClientRect().left ?? 8;
 		const gutterWidth = contentLeft - areaLeft;
 
+		let top = 0;
+		let left = 0;
+
 		// The content column has ~32px horizontal padding that is empty space,
 		// so the panel may borrow up to 24px of it before it would cover text
 		if (gutterWidth >= panelW - 24) {
 			// Wide screen: park in the left gutter, flush with selection start
 			const maxTop = boundaryBottom - panelH;
-			let top = Math.max(boundaryTop, start.top);
+			top = Math.max(boundaryTop, start.top);
 			if (top > maxTop) {
 				top = Math.max(boundaryTop, maxTop);
 			}
-			setPos({ top, left: Math.max(areaLeft + 4, contentLeft - panelW - 8) });
+			left = Math.max(areaLeft + 4, contentLeft - panelW - 8);
 		} else {
 			// Narrow screen: below the selection
-			const left = Math.max(
+			left = Math.max(
 				8,
 				Math.min(start.left, window.innerWidth - panelW - 8),
 			);
-			let top = end.bottom + 8;
+			top = end.bottom + 8;
 			if (top + panelH > boundaryBottom) {
 				const above = start.top - panelH - 8;
 				top =
@@ -142,22 +147,54 @@ export function useFloatingPosition({
 						? above
 						: Math.max(boundaryTop, boundaryBottom - panelH);
 			}
-			setPos({ top, left });
 		}
+
+		return { visible: true, top, left };
 	}, [
 		editor,
+		anchorRange,
 		defaultPanelH,
 		defaultPanelW,
 		panelRef,
-		anchorRange,
 		bottom,
 		topOffset,
 	]);
 
+	const applyPosition = useCallback(
+		(coords: { visible: boolean; top: number; left: number }, syncState = true) => {
+			setAnchorVisible((prev) => (prev !== coords.visible ? coords.visible : prev));
+			if (!coords.visible) return;
+
+			// Instantly mutate DOM inline styles for zero latency (no React render cycle wait)
+			if (panelRef?.current) {
+				panelRef.current.style.top = `${coords.top}px`;
+				panelRef.current.style.left = `${coords.left}px`;
+			}
+
+			if (syncState) {
+				if (posRef.current.top !== coords.top || posRef.current.left !== coords.left) {
+					posRef.current = { top: coords.top, left: coords.left };
+					setPos({ top: coords.top, left: coords.left });
+				}
+			}
+		},
+		[panelRef],
+	);
+
+	const computePosition = useCallback(
+		(syncState = true) => {
+			const coords = calculateCoords();
+			if (coords) {
+				applyPosition(coords, syncState);
+			}
+		},
+		[calculateCoords, applyPosition],
+	);
+
 	// Immediate calculation when enabled or anchorRange changes
 	useEffect(() => {
 		if (enabled) {
-			computePosition();
+			computePosition(true);
 		}
 	}, [enabled, computePosition]);
 
@@ -166,7 +203,7 @@ export function useFloatingPosition({
 		if (!enabled) return;
 
 		const handleSelection = () => {
-			computePosition();
+			computePosition(true);
 		};
 
 		editor.on("selectionUpdate", handleSelection);
@@ -175,27 +212,40 @@ export function useFloatingPosition({
 		};
 	}, [editor, enabled, computePosition]);
 
-	// rAF-throttled scroll / resize handler
+	// Instant scroll and resize tracking
 	useEffect(() => {
 		if (!enabled) return;
 
 		let rafId = 0;
-		const handleViewportChange = () => {
-			if (rafId) return; // Already scheduled
-			rafId = requestAnimationFrame(() => {
-				rafId = 0;
-				computePosition();
-			});
+		const handleScroll = () => {
+			// 1. Instantly update DOM position synchronously on every scroll event (0 frame lag)
+			const coords = calculateCoords();
+			if (coords) {
+				applyPosition(coords, false);
+			}
+
+			// 2. Throttle React state synchronization to avoid 60fps re-render overhead
+			if (!rafId) {
+				rafId = requestAnimationFrame(() => {
+					rafId = 0;
+					if (coords && coords.visible) {
+						if (posRef.current.top !== coords.top || posRef.current.left !== coords.left) {
+							posRef.current = { top: coords.top, left: coords.left };
+							setPos({ top: coords.top, left: coords.left });
+						}
+					}
+				});
+			}
 		};
 
-		window.addEventListener("scroll", handleViewportChange, true);
-		window.addEventListener("resize", handleViewportChange);
+		window.addEventListener("scroll", handleScroll, true);
+		window.addEventListener("resize", handleScroll);
 		return () => {
-			window.removeEventListener("scroll", handleViewportChange, true);
-			window.removeEventListener("resize", handleViewportChange);
+			window.removeEventListener("scroll", handleScroll, true);
+			window.removeEventListener("resize", handleScroll);
 			if (rafId) cancelAnimationFrame(rafId);
 		};
-	}, [enabled, computePosition]);
+	}, [enabled, calculateCoords, applyPosition]);
 
 	// Auto-recalculate when panel content size changes (e.g. prompt input grows, result panel renders)
 	useEffect(() => {
@@ -203,7 +253,7 @@ export function useFloatingPosition({
 			return;
 
 		const observer = new ResizeObserver(() => {
-			computePosition();
+			computePosition(true);
 		});
 
 		observer.observe(panelRef.current);
@@ -212,5 +262,5 @@ export function useFloatingPosition({
 		};
 	}, [enabled, panelRef, computePosition]);
 
-	return { pos, anchorVisible, refresh: computePosition };
+	return { pos, anchorVisible, refresh: () => computePosition(true) };
 }

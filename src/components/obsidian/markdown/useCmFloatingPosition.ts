@@ -46,7 +46,7 @@ export interface CmFloatingPositionResult {
 export function useCmFloatingPosition({
 	view,
 	enabled,
-	panelWidth: defaultPanelW = 380,
+	panelWidth: defaultPanelW = 396,
 	panelHeight: defaultPanelH = 260,
 	panelRef,
 	anchorRange,
@@ -55,6 +55,7 @@ export function useCmFloatingPosition({
 }: UseCmFloatingPositionOptions): CmFloatingPositionResult {
 	const [pos, setPos] = useState({ top: 0, left: 0 });
 	const [anchorVisible, setAnchorVisible] = useState(true);
+	const posRef = useRef({ top: 0, left: 0 });
 
 	// 每个编辑器实例只查找一次滚动祖先
 	const scrollElRef = useRef<HTMLElement | null>(null);
@@ -64,27 +65,28 @@ export function useCmFloatingPosition({
 			: null;
 	}, [view]);
 
-	const computePosition = useCallback(() => {
-		if (!view) return;
+	const calculateCoords = useCallback(() => {
+		if (!view) return null;
 		const sel = view.state.selection.main;
 		const range =
 			anchorRange || (!sel.empty ? { from: sel.from, to: sel.to } : null);
-		if (!range) return;
+		if (!range) return null;
 
 		const maxPos = view.state.doc.length;
 		const from = Math.min(Math.max(0, range.from), maxPos);
 		const to = Math.min(Math.max(0, range.to), maxPos);
 		const start = view.coordsAtPos(from);
 		const end = view.coordsAtPos(to);
-		if (!start || !end) return;
+		if (!start || !end) return null;
 
 		// 锚点可见性：滚出屏幕则跳过重计算（由调用方决定隐藏）
 		const visible = end.bottom > 0 && start.top < window.innerHeight;
-		setAnchorVisible(visible);
-		if (!visible) return;
+		if (!visible) {
+			return { visible: false, top: 0, left: 0 };
+		}
 
-		const panelH = panelRef?.current?.offsetHeight ?? defaultPanelH;
-		const panelW = panelRef?.current?.offsetWidth ?? defaultPanelW;
+		const panelH = panelRef?.current?.offsetHeight || defaultPanelH;
+		const panelW = panelRef?.current?.offsetWidth || defaultPanelW;
 
 		// 垂直边界：视口与滚动容器取交集
 		const containerRect = scrollElRef.current?.getBoundingClientRect();
@@ -98,22 +100,41 @@ export function useCmFloatingPosition({
 			(containerRect ? Math.max(0, containerRect.top) : 0) + topOffset,
 		);
 
-		// 水平：跟随选区起点，夹在视口内
-		const left = Math.max(
-			8,
-			Math.min(start.left, window.innerWidth - panelW - 8),
-		);
+		const contentEl = view.contentDOM ?? view.dom;
+		const contentLeft = contentEl.getBoundingClientRect().left;
+		const areaLeft = scrollElRef.current?.getBoundingClientRect().left ?? 8;
+		const gutterWidth = contentLeft - areaLeft;
 
-		// 垂直：默认选区下方；下方放不下翻上方；上方也放不下则夹在边界内
-		let top = end.bottom + 8;
-		if (top + panelH > boundaryBottom) {
-			const above = start.top - panelH - 8;
-			top =
-				above >= boundaryTop
-					? above
-					: Math.max(boundaryTop, boundaryBottom - panelH);
+		let top = 0;
+		let left = 0;
+
+		// The content column has horizontal padding that is empty space,
+		// so the panel may borrow up to 24px of it before it would cover text
+		if (gutterWidth >= panelW - 24) {
+			// Wide screen: park in the left gutter, flush with selection start
+			const maxTop = boundaryBottom - panelH;
+			top = Math.max(boundaryTop, start.top);
+			if (top > maxTop) {
+				top = Math.max(boundaryTop, maxTop);
+			}
+			left = Math.max(areaLeft + 4, contentLeft - panelW - 8);
+		} else {
+			// Narrow screen: below the selection
+			left = Math.max(
+				8,
+				Math.min(start.left, window.innerWidth - panelW - 8),
+			);
+			top = end.bottom + 8;
+			if (top + panelH > boundaryBottom) {
+				const above = start.top - panelH - 8;
+				top =
+					above >= boundaryTop
+						? above
+						: Math.max(boundaryTop, boundaryBottom - panelH);
+			}
 		}
-		setPos({ top, left });
+
+		return { visible: true, top, left };
 	}, [
 		view,
 		anchorRange,
@@ -124,41 +145,86 @@ export function useCmFloatingPosition({
 		topOffset,
 	]);
 
+	const applyPosition = useCallback(
+		(coords: { visible: boolean; top: number; left: number }, syncState = true) => {
+			setAnchorVisible((prev) => (prev !== coords.visible ? coords.visible : prev));
+			if (!coords.visible) return;
+
+			// Instantly mutate DOM inline styles for zero latency (no React render cycle wait)
+			if (panelRef?.current) {
+				panelRef.current.style.top = `${coords.top}px`;
+				panelRef.current.style.left = `${coords.left}px`;
+			}
+
+			if (syncState) {
+				if (posRef.current.top !== coords.top || posRef.current.left !== coords.left) {
+					posRef.current = { top: coords.top, left: coords.left };
+					setPos({ top: coords.top, left: coords.left });
+				}
+			}
+		},
+		[panelRef],
+	);
+
+	const computePosition = useCallback(
+		(syncState = true) => {
+			const coords = calculateCoords();
+			if (coords) {
+				applyPosition(coords, syncState);
+			}
+		},
+		[calculateCoords, applyPosition],
+	);
+
 	// 激活 / 锚点变化时立即重算
 	useEffect(() => {
-		if (enabled) computePosition();
+		if (enabled) computePosition(true);
 	}, [enabled, computePosition]);
 
-	// rAF 节流的滚动 / resize 跟随（scroll 不冒泡，用捕获监听所有滚动容器）
+	// 实时即时滚动 / resize 跟随（scroll 不冒泡，用捕获监听所有滚动容器）
 	useEffect(() => {
 		if (!enabled) return;
 		let rafId = 0;
-		const handleViewportChange = () => {
-			if (rafId) return;
-			rafId = requestAnimationFrame(() => {
-				rafId = 0;
-				computePosition();
-			});
+		const handleScroll = () => {
+			// 1. Instantly update DOM position synchronously on every scroll event (0 frame lag)
+			const coords = calculateCoords();
+			if (coords) {
+				applyPosition(coords, false);
+			}
+
+			// 2. Throttle React state synchronization to avoid 60fps re-render overhead
+			if (!rafId) {
+				rafId = requestAnimationFrame(() => {
+					rafId = 0;
+					if (coords && coords.visible) {
+						if (posRef.current.top !== coords.top || posRef.current.left !== coords.left) {
+							posRef.current = { top: coords.top, left: coords.left };
+							setPos({ top: coords.top, left: coords.left });
+						}
+					}
+				});
+			}
 		};
-		window.addEventListener("scroll", handleViewportChange, true);
-		window.addEventListener("resize", handleViewportChange);
+
+		window.addEventListener("scroll", handleScroll, true);
+		window.addEventListener("resize", handleScroll);
 		return () => {
-			window.removeEventListener("scroll", handleViewportChange, true);
-			window.removeEventListener("resize", handleViewportChange);
+			window.removeEventListener("scroll", handleScroll, true);
+			window.removeEventListener("resize", handleScroll);
 			if (rafId) cancelAnimationFrame(rafId);
 		};
-	}, [enabled, computePosition]);
+	}, [enabled, calculateCoords, applyPosition]);
 
 	// 面板内容尺寸变化（结果面板渲染等）后自动重算
 	useEffect(() => {
 		if (!enabled || !panelRef?.current || typeof ResizeObserver === "undefined")
 			return;
 		const observer = new ResizeObserver(() => {
-			computePosition();
+			computePosition(true);
 		});
 		observer.observe(panelRef.current);
 		return () => observer.disconnect();
 	}, [enabled, panelRef, computePosition]);
 
-	return { pos, anchorVisible, refresh: computePosition };
+	return { pos, anchorVisible, refresh: () => computePosition(true) };
 }

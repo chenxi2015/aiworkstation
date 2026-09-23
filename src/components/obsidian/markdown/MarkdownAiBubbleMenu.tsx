@@ -104,7 +104,7 @@ export function MarkdownAiBubbleMenu({
 		enabled: shouldShow,
 		panelRef,
 		anchorRange: state !== "idle" ? targetRef.current : null,
-		panelWidth: 390,
+		panelWidth: 396,
 		panelHeight: 260,
 	});
 
@@ -175,17 +175,14 @@ export function MarkdownAiBubbleMenu({
 		if (!view) return;
 
 		const handleSelection = () => {
-			if (state !== "idle" || activeDiffRef.current != null) return;
-			requestAnimationFrame(() => {
-				if (!view || activeDiffRef.current != null) return;
-				const sel = view.state.selection.main;
-				if (sel.empty || sel.to - sel.from < 2) {
-					setVisible(false);
-					return;
-				}
-				setVisible(true);
-				refresh();
-			});
+			if (!view || state !== "idle" || activeDiffRef.current != null) return;
+			const sel = view.state.selection.main;
+			if (sel.empty || sel.to - sel.from < 2) {
+				setVisible(false);
+				return;
+			}
+			setVisible(true);
+			refresh();
 		};
 
 		const handleBlur = () => {
@@ -398,7 +395,7 @@ export function MarkdownAiBubbleMenu({
 						ref={panelRef}
 						aria-label="选中文本浮动菜单"
 						style={panelStyle}
-						className="flex flex-col bg-surface/98 dark:bg-surface/95 backdrop-blur-xl border border-border/80 rounded-2xl shadow-[0_16px_40px_-8px_rgba(0,0,0,0.16),0_4px_16px_-2px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.04] dark:ring-white/[0.08] text-xs select-none overflow-hidden transition-all duration-150"
+						className="flex flex-col bg-surface/98 dark:bg-surface/95 backdrop-blur-xl border border-border/80 rounded-2xl shadow-[0_16px_40px_-8px_rgba(0,0,0,0.16),0_4px_16px_-2px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.04] dark:ring-white/[0.08] text-xs select-none overflow-hidden transition-[opacity,box-shadow] duration-150"
 						onMouseDown={(e) => e.preventDefault()}
 					>
 						{state === "idle" && visible && (
