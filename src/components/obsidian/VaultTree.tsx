@@ -72,16 +72,44 @@ export const VaultTree = memo(function VaultTree({
 		getItemKey: (index) => flatNodes[index]?.node.relPath ?? index,
 	});
 
-	// Auto-reveal: scroll virtual row into view
+	const prevSelectedNotePathRef = useRef<string | null>(null);
+	const prevAutoRevealRef = useRef(autoReveal);
+	const pendingRevealRef = useRef<string | null>(null);
+
+	// Record pending reveal target only when note selection changes or autoReveal is toggled on
 	useEffect(() => {
-		if (!autoReveal || !selectedNotePath) return;
+		if (!autoReveal || !selectedNotePath) {
+			pendingRevealRef.current = null;
+			prevSelectedNotePathRef.current = selectedNotePath;
+			prevAutoRevealRef.current = autoReveal;
+			return;
+		}
+
+		const noteChanged = selectedNotePath !== prevSelectedNotePathRef.current;
+		const autoRevealTurnedOn = !prevAutoRevealRef.current && autoReveal;
+
+		if (noteChanged || autoRevealTurnedOn) {
+			prevSelectedNotePathRef.current = selectedNotePath;
+			prevAutoRevealRef.current = autoReveal;
+			pendingRevealRef.current = selectedNotePath;
+		}
+	}, [autoReveal, selectedNotePath]);
+
+	// Auto-reveal: scroll virtual row into view only once per note switch / autoReveal trigger
+	useEffect(() => {
+		if (!pendingRevealRef.current || !autoReveal) return;
+		// Do not disrupt user view when renaming is active
+		if (renamingPath) return;
+
+		const target = pendingRevealRef.current;
 		const index = flatNodes.findIndex(
-			(item) => !item.isFolder && item.node.relPath === selectedNotePath,
+			(item) => !item.isFolder && item.node.relPath === target,
 		);
 		if (index !== -1) {
 			rowVirtualizer.scrollToIndex(index, { align: "auto" });
+			pendingRevealRef.current = null;
 		}
-	}, [autoReveal, selectedNotePath, flatNodes, rowVirtualizer]);
+	}, [autoReveal, flatNodes, renamingPath, rowVirtualizer]);
 
 	const virtualRows = rowVirtualizer.getVirtualItems();
 	// Initial frame fallback: if virtualizer hasn't measured yet but nodes exist, render directly

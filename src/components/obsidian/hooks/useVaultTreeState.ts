@@ -98,15 +98,20 @@ export function useVaultTreeState({ selectedNotePath }: UseVaultTreeStateOptions
 
 	/** Expand a folder and all its ancestor folders */
 	const expandDirChain = useCallback((dir: string) => {
+		if (!dir) return;
 		setExpanded((prev) => {
-			const next = new Set(prev);
 			let cur = dir;
+			let changed = false;
+			const next = new Set(prev);
 			while (cur) {
-				next.add(cur);
+				if (!next.has(cur)) {
+					next.add(cur);
+					changed = true;
+				}
 				const idx = cur.lastIndexOf("/");
 				cur = idx > 0 ? cur.slice(0, idx) : "";
 			}
-			return next;
+			return changed ? next : prev;
 		});
 	}, []);
 

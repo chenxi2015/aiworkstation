@@ -39,7 +39,7 @@ export function RenameInput({
 	useEffect(() => {
 		const input = inputRef.current;
 		if (!input) return;
-		input.focus();
+		input.focus({ preventScroll: true });
 		input.select();
 	}, []);
 
