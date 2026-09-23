@@ -143,38 +143,38 @@ export function MarkdownAiBubbleMenu({
 		const maxPos = view.state.doc.length;
 		const from = Math.min(Math.max(0, activeDiff.from), maxPos);
 		const to = Math.min(Math.max(0, activeDiff.to), maxPos);
-		const start = view.coordsAtPos(from);
-		const end = view.coordsAtPos(to);
-		if (!start || !end) return null;
 
-		// 锚点可见性：滚出屏幕则隐藏
-		const isVisible = end.bottom > 0 && start.top < window.innerHeight;
-		if (!isVisible) {
+		// 检查 diff 区域是否完全滑出 CodeMirror 可视视口
+		if (to < view.viewport.from || from > view.viewport.to) {
 			return { visible: false, top: 0, left: 0 };
 		}
 
-		// 水平居中算法：
-		// 多行选区时以内容区（.cm-content）的水平中线居中；单行时以文本选区范围居中并限制在内容区内
-		const contentEl = view.contentDOM ?? view.dom;
-		const contentRect = contentEl.getBoundingClientRect();
-		const isMultiLine = end.bottom - start.top > 32;
+		// 获取可视范围内最底部的安全坐标（防止末尾在视口外导致 coordsAtPos 返回 null）
+		const clampedTo = Math.min(to, view.viewport.to);
+		const end = view.coordsAtPos(clampedTo);
+		if (!end) return null;
 
-		let centerX: number;
-		if (isMultiLine) {
-			centerX = (contentRect.left + contentRect.right) / 2;
-		} else {
-			centerX = (start.left + end.right) / 2;
-			centerX = Math.max(
-				contentRect.left + 80,
-				Math.min(centerX, contentRect.right - 80),
-			);
+		const containerRect = view.scrollDOM.getBoundingClientRect();
+		const boundaryBottom =
+			Math.min(window.innerHeight, containerRect.bottom) - 56;
+		const boundaryTop = Math.max(8, containerRect.top + 8);
+
+		// 如果建议的最底部已经滚出可视区域顶部上方，则隐藏
+		if (end.bottom < boundaryTop) {
+			return { visible: false, top: 0, left: 0 };
 		}
 
+		// 水平居中：严格居中于正文内容列（.cm-content）的几何中轴线上
+		const contentEl = view.contentDOM ?? view.dom;
+		const contentRect = contentEl.getBoundingClientRect();
+		const centerX = (contentRect.left + contentRect.right) / 2;
 		const left = Math.max(120, Math.min(centerX, window.innerWidth - 120));
+
+		// 垂直位置：紧贴 diff 内容末尾正下方，每像素 1:1 同步跟随滚动
 		let top = end.bottom + 12;
-		if (top > window.innerHeight - 70) {
-			const above = start.top - 48;
-			top = above >= 12 ? above : Math.max(12, window.innerHeight - 70);
+		// 若长建议末尾尚未滚入视口，则平稳停留在可视底部安全区，方便随时操作
+		if (top > boundaryBottom) {
+			top = boundaryBottom;
 		}
 
 		return { visible: true, top, left };
@@ -216,7 +216,7 @@ export function MarkdownAiBubbleMenu({
 	);
 
 	useEffect(() => {
-		if (!activeDiff) return;
+		if (!view || !activeDiff) return;
 
 		// 激活时立即同步计算位置
 		updateDiffPosition(true);
@@ -246,14 +246,18 @@ export function MarkdownAiBubbleMenu({
 			}
 		};
 
+		// 核心：直接监听 CodeMirror 实际滚动容器 view.scrollDOM，毫秒级响应每次滚动位移
+		const scrollDom = view.scrollDOM;
+		scrollDom?.addEventListener("scroll", handleScroll, { passive: true });
 		window.addEventListener("scroll", handleScroll, true);
 		window.addEventListener("resize", handleScroll);
 		return () => {
+			scrollDom?.removeEventListener("scroll", handleScroll);
 			window.removeEventListener("scroll", handleScroll, true);
 			window.removeEventListener("resize", handleScroll);
 			if (rafId) cancelAnimationFrame(rafId);
 		};
-	}, [activeDiff, calculateDiffCoords, applyDiffCoords, updateDiffPosition]);
+	}, [view, activeDiff, calculateDiffCoords, applyDiffCoords, updateDiffPosition]);
 
 	// ── Listen for selection changes to show/hide floating menu ───
 	useEffect(() => {
