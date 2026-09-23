@@ -11,6 +11,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import type { NavLayoutEntry } from "../../../modules/registry";
 import { useAIClassifyTask } from "../../../services/aiClassifyTaskStore";
+import { UserAuthButton } from "../../cloud/UserAuthButton";
 import ThemeToggle from "../../ThemeToggle";
 import { WorkbenchLogoIcon } from "../Icons";
 import { ModuleTabs } from "./ModuleTabs";
@@ -217,6 +218,9 @@ export function WorkbenchHeader({
 						<Settings className="w-4 h-4" />
 					</Button>
 				)}
+
+				{/* Cloud User Profile & WeChat Login */}
+				<UserAuthButton />
 
 				<ThemeToggle />
 			</div>

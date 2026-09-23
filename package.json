@@ -7,6 +7,8 @@
   },
   "scripts": {
     "dev": "vite dev --port 3888",
+    "dev:cloud": "pnpm --filter @aiworkstation/cloud-server dev",
+    "build:cloud": "pnpm --filter @aiworkstation/cloud-server build",
     "generate-routes": "tsr generate",
     "build": "vite build",
     "build:cloudflare": "vite build --mode cloudflare",

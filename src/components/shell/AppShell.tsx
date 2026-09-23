@@ -1,4 +1,5 @@
 import { useRouter, useRouterState } from "@tanstack/react-router";
+import { Loader2 } from "lucide-react";
 import {
 	createContext,
 	type ReactNode,
@@ -10,10 +11,13 @@ import {
 	useState,
 } from "react";
 import { useAiPanelResize } from "../../hooks/ai/useAiPanelResize";
+import { useCloudAuth } from "../../lib/cloud/useCloudAuth";
 import { getModuleByRoute } from "../../modules/registry";
 import { workbenchContextActions } from "../../stores/workbenchContextStore";
 import type { ChatContextItem } from "../../types/chatContext";
 import type { PageBridge } from "../../types/pageBridge";
+import { CheckoutModal } from "../cloud/CheckoutModal";
+import { LoginModal } from "../cloud/LoginModal";
 import {
 	ChatWithBookmarksPanel,
 	type ChatWithBookmarksPanelRef,
@@ -149,6 +153,7 @@ export function AppShell({
 	settings: WorkbenchSettings;
 }) {
 	const router = useRouter();
+	const { isLoggedIn, isMember, isExpired, isInitializing } = useCloudAuth();
 	const panelRef = useRef<ChatWithBookmarksPanelRef>(null);
 	const { panelWidth, isResizing, handleResizeStart } = useAiPanelResize();
 
@@ -257,6 +262,46 @@ export function AppShell({
 		}),
 		[pageBridge, isCollapsed, toggleCollapsed],
 	);
+
+	// 1. Initializing state: show clean loader to avoid flash
+	if (isInitializing) {
+		return (
+			<div className="h-screen w-screen flex flex-col items-center justify-center bg-background">
+				<Loader2 className="w-8 h-8 animate-spin text-accent mb-3" />
+				<p className="text-xs text-muted">正在连接工作台环境...</p>
+			</div>
+		);
+	}
+
+	// 2. Unauthenticated state: display global WeChat QR login gate
+	if (!isLoggedIn) {
+		return (
+			<div className="h-screen w-screen flex flex-col items-center justify-center bg-background relative overflow-hidden select-none">
+				{/* Decorative background glow */}
+				<div className="absolute inset-0 bg-radial from-accent/5 to-transparent pointer-events-none" />
+
+				{/* Global WeChat Login Gate Modal (Mandatory, non-closable) */}
+				<LoginModal isOpen={true} mandatory={true} />
+			</div>
+		);
+	}
+
+	// 3. Second level gate: Authenticated but not a valid member (new user or expired) -> Checkout Paywall
+	if (!isMember) {
+		return (
+			<div className="h-screen w-screen flex flex-col items-center justify-center bg-background relative overflow-hidden select-none">
+				{/* Decorative background glow */}
+				<div className="absolute inset-0 bg-radial from-amber-500/5 to-transparent pointer-events-none" />
+
+				{/* Mandatory Checkout Modal Paywall */}
+				<CheckoutModal
+					isOpen={true}
+					mandatory={true}
+					expiredNotice={isExpired}
+				/>
+			</div>
+		);
+	}
 
 	return (
 		<AiPanelContext.Provider value={api}>
