@@ -23,6 +23,7 @@ import {
 	restoreDatabase,
 	startDeadLinkScan,
 } from "../maintenance.ts";
+import { invalidateVaultTreeCache } from "../services/obsidian/tree.ts";
 
 /**
  * Server Function: Fetch all folders and unclassified items from SQLite
@@ -464,6 +465,7 @@ export const saveWorkbenchSettings = createServerFn({ method: "POST" })
 	.validator((settings: WorkbenchSettings) => settings)
 	.handler(async ({ data: settings }): Promise<{ success: boolean }> => {
 		workbenchDb.setSetting("workbench_settings", JSON.stringify(settings));
+		invalidateVaultTreeCache();
 		return { success: true };
 	});
 

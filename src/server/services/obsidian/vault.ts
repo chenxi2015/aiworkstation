@@ -23,11 +23,14 @@ export function getConfiguredVaultDir(): string | null {
 }
 
 /** 解析 Vault 根目录：返回展开后的绝对路径与原始配置值 */
-export function resolveObsidianVaultDir(): {
+export function resolveObsidianVaultDir(explicitDir?: string): {
 	path: string;
 	configured: string;
 } {
-	const configured = getConfiguredVaultDir() ?? DEFAULT_OBSIDIAN_VAULT_DIR;
+	const configured =
+		explicitDir?.trim() ||
+		getConfiguredVaultDir() ||
+		DEFAULT_OBSIDIAN_VAULT_DIR;
 	return { path: resolve(expandHome(configured)), configured };
 }
 

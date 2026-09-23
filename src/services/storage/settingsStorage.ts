@@ -121,10 +121,12 @@ export async function fetchSettingsFromDb(): Promise<WorkbenchSettings> {
 }
 
 /**
- * Persist settings to both localStorage and SQLite database asynchronously
+ * Persist settings to both localStorage and SQLite database asynchronously (awaitable)
  */
-export function saveSettings(settings: WorkbenchSettings): void {
-	if (typeof window === "undefined") return;
+export async function saveSettingsAsync(
+	settings: WorkbenchSettings,
+): Promise<WorkbenchSettings> {
+	if (typeof window === "undefined") return settings;
 
 	const normalized: WorkbenchSettings = normalizeFilesRootDir({
 		...settings,
@@ -142,11 +144,22 @@ export function saveSettings(settings: WorkbenchSettings): void {
 		console.error("Failed to save settings to localStorage:", err);
 	}
 
-	// Asynchronously persist to SQLite DB
-	saveWorkbenchSettings({ data: normalized }).catch((err) => {
+	try {
+		await saveWorkbenchSettings({ data: normalized });
+	} catch (err) {
 		console.warn(
 			"[settingsStorage] saveWorkbenchSettings to SQLite error:",
 			err,
 		);
+	}
+	return normalized;
+}
+
+/**
+ * Persist settings to both localStorage and SQLite database asynchronously (fire-and-forget)
+ */
+export function saveSettings(settings: WorkbenchSettings): void {
+	saveSettingsAsync(settings).catch((err) => {
+		console.warn("[settingsStorage] saveSettings error:", err);
 	});
 }

@@ -153,12 +153,12 @@ export const createLocalVaultFn = createServerFn({ method: "POST" })
 	);
 
 /**
- * Server Function: 扫描 Obsidian Vault 目录树（60s 缓存，force 绕过）
+ * Server Function: 扫描 Obsidian Vault 目录树（60s 缓存，force 绕过，可指定 vaultDir）
  */
 export const getObsidianTree = createServerFn({ method: "GET" })
-	.validator((data?: { force?: boolean }) => data ?? {})
+	.validator((data?: { force?: boolean; vaultDir?: string }) => data ?? {})
 	.handler(async ({ data }): Promise<ObsidianTree> => {
-		return await scanVaultTree(Boolean(data.force));
+		return await scanVaultTree(Boolean(data.force), data.vaultDir);
 	});
 
 /**

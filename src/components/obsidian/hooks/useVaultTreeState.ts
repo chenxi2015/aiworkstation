@@ -42,16 +42,19 @@ export function useVaultTreeState({ selectedNotePath }: UseVaultTreeStateOptions
 		});
 	}, []);
 
-	const load = useCallback(async (force: boolean) => {
-		if (force) setRefreshing(true);
-		try {
-			const data = await fetchObsidianTree(force);
-			setTreeData(data);
-		} finally {
-			setLoading(false);
-			setRefreshing(false);
-		}
-	}, []);
+	const load = useCallback(
+		async (force: boolean, targetVaultDir?: string) => {
+			if (force) setRefreshing(true);
+			try {
+				const data = await fetchObsidianTree(force, targetVaultDir);
+				setTreeData(data);
+			} finally {
+				setLoading(false);
+				setRefreshing(false);
+			}
+		},
+		[],
+	);
 
 	useEffect(() => {
 		load(false);

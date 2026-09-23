@@ -69,6 +69,7 @@ export const VaultTree = memo(function VaultTree({
 			scrollElement ?? scrollRef?.current ?? internalRef.current,
 		estimateSize: () => 28,
 		overscan: 10,
+		getItemKey: (index) => flatNodes[index]?.node.relPath ?? index,
 	});
 
 	// Auto-reveal: scroll virtual row into view

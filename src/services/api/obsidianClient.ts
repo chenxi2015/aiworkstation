@@ -116,10 +116,18 @@ export async function listLocalDirectoriesRpc(
 	}
 }
 
-/** 获取 Vault 目录树（force=true 绕过服务端 60s 缓存重新扫描） */
-export async function fetchObsidianTree(force = false): Promise<ObsidianTree> {
+/** 获取 Vault 目录树（force=true 绕过服务端 60s 缓存重新扫描，支持显式传目标 vaultDir） */
+export async function fetchObsidianTree(
+	force = false,
+	vaultDir?: string,
+): Promise<ObsidianTree> {
 	try {
-		return (await getObsidianTree({ data: { force } })) ?? EMPTY_TREE;
+		if (vaultDir) {
+			vaultNoteCache.clear();
+		}
+		return (
+			(await getObsidianTree({ data: { force, vaultDir } })) ?? EMPTY_TREE
+		);
 	} catch (err) {
 		console.warn("[obsidianClient] getObsidianTree error:", err);
 		return EMPTY_TREE;

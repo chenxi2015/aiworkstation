@@ -33,12 +33,21 @@ export function invalidateVaultTreeCache(): void {
 }
 
 /** 扫描 Vault 目录树（60s 内存缓存，force 可绕过；并发去重同 skills overview） */
-export async function scanVaultTree(force = false): Promise<ObsidianTree> {
-	if (!force && treeCache && Date.now() - treeCache.at < TREE_CACHE_MS) {
+export async function scanVaultTree(
+	force = false,
+	vaultDir?: string,
+): Promise<ObsidianTree> {
+	const cleanVaultDir = vaultDir?.trim();
+	// If explicit vault dir requested and differs from cached vault, invalidate first
+	if (cleanVaultDir && treeCache && treeCache.data.vault.configured !== cleanVaultDir) {
+		invalidateVaultTreeCache();
+	}
+
+	if (!force && !cleanVaultDir && treeCache && Date.now() - treeCache.at < TREE_CACHE_MS) {
 		return treeCache.data;
 	}
-	if (!force && treeInflight) return treeInflight;
-	const task = doScanVaultTree();
+	if (!force && !cleanVaultDir && treeInflight) return treeInflight;
+	const task = doScanVaultTree(cleanVaultDir);
 	treeInflight = task;
 	try {
 		return await task;
@@ -102,8 +111,8 @@ function buildWikilinkIndex(tree: ObsidianTreeNode[]): WikilinkIndex {
 	return { byName, allNotes };
 }
 
-async function doScanVaultTree(): Promise<ObsidianTree> {
-	const vault = resolveObsidianVaultDir();
+async function doScanVaultTree(vaultDir?: string): Promise<ObsidianTree> {
+	const vault = resolveObsidianVaultDir(vaultDir);
 	let exists = false;
 	try {
 		exists = (await fs.stat(vault.path)).isDirectory();

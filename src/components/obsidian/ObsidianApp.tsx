@@ -1,7 +1,7 @@
 import { toast } from "@heroui/react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { NavLayoutEntry } from "../../modules/registry";
-import { saveSettings } from "../../services/storage/settingsStorage";
+import { saveSettingsAsync } from "../../services/storage/settingsStorage";
 import { useWorkbenchQuickActions } from "../workbench/layout/useWorkbenchQuickActions";
 import { WorkbenchHeader } from "../workbench/layout/WorkbenchHeader";
 import {
@@ -123,28 +123,39 @@ export function ObsidianApp({
 
 	// 5. Vault directory configuration & switcher
 	const [pickerOpen, setPickerOpen] = useState(false);
+	const [currentSettings, setCurrentSettings] = useState(settings);
+
+	useEffect(() => {
+		setCurrentSettings(settings);
+	}, [settings]);
 
 	const handleSaveVaultDir = useCallback(
-		(path: string) => {
+		async (path: string) => {
 			const next = path.trim();
-			saveSettings({ ...settings, obsidianVaultDir: next || undefined });
+			const updated = {
+				...currentSettings,
+				obsidianVaultDir: next || undefined,
+			};
+			setCurrentSettings(updated);
 			clearNoteHistory();
 			clearWikilinkCaches();
 			resetTreeSelection();
 			toast.success("Vault 路径已保存，正在重新扫描");
-			load(true);
+			await saveSettingsAsync(updated);
+			await load(true, next || undefined);
 		},
-		[settings, load, clearNoteHistory, resetTreeSelection],
+		[currentSettings, load, clearNoteHistory, resetTreeSelection],
 	);
 
 	const handleApplyVaultSettings = useCallback(
-		(next: WorkbenchSettings, rescan: boolean) => {
-			saveSettings(next);
+		async (next: WorkbenchSettings, rescan: boolean) => {
+			setCurrentSettings(next);
+			await saveSettingsAsync(next);
 			if (!rescan) return;
 			clearNoteHistory();
 			clearWikilinkCaches();
 			resetTreeSelection();
-			load(true);
+			await load(true, next.obsidianVaultDir);
 		},
 		[load, clearNoteHistory, resetTreeSelection],
 	);
@@ -196,7 +207,7 @@ export function ObsidianApp({
 						onRenameCancel={() => setRenamingPath(null)}
 						onClearCurrentDir={() => setCurrentDir("")}
 						vaultMissing={vaultMissing}
-						settings={settings}
+						settings={currentSettings}
 						vault={vault}
 						scannedAt={treeData?.scannedAt}
 						onApplyVaultSettings={handleApplyVaultSettings}
@@ -206,7 +217,7 @@ export function ObsidianApp({
 						vaultMissing={vaultMissing}
 						vault={vault}
 						selectedNotePath={selectedNotePath}
-						settings={settings}
+						settings={currentSettings}
 						onOpenPicker={() => setPickerOpen(true)}
 						onSaveVaultDir={handleSaveVaultDir}
 						onMutated={() => load(true)}
@@ -241,7 +252,7 @@ export function ObsidianApp({
 					if (deleteTarget) await performDeleteEntry(deleteTarget);
 				}}
 				pickerOpen={pickerOpen}
-				initialPickerPath={settings.obsidianVaultDir}
+				initialPickerPath={currentSettings.obsidianVaultDir}
 				onSelectPickerPath={(path) => {
 					setPickerOpen(false);
 					handleSaveVaultDir(path);

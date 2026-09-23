@@ -206,6 +206,7 @@ export function ObsidianSidebar({
 			>
 				{filteredTree.length > 0 ? (
 					<VaultTree
+						key={vault?.path || "vault-tree"}
 						scrollElement={scrollElement}
 						nodes={filteredTree}
 						selectedNotePath={selectedNotePath}

@@ -17,7 +17,7 @@ import {
 	TextCursorInput,
 	X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createLocalVaultRpc } from "../../services/api/obsidianClient";
 import type { ObsidianVaultEntry, WorkbenchSettings } from "../workbench/types";
 import { DirectoryPickerModal } from "./DirectoryPickerModal";
@@ -72,6 +72,19 @@ export function VaultSwitcher({
 		}
 		return list;
 	});
+
+	// Keep local state in sync when settings prop updates
+	useEffect(() => {
+		const nextActive = (settings.obsidianVaultDir ?? "").trim();
+		setActive(nextActive);
+		setVaults((prev) => {
+			const list = settings.obsidianVaults ? [...settings.obsidianVaults] : prev;
+			if (nextActive && !list.some((v) => v.path === nextActive)) {
+				list.unshift({ name: vaultNameOf(nextActive), path: nextActive });
+			}
+			return list;
+		});
+	}, [settings.obsidianVaultDir, settings.obsidianVaults]);
 
 	const apply = (
 		nextVaults: ObsidianVaultEntry[],
