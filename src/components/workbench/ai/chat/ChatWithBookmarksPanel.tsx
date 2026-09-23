@@ -68,6 +68,8 @@ export interface ChatWithBookmarksPanelProps {
 	) => void;
 	onDataChanged?: () => void;
 	onCollapse?: () => void;
+	panelWidth?: number;
+	onResizeStart?: (e: React.MouseEvent) => void;
 	className?: string;
 }
 
@@ -121,6 +123,8 @@ export const ChatWithBookmarksPanel = forwardRef<
 		onNavigateToFolder,
 		onDataChanged,
 		onCollapse,
+		panelWidth,
+		onResizeStart,
 		className = "",
 	},
 	ref,
@@ -360,8 +364,19 @@ export const ChatWithBookmarksPanel = forwardRef<
 		<ImagePreviewProvider>
 			<aside
 				data-ai-panel
-				className={`w-[380px] xl:w-[440px] 2xl:w-[480px] shrink-0 bg-surface/95 backdrop-blur-md border-l border-border flex flex-col h-full shadow-xs relative ${className}`}
+				style={panelWidth ? { width: `${panelWidth}px` } : undefined}
+				className={`${panelWidth ? "" : "w-[380px] xl:w-[440px] 2xl:w-[480px]"} shrink-0 bg-surface/95 backdrop-blur-md border-l border-border flex flex-col h-full shadow-xs relative ${className}`}
 			>
+				{/* Drag resize handle on left border */}
+				{onResizeStart && (
+					// biome-ignore lint/a11y/noStaticElementInteractions: ai panel resize handle
+					<div
+						onMouseDown={onResizeStart}
+						className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-zinc-400/50 active:bg-zinc-500 transition-colors z-20 select-none"
+						title="拖拽调整 AI 助手宽度"
+					/>
+				)}
+
 				{/* Top Header: Clean, lightweight single-row header */}
 				<div className="h-12 px-3.5 bg-surface/80 backdrop-blur-md shrink-0 flex items-center justify-between z-10">
 					<div className="flex items-center gap-2 min-w-0">

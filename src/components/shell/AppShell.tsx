@@ -9,6 +9,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { useAiPanelResize } from "../../hooks/ai/useAiPanelResize";
 import { getModuleByRoute } from "../../modules/registry";
 import { workbenchContextActions } from "../../stores/workbenchContextStore";
 import type { ChatContextItem } from "../../types/chatContext";
@@ -149,6 +150,7 @@ export function AppShell({
 }) {
 	const router = useRouter();
 	const panelRef = useRef<ChatWithBookmarksPanelRef>(null);
+	const { panelWidth, isResizing, handleResizeStart } = useAiPanelResize();
 
 	const pathname = useRouterState({ select: (s) => s.location.pathname });
 	const activeModule = getModuleByRoute(pathname)?.code ?? "workbench";
@@ -276,7 +278,9 @@ export function AppShell({
 			>
 				<div className="app-shell h-screen flex overflow-hidden relative">
 					{/* 流式 SSR 占位：仅在未折叠时渲染骨架屏 */}
-					{!isCollapsed && <AiPanelSkeleton />}
+					{!isCollapsed && (
+						<AiPanelSkeleton style={{ width: `${panelWidth}px` }} />
+					)}
 					{/* Left Region: 当前路由页面（含各自的顶栏与内容）；relative 为右下角浮动坞提供定位上下文 */}
 					<div className="order-1 relative flex-1 flex flex-col min-w-0 min-h-0">
 						<FloatingDockProvider
@@ -291,12 +295,17 @@ export function AppShell({
 					{/* Right: 常驻 AI 搜索与知识问答中枢（全局单例，占满视口高度）；
 					    外层容器做宽度过渡：折叠时宽度收为 0，面板内容贴右缘随之滑出/滑入 */}
 					<div
-						className={`order-2 shrink-0 h-full overflow-hidden flex justify-end transition-[width] duration-300 ease-out ${
-							isCollapsed ? "w-0" : "w-[380px] xl:w-[440px] 2xl:w-[480px]"
+						style={{
+							width: isCollapsed ? 0 : `${panelWidth}px`,
+						}}
+						className={`order-2 shrink-0 h-full overflow-hidden flex justify-end ${
+							isResizing ? "" : "transition-[width] duration-300 ease-out"
 						}`}
 					>
 						<ChatWithBookmarksPanel
 							ref={panelRef}
+							panelWidth={panelWidth}
+							onResizeStart={handleResizeStart}
 							selectedFolder={scope.selectedFolder}
 							activeCategory={scope.activeCategory}
 							activeModule={activeModule}

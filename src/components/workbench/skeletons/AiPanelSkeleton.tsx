@@ -4,10 +4,15 @@
  * SSR paints a reserved sidebar before the panel markup arrives; hidden via CSS
  * (`:has([data-ai-panel])`) once the real panel exists.
  */
-export function AiPanelSkeleton() {
+export interface AiPanelSkeletonProps {
+	style?: React.CSSProperties;
+}
+
+export function AiPanelSkeleton({ style }: AiPanelSkeletonProps = {}) {
 	return (
 		<aside
 			data-ai-panel-skeleton
+			style={style}
 			className="order-3 w-[380px] xl:w-[440px] 2xl:w-[480px] shrink-0 bg-surface/95 border-l border-border flex flex-col h-full animate-pulse"
 		>
 			{/* Header: title + scope pill */}
