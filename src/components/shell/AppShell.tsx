@@ -16,8 +16,9 @@ import { getModuleByRoute } from "../../modules/registry";
 import { workbenchContextActions } from "../../stores/workbenchContextStore";
 import type { ChatContextItem } from "../../types/chatContext";
 import type { PageBridge } from "../../types/pageBridge";
-import { CheckoutModal } from "../cloud/CheckoutModal";
+import { FlutedGlassBackground } from "../cloud/FlutedGlassBackground";
 import { LoginModal } from "../cloud/LoginModal";
+import { MemberCheckoutCard } from "../cloud/MemberCheckoutCard";
 import {
 	ChatWithBookmarksPanel,
 	type ChatWithBookmarksPanelRef,
@@ -286,19 +287,15 @@ export function AppShell({
 		);
 	}
 
-	// 3. Second level gate: Authenticated but not a valid member (new user or expired) -> Checkout Paywall
+	// 3. Second level gate: Authenticated but not a valid member (new user or expired) -> Fullscreen Landing Page
 	if (!isMember) {
 		return (
-			<div className="h-screen w-screen flex flex-col items-center justify-center bg-background relative overflow-hidden select-none">
-				{/* Decorative background glow */}
-				<div className="absolute inset-0 bg-radial from-amber-500/5 to-transparent pointer-events-none" />
+			<div className="h-screen w-screen flex flex-col items-center justify-center relative overflow-hidden select-none p-4">
+				{/* Fullscreen Ambient FlutedGlass Shader Background */}
+				<FlutedGlassBackground overlayClassName="bg-background/50 dark:bg-black/75" />
 
-				{/* Mandatory Checkout Modal Paywall */}
-				<CheckoutModal
-					isOpen={true}
-					mandatory={true}
-					expiredNotice={isExpired}
-				/>
+				{/* Center Checkout Card */}
+				<MemberCheckoutCard mandatory={true} expiredNotice={isExpired} />
 			</div>
 		);
 	}

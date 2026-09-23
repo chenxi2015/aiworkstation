@@ -168,7 +168,7 @@ class CloudClient {
 	// --- Payment APIs ---
 
 	/**
-	 * Get available membership subscription plans
+	 * Get available membership subscription plans from backend database
 	 */
 	async getPlans(): Promise<SubscriptionPlan[]> {
 		return this.fetchApi<SubscriptionPlan[]>("/api/pay/plans");
@@ -178,6 +178,18 @@ class CloudClient {
 	 * Create membership payment order
 	 */
 	async createOrder(planId: string): Promise<CreateOrderResponse> {
+		const token = this.getToken();
+		if (token?.startsWith("dev_local_token_")) {
+			// Mock order for dev environment testing
+			return {
+				orderNo: `ORDER_DEV_${Date.now()}`,
+				codeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(
+					`WECHAT_PAY_MOCK_ORDER_${planId}`,
+				)}`,
+				amountCents: 3600,
+				expiresInSeconds: 300,
+			};
+		}
 		return this.fetchApi<CreateOrderResponse>("/api/pay/create-order", {
 			method: "POST",
 			body: JSON.stringify({ planId }),
@@ -188,6 +200,15 @@ class CloudClient {
 	 * Poll payment order status
 	 */
 	async checkOrderStatus(orderNo: string): Promise<OrderStatusResponse> {
+		if (orderNo.startsWith("ORDER_DEV_")) {
+			return {
+				orderNo,
+				status: "PENDING",
+				paidAt: null,
+				tier: "PRO",
+				memberExpiresAt: new Date(Date.now() + 365 * 86400000).toISOString(),
+			};
+		}
 		return this.fetchApi<OrderStatusResponse>(
 			`/api/pay/order-status/${encodeURIComponent(orderNo)}`,
 		);
@@ -197,6 +218,9 @@ class CloudClient {
 	 * Mock payment fulfillment for testing
 	 */
 	async mockFulfillOrder(orderNo: string): Promise<void> {
+		if (orderNo.startsWith("ORDER_DEV_")) {
+			return;
+		}
 		await this.fetchApi(
 			`/api/pay/mock-fulfill/${encodeURIComponent(orderNo)}`,
 			{

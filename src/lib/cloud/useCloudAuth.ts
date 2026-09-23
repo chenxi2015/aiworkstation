@@ -92,16 +92,17 @@ export function useCloudAuth() {
 				)
 			: null;
 
-	// Dev helper: extend membership by given days
+	// Dev helper: extend membership by given days and tier
 	const mockUpgradeToPro = useCallback(
-		(days = 365) => {
+		(days = 365, tier: "PRO" | "LIFETIME" = "PRO") => {
 			if (!user) return;
-			const futureDate = new Date(
-				Date.now() + days * 24 * 60 * 60 * 1000,
-			).toISOString();
+			const futureDate =
+				tier === "LIFETIME"
+					? null
+					: new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
 			const upgradedUser: UserProfile = {
 				...user,
-				memberTier: "PRO",
+				memberTier: tier,
 				memberExpiresAt: futureDate,
 			};
 			cloudClient.setSession(

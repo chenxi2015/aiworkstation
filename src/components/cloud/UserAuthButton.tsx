@@ -82,7 +82,7 @@ export function UserAuthButton() {
 							className="fixed inset-0 z-40 cursor-default bg-transparent border-0"
 							onClick={() => setShowDropdown(false)}
 						/>
-						<Card className="absolute right-0 top-full mt-2 z-50 w-60 rounded-2xl border border-border/80 bg-surface/95 p-3.5 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-top-1 duration-150">
+						<Card className="absolute right-0 top-full mt-2 z-50 w-60 rounded-xl border border-border/80 bg-surface/95 p-3 shadow-md backdrop-blur-xl animate-in fade-in slide-in-from-top-1 duration-150">
 							<div className="flex items-center gap-2.5 pb-3 border-b border-border/60">
 								{user?.avatarUrl ? (
 									<img
