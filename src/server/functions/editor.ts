@@ -557,10 +557,10 @@ export const generateAiBarText = createServerFn({ method: "POST" })
 
 		const adapter = openaiCompatibleText(model, { baseURL: baseUrl, apiKey });
 		const presetPrompt = resolveEditorPresetPrompt(data.stylePreset);
+		const defaultSystemHint =
+			"你是一名专业高效的写作与文本处理助手。你的任务是直接对用户选中的文本进行处理并输出最终正文。\n【核心准则】：\n1. 直接输出处理后的正文内容，严禁输出任何思考过程、自我问答、字数统计、前缀标签或客套话。\n2. 严禁添加 Markdown 代码块围栏（如 ``` 或 ~~~）包裹全篇。";
 		const systemPrompt =
-			(data.systemHint ||
-				"你是一名专业中文写作助手。直接输出改写后的内容，不要加前缀说明。") +
-			presetPrompt;
+			(data.systemHint || defaultSystemHint) + presetPrompt;
 
 		const stream = await chat({
 			adapter,
@@ -573,9 +573,23 @@ export const generateAiBarText = createServerFn({ method: "POST" })
 		for await (const chunk of stream as AsyncIterable<
 			Record<string, unknown>
 		>) {
+			// Skip reasoning/thinking events emitted by models like DeepSeek-R1, QwQ, etc.
+			if (chunk.type && chunk.type !== "TEXT_MESSAGE_CONTENT") {
+				continue;
+			}
 			const delta = (chunk.delta ?? chunk.content ?? "") as string;
 			if (delta) result += delta;
 		}
 
-		return { text: result.trim() };
+		// Strip accidental <think>...</think> tags and common conversational preambles
+		let cleaned = result.trim();
+		cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+		cleaned = cleaned
+			.replace(
+				/^(好的[，,！!]?|好的，我来为你.*?[：:\n]|根据你的要求[，,].*?[：:\n]|为您润色如下[：:\n]|改写结果如下[：:\n]|缩写结果如下[：:\n]|以下是.*?内容[：:\n])/i,
+				"",
+			)
+			.trim();
+
+		return { text: cleaned };
 	});

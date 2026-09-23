@@ -594,9 +594,13 @@ function TextNotePanel({
 	const activeName =
 		note?.name ?? relPath.split("/").pop()?.replace(/\.md$/i, "") ?? "";
 
+	const isSplitOpen = Boolean(splitSession?.isOpen);
+
 	return (
 		<div className="h-full flex flex-col overflow-hidden">
-			<div className="flex items-center gap-1 px-2 py-1.5 border-b border-border shrink-0">
+			{/* Hide top navigation toolbar during split compare to avoid duplicate back buttons */}
+			{!isSplitOpen && (
+				<div className="flex items-center gap-1 px-2 py-1.5 border-b border-border shrink-0">
 				{/* 左：返回 / 前进（Obsidian 同款导航历史） */}
 				<div className="flex items-center shrink-0">
 					<Tooltip>
@@ -776,6 +780,7 @@ function TextNotePanel({
 					<Tooltip.Content placement="bottom">删除</Tooltip.Content>
 				</Tooltip>
 			</div>
+			)}
 			{/* 微型加载进度条（静默加载，不破坏编辑器 DOM 与选区） */}
 			{loading && (
 				<div className="h-0.5 w-full bg-accent/20 overflow-hidden shrink-0">
@@ -890,11 +895,7 @@ function TextNotePanel({
 				)}
 			</div>
 			<MarkdownAiBubbleMenu
-				view={
-					isCanvas || note?.truncated || viewMode === "reading"
-						? null
-						: editorView
-				}
+				view={isCanvas || note?.truncated ? null : editorView}
 				onGenerate={(prompt) => generateAiBarTextRpc(prompt)}
 			/>
 			<DeleteEntryDialog

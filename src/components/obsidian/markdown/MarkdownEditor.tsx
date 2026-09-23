@@ -21,6 +21,7 @@ import { insertLink, toggleInlineFormat } from "./formatCommands";
 import { livePreview } from "./livePreview";
 import { MarkdownContextMenu } from "./MarkdownContextMenu";
 import { wikilinkAutocomplete } from "./wikilinkAutocomplete";
+import { aiSelectionDecorationExtension } from "./cmAiHighlightExtension";
 
 export interface MarkdownEditorProps {
 	/** 受控初始值；仅在外部值与编辑器内容不一致时同步（如重新加载笔记） */
@@ -148,6 +149,7 @@ export function MarkdownEditor({
 			keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
 			placeholder(placeholderText),
 			EditorView.lineWrapping,
+			aiSelectionDecorationExtension(),
 			livePreview({
 				readingMode: reading,
 				noteRelPath: path,

@@ -1,4 +1,5 @@
 import type { EditorView } from "@codemirror/view";
+import { toast } from "@heroui/react";
 import { Sparkles } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -11,14 +12,20 @@ import {
 import { AiCustomPromptInput } from "../../editor/components/bubble/AiCustomPromptInput";
 import { AiPresetActionList } from "../../editor/components/bubble/AiPresetActionList";
 import { AiResultPanel } from "../../editor/components/bubble/AiResultPanel";
+import { AiSuggestionReviewBar } from "../../editor/components/bubble/AiSuggestionReviewBar";
+import {
+	type AiDiffSuggestionPayload,
+	setAiDiffSuggestion,
+	setAiSelectionHighlight,
+} from "./cmAiHighlightExtension";
 import { useCmFloatingPosition } from "./useCmFloatingPosition";
 
 export interface MarkdownAiBubbleMenuProps {
-	/** CodeMirror 实例（编辑态挂载后传入） */
+	/** CodeMirror instance from markdown editor */
 	view: EditorView | null;
-	/** AI 文本生成（复用创作模块的 generateAiBarText 服务端能力） */
+	/** AI text generation function */
 	onGenerate: (prompt: string) => Promise<string>;
-	/** 扩展/覆盖动作列表 */
+	/** Optional extra/override actions */
 	extraActions?: AiBarAction[];
 }
 
@@ -28,11 +35,19 @@ interface TargetRange {
 	text: string;
 }
 
+interface ActiveDiffState {
+	from: number;
+	to: number;
+	oldText: string;
+	newText: string;
+}
+
 /**
- * Markdown 划词 AI 浮层（CodeMirror 版）：
- * 交互与创作模块 AiBubbleMenu 一致 —— 选中文本弹出浮层，
- * 预设动作 / 自定义指令 → AI 生成 → 替换 / 插入后方 / 复制。
- * 直接对 markdown 原文做区间替换，不经过 AST 序列化，零失真。
+ * Markdown selection AI floating bar (CodeMirror version):
+ * Aligns 1:1 with creation module (AiBubbleMenu):
+ * 1. Persistent selection highlight with underline when action is running or results are displayed
+ * 2. Result panel with Diff review, direct replace, insert after, and copy
+ * 3. In-editor fine-grained diff preview with Accept/Reject toolbar
  */
 export function MarkdownAiBubbleMenu({
 	view,
@@ -43,8 +58,13 @@ export function MarkdownAiBubbleMenu({
 	const [state, setState] = useState<ActionState>("idle");
 	const [result, setResult] = useState("");
 	const [activeAction, setActiveAction] = useState<AiBarAction | null>(null);
+	const [activeDiff, setActiveDiff] = useState<ActiveDiffState | null>(null);
+	const [diffPos, setDiffPos] = useState({ top: 0, left: 0 });
+
 	const panelRef = useRef<HTMLElement>(null);
 	const targetRef = useRef<TargetRange | null>(null);
+	const activeDiffRef = useRef<ActiveDiffState | null>(null);
+	activeDiffRef.current = activeDiff;
 
 	const actions = (() => {
 		const merged = [...DEFAULT_ACTIONS];
@@ -56,44 +76,120 @@ export function MarkdownAiBubbleMenu({
 		return merged;
 	})();
 
-	// 浮层定位：与创作模块同一套逻辑 —— 下方不足翻上方、滚动 / resize 跟随、
-	// 面板实测尺寸（ResizeObserver）跟踪；锚点滚出屏幕时整体隐藏
-	const shouldShow = !!view && (visible || state !== "idle");
+	// ── Visual decoration helpers ────────────────────────────────
+	const setVisualHighlight = useCallback(
+		(range: { from: number; to: number } | null) => {
+			if (!view) return;
+			view.dispatch({
+				effects: setAiSelectionHighlight.of(range),
+			});
+		},
+		[view],
+	);
+
+	const setDiffDecoration = useCallback(
+		(payload: AiDiffSuggestionPayload | null) => {
+			if (!view) return;
+			view.dispatch({
+				effects: setAiDiffSuggestion.of(payload),
+			});
+		},
+		[view],
+	);
+
+	// ── Floating position for Bubble Panel ───────────────────────
+	const shouldShow = !!view && !activeDiff && (visible || state !== "idle");
 	const { pos, anchorVisible, refresh } = useCmFloatingPosition({
 		view,
 		enabled: shouldShow,
 		panelRef,
 		anchorRange: state !== "idle" ? targetRef.current : null,
-		panelWidth: 380,
+		panelWidth: 390,
 		panelHeight: 260,
 	});
 
+	// Reset all states and clear visual decorations
 	const reset = useCallback(() => {
+		setVisualHighlight(null);
+		setDiffDecoration(null);
+		setActiveDiff(null);
 		setState("idle");
 		setResult("");
 		setActiveAction(null);
 		targetRef.current = null;
 		setVisible(false);
-	}, []);
+	}, [setVisualHighlight, setDiffDecoration]);
 
-	// 监听选区变化 → 显示/隐藏浮层
+	// Clean up decorations on unmount or view change
+	useEffect(() => {
+		return () => {
+			if (view) {
+				view.dispatch({
+					effects: [
+						setAiSelectionHighlight.of(null),
+						setAiDiffSuggestion.of(null),
+					],
+				});
+			}
+		};
+	}, [view]);
+
+	// ── Diff review toolbar positioning ──────────────────────────
+	const updateDiffPosition = useCallback(() => {
+		if (!view || !activeDiff) return;
+		const maxPos = view.state.doc.length;
+		const from = Math.min(Math.max(0, activeDiff.from), maxPos);
+		const to = Math.min(Math.max(0, activeDiff.to), maxPos);
+		const start = view.coordsAtPos(from);
+		const end = view.coordsAtPos(to);
+		if (!start || !end) return;
+
+		const centerX = (start.left + end.right) / 2;
+		let topY = end.bottom + 12;
+		if (topY > window.innerHeight - 80) {
+			topY = Math.max(12, start.top - 48);
+		}
+		setDiffPos({
+			top: topY,
+			left: Math.max(120, Math.min(centerX, window.innerWidth - 120)),
+		});
+	}, [view, activeDiff]);
+
+	useEffect(() => {
+		if (!activeDiff) return;
+		updateDiffPosition();
+		const handleScrollOrResize = () => updateDiffPosition();
+		window.addEventListener("resize", handleScrollOrResize, { passive: true });
+		window.addEventListener("scroll", handleScrollOrResize, {
+			passive: true,
+			capture: true,
+		});
+		return () => {
+			window.removeEventListener("resize", handleScrollOrResize);
+			window.removeEventListener("scroll", handleScrollOrResize, true);
+		};
+	}, [activeDiff, updateDiffPosition]);
+
+	// ── Listen for selection changes to show/hide floating menu ───
 	useEffect(() => {
 		if (!view) return;
 
 		const handleSelection = () => {
-			// AI 生成中/出结果时不打断
-			if (state !== "idle") return;
-			const sel = view.state.selection.main;
-			if (sel.empty || sel.to - sel.from < 2) {
-				setVisible(false);
-				return;
-			}
-			setVisible(true);
-			refresh();
+			if (state !== "idle" || activeDiffRef.current != null) return;
+			requestAnimationFrame(() => {
+				if (!view || activeDiffRef.current != null) return;
+				const sel = view.state.selection.main;
+				if (sel.empty || sel.to - sel.from < 2) {
+					setVisible(false);
+					return;
+				}
+				setVisible(true);
+				refresh();
+			});
 		};
 
 		const handleBlur = () => {
-			if (state !== "idle") return;
+			if (state !== "idle" || activeDiff != null) return;
 			setTimeout(() => {
 				if (!panelRef.current?.matches(":hover")) {
 					setVisible(false);
@@ -109,22 +205,66 @@ export function MarkdownAiBubbleMenu({
 			view.dom.removeEventListener("keyup", handleSelection);
 			view.dom.removeEventListener("focusout", handleBlur);
 		};
-	}, [view, state, refresh]);
+	}, [view, state, activeDiff, refresh]);
 
+	// ── Close floating bubble or diff when clicking outside or pressing Escape ──
+	useEffect(() => {
+		if (!visible && state === "idle" && activeDiff == null) return;
+
+		const handlePointerDown = (e: PointerEvent) => {
+			const target = e.target as Node | null;
+			if (!target) return;
+			if (panelRef.current?.contains(target)) return;
+			// Ignore if interacting with review toolbar
+			if (
+				target instanceof HTMLElement &&
+				target.closest('[aria-label="AI建议审阅工具栏"]')
+			) {
+				return;
+			}
+			if (state === "idle" && !activeDiff) {
+				setVisible(false);
+			}
+		};
+
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if (e.key === "Escape") {
+				if (activeDiff) {
+					handleRejectDiff();
+				} else if (state !== "idle") {
+					reset();
+				} else {
+					setVisible(false);
+				}
+			}
+		};
+
+		document.addEventListener("pointerdown", handlePointerDown, true);
+		window.addEventListener("keydown", handleKeyDown);
+		return () => {
+			document.removeEventListener("pointerdown", handlePointerDown, true);
+			window.removeEventListener("keydown", handleKeyDown);
+		};
+	}, [visible, state, activeDiff, reset]);
+
+	// ── Action trigger: sets persistent selection highlight ──────
 	const runAction = useCallback(
 		async (action: AiBarAction) => {
 			if (!view || state === "loading") return;
 			const sel = view.state.selection.main;
 			const text = view.state.sliceDoc(sel.from, sel.to);
 			if (!text.trim()) return;
+
 			targetRef.current = { from: sel.from, to: sel.to, text };
 			setActiveAction(action);
 			setState("loading");
-			setVisible(false);
+			// Persistent visual highlight with blue underline (matching creation module)
+			setVisualHighlight({ from: sel.from, to: sel.to });
+
 			try {
 				const prompt = action.prompt.replace("{selection}", text);
 				const output = await onGenerate(prompt);
-				if (!targetRef.current) return; // 已被取消
+				if (!targetRef.current) return;
 				setResult(output);
 				setState("result");
 			} catch {
@@ -133,7 +273,7 @@ export function MarkdownAiBubbleMenu({
 				setState("error");
 			}
 		},
-		[view, state, onGenerate],
+		[view, state, onGenerate, setVisualHighlight],
 	);
 
 	const handleCustomInstruction = useCallback(
@@ -148,6 +288,64 @@ export function MarkdownAiBubbleMenu({
 		[runAction],
 	);
 
+	// ── Review Diff action: switches to inline diff review ────────
+	const handleReviewDiff = useCallback(() => {
+		const target = targetRef.current;
+		if (!view || !target || state !== "result" || !result) return;
+
+		const diffData = {
+			from: target.from,
+			to: target.to,
+			oldText: target.text,
+			newText: result,
+		};
+		activeDiffRef.current = diffData;
+		setActiveDiff(diffData);
+
+		// Switch from selection highlight to inline diff decoration
+		setVisualHighlight(null);
+		setDiffDecoration(diffData);
+
+		// Completely hide bubble panel while reviewing diff in document
+		setVisible(false);
+		setState("idle");
+	}, [view, state, result, setVisualHighlight, setDiffDecoration]);
+
+	// ── Accept Diff suggestion ────────────────────────────────────
+	const handleAcceptDiff = useCallback(() => {
+		if (!view || !activeDiff) return;
+		const { from, to, newText } = activeDiff;
+		setDiffDecoration(null);
+		setActiveDiff(null);
+
+		view.dispatch({
+			changes: { from, to, insert: newText },
+			selection: { anchor: from + newText.length },
+		});
+		view.focus();
+		toast.success("已采纳建议并更新内容");
+		reset();
+	}, [view, activeDiff, setDiffDecoration, reset]);
+
+	// ── Reject Diff suggestion: returns to result panel ───────────
+	const handleRejectDiff = useCallback(() => {
+		if (!view || !activeDiff) return;
+		const target = targetRef.current;
+		setDiffDecoration(null);
+		activeDiffRef.current = null;
+		setActiveDiff(null);
+
+		// Losslessly restore the result panel and selection highlight
+		if (target && result) {
+			setState("result");
+			setVisible(true);
+			setVisualHighlight({ from: target.from, to: target.to });
+		} else {
+			reset();
+		}
+	}, [view, activeDiff, result, setDiffDecoration, setVisualHighlight, reset]);
+
+	// ── Direct replacement & insertion ────────────────────────────
 	const applyReplace = useCallback(
 		(mode: "replace" | "insertAfter") => {
 			const target = targetRef.current;
@@ -174,11 +372,11 @@ export function MarkdownAiBubbleMenu({
 		try {
 			await navigator.clipboard.writeText(result);
 		} catch {
-			// 剪贴板不可用时静默
+			// Clipboard fallback
 		}
 	}, [result]);
 
-	if (!shouldShow || !anchorVisible) return null;
+	if ((!shouldShow || !anchorVisible) && !activeDiff) return null;
 
 	const panelStyle: React.CSSProperties = {
 		position: "fixed",
@@ -187,35 +385,52 @@ export function MarkdownAiBubbleMenu({
 		zIndex: 40,
 	};
 
-	return createPortal(
-		<section
-			ref={panelRef}
-			aria-label="选中文本浮动菜单"
-			style={panelStyle}
-			className="flex flex-col bg-surface/98 backdrop-blur-md border border-border/80 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] ring-1 ring-black/5 dark:ring-white/10 text-xs select-none"
-			onMouseDown={(e) => e.preventDefault()}
-		>
-			{state === "idle" && visible && (
-				<div className="flex flex-col w-[380px]">
-					<AiCustomPromptInput onSubmit={handleCustomInstruction} />
-					<AiPresetActionList
-						actions={actions}
-						onSelectAction={(action) => void runAction(action)}
-					/>
-				</div>
-			)}
-			{state !== "idle" && (
-				<AiResultPanel
-					state={state}
-					result={result}
-					activeAction={activeAction}
-					onReplace={() => applyReplace("replace")}
-					onInsertAfter={() => applyReplace("insertAfter")}
-					onCopy={() => void handleCopy()}
-					onClose={reset}
-				/>
-			)}
-		</section>,
-		document.body,
+	return (
+		<>
+			{shouldShow &&
+				!activeDiff &&
+				anchorVisible &&
+				createPortal(
+					<section
+						ref={panelRef}
+						aria-label="选中文本浮动菜单"
+						style={panelStyle}
+						className="flex flex-col bg-surface/98 backdrop-blur-md border border-border/80 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] ring-1 ring-black/5 dark:ring-white/10 text-xs select-none"
+						onMouseDown={(e) => e.preventDefault()}
+					>
+						{state === "idle" && visible && (
+							<div className="flex flex-col w-[380px]">
+								<AiCustomPromptInput onSubmit={handleCustomInstruction} />
+								<AiPresetActionList
+									actions={actions}
+									onSelectAction={(action) => void runAction(action)}
+								/>
+							</div>
+						)}
+						{state !== "idle" && (
+							<AiResultPanel
+								state={state}
+								result={result}
+								activeAction={activeAction}
+								onReviewDiff={handleReviewDiff}
+								onReplace={() => applyReplace("replace")}
+								onInsertAfter={() => applyReplace("insertAfter")}
+								onCopy={() => void handleCopy()}
+								onClose={reset}
+							/>
+						)}
+					</section>,
+					document.body,
+				)}
+
+			{/* Floating review toolbar for inline diff comparison */}
+			<AiSuggestionReviewBar
+				visible={activeDiff != null}
+				position={diffPos}
+				onAccept={handleAcceptDiff}
+				onReject={handleRejectDiff}
+				onClose={handleRejectDiff}
+			/>
+		</>
 	);
 }
