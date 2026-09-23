@@ -207,6 +207,8 @@ export function MarkdownAiBubbleMenu({
 		};
 	}, [view, state, activeDiff, refresh]);
 
+	const handleRejectDiffRef = useRef<() => void>(() => {});
+
 	// ── Close floating bubble or diff when clicking outside or pressing Escape ──
 	useEffect(() => {
 		if (!visible && state === "idle" && activeDiff == null) return;
@@ -230,7 +232,7 @@ export function MarkdownAiBubbleMenu({
 		const handleKeyDown = (e: KeyboardEvent) => {
 			if (e.key === "Escape") {
 				if (activeDiff) {
-					handleRejectDiff();
+					handleRejectDiffRef.current();
 				} else if (state !== "idle") {
 					reset();
 				} else {
@@ -344,6 +346,7 @@ export function MarkdownAiBubbleMenu({
 			reset();
 		}
 	}, [view, activeDiff, result, setDiffDecoration, setVisualHighlight, reset]);
+	handleRejectDiffRef.current = handleRejectDiff;
 
 	// ── Direct replacement & insertion ────────────────────────────
 	const applyReplace = useCallback(
@@ -395,11 +398,11 @@ export function MarkdownAiBubbleMenu({
 						ref={panelRef}
 						aria-label="选中文本浮动菜单"
 						style={panelStyle}
-						className="flex flex-col bg-surface/98 backdrop-blur-md border border-border/80 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] ring-1 ring-black/5 dark:ring-white/10 text-xs select-none"
+						className="flex flex-col bg-surface/98 dark:bg-surface/95 backdrop-blur-xl border border-border/80 rounded-2xl shadow-[0_16px_40px_-8px_rgba(0,0,0,0.16),0_4px_16px_-2px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.04] dark:ring-white/[0.08] text-xs select-none overflow-hidden transition-all duration-150"
 						onMouseDown={(e) => e.preventDefault()}
 					>
 						{state === "idle" && visible && (
-							<div className="flex flex-col w-[380px]">
+							<div className="flex flex-col w-[396px]">
 								<AiCustomPromptInput onSubmit={handleCustomInstruction} />
 								<AiPresetActionList
 									actions={actions}

@@ -19,9 +19,15 @@ export function AiCustomPromptInput({ onSubmit }: AiCustomPromptInputProps) {
 		onSubmit(instruction);
 	};
 
+	const hasValue = value.trim().length > 0;
+
 	return (
-		<div className="flex items-center gap-2 px-3 py-2.5 border-b border-border/60">
-			<Wand2 className="w-4 h-4 text-accent shrink-0" />
+		<div className="flex items-center gap-2.5 px-3 py-2 border-b border-border/50 bg-surface/50">
+			{/* AI Gradient Icon Badge */}
+			<div className="w-6 h-6 rounded-md bg-gradient-to-tr from-accent/20 via-violet-500/15 to-purple-500/20 text-accent flex items-center justify-center shrink-0 shadow-xs border border-accent/15">
+				<Wand2 className="w-3.5 h-3.5" />
+			</div>
+
 			<input
 				value={value}
 				onChange={(e) => setValue(e.target.value)}
@@ -37,17 +43,23 @@ export function AiCustomPromptInput({ onSubmit }: AiCustomPromptInputProps) {
 					}
 				}}
 				placeholder="输入指令，如：改成领导讲话稿"
-				className="flex-1 min-w-0 bg-transparent text-sm text-foreground placeholder:text-muted/70 outline-none select-text"
+				className="flex-1 min-w-0 bg-transparent text-[12.5px] text-foreground placeholder:text-muted-foreground/50 outline-none select-text py-0.5 leading-normal"
 			/>
+
+			{/* Submit Button */}
 			<button
 				type="button"
 				onClick={submit}
-				disabled={!value.trim()}
-				title="执行自定义指令"
+				disabled={!hasValue}
+				title={hasValue ? "执行指令 (Enter)" : "请输入指令"}
 				aria-label="执行自定义指令"
-				className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-all cursor-pointer bg-accent text-accent-foreground hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed"
+				className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 transition-all duration-150 ${
+					hasValue
+						? "bg-accent text-accent-foreground shadow-xs hover:opacity-95 hover:scale-105 active:scale-95 cursor-pointer"
+						: "text-muted-foreground/30 bg-muted/20 cursor-not-allowed"
+				}`}
 			>
-				<ArrowUp className="w-4 h-4" />
+				<ArrowUp className="w-3.5 h-3.5 stroke-[2.5]" />
 			</button>
 		</div>
 	);
