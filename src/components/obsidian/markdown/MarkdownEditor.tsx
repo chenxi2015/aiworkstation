@@ -9,7 +9,7 @@ import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { syntaxHighlighting } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
 import { searchKeymap } from "@codemirror/search";
-import { EditorState, Prec } from "@codemirror/state";
+import { Compartment, EditorState, Prec } from "@codemirror/state";
 import {
 	EditorView,
 	highlightActiveLine,
@@ -123,21 +123,16 @@ export function MarkdownEditor({
 		}
 	}, []);
 
-	const getExtensions = useCallback(
-		(path?: string) => [
-			Prec.high(
-				keymap.of([
-					{
-						key: "Mod-s",
-						run: () => {
-							onSaveRef.current?.();
-							return true;
-						},
-					},
-				]),
-			),
-			// 行内格式快捷键（对齐 Obsidian：⌘B 加粗 / ⌘I 倾斜 / ⌘E 代码 / ⌘K 链接）
-			...(reading
+	const modeCompartment = useRef(new Compartment()).current;
+	const readingRef = useRef(reading);
+	readingRef.current = reading;
+	const readOnlyRef = useRef(readOnly);
+	readOnlyRef.current = readOnly;
+	const isMountedRef = useRef(false);
+
+	const getModeExtensions = useCallback(
+		(isReading: boolean, isReadOnly: boolean, path?: string) => [
+			...(isReading
 				? []
 				: [
 						wikilinkAutocomplete(),
@@ -168,6 +163,35 @@ export function MarkdownEditor({
 						highlightActiveLine(),
 						highlightActiveLineGutter(),
 					]),
+			livePreview({
+				readingMode: isReading,
+				noteRelPath: path,
+				onPreviewImage: (data) =>
+					openPreviewRef.current({ src: data.src, title: data.alt }),
+				onNavigateNote: (rel) => onNavigateNoteRef.current?.(rel),
+				onCreateNote: (name) => onCreateNoteRef.current?.(name),
+			}),
+			...(isReading ? [readingTheme] : []),
+			// 阅读视图不设 EditorState.readOnly：保留复选框等控件的程序化改写能力
+			EditorState.readOnly.of(isReading ? false : isReadOnly),
+			EditorView.editable.of(!(isReadOnly || isReading)),
+		],
+		[],
+	);
+
+	const getExtensions = useCallback(
+		(path?: string) => [
+			Prec.high(
+				keymap.of([
+					{
+						key: "Mod-s",
+						run: () => {
+							onSaveRef.current?.();
+							return true;
+						},
+					},
+				]),
+			),
 			history(),
 			markdown({ base: markdownLanguage, codeLanguages: languages }),
 			syntaxHighlighting(appHighlightStyle, { fallback: true }),
@@ -175,22 +199,11 @@ export function MarkdownEditor({
 			placeholder(placeholderText),
 			EditorView.lineWrapping,
 			aiSelectionDecorationExtension(),
-			livePreview({
-				readingMode: reading,
-				noteRelPath: path,
-				onPreviewImage: (data) =>
-					openPreviewRef.current({ src: data.src, title: data.alt }),
-				onNavigateNote: (rel) => onNavigateNoteRef.current?.(rel),
-				onCreateNote: (name) => onCreateNoteRef.current?.(name),
-			}),
 			appTheme,
-			...(reading ? [readingTheme] : []),
-			// 阅读视图不设 EditorState.readOnly：保留复选框等控件的程序化改写能力
-			EditorState.readOnly.of(reading ? false : readOnly),
-			EditorView.editable.of(!(readOnly || reading)),
+			modeCompartment.of(getModeExtensions(reading, readOnly, path)),
 			EditorView.domEventHandlers({
 				paste(event, v) {
-					if (readOnly || reading) return false;
+					if (readOnlyRef.current || readingRef.current) return false;
 					const html = event.clipboardData?.getData("text/html");
 					if (!html) return false; // 纯文本走默认行为
 					const md = htmlToMarkdown(html);
@@ -208,14 +221,14 @@ export function MarkdownEditor({
 					return true;
 				},
 				contextmenu(event, v) {
-					if (readOnly) return false;
+					if (readOnlyRef.current) return false;
 					event.preventDefault();
 					// 右键落在选区外时先把光标移过去（对齐 Obsidian 行为）
 					const pos = v.posAtCoords({
 						x: event.clientX,
 						y: event.clientY,
 					});
-					if (pos != null && !reading) {
+					if (pos != null && !readingRef.current) {
 						const inSelection = v.state.selection.ranges.some(
 							(r) => pos >= r.from && pos <= r.to,
 						);
@@ -223,7 +236,7 @@ export function MarkdownEditor({
 							v.dispatch({ selection: { anchor: pos } });
 						}
 					}
-					if (!reading) v.focus();
+					if (!readingRef.current) v.focus();
 					setContextMenu({
 						x: event.clientX,
 						y: event.clientY,
@@ -248,7 +261,14 @@ export function MarkdownEditor({
 				}
 			}),
 		],
-		[reading, readOnly, placeholderText, emitHistoryChange],
+		[
+			getModeExtensions,
+			reading,
+			readOnly,
+			placeholderText,
+			modeCompartment,
+			emitHistoryChange,
+		],
 	);
 
 	// 编辑器实例只创建一次；外部值同步走下方 effect，回调经 ref 透传
@@ -275,6 +295,36 @@ export function MarkdownEditor({
 			viewRef.current = null;
 		};
 	}, []);
+
+	// Dynamically reconfigure mode extensions when reading or readOnly toggles, preserving exact scroll position
+	useEffect(() => {
+		if (!isMountedRef.current) {
+			isMountedRef.current = true;
+			return;
+		}
+		const view = viewRef.current;
+		if (!view) return;
+
+		// Record current scroll position before reconfiguration
+		const currentScrollTop = view.scrollDOM.scrollTop;
+		const currentScrollLeft = view.scrollDOM.scrollLeft;
+
+		view.dispatch({
+			effects: modeCompartment.reconfigure(
+				getModeExtensions(reading, readOnly, noteRelPath),
+			),
+		});
+
+		// Restore scroll position immediately and after the browser layout cycle
+		view.scrollDOM.scrollTop = currentScrollTop;
+		view.scrollDOM.scrollLeft = currentScrollLeft;
+		requestAnimationFrame(() => {
+			if (view.scrollDOM) {
+				view.scrollDOM.scrollTop = currentScrollTop;
+				view.scrollDOM.scrollLeft = currentScrollLeft;
+			}
+		});
+	}, [reading, readOnly, noteRelPath, getModeExtensions, modeCompartment]);
 
 	// Cleanly switch note state when noteRelPath changes without unmounting DOM
 	useEffect(() => {

@@ -424,7 +424,6 @@ export function TextNotePanel({
 					) : (
 						<ImagePreviewProvider>
 							<MarkdownEditor
-								key={viewMode}
 								value={draft}
 								onChange={handleDraftChange}
 								onReady={setEditorView}

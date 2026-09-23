@@ -99,10 +99,16 @@ export function RichTextEditor({
 	if (!editor) return null;
 
 	const togglePreview = () => {
+		const currentScroll = scrollContainerRef.current?.scrollTop ?? 0;
 		const next = !preview;
 		setPreview(next);
 		editor.setEditable(!next);
 		setShowScrollTop(false);
+		requestAnimationFrame(() => {
+			if (scrollContainerRef.current) {
+				scrollContainerRef.current.scrollTop = currentScroll;
+			}
+		});
 	};
 
 	const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -159,33 +165,31 @@ export function RichTextEditor({
 			{/* 编辑画布 / 仿纸质沉浸预览 */}
 			<div className="relative flex-1 min-h-0 flex flex-col">
 				<EditorMediaContext.Provider value={{ docId }}>
-					{preview ? (
-						<div
-							ref={scrollContainerRef}
-							onScroll={handleScroll}
-							className="doc-scroll-container flex-1 overflow-y-auto min-h-0 bg-slate-100/70 dark:bg-zinc-950/70 flex justify-center items-start py-6 px-4"
-						>
+					<div
+						ref={scrollContainerRef}
+						onScroll={handleScroll}
+						className={`flex-1 overflow-y-auto min-h-0 ${
+							preview
+								? "doc-scroll-container bg-slate-100/70 dark:bg-zinc-950/70 flex justify-center items-start py-6 px-4"
+								: ""
+						}`}
+					>
+						{preview ? (
 							<article className="document-paper w-full max-w-[860px] my-2 mb-12 h-fit shrink-0 bg-surface text-foreground rounded-2xl shadow-sm border border-border p-8 sm:p-14 transition-all">
 								<EditorContent
 									editor={editor}
 									className="tiptap-editor doc-content-body prose prose-neutral dark:prose-invert max-w-none focus:outline-none"
 								/>
 							</article>
-						</div>
-					) : (
-						<div
-							ref={scrollContainerRef}
-							onScroll={handleScroll}
-							className="flex-1 overflow-y-auto min-h-0"
-						>
+						) : (
 							<div className="max-w-3xl mx-auto px-8 py-6">
 								<EditorContent
 									editor={editor}
 									className="tiptap-editor prose prose-neutral dark:prose-invert max-w-none focus:outline-none"
 								/>
 							</div>
-						</div>
-					)}
+						)}
+					</div>
 				</EditorMediaContext.Provider>
 
 				{/* AI 逐段流式改写进度与批量审阅条 */}

@@ -65,6 +65,19 @@ export function SplitNoteCompareView({
 		!instruction && !modeLabel,
 	);
 
+	// 记录切换模式前的草稿栏滚动位置，避免在草稿编辑/预览切换时跳跃或置顶
+	const draftScrollTopRef = useRef<number>(0);
+
+	const updateEditingDraft = useCallback(
+		(next: boolean | ((prev: boolean) => boolean)) => {
+			if (rightScrollRef.current) {
+				draftScrollTopRef.current = rightScrollRef.current.scrollTop;
+			}
+			setIsEditingDraft(next);
+		},
+		[],
+	);
+
 	// Auto adjust textarea height so that outer scroll container handles overflow
 	// biome-ignore lint/correctness/useExhaustiveDependencies: layout needs recalculation on content/mode change
 	useEffect(() => {
@@ -74,13 +87,23 @@ export function SplitNoteCompareView({
 		el.style.height = `${Math.max(el.scrollHeight, 350)}px`;
 	}, [draftContent, diffViewMode, isEditingDraft]);
 
-	// 进入草稿编辑态时聚焦并将光标移到文末
+	// 保持草稿栏滚动位置，并安全聚焦（避免浏览器原生滚动导致置底或跳跃）
 	useEffect(() => {
-		if (!isEditingDraft) return;
-		const el = textareaRef.current;
-		if (!el) return;
-		el.focus();
-		el.setSelectionRange(el.value.length, el.value.length);
+		if (rightScrollRef.current) {
+			rightScrollRef.current.scrollTop = draftScrollTopRef.current;
+		}
+		if (isEditingDraft) {
+			const el = textareaRef.current;
+			if (el) {
+				// Prevent automatic scroll jump upon focusing
+				el.focus({ preventScroll: true });
+			}
+		}
+		requestAnimationFrame(() => {
+			if (rightScrollRef.current) {
+				rightScrollRef.current.scrollTop = draftScrollTopRef.current;
+			}
+		});
 	}, [isEditingDraft]);
 
 	// 支持 Markdown 常用编辑交互（Tab 缩进、⌘B 粗体、⌘I 斜体）
@@ -288,7 +311,7 @@ export function SplitNoteCompareView({
 							{!isStreaming && diffViewMode === "clean" && (
 								<button
 									type="button"
-									onClick={() => setIsEditingDraft((v) => !v)}
+									onClick={() => updateEditingDraft((v) => !v)}
 									className={`text-[11px] px-2 py-0.5 rounded border transition-colors flex items-center gap-1 cursor-pointer ${
 										isEditingDraft
 											? "border-accent/40 bg-accent/10 text-accent font-medium"
@@ -345,7 +368,7 @@ export function SplitNoteCompareView({
 											type="button"
 											onClick={() => {
 												setDiffViewMode("clean");
-												setIsEditingDraft(true);
+												updateEditingDraft(true);
 											}}
 											className="text-xs px-2.5 py-1 rounded bg-surface-secondary text-foreground hover:bg-surface-secondary/80 border border-border/80 transition-colors cursor-pointer"
 										>
@@ -360,7 +383,7 @@ export function SplitNoteCompareView({
 									className="flex-1 flex flex-col min-h-[350px] cursor-text"
 									onClick={(e) => {
 										if (!isStreaming && !isEditingDraft) {
-											setIsEditingDraft(true);
+											updateEditingDraft(true);
 										} else if (e.target === e.currentTarget) {
 											textareaRef.current?.focus();
 										}
@@ -401,7 +424,7 @@ export function SplitNoteCompareView({
 										<div
 											className={`prose prose-neutral dark:prose-invert max-w-none text-sm leading-relaxed ${isStreaming ? "" : "cursor-text"}`}
 											onClick={() => {
-												if (!isStreaming) setIsEditingDraft(true);
+												if (!isStreaming) updateEditingDraft(true);
 											}}
 											title={isStreaming ? undefined : "点击可直接编辑草稿"}
 											// biome-ignore lint/security/noDangerouslySetInnerHtml: Draft markdown rendered to sanitized html
@@ -427,7 +450,7 @@ export function SplitNoteCompareView({
 											<div className="flex items-center gap-2">
 												<button
 													type="button"
-													onClick={() => setIsEditingDraft(true)}
+													onClick={() => updateEditingDraft(true)}
 													className="px-3 py-1.5 rounded-lg bg-accent text-accent-foreground text-xs font-medium hover:opacity-90 transition-opacity shadow-2xs cursor-pointer"
 												>
 													开始编写草稿
