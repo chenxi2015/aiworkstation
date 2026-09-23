@@ -1,3 +1,4 @@
+import { BookOpen, FileText, PenLine } from "lucide-react";
 import {
 	useCallback,
 	useDeferredValue,
@@ -24,7 +25,7 @@ export interface SplitNoteCompareViewProps {
  * Dual-column Markdown Split View with Diff & Review:
  * - Top header: Clean vs Diff toggle, delta badge, streaming control, Accept / Save as New
  * - Left column: Original base note (clean markdown or red-highlighted diff)
- * - Right column: AI revision draft (clean editable markdown or green-highlighted diff)
+ * - Right column: Draft practice & AI revision (editable Markdown with preview toggle or green-highlighted diff)
  * - Synchronized scroll between left and right columns
  */
 export function SplitNoteCompareView({
@@ -59,8 +60,10 @@ export function SplitNoteCompareView({
 	const rightScrollRef = useRef<HTMLDivElement | null>(null);
 	const isSyncingScrollRef = useRef<boolean>(false);
 	const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-	// 右栏草稿：默认渲染 Markdown 预览，可切换为源码编辑（流式期间强制预览）
-	const [isEditingDraft, setIsEditingDraft] = useState<boolean>(false);
+	// 右栏草稿：若无指令自动启动（用户手动开启双栏对照），默认进入编辑态；流式期间强制预览
+	const [isEditingDraft, setIsEditingDraft] = useState<boolean>(
+		!instruction && !modeLabel,
+	);
 
 	// Auto adjust textarea height so that outer scroll container handles overflow
 	// biome-ignore lint/correctness/useExhaustiveDependencies: layout needs recalculation on content/mode change
@@ -68,8 +71,8 @@ export function SplitNoteCompareView({
 		const el = textareaRef.current;
 		if (!el) return;
 		el.style.height = "auto";
-		el.style.height = `${Math.max(el.scrollHeight, 300)}px`;
-	}, [draftContent, diffViewMode]);
+		el.style.height = `${Math.max(el.scrollHeight, 350)}px`;
+	}, [draftContent, diffViewMode, isEditingDraft]);
 
 	// 进入草稿编辑态时聚焦并将光标移到文末
 	useEffect(() => {
@@ -79,6 +82,63 @@ export function SplitNoteCompareView({
 		el.focus();
 		el.setSelectionRange(el.value.length, el.value.length);
 	}, [isEditingDraft]);
+
+	// 支持 Markdown 常用编辑交互（Tab 缩进、⌘B 粗体、⌘I 斜体）
+	const handleTextareaKeyDown = useCallback(
+		(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+			if (e.key === "Tab") {
+				e.preventDefault();
+				const textarea = e.currentTarget;
+				const start = textarea.selectionStart;
+				const end = textarea.selectionEnd;
+				const value = textarea.value;
+				const updated = `${value.substring(0, start)}  ${value.substring(end)}`;
+				setDraftContent(updated);
+				requestAnimationFrame(() => {
+					textarea.selectionStart = textarea.selectionEnd = start + 2;
+				});
+			} else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") {
+				e.preventDefault();
+				const textarea = e.currentTarget;
+				const start = textarea.selectionStart;
+				const end = textarea.selectionEnd;
+				const value = textarea.value;
+				const selected = value.substring(start, end);
+				const replacement = `**${selected || "粗体文本"}**`;
+				const updated = `${value.substring(0, start)}${replacement}${value.substring(end)}`;
+				setDraftContent(updated);
+				requestAnimationFrame(() => {
+					if (selected) {
+						textarea.selectionStart = start;
+						textarea.selectionEnd = start + replacement.length;
+					} else {
+						textarea.selectionStart = start + 2;
+						textarea.selectionEnd = start + 2 + 4;
+					}
+				});
+			} else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "i") {
+				e.preventDefault();
+				const textarea = e.currentTarget;
+				const start = textarea.selectionStart;
+				const end = textarea.selectionEnd;
+				const value = textarea.value;
+				const selected = value.substring(start, end);
+				const replacement = `*${selected || "斜体文本"}*`;
+				const updated = `${value.substring(0, start)}${replacement}${value.substring(end)}`;
+				setDraftContent(updated);
+				requestAnimationFrame(() => {
+					if (selected) {
+						textarea.selectionStart = start;
+						textarea.selectionEnd = start + replacement.length;
+					} else {
+						textarea.selectionStart = start + 1;
+						textarea.selectionEnd = start + 1 + 4;
+					}
+				});
+			}
+		},
+		[setDraftContent],
+	);
 
 	const handleLeftScroll = useCallback(() => {
 		if (isSyncingScrollRef.current) return;
@@ -154,6 +214,12 @@ export function SplitNoteCompareView({
 		onSaveAsNewNote(target);
 	}, [draftContent, originalContent, onSaveAsNewNote]);
 
+	// 一键载入原文为初始草稿
+	const handleLoadOriginalToDraft = useCallback(() => {
+		setDraftContent(originalContent);
+		setIsEditingDraft(true);
+	}, [originalContent, setDraftContent]);
+
 	return (
 		<div className="absolute inset-0 flex flex-col min-h-0 bg-surface dark:bg-background overflow-hidden select-text">
 			{/* Top Control Header */}
@@ -209,21 +275,42 @@ export function SplitNoteCompareView({
 					</div>
 				</section>
 
-				{/* Right Column: AI Revision Draft */}
+				{/* Right Column: AI Revision Draft / Practice Canvas */}
 				<section className="flex-1 flex flex-col min-w-0 min-h-0 h-full bg-surface dark:bg-background">
 					<div className="h-8 px-4 border-b border-border/60 bg-surface-secondary/40 flex items-center justify-between text-xs text-muted font-medium shrink-0 select-none">
 						<span className="flex items-center gap-1.5 text-accent">
 							<span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
-							右栏 · AI 改写草稿
+							{instruction || modeLabel
+								? `右栏 · ${activeModeLabel || modeLabel || "AI 改写草稿"}`
+								: "右栏 · 草稿演练"}
 						</span>
 						<span className="flex items-center gap-2">
-							{!isStreaming && draftContent && (
+							{!isStreaming && diffViewMode === "clean" && (
 								<button
 									type="button"
 									onClick={() => setIsEditingDraft((v) => !v)}
-									className="text-[11px] px-1.5 py-0.5 rounded border border-border/70 text-muted hover:text-foreground hover:bg-surface-secondary/80 transition-colors"
+									className={`text-[11px] px-2 py-0.5 rounded border transition-colors flex items-center gap-1 cursor-pointer ${
+										isEditingDraft
+											? "border-accent/40 bg-accent/10 text-accent font-medium"
+											: "border-border/70 text-muted hover:text-foreground hover:bg-surface-secondary/80"
+									}`}
+									title={
+										isEditingDraft
+											? "切换为 Markdown 渲染预览"
+											: "切换为源码编辑"
+									}
 								>
-									{isEditingDraft ? "预览" : "编辑"}
+									{isEditingDraft ? (
+										<>
+											<BookOpen className="w-3 h-3" />
+											<span>预览</span>
+										</>
+									) : (
+										<>
+											<PenLine className="w-3 h-3" />
+											<span>编辑</span>
+										</>
+									)}
 								</button>
 							)}
 							<span className="text-[11px] opacity-75 font-mono">
@@ -250,21 +337,65 @@ export function SplitNoteCompareView({
 										正在构思并生成改写内容…
 									</div>
 								) : (
-									<div className="text-xs text-muted py-8 text-center">
-										暂无草稿内容
+									<div className="flex flex-col items-center justify-center py-16 text-center">
+										<p className="text-xs text-muted mb-3">
+											暂无差异内容（草稿与原文一致或草稿为空）
+										</p>
+										<button
+											type="button"
+											onClick={() => {
+												setDiffViewMode("clean");
+												setIsEditingDraft(true);
+											}}
+											className="text-xs px-2.5 py-1 rounded bg-surface-secondary text-foreground hover:bg-surface-secondary/80 border border-border/80 transition-colors cursor-pointer"
+										>
+											切换至纯净并排编辑
+										</button>
 									</div>
 								)
 							) : (
-								/* Clean Mode: 渲染 Markdown 预览；「编辑」切换为源码微调（流式期间强制预览） */
-								<div className="flex-1 flex flex-col min-h-[300px]">
+								/* Clean Mode: 渲染 Markdown 预览；「编辑」切换为源码编辑（流式期间强制预览） */
+								// biome-ignore lint/a11y/noStaticElementInteractions lint/a11y/useKeyWithClickEvents: Click empty area in clean mode to focus editing
+								<div
+									className="flex-1 flex flex-col min-h-[350px] cursor-text"
+									onClick={(e) => {
+										if (!isStreaming && !isEditingDraft) {
+											setIsEditingDraft(true);
+										} else if (e.target === e.currentTarget) {
+											textareaRef.current?.focus();
+										}
+									}}
+								>
 									{!isStreaming && isEditingDraft ? (
-										<textarea
-											ref={textareaRef}
-											value={draftContent}
-											onChange={(e) => setDraftContent(e.target.value)}
-											placeholder="AI 改写草稿将显示在此处，您也可以在此直接修改微调…"
-											className="w-full resize-none overflow-hidden bg-transparent font-sans text-sm leading-relaxed text-foreground focus:outline-none placeholder:text-muted/50"
-										/>
+										<div className="flex-1 flex flex-col">
+											<textarea
+												ref={textareaRef}
+												value={draftContent}
+												onChange={(e) => setDraftContent(e.target.value)}
+												onKeyDown={handleTextareaKeyDown}
+												placeholder="在此编写或修改 Markdown 草稿（支持 Tab 缩进及 ⌘B / ⌘I 快捷键）…"
+												className="w-full resize-none overflow-hidden bg-transparent font-sans text-sm leading-relaxed text-foreground focus:outline-none placeholder:text-muted/50"
+											/>
+											{!draftContent.trim() && (
+												<div className="mt-6 p-4 rounded-xl border border-dashed border-border/80 bg-surface-secondary/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-muted">
+													<div className="flex items-center gap-2">
+														<FileText className="w-4 h-4 text-accent/80 shrink-0" />
+														<span>
+															草稿为空，您可以直接在上方打字，或一键导入原文对照修改
+														</span>
+													</div>
+													{originalContent.trim() && (
+														<button
+															type="button"
+															onClick={handleLoadOriginalToDraft}
+															className="px-2.5 py-1 rounded-lg bg-surface hover:bg-surface-secondary border border-border text-foreground text-xs font-medium transition-colors shadow-2xs cursor-pointer shrink-0"
+														>
+															载入原文为草稿
+														</button>
+													)}
+												</div>
+											)}
+										</div>
 									) : draftContent ? (
 										// biome-ignore lint/a11y/noStaticElementInteractions lint/a11y/useKeyWithClickEvents: 点击预览进入编辑是便捷增强，键盘用户可走栏头「编辑」按钮
 										<div
@@ -281,8 +412,36 @@ export function SplitNoteCompareView({
 											正在构思并生成改写内容…
 										</div>
 									) : (
-										<div className="text-xs text-muted py-8 text-center">
-											暂无草稿内容
+										/* Clean 模式空状态：提供清晰指引与一键操作 */
+										<div className="flex flex-col items-center justify-center py-16 text-center select-none">
+											<div className="w-10 h-10 rounded-full bg-accent/10 text-accent flex items-center justify-center mb-3">
+												<PenLine className="w-5 h-5" />
+											</div>
+											<p className="text-sm font-medium text-foreground mb-1">
+												暂无草稿内容
+											</p>
+											<p className="text-xs text-muted mb-4 max-w-xs">
+												右栏支持直接编写 Markdown
+												或对照原文修改，采纳后可覆写笔记或另存新文件
+											</p>
+											<div className="flex items-center gap-2">
+												<button
+													type="button"
+													onClick={() => setIsEditingDraft(true)}
+													className="px-3 py-1.5 rounded-lg bg-accent text-accent-foreground text-xs font-medium hover:opacity-90 transition-opacity shadow-2xs cursor-pointer"
+												>
+													开始编写草稿
+												</button>
+												{originalContent.trim() && (
+													<button
+														type="button"
+														onClick={handleLoadOriginalToDraft}
+														className="px-3 py-1.5 rounded-lg bg-surface-secondary text-foreground text-xs font-medium hover:bg-surface-secondary/80 border border-border/80 transition-colors cursor-pointer"
+													>
+														载入原文为草稿
+													</button>
+												)}
+											</div>
 										</div>
 									)}
 								</div>
