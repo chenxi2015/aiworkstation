@@ -181,7 +181,10 @@ export function MarkdownAiBubbleMenu({
 	}, [view, activeDiff]);
 
 	const applyDiffCoords = useCallback(
-		(coords: { visible: boolean; top: number; left: number }, syncState = true) => {
+		(
+			coords: { visible: boolean; top: number; left: number },
+			syncState = true,
+		) => {
 			if (diffBarRef.current) {
 				if (!coords.visible) {
 					diffBarRef.current.style.display = "none";
@@ -257,7 +260,13 @@ export function MarkdownAiBubbleMenu({
 			window.removeEventListener("resize", handleScroll);
 			if (rafId) cancelAnimationFrame(rafId);
 		};
-	}, [view, activeDiff, calculateDiffCoords, applyDiffCoords, updateDiffPosition]);
+	}, [
+		view,
+		activeDiff,
+		calculateDiffCoords,
+		applyDiffCoords,
+		updateDiffPosition,
+	]);
 
 	// ── Listen for selection changes to show/hide floating menu ───
 	useEffect(() => {
@@ -452,6 +461,9 @@ export function MarkdownAiBubbleMenu({
 				});
 			}
 			view.focus();
+			toast.success(
+				mode === "replace" ? "已替换，可随时撤销 (⌘Z)" : "已插入内容",
+			);
 			reset();
 		},
 		[view, state, result, reset],

@@ -85,4 +85,12 @@ export interface ObsidianNoteApi {
 	) => Promise<void>;
 	/** 切换双栏比对视图 */
 	toggleSplitCompare?: () => void;
+	/** 撤销当前编辑 */
+	undo?: () => boolean;
+	/** 重做当前编辑 */
+	redo?: () => boolean;
+	/** 是否可撤销 */
+	canUndo?: () => boolean;
+	/** 是否可重做 */
+	canRedo?: () => boolean;
 }

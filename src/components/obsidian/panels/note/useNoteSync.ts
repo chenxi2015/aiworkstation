@@ -24,6 +24,10 @@ export interface UseNoteSyncOptions {
 		modeLabel?: string,
 	) => Promise<void>;
 	toggleSplitCompare?: () => void;
+	onUndo?: () => boolean;
+	onRedo?: () => boolean;
+	canUndo?: () => boolean;
+	canRedo?: () => boolean;
 }
 
 export interface UseNoteSyncReturn {
@@ -52,6 +56,10 @@ export function useNoteSync({
 	onRegisterNoteApi,
 	onStartRewritePipeline,
 	toggleSplitCompare,
+	onUndo,
+	onRedo,
+	canUndo,
+	canRedo,
 }: UseNoteSyncOptions): UseNoteSyncReturn {
 	const initialCached = getCachedVaultNote(relPath);
 	const [note, setNote] = useState<ObsidianNoteContent | null>(initialCached);
@@ -236,9 +244,21 @@ export function useNoteSync({
 			},
 			onStartRewritePipeline,
 			toggleSplitCompare,
+			undo: onUndo,
+			redo: onRedo,
+			canUndo,
+			canRedo,
 		});
 		return () => onRegisterNoteApi(null);
-	}, [onRegisterNoteApi, onStartRewritePipeline, toggleSplitCompare]);
+	}, [
+		onRegisterNoteApi,
+		onStartRewritePipeline,
+		toggleSplitCompare,
+		onUndo,
+		onRedo,
+		canUndo,
+		canRedo,
+	]);
 
 	return {
 		note,

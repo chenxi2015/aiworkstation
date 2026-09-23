@@ -1,7 +1,8 @@
+import { redo, undo } from "@codemirror/commands";
 import type { EditorView } from "@codemirror/view";
 import { toast } from "@heroui/react";
 import { AlertTriangle } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { generateAiBarTextRpc } from "../../../../services/api/editorClient";
 import {
 	createVaultNoteRpc,
@@ -19,8 +20,8 @@ import {
 import { MarkdownAiBubbleMenu } from "../../markdown/MarkdownAiBubbleMenu";
 import { MarkdownEditor } from "../../markdown/MarkdownEditor";
 import { SplitNoteCompareView } from "../../markdown/SplitNoteCompareView";
-import { JsonEditor } from "../JsonEditor";
 import type { NotePanelProps } from "../../NotePanel";
+import { JsonEditor } from "../JsonEditor";
 import { NoteConflictBanner } from "./NoteConflictBanner";
 import { NoteStatusBar } from "./NoteStatusBar";
 import { NoteToolbar } from "./NoteToolbar";
@@ -47,6 +48,16 @@ export function TextNotePanel({
 	const isCanvas = relPath.toLowerCase().endsWith(".canvas");
 	const [editorView, setEditorView] = useState<EditorView | null>(null);
 	const [deleteOpen, setDeleteOpen] = useState(false);
+	const [canUndo, setCanUndo] = useState(false);
+	const [canRedo, setCanRedo] = useState(false);
+
+	const handleHistoryChange = useCallback(
+		(nextCanUndo: boolean, nextCanRedo: boolean) => {
+			setCanUndo(nextCanUndo);
+			setCanRedo(nextCanRedo);
+		},
+		[],
+	);
 
 	// Persist view mode across sessions (Obsidian-styled)
 	const [viewMode, setViewMode] = useState<"editing" | "reading">(() =>
@@ -106,6 +117,11 @@ export function TextNotePanel({
 		[isCanvas],
 	);
 
+	const handleUndoRef = useRef<() => boolean>(() => false);
+	const handleRedoRef = useRef<() => boolean>(() => false);
+	const canUndoRef = useRef<() => boolean>(() => false);
+	const canRedoRef = useRef<() => boolean>(() => false);
+
 	const {
 		note,
 		draft,
@@ -123,7 +139,83 @@ export function TextNotePanel({
 		onRegisterNoteApi,
 		onStartRewritePipeline: startRewritePipeline,
 		toggleSplitCompare,
+		onUndo: () => handleUndoRef.current(),
+		onRedo: () => handleRedoRef.current(),
+		canUndo: () => canUndoRef.current(),
+		canRedo: () => canRedoRef.current(),
 	});
+
+	const isEditableDoc = !isCanvas || canvasMode === "source";
+	const effectiveCanUndo = canUndo && !note?.truncated && isEditableDoc;
+	const effectiveCanRedo = canRedo && !note?.truncated && isEditableDoc;
+
+	const handleUndo = useCallback(() => {
+		if (!editorView || Boolean(note?.truncated)) return false;
+		const res = undo(editorView);
+		if (viewMode === "editing") {
+			editorView.focus();
+		}
+		return res;
+	}, [editorView, viewMode, note?.truncated]);
+
+	const handleRedo = useCallback(() => {
+		if (!editorView || Boolean(note?.truncated)) return false;
+		const res = redo(editorView);
+		if (viewMode === "editing") {
+			editorView.focus();
+		}
+		return res;
+	}, [editorView, viewMode, note?.truncated]);
+
+	handleUndoRef.current = handleUndo;
+	handleRedoRef.current = handleRedo;
+	canUndoRef.current = () => effectiveCanUndo;
+	canRedoRef.current = () => effectiveCanRedo;
+
+	// Keyboard shortcuts for Undo/Redo in reading mode or when editorView lacks direct focus
+	useEffect(() => {
+		if (isCanvas) return;
+		const handleKeyDown = (e: KeyboardEvent) => {
+			const isMod = e.metaKey || e.ctrlKey;
+			if (!isMod) return;
+
+			// Skip if focus is in an input or textarea (e.g. rename, search, or dialog)
+			const target = e.target as HTMLElement | null;
+			if (
+				target instanceof HTMLInputElement ||
+				target instanceof HTMLTextAreaElement ||
+				target?.isContentEditable
+			) {
+				return;
+			}
+
+			const key = e.key.toLowerCase();
+			if (key === "z") {
+				if (!e.shiftKey) {
+					if (effectiveCanUndo) {
+						e.preventDefault();
+						e.stopPropagation();
+						handleUndo();
+					}
+				} else {
+					if (effectiveCanRedo) {
+						e.preventDefault();
+						e.stopPropagation();
+						handleRedo();
+					}
+				}
+			} else if (key === "y" && !e.shiftKey) {
+				if (effectiveCanRedo) {
+					e.preventDefault();
+					e.stopPropagation();
+					handleRedo();
+				}
+			}
+		};
+
+		window.addEventListener("keydown", handleKeyDown);
+		return () => window.removeEventListener("keydown", handleKeyDown);
+	}, [isCanvas, effectiveCanUndo, effectiveCanRedo, handleUndo, handleRedo]);
 
 	const handleAcceptSplit = useCallback(
 		(newContent: string) => {
@@ -259,6 +351,10 @@ export function TextNotePanel({
 					canGoForward={canGoForward}
 					onBack={onBack}
 					onForward={onForward}
+					canUndo={effectiveCanUndo}
+					canRedo={effectiveCanRedo}
+					onUndo={() => void handleUndo()}
+					onRedo={() => void handleRedo()}
 					activeRelPath={activeRelPath}
 					activeName={activeName}
 					onSelectFolder={onSelectFolder}
@@ -308,6 +404,8 @@ export function TextNotePanel({
 								key={note.relPath}
 								value={draft}
 								onChange={handleDraftChange}
+								onReady={setEditorView}
+								onHistoryChange={handleHistoryChange}
 								readOnly={Boolean(note.truncated)}
 								onSaveShortcut={() => void flushSave()}
 							/>
@@ -330,6 +428,7 @@ export function TextNotePanel({
 								value={draft}
 								onChange={handleDraftChange}
 								onReady={setEditorView}
+								onHistoryChange={handleHistoryChange}
 								readOnly={Boolean(note.truncated)}
 								reading={viewMode === "reading"}
 								noteRelPath={note.relPath}

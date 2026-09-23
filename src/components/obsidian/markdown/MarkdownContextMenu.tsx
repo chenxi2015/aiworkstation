@@ -1,3 +1,4 @@
+import { redo, redoDepth, undo, undoDepth } from "@codemirror/commands";
 import type { EditorView } from "@codemirror/view";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -9,7 +10,7 @@ import {
 } from "./formatCommands";
 
 /**
- * Obsidian 风格右键菜单：文本格式 + 段落设置 + 清除格式。
+ * Obsidian 风格右键菜单：文本格式 + 段落设置 + 清除格式 + 撤销/重做。
  * 由 MarkdownEditor 在 contextmenu 事件中挂载，点击外部 / Esc / 执行命令后关闭。
  */
 
@@ -24,6 +25,7 @@ interface MenuEntry {
 	label: string;
 	hint?: string;
 	action: (view: EditorView) => boolean;
+	disabled?: (view: EditorView) => boolean;
 }
 
 interface MenuSection {
@@ -32,6 +34,23 @@ interface MenuSection {
 }
 
 const SECTIONS: MenuSection[] = [
+	{
+		title: "历史操作",
+		entries: [
+			{
+				label: "撤销",
+				hint: "⌘Z",
+				action: (v) => undo(v),
+				disabled: (v) => undoDepth(v.state) === 0,
+			},
+			{
+				label: "重做",
+				hint: "⌘⇧Z",
+				action: (v) => redo(v),
+				disabled: (v) => redoDepth(v.state) === 0,
+			},
+		],
+	},
 	{
 		title: "文本格式",
 		entries: [
@@ -114,6 +133,7 @@ export function MarkdownContextMenu({
 
 	const run = (entry: MenuEntry) => {
 		entry.action(view);
+		view.focus();
 		onClose();
 	};
 
@@ -142,19 +162,35 @@ export function MarkdownContextMenu({
 								{section.title}
 							</div>
 						)}
-						{section.entries.map((entry) => (
-							<button
-								key={entry.label}
-								type="button"
-								className="flex w-full items-center justify-between gap-6 rounded-lg px-2.5 py-1.5 text-left text-[13px] text-foreground transition-colors hover:bg-surface-secondary"
-								onClick={() => run(entry)}
-							>
-								<span>{entry.label}</span>
-								{entry.hint && (
-									<span className="text-[11px] text-muted">{entry.hint}</span>
-								)}
-							</button>
-						))}
+						{section.entries.map((entry) => {
+							const isDisabled = entry.disabled?.(view) ?? false;
+							return (
+								<button
+									key={entry.label}
+									type="button"
+									disabled={isDisabled}
+									className={`flex w-full items-center justify-between gap-6 rounded-lg px-2.5 py-1.5 text-left text-[13px] transition-colors ${
+										isDisabled
+											? "text-muted/40 cursor-not-allowed"
+											: "text-foreground hover:bg-surface-secondary"
+									}`}
+									onClick={() => !isDisabled && run(entry)}
+								>
+									<span>{entry.label}</span>
+									{entry.hint && (
+										<span
+											className={
+												isDisabled
+													? "text-[11px] text-muted/30"
+													: "text-[11px] text-muted"
+											}
+										>
+											{entry.hint}
+										</span>
+									)}
+								</button>
+							);
+						})}
 					</div>
 				))}
 			</div>

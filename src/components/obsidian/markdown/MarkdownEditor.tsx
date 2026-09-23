@@ -1,4 +1,10 @@
-import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+import {
+	defaultKeymap,
+	history,
+	historyKeymap,
+	redoDepth,
+	undoDepth,
+} from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { syntaxHighlighting } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
@@ -16,12 +22,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import "katex/dist/katex.min.css";
 import { htmlToMarkdown } from "../../editor/markdown";
 import { useImagePreview } from "../../workbench/ai/shared/ImagePreviewModal";
+import { aiSelectionDecorationExtension } from "./cmAiHighlightExtension";
 import { appHighlightStyle, appTheme } from "./editorTheme";
 import { insertLink, toggleInlineFormat } from "./formatCommands";
 import { livePreview } from "./livePreview";
 import { MarkdownContextMenu } from "./MarkdownContextMenu";
 import { wikilinkAutocomplete } from "./wikilinkAutocomplete";
-import { aiSelectionDecorationExtension } from "./cmAiHighlightExtension";
 
 export interface MarkdownEditorProps {
 	/** 受控初始值；仅在外部值与编辑器内容不一致时同步（如重新加载笔记） */
@@ -29,6 +35,8 @@ export interface MarkdownEditorProps {
 	onChange: (value: string) => void;
 	/** 暴露 EditorView 实例（划词 AI 需要读取选区坐标） */
 	onReady?: (view: EditorView | null) => void;
+	/** 撤销/重做可用状态变化回调 */
+	onHistoryChange?: (canUndo: boolean, canRedo: boolean) => void;
 	placeholderText?: string;
 	/** 只读模式（超大截断文件） */
 	readOnly?: boolean;
@@ -66,6 +74,7 @@ export function MarkdownEditor({
 	value,
 	onChange,
 	onReady,
+	onHistoryChange,
 	placeholderText = "开始用 Markdown 记录…",
 	readOnly = false,
 	reading = false,
@@ -84,6 +93,8 @@ export function MarkdownEditor({
 	onChangeRef.current = onChange;
 	const onReadyRef = useRef(onReady);
 	onReadyRef.current = onReady;
+	const onHistoryChangeRef = useRef(onHistoryChange);
+	onHistoryChangeRef.current = onHistoryChange;
 	const onSaveRef = useRef(onSaveShortcut);
 	onSaveRef.current = onSaveShortcut;
 	const onNavigateNoteRef = useRef(onNavigateNote);
@@ -97,6 +108,20 @@ export function MarkdownEditor({
 	const selfChangeRef = useRef(false);
 	const rafIdRef = useRef(0);
 	const prevRelPathRef = useRef(noteRelPath);
+	const lastHistoryStateRef = useRef({ canUndo: false, canRedo: false });
+
+	const emitHistoryChange = useCallback((view: EditorView | null) => {
+		if (!onHistoryChangeRef.current) return;
+		const canUndo = view ? undoDepth(view.state) > 0 : false;
+		const canRedo = view ? redoDepth(view.state) > 0 : false;
+		if (
+			lastHistoryStateRef.current.canUndo !== canUndo ||
+			lastHistoryStateRef.current.canRedo !== canRedo
+		) {
+			lastHistoryStateRef.current = { canUndo, canRedo };
+			onHistoryChangeRef.current(canUndo, canRedo);
+		}
+	}, []);
 
 	const getExtensions = useCallback(
 		(path?: string) => [
@@ -163,54 +188,49 @@ export function MarkdownEditor({
 			// 阅读视图不设 EditorState.readOnly：保留复选框等控件的程序化改写能力
 			EditorState.readOnly.of(reading ? false : readOnly),
 			EditorView.editable.of(!(readOnly || reading)),
-			// 粘贴 HTML → Markdown（复用创作模块的 HTML→MD 转换链路）
-			...(reading
-				? []
-				: [
-						EditorView.domEventHandlers({
-							paste(event, v) {
-								if (readOnly) return false;
-								const html = event.clipboardData?.getData("text/html");
-								if (!html) return false; // 纯文本走默认行为
-								const md = htmlToMarkdown(html);
-								if (!md.trim()) return false;
-								event.preventDefault();
-								const range = v.state.selection.main;
-								v.dispatch({
-									changes: {
-										from: range.from,
-										to: range.to,
-										insert: md,
-									},
-									selection: { anchor: range.from + md.length },
-								});
-								return true;
-							},
-							contextmenu(event, v) {
-								if (readOnly) return false;
-								event.preventDefault();
-								// 右键落在选区外时先把光标移过去（对齐 Obsidian 行为）
-								const pos = v.posAtCoords({
-									x: event.clientX,
-									y: event.clientY,
-								});
-								if (pos != null) {
-									const inSelection = v.state.selection.ranges.some(
-										(r) => pos >= r.from && pos <= r.to,
-									);
-									if (!inSelection) {
-										v.dispatch({ selection: { anchor: pos } });
-									}
-								}
-								v.focus();
-								setContextMenu({
-									x: event.clientX,
-									y: event.clientY,
-								});
-								return true;
-							},
-						}),
-					]),
+			EditorView.domEventHandlers({
+				paste(event, v) {
+					if (readOnly || reading) return false;
+					const html = event.clipboardData?.getData("text/html");
+					if (!html) return false; // 纯文本走默认行为
+					const md = htmlToMarkdown(html);
+					if (!md.trim()) return false;
+					event.preventDefault();
+					const range = v.state.selection.main;
+					v.dispatch({
+						changes: {
+							from: range.from,
+							to: range.to,
+							insert: md,
+						},
+						selection: { anchor: range.from + md.length },
+					});
+					return true;
+				},
+				contextmenu(event, v) {
+					if (readOnly) return false;
+					event.preventDefault();
+					// 右键落在选区外时先把光标移过去（对齐 Obsidian 行为）
+					const pos = v.posAtCoords({
+						x: event.clientX,
+						y: event.clientY,
+					});
+					if (pos != null && !reading) {
+						const inSelection = v.state.selection.ranges.some(
+							(r) => pos >= r.from && pos <= r.to,
+						);
+						if (!inSelection) {
+							v.dispatch({ selection: { anchor: pos } });
+						}
+					}
+					if (!reading) v.focus();
+					setContextMenu({
+						x: event.clientX,
+						y: event.clientY,
+					});
+					return true;
+				},
+			}),
 			EditorView.updateListener.of((update) => {
 				if (update.docChanged) {
 					selfChangeRef.current = true;
@@ -223,9 +243,12 @@ export function MarkdownEditor({
 						});
 					}
 				}
+				if (update.docChanged || update.transactions.length > 0) {
+					emitHistoryChange(update.view);
+				}
 			}),
 		],
-		[reading, readOnly, placeholderText],
+		[reading, readOnly, placeholderText, emitHistoryChange],
 	);
 
 	// 编辑器实例只创建一次；外部值同步走下方 effect，回调经 ref 透传
@@ -242,9 +265,11 @@ export function MarkdownEditor({
 		});
 		viewRef.current = view;
 		onReadyRef.current?.(view);
+		emitHistoryChange(view);
 
 		return () => {
 			onReadyRef.current?.(null);
+			emitHistoryChange(null);
 			if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
 			view.destroy();
 			viewRef.current = null;
@@ -263,7 +288,8 @@ export function MarkdownEditor({
 		});
 		view.setState(nextState);
 		view.scrollDOM.scrollTop = 0;
-	}, [noteRelPath, value, getExtensions]);
+		emitHistoryChange(view);
+	}, [noteRelPath, value, getExtensions, emitHistoryChange]);
 
 	// External value sync within the same note: skip when the change originated from editor itself
 	useEffect(() => {

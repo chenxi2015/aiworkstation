@@ -6,7 +6,9 @@ import {
 	Code2,
 	Columns2,
 	PenLine,
+	Redo2,
 	Trash2,
+	Undo2,
 	Waypoints,
 } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
@@ -16,6 +18,10 @@ export interface NoteToolbarProps {
 	canGoForward?: boolean;
 	onBack?: () => void;
 	onForward?: () => void;
+	canUndo?: boolean;
+	canRedo?: boolean;
+	onUndo?: () => void;
+	onRedo?: () => void;
 	activeRelPath: string;
 	activeName: string;
 	onSelectFolder?: (dir: string) => void;
@@ -38,6 +44,10 @@ export function NoteToolbar({
 	canGoForward,
 	onBack,
 	onForward,
+	canUndo,
+	canRedo,
+	onUndo,
+	onRedo,
 	activeRelPath,
 	activeName,
 	onSelectFolder,
@@ -71,7 +81,7 @@ export function NoteToolbar({
 
 	return (
 		<div className="flex items-center gap-1 px-2 py-1.5 border-b border-border shrink-0">
-			{/* Left: Back / Forward history navigation */}
+			{/* Left: Back / Forward navigation & Undo / Redo history */}
 			<div className="flex items-center shrink-0">
 				<Tooltip>
 					<Tooltip.Trigger>
@@ -100,6 +110,37 @@ export function NoteToolbar({
 						</button>
 					</Tooltip.Trigger>
 					<Tooltip.Content placement="bottom">前进</Tooltip.Content>
+				</Tooltip>
+
+				<div className="h-3.5 w-px bg-border/60 mx-1 shrink-0" />
+
+				<Tooltip>
+					<Tooltip.Trigger>
+						<button
+							type="button"
+							aria-label="撤销"
+							onClick={onUndo}
+							disabled={!canUndo}
+							className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/60 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+						>
+							<Undo2 className="w-4 h-4" />
+						</button>
+					</Tooltip.Trigger>
+					<Tooltip.Content placement="bottom">撤销 (⌘Z)</Tooltip.Content>
+				</Tooltip>
+				<Tooltip>
+					<Tooltip.Trigger>
+						<button
+							type="button"
+							aria-label="重做"
+							onClick={onRedo}
+							disabled={!canRedo}
+							className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/60 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+						>
+							<Redo2 className="w-4 h-4" />
+						</button>
+					</Tooltip.Trigger>
+					<Tooltip.Content placement="bottom">重做 (⌘⇧Z)</Tooltip.Content>
 				</Tooltip>
 			</div>
 
