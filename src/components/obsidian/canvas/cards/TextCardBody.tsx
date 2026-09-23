@@ -59,7 +59,7 @@ export const TextCardBody = memo(function TextCardBody({
 				onKeyDown={(e) => {
 					if (e.key === "Escape") commit(node.text ?? "");
 				}}
-				className={`${cardClass} nodrag p-3 text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap resize-none outline-none focus:border-accent`}
+				className={`${cardClass} nodrag nowheel p-3 text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap resize-none outline-none focus:border-accent overscroll-contain`}
 				style={borderStyle}
 			/>
 		);
@@ -68,7 +68,9 @@ export const TextCardBody = memo(function TextCardBody({
 	return (
 		<div
 			ref={divScrollRef}
-			className={`${cardClass} p-3 text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap overflow-y-auto cursor-default`}
+			className={`${cardClass} ${
+				selected ? "nowheel" : ""
+			} p-3 text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap overflow-y-auto overscroll-contain cursor-default`}
 			style={borderStyle}
 		>
 			{node.text ?? ""}

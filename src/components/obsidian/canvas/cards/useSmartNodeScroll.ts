@@ -23,14 +23,13 @@ export interface SmartScrollOptions {
 
 /**
  * Hook to manage wheel events inside a canvas node card.
- * Instead of statically applying the 'nowheel' class (which unconditionally interrupts
- * canvas viewport panning whenever the pointer touches a card), this hook delegates wheel
- * events natively:
- * - When the card is selected/editing, not currently mid-gesture canvas panning, and has
- *   scrollable overflow in the scroll direction, it stops event propagation natively so the card
- *   scrolls smoothly.
- * - Otherwise (not selected, no overflow, horizontal pan, or reached boundary), it allows
- *   the event to bubble up to ReactFlow so canvas panning remains uninterrupted.
+ * When the node is selected or actively editing:
+ * 1. Attaches ReactFlow's 'nowheel' class dynamically so ReactFlow does not intercept
+ *    wheel events or trigger canvas panning.
+ * 2. Stops event propagation for wheel events inside the card so scrolling remains
+ *    isolated to the node content without dragging the canvas viewport.
+ * When unselected, 'nowheel' is removed so canvas panOnScroll functions normally
+ * when cruising over cards.
  */
 export function useSmartNodeScroll<T extends HTMLElement = HTMLDivElement>(
 	options?: SmartScrollOptions,
@@ -38,19 +37,22 @@ export function useSmartNodeScroll<T extends HTMLElement = HTMLDivElement>(
 	const ref = useRef<T>(null);
 	const selected = Boolean(options?.selected);
 	const editing = Boolean(options?.editing);
+	const isActive = selected || editing;
 
 	useEffect(() => {
 		const el = ref.current;
 		if (!el) return;
 
-		const handleWheel = (e: WheelEvent) => {
-			// If canvas was recently moving (continuous gesture), let canvas pan continue
-			if (isCanvasRecentlyMoving()) {
-				return;
-			}
+		// Dynamically toggle 'nowheel' class based on selection / editing state
+		if (isActive) {
+			el.classList.add("nowheel");
+		} else {
+			el.classList.remove("nowheel");
+		}
 
-			// Only allow card to consume wheel events if it is selected or actively editing
-			if (!selected && !editing) {
+		const handleWheel = (e: WheelEvent) => {
+			// When unselected and not editing, let canvas handle wheel gestures
+			if (!isActive) {
 				return;
 			}
 
@@ -59,34 +61,16 @@ export function useSmartNodeScroll<T extends HTMLElement = HTMLDivElement>(
 				return;
 			}
 
-			const hasScrollableOverflow = el.scrollHeight > el.clientHeight;
-			if (!hasScrollableOverflow) {
-				return;
-			}
-
-			// If the gesture is predominantly horizontal, allow canvas to pan horizontally
-			if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-				return;
-			}
-
-			const isScrollingDown = e.deltaY > 0;
-			const isScrollingUp = e.deltaY < 0;
-
-			const canScrollDown =
-				isScrollingDown && el.scrollTop + el.clientHeight < el.scrollHeight - 1;
-			const canScrollUp = isScrollingUp && el.scrollTop > 1;
-
-			// If the node card can consume this vertical scroll, stop bubbling to ReactFlow
-			if (canScrollDown || canScrollUp) {
-				e.stopPropagation();
-			}
+			// Stop wheel event from propagating to outer ReactFlow container or page
+			e.stopPropagation();
 		};
 
 		el.addEventListener("wheel", handleWheel, { passive: true });
 		return () => {
 			el.removeEventListener("wheel", handleWheel);
+			el.classList.remove("nowheel");
 		};
-	}, [selected, editing]);
+	}, [isActive]);
 
 	return ref;
 }

@@ -74,7 +74,9 @@ export const MarkdownCardBody = memo(function MarkdownCardBody({
 			</div>
 			<div
 				ref={scrollRef}
-				className={`${cardClass} p-4 overflow-y-auto text-xs text-foreground/90 leading-relaxed cursor-default`}
+				className={`${cardClass} ${
+					selected ? "nowheel" : ""
+				} p-4 overflow-y-auto overscroll-contain text-xs text-foreground/90 leading-relaxed cursor-default`}
 				style={borderStyle}
 			>
 				{loading && !html ? (
