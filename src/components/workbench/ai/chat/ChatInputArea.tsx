@@ -37,7 +37,7 @@ export interface ChatInputAreaProps {
 	hasMessages: boolean;
 	inputRef: RefObject<HTMLTextAreaElement | null>;
 	onChangeInput: (val: string) => void;
-	onSend: (extraContextItems?: ChatContextItem[]) => void;
+	onSend: (extraContextItems?: ChatContextItem[], promptText?: string) => void;
 	onStop?: () => void;
 	onOpenHistory?: () => void;
 	onNewChat?: () => void;
@@ -367,7 +367,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 
 		// Pass extra items directly so they are available synchronously in sendPrompt
 		setTimeout(() => {
-			onSend(extraItems.length > 0 ? extraItems : undefined);
+			onSend(extraItems.length > 0 ? extraItems : undefined, finalPrompt);
 		}, 0);
 	}, [canSend, input, onChangeInput, onSend]);
 

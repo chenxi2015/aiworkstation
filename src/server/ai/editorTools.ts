@@ -126,3 +126,17 @@ export function createEditorServerTools(
 		),
 	];
 }
+
+/**
+ * Standalone rewrite pipeline tool definition for non-editor modules (e.g. Obsidian note split view).
+ */
+export function createRewritePipelineTool(hooks?: BookmarkToolHooks) {
+	return triggerParagraphRewriteToolDef.server((args) =>
+		wrapExecution(
+			"trigger_paragraph_rewrite",
+			args,
+			() => executeTriggerParagraphRewrite(args),
+			hooks,
+		),
+	);
+}

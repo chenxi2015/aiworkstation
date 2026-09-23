@@ -33,7 +33,6 @@ export function useNoteSplitDiff({
 	);
 
 	const abortControllerRef = useRef<AbortController | null>(null);
-	const autoStartedRef = useRef<boolean>(false);
 
 	// Stop ongoing streaming generation
 	const stopGenerate = useCallback(() => {
@@ -140,14 +139,17 @@ export function useNoteSplitDiff({
 		],
 	);
 
-	// Auto-trigger generation if an instruction was provided on mount
+	// Auto-trigger generation if an instruction was provided on mount.
+	// StrictMode 安全（TanStack Start 默认入口整树包裹 StrictMode）：不用 ref
+	// 守卫拦截重跑——StrictMode 会先跑一遍 effect、执行卸载清理（中止首次
+	// fetch）、再重跑 effect；重跑时 startGenerate 内部先 stopGenerate 再发起
+	// 新流，等于自愈。若用 ref 拦截重跑，首流被中止后将永远无法重启，界面
+	// 会永久卡在「生成中」。
+	// biome-ignore lint/correctness/useExhaustiveDependencies: 仅在挂载意图（instruction/modeLabel）变化时重启流
 	useEffect(() => {
-		if (autoStartedRef.current) return;
-		autoStartedRef.current = true;
-		if (initialInstruction || initialModeLabel) {
-			void startGenerate(initialInstruction, initialModeLabel);
-		}
-	}, [initialInstruction, initialModeLabel, startGenerate]);
+		if (!initialInstruction && !initialModeLabel) return;
+		void startGenerate(initialInstruction, initialModeLabel);
+	}, [initialInstruction, initialModeLabel]);
 
 	// Cleanup on unmount
 	useEffect(() => {

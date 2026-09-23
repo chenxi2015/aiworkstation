@@ -61,7 +61,6 @@ export function useSplitAiStream({
 	const [customPrompt, setCustomPrompt] = useState(instruction || "");
 	const [isStreaming, setIsStreaming] = useState(false);
 	const abortControllerRef = useRef<AbortController | null>(null);
-	const autoTriggeredKeyRef = useRef<string | null>(null);
 
 	// Stop AI generation
 	const handleStopGenerate = useCallback(() => {
@@ -98,6 +97,10 @@ export function useSplitAiStream({
 				toast.warning("当前没有可改写的正文内容，请输入要求");
 				return;
 			}
+
+			// 中止可能存在的上一流（StrictMode 双调用 / 重复触发自愈），
+			// 否则旧流会成为孤儿继续往编辑器写入，与新流互相覆盖
+			handleStopGenerate();
 
 			let actionTitle = "智能优化";
 			if (preset) {
@@ -275,6 +278,7 @@ export function useSplitAiStream({
 		[
 			docId,
 			rightEditor,
+			handleStopGenerate,
 			selectedMode,
 			customPrompt,
 			activeLeftVersion,
@@ -294,19 +298,22 @@ export function useSplitAiStream({
 	);
 
 	// Auto-trigger if opened with instruction
+	// StrictMode 安全（TanStack Start 默认入口整树包裹 StrictMode）：不用
+	// triggerKey 守卫拦截重跑——StrictMode 会先跑一遍 effect、执行卸载清理
+	// （中止首次 fetch）、再重跑 effect；重跑时 handleStartGenerate 内部先
+	// handleStopGenerate 再发起新流，等于自愈。若用守卫拦截，首流被中止后
+	// 永远无法重启，右栏会永久停在「生成中」。
+	// biome-ignore lint/correctness/useExhaustiveDependencies: 仅在打开意图（instruction/modeLabel/editor 就绪）变化时触发
 	useEffect(() => {
 		if (!instruction && !modeLabel) return;
 		if (!rightEditor) return;
-		const triggerKey = `${modeLabel ?? ""}::${instruction ?? ""}`;
-		if (autoTriggeredKeyRef.current === triggerKey) return;
-		autoTriggeredKeyRef.current = triggerKey;
 		const targetMode = modeLabel
 			? PRESET_MODES.find((m) => m.label === modeLabel)?.id || null
 			: null;
 		setSelectedMode(targetMode);
 		setCustomPrompt("");
 		void handleStartGenerate(targetMode, instruction);
-	}, [instruction, modeLabel, rightEditor, handleStartGenerate]);
+	}, [instruction, modeLabel, rightEditor]);
 
 	// Clean up streaming on unmount
 	useEffect(() => {

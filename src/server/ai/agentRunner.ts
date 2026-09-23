@@ -1,12 +1,16 @@
 import { chat, EventType, maxIterations } from "@tanstack/ai";
 import { openaiCompatibleText } from "@tanstack/ai-openai/compatible";
+import { getAiContribution } from "../../modules/ai-contributions.ts";
 import type {
 	AgentChatParams,
 	AgentStep,
 	AgentStreamEvent,
 } from "./agentTypes.ts";
 import { createBookmarkServerTools } from "./bookmarkTools.ts";
-import { createEditorServerTools } from "./editorTools.ts";
+import {
+	createEditorServerTools,
+	createRewritePipelineTool,
+} from "./editorTools.ts";
 import { createFsServerTools } from "./fs/index.ts";
 import { prepareRagAgentContext, resolveLlmConfig } from "./ragContext.ts";
 import type { BookmarkToolHooks } from "./tools/types.ts";
@@ -150,11 +154,32 @@ export async function runAgentStream(
 		...(module === "editor" || Boolean(activeDocumentId)
 			? createEditorServerTools(toolHooks, activeDocumentId)
 			: []),
+		// Inject rewrite pipeline tool when in obsidian module with an active note
+		...(module === "obsidian" || Boolean(activeNotePath)
+			? [createRewritePipelineTool(toolHooks)]
+			: []),
 	];
 	// Deduplicate tools by name to ensure uniqueness for TanStack AI chat()
 	const tools = Array.from(
 		new Map(allTools.map((t) => [(t as any).name, t])).values(),
 	);
+
+	// Enforce the per-module tool whitelist declared in modules/ai-contributions.ts.
+	// Without this, every module gets the full bookmark + fs tool surface, and weaker
+	// models wander through fs_search_files / fs_get_file_info chains even though the
+	// active note/document content is already injected into the system prompt.
+	const declaredTools = module ? getAiContribution(module).tools : undefined;
+	const effectiveTools = declaredTools?.length
+		? tools.filter((t) => {
+				const name = (t as { name?: string }).name ?? "";
+				if (declaredTools.includes(name)) return true;
+				// File attachments still need fs access (e.g. editor module)
+				if (hasFileAttachment && name.startsWith("fs_")) return true;
+				// An attached skill must always remain readable
+				if (activeSkillDir && name === "read_skill_resource") return true;
+				return false;
+			})
+		: tools;
 
 	// 3. Create adapter
 	const adapter = openaiCompatibleText(model, {
@@ -215,7 +240,7 @@ export async function runAgentStream(
 			adapter,
 			systemPrompts: [prepared.systemPrompt],
 			messages,
-			tools,
+			tools: effectiveTools,
 			stream: true,
 			// Default is maxIterations(5): multi-step scraping (骨架分析 + 分段
 			// 提取) easily burns 5 turns before the model gets to answer, leaving

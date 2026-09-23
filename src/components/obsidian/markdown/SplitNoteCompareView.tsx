@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import {
+	useCallback,
+	useDeferredValue,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { markdownToHtml } from "../../editor/markdown";
 import { SplitNoteCompareHeader } from "./SplitNoteCompareHeader";
 import { useNoteSplitDiff } from "./useNoteSplitDiff";
@@ -52,6 +59,8 @@ export function SplitNoteCompareView({
 	const rightScrollRef = useRef<HTMLDivElement | null>(null);
 	const isSyncingScrollRef = useRef<boolean>(false);
 	const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+	// 右栏草稿：默认渲染 Markdown 预览，可切换为源码编辑（流式期间强制预览）
+	const [isEditingDraft, setIsEditingDraft] = useState<boolean>(false);
 
 	// Auto adjust textarea height so that outer scroll container handles overflow
 	// biome-ignore lint/correctness/useExhaustiveDependencies: layout needs recalculation on content/mode change
@@ -61,6 +70,15 @@ export function SplitNoteCompareView({
 		el.style.height = "auto";
 		el.style.height = `${Math.max(el.scrollHeight, 300)}px`;
 	}, [draftContent, diffViewMode]);
+
+	// 进入草稿编辑态时聚焦并将光标移到文末
+	useEffect(() => {
+		if (!isEditingDraft) return;
+		const el = textareaRef.current;
+		if (!el) return;
+		el.focus();
+		el.setSelectionRange(el.value.length, el.value.length);
+	}, [isEditingDraft]);
 
 	const handleLeftScroll = useCallback(() => {
 		if (isSyncingScrollRef.current) return;
@@ -116,6 +134,14 @@ export function SplitNoteCompareView({
 		if (diffViewMode !== "diff" || !diffStrings.rightHighlighted) return "";
 		return markdownToHtml(diffStrings.rightHighlighted);
 	}, [diffViewMode, diffStrings.rightHighlighted]);
+
+	// Clean 模式的右栏渲染：流式期间 chunks 高频到达，用 deferred 值降低
+	// Markdown→HTML 重算频率，避免每个 chunk 都全量解析阻塞输入
+	const deferredDraftContent = useDeferredValue(draftContent);
+	const rightCleanHtml = useMemo(() => {
+		if (!deferredDraftContent) return "";
+		return markdownToHtml(deferredDraftContent);
+	}, [deferredDraftContent]);
 
 	const handleAcceptAction = useCallback(() => {
 		const target = draftContent.trim() ? draftContent : originalContent;
@@ -190,8 +216,19 @@ export function SplitNoteCompareView({
 							<span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
 							右栏 · AI 改写草稿
 						</span>
-						<span className="text-[11px] opacity-75 font-mono">
-							{rightWordCount} 字
+						<span className="flex items-center gap-2">
+							{!isStreaming && draftContent && (
+								<button
+									type="button"
+									onClick={() => setIsEditingDraft((v) => !v)}
+									className="text-[11px] px-1.5 py-0.5 rounded border border-border/70 text-muted hover:text-foreground hover:bg-surface-secondary/80 transition-colors"
+								>
+									{isEditingDraft ? "预览" : "编辑"}
+								</button>
+							)}
+							<span className="text-[11px] opacity-75 font-mono">
+								{rightWordCount} 字
+							</span>
 						</span>
 					</div>
 
@@ -218,13 +255,9 @@ export function SplitNoteCompareView({
 									</div>
 								)
 							) : (
-								/* Clean Mode: allows editing the draft */
+								/* Clean Mode: 渲染 Markdown 预览；「编辑」切换为源码微调（流式期间强制预览） */
 								<div className="flex-1 flex flex-col min-h-[300px]">
-									{isStreaming ? (
-										<pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-foreground/90">
-											{draftContent}
-										</pre>
-									) : (
+									{!isStreaming && isEditingDraft ? (
 										<textarea
 											ref={textareaRef}
 											value={draftContent}
@@ -232,6 +265,25 @@ export function SplitNoteCompareView({
 											placeholder="AI 改写草稿将显示在此处，您也可以在此直接修改微调…"
 											className="w-full resize-none overflow-hidden bg-transparent font-sans text-sm leading-relaxed text-foreground focus:outline-none placeholder:text-muted/50"
 										/>
+									) : draftContent ? (
+										// biome-ignore lint/a11y/noStaticElementInteractions lint/a11y/useKeyWithClickEvents: 点击预览进入编辑是便捷增强，键盘用户可走栏头「编辑」按钮
+										<div
+											className={`prose prose-neutral dark:prose-invert max-w-none text-sm leading-relaxed ${isStreaming ? "" : "cursor-text"}`}
+											onClick={() => {
+												if (!isStreaming) setIsEditingDraft(true);
+											}}
+											title={isStreaming ? undefined : "点击可直接编辑草稿"}
+											// biome-ignore lint/security/noDangerouslySetInnerHtml: Draft markdown rendered to sanitized html
+											dangerouslySetInnerHTML={{ __html: rightCleanHtml }}
+										/>
+									) : isStreaming ? (
+										<div className="text-xs text-muted/80 animate-pulse py-8 text-center">
+											正在构思并生成改写内容…
+										</div>
+									) : (
+										<div className="text-xs text-muted py-8 text-center">
+											暂无草稿内容
+										</div>
 									)}
 								</div>
 							)}

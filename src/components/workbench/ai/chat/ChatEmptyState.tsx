@@ -1,3 +1,4 @@
+import { GemSmoke } from "@paper-design/shaders-react";
 import {
 	ArrowUpRight,
 	FileText,
@@ -11,7 +12,6 @@ import {
 import { memo, useMemo, useState } from "react";
 import type { PageBridge } from "../../../../types/pageBridge";
 import type { Folder } from "../../types";
-import { GemSmoke } from '@paper-design/shaders-react';
 
 export interface ChatEmptyStateProps {
 	activeModule?: string;
@@ -260,33 +260,35 @@ export const ChatEmptyState = memo(function ChatEmptyState({
 	const allItems = useMemo<PromptListItem[]>(() => {
 		const list: PromptListItem[] = [];
 
-		// Featured Actions in editor
-		if (spinRewriteAction) {
-			list.push({
-				id: "action-spin-rewrite",
-				icon: Shuffle,
-				title: "二创洗稿，全新稿件",
-				subtitle: "打破原有句式与段落结构，深度去重重构，生成全新稿件。",
-				badge: "深度去重",
-				actionText: "立即二创 ↗",
-				onClick: () => {
-					void spinRewriteAction.onAction("");
-				},
-			});
-		}
+		// Featured Actions in editor only
+		if (activeModule === "editor") {
+			if (spinRewriteAction) {
+				list.push({
+					id: "action-spin-rewrite",
+					icon: Shuffle,
+					title: "二创洗稿，全新稿件",
+					subtitle: "打破原有句式与段落结构，深度去重重构，生成全新稿件。",
+					badge: "深度去重",
+					actionText: "立即二创 ↗",
+					onClick: () => {
+						void spinRewriteAction.onAction("");
+					},
+				});
+			}
 
-		if (rewriteAction) {
-			list.push({
-				id: "action-full-rewrite",
-				icon: Wand2,
-				title: "全文润色，逐段精修",
-				subtitle: "逐段流式改写，保留图片视频并实时对照审阅。",
-				badge: "保护媒体",
-				actionText: "立即开始 ↗",
-				onClick: () => {
-					void rewriteAction.onAction("");
-				},
-			});
+			if (rewriteAction) {
+				list.push({
+					id: "action-full-rewrite",
+					icon: Wand2,
+					title: "全文润色，逐段精修",
+					subtitle: "逐段流式改写，保留图片视频并实时对照审阅。",
+					badge: "保护媒体",
+					actionText: "立即开始 ↗",
+					onClick: () => {
+						void rewriteAction.onAction("");
+					},
+				});
+			}
 		}
 
 		// 页面桥接的模块快捷动作（opt-in：声明了 emptyState 元数据才展示）
@@ -307,11 +309,19 @@ export const ChatEmptyState = memo(function ChatEmptyState({
 
 		rawPrompts.forEach((prompt, idx) => {
 			const meta = parsePromptMeta(prompt);
-			// Avoid duplicate title if rewrite action already exists
-			if (rewriteAction && meta.title === "全文润色，逐段精修") {
+			// Avoid duplicate title if editor rewrite action already exists
+			if (
+				activeModule === "editor" &&
+				rewriteAction &&
+				meta.title === "全文润色，逐段精修"
+			) {
 				return;
 			}
-			if (spinRewriteAction && meta.title === "二创洗稿，全新稿件") {
+			if (
+				activeModule === "editor" &&
+				spinRewriteAction &&
+				meta.title === "二创洗稿，全新稿件"
+			) {
 				return;
 			}
 			list.push({
@@ -324,7 +334,14 @@ export const ChatEmptyState = memo(function ChatEmptyState({
 		});
 
 		return list;
-	}, [spinRewriteAction, rewriteAction, rawPrompts, onSelectPrompt, pageBridge]);
+	}, [
+		activeModule,
+		spinRewriteAction,
+		rewriteAction,
+		rawPrompts,
+		onSelectPrompt,
+		pageBridge,
+	]);
 
 	// Show top 3 by default, expand all on click
 	const displayLimit = 3;

@@ -345,7 +345,13 @@ export function useAiChat(options?: UseAiChatOptions) {
 						activeNotePath:
 							sendOptions?.activeNotePath !== undefined
 								? (sendOptions.activeNotePath ?? undefined)
-								: undefined,
+								: // 与 activeDocumentId 同款回退：重发/编辑重发等 hook 内部路径
+									// 不会带 sendOptions，缺了这一步 agent 收不到笔记正文
+									// （间歇性「未检测到笔记正文」的根因）
+									workbenchContextStore.state.detachedNotePath ===
+										workbenchContextStore.state.activeNote?.path
+									? undefined
+									: (workbenchContextStore.state.activeNote?.path ?? undefined),
 					},
 					{
 						onStepStart: (step) => {

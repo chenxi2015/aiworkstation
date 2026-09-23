@@ -21,7 +21,13 @@ export const obsidianPrompt: ModulePromptDefinition = {
 - **📝 成稿内容**：需要写回笔记的内容用标准 Markdown 输出，不要用代码块包裹整篇成稿`,
 	toolGuidelines: `## 笔记模块工具调用准则
 
-- 调用 \`query_bookmarks\` 检索收藏库中与笔记主题相关的素材
-- 调用 \`read_webpage_content\` / \`crawl_webpage_via_extension\` 提取引用链接的正文
-- 调用 \`web_search\` 补充笔记主题的最新公开资料`,
+| 用户意图 | 必须使用 | 严禁 |
+|---|---|---|
+| 整篇二创洗稿 / 全文润色 / 结构化整理 / 结构重排 | \`trigger_paragraph_rewrite\`（驱动双栏流式改写流水线） | 在聊天框输出成稿全文 |
+| 检索收藏素材补充笔记 | \`query_bookmarks\` → \`read_webpage_content\` | — |
+| 补充笔记主题的最新公开资料 | \`web_search\` | — |
+| 总结 / 分析 / 问答 / 结构建议 | 直接基于已提供的笔记正文回答，不调用任何工具 | 画蛇添足的工具调用 |
+
+- **先读后写**：当前笔记正文已在上方上下文中完整提供，严禁再调用任何文件系统工具去查找或读取笔记文件。
+- **★ 核心执行底线**：整篇改写类请求，先在聊天中用 1~3 句简述改写策略，然后【必须且只能】调用 \`trigger_paragraph_rewrite\` 传入改写指令，由前端双栏视图在右栏流式生成并渲染 Diff 供用户审阅。`,
 };

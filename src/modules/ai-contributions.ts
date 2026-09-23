@@ -105,6 +105,7 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 			"insert_document_block",
 			"edit_document_paragraph",
 			"generate_mermaid_diagram",
+			"generate_data_chart",
 			"web_search",
 			"query_bookmarks",
 			"read_webpage_content",
@@ -146,10 +147,18 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 		systemPromptHint:
 			"用户正在「笔记」模块（Obsidian Vault 直连）。偏向笔记协同：总结与润色当前笔记、从收藏库检索素材补充笔记、整理知识结构；笔记正文通过对话上下文提供，修改由用户在编辑器确认后落盘。",
 		promptSuggestions: [
-			"帮我梳理当前笔记的结构，给出改进建议",
+			"基于当前笔记事实进行二创改写与重新表述，生成全新的内容稿件",
+			"对当前笔记全文进行精细润色，纠正语病并优化行文逻辑",
+			"提炼并总结当前笔记的核心要点与结构脉络",
+			"帮我梳理当前笔记的结构，给出知识扩充与修改建议",
 			"从我的收藏库找一些能补充当前笔记主题的素材",
-			"把这篇笔记的核心要点整理成一份大纲",
 			"为这篇笔记生成 3~5 个关联标签和双链建议",
+		],
+		tools: [
+			"trigger_paragraph_rewrite",
+			"read_webpage_content",
+			"query_bookmarks",
+			"web_search",
 		],
 		contextItemTypes: ["bookmark", "folder", "tag", "image", "file"],
 	},

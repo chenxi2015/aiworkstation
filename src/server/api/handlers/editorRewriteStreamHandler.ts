@@ -144,6 +144,20 @@ export async function handleEditorRewriteStreamRequest(
 			if (abortController.signal.aborted || res.writableEnded || res.closed) {
 				break;
 			}
+			if (chunk.type === "RUN_ERROR") {
+				const errMsg =
+					(chunk.error as { message?: string })?.message ||
+					(typeof chunk.error === "string"
+						? chunk.error
+						: JSON.stringify(chunk.error ?? "模型生成出错"));
+				throw new Error(errMsg);
+			}
+			// 只转发正文内容块。推理型模型（deepseek-v4-flash 等）的思考过程
+			// 以 REASONING_MESSAGE_CONTENT / THINKING_* 事件流出，同样带 delta，
+			// 不过滤会把英文/中文推理过程当作成稿写进草稿栏
+			if (chunk.type !== "TEXT_MESSAGE_CONTENT") {
+				continue;
+			}
 			const delta = (chunk.delta ?? chunk.content ?? "") as string;
 			if (delta) {
 				fullText += delta;
@@ -155,9 +169,15 @@ export async function handleEditorRewriteStreamRequest(
 
 		if (!res.writableEnded && !res.closed) {
 			const sanitizedText = stripMetaChatter(fullText);
-			res.write(
-				`data: ${JSON.stringify({ type: "done", fullText: sanitizedText })}\n\n`,
-			);
+			if (!sanitizedText && !fullText) {
+				res.write(
+					`data: ${JSON.stringify({ type: "error", message: "模型未返回任何改写内容，请检查模型配置或重试" })}\n\n`,
+				);
+			} else {
+				res.write(
+					`data: ${JSON.stringify({ type: "done", fullText: sanitizedText })}\n\n`,
+				);
+			}
 		}
 	} catch (err: unknown) {
 		const errMsg = err instanceof Error ? err.message : String(err);

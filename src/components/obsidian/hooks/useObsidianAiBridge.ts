@@ -125,13 +125,6 @@ export function useObsidianAiBridge({
 					variant: "accent" as const,
 					tooltip:
 						"基于当前笔记事实进行深度二创与结构重组，在双栏视图中实时 Diff 审阅",
-					emptyState: {
-						title: "二创洗稿重构",
-						subtitle:
-							"在双栏视图中对当前笔记进行叙事与表达重构，支持红绿 Diff 审阅。",
-						badge: "二创",
-						actionText: "开启重构 ↗",
-					},
 					onAction: async (payload?: string) => {
 						const api = noteApiRef.current;
 						if (!api?.hasNote()) {
@@ -148,12 +141,6 @@ export function useObsidianAiBridge({
 					icon: Sparkles,
 					variant: "default" as const,
 					tooltip: "在双栏中逐句润色语言表达、排版结构，红绿 Diff 直观对比",
-					emptyState: {
-						title: "双栏全文润色",
-						subtitle: "保持 Markdown 原结构与链接，双栏实时对比精细润色。",
-						badge: "Diff",
-						actionText: "开始润色 ↗",
-					},
 					onAction: async (payload?: string) => {
 						const api = noteApiRef.current;
 						if (!api?.hasNote()) {
@@ -192,12 +179,7 @@ export function useObsidianAiBridge({
 					id: "note_summarize",
 					label: "总结当前笔记",
 					icon: FileText,
-					emptyState: {
-						title: "总结当前笔记",
-						subtitle: "提炼当前打开笔记的核心要点与结构脉络进对话。",
-						badge: "对话",
-						actionText: "立即总结 ↗",
-					},
+					tooltip: "提炼当前打开笔记的核心要点与结构脉络进对话",
 					onAction: () => {
 						sendWithNote(
 							"请总结这篇笔记：提炼核心要点（分条列出），并简述其结构与可改进之处。",

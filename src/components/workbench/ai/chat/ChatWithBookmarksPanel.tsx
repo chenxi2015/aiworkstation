@@ -1,4 +1,4 @@
-import { Button, Tooltip } from "@heroui/react";
+import { Button, Tooltip, toast } from "@heroui/react";
 import { History, MessageSquarePlus, PanelRightClose } from "lucide-react";
 import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { type ChatItem, useAiChat } from "../../../../hooks/ai/useAiChat";
@@ -23,6 +23,11 @@ import { ItemFolderAssignPopover } from "../shared/ItemFolderAssignPopover";
 import { ChatHistoryDrawer } from "./ChatHistoryDrawer";
 import { ChatInputArea } from "./ChatInputArea";
 import { ChatMessageList } from "./ChatMessageList";
+import {
+	matchRewritePipelineIntent,
+	REWRITE_ACTION_IDS,
+	type RewriteIntent,
+} from "./rewriteIntent";
 
 export interface ChatWithBookmarksPanelRef {
 	sendPrompt: (
@@ -143,6 +148,24 @@ export const ChatWithBookmarksPanel = forwardRef<
 		onDataChanged,
 	});
 
+	/**
+	 * 通过 PageBridge 直接启动页面的双栏比对流式改写流水线。
+	 * 返回 false 表示当前页面未注册改写动作（调用方应回落到通用 Agent）。
+	 */
+	const runBridgeRewriteAction = (
+		intent: RewriteIntent,
+		instruction?: string,
+	): boolean => {
+		const actions = pageBridge?.actions ?? [];
+		const rewriteAct =
+			actions.find((a) => a.id === REWRITE_ACTION_IDS[intent]) ??
+			actions.find((a) => a.id === "stream_full_rewrite") ??
+			actions.find((a) => a.id === "stream_spin_rewrite");
+		if (!rewriteAct) return false;
+		void rewriteAct.onAction(instruction ?? "");
+		return true;
+	};
+
 	// 2. Conversational RAG Chat Hook with Session Management
 	const {
 		messages,
@@ -175,12 +198,10 @@ export const ChatWithBookmarksPanel = forwardRef<
 			onDataChanged?.();
 		},
 		onTriggerRewritePipeline: (instruction) => {
-			const rewriteAct = pageBridge?.actions.find(
-				(a) => a.id === "stream_full_rewrite",
-			);
-			if (rewriteAct) {
-				void rewriteAct.onAction(instruction || "");
-			}
+			const intent = instruction
+				? (matchRewritePipelineIntent(instruction) ?? "polish")
+				: "polish";
+			runBridgeRewriteAction(intent, instruction);
 		},
 		onTriggerCreateDocumentPipeline: (params) => {
 			const createAct = pageBridge?.actions.find(
@@ -206,6 +227,33 @@ export const ChatWithBookmarksPanel = forwardRef<
 			activeNotePath?: string | null;
 		},
 	) => {
+		// 改写类意图短路：笔记模块下整篇改写直达双栏流式流水线，
+		// 不走通用 Agent（避免工具链徘徊导致的长时间空等）。
+		// 附加了 Skill/文件上下文时仍走 Agent（直达流水线无法消费这些上下文）。
+		// 注意：输入框提交时 prompt 为 undefined，真实文本在 input state 里
+		const effectivePrompt = (prompt ?? input).trim();
+		if (
+			effectivePrompt &&
+			pageBridge?.module === "obsidian" &&
+			pageBridge.activeNotePath
+		) {
+			const hasSkillOrFileContext =
+				contextItems.some((i) => i.type === "skill" || i.type === "file") ||
+				Boolean(
+					options?.contextItems?.some(
+						(i) => i.type === "skill" || i.type === "file",
+					),
+				);
+			if (!hasSkillOrFileContext) {
+				const intent = matchRewritePipelineIntent(effectivePrompt);
+				if (intent && runBridgeRewriteAction(intent, effectivePrompt)) {
+					setInput("");
+					toast.success("已启动双栏比对流水线，右栏实时生成中…");
+					return;
+				}
+			}
+		}
+
 		// Flush any pending unsaved document changes so AI reads full up-to-date text
 		if (pageBridge?.flushSave) {
 			try {
@@ -471,14 +519,14 @@ export const ChatWithBookmarksPanel = forwardRef<
 						hasMessages={messages.length > 0}
 						inputRef={inputRef}
 						onChangeInput={setInput}
-						onSend={async (extraContextItems) => {
+						onSend={async (extraContextItems, promptText) => {
 							// Resolve skill content before sending
 							let resolvedItems = extraContextItems;
 							if (extraContextItems && extraContextItems.length > 0) {
 								resolvedItems =
 									await resolveSkillContextItems(extraContextItems);
 							}
-							handleSendPrompt(undefined, {
+							handleSendPrompt(promptText, {
 								contextItems: resolvedItems
 									? [...contextItems, ...resolvedItems]
 									: undefined,
