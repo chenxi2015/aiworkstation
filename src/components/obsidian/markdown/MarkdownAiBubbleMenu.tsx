@@ -135,40 +135,125 @@ export function MarkdownAiBubbleMenu({
 	}, [view]);
 
 	// ── Diff review toolbar positioning ──────────────────────────
-	const updateDiffPosition = useCallback(() => {
-		if (!view || !activeDiff) return;
+	const diffBarRef = useRef<HTMLDivElement>(null);
+	const diffPosRef = useRef({ top: 0, left: 0 });
+
+	const calculateDiffCoords = useCallback(() => {
+		if (!view || !activeDiff) return null;
 		const maxPos = view.state.doc.length;
 		const from = Math.min(Math.max(0, activeDiff.from), maxPos);
 		const to = Math.min(Math.max(0, activeDiff.to), maxPos);
 		const start = view.coordsAtPos(from);
 		const end = view.coordsAtPos(to);
-		if (!start || !end) return;
+		if (!start || !end) return null;
 
-		const centerX = (start.left + end.right) / 2;
-		let topY = end.bottom + 12;
-		if (topY > window.innerHeight - 80) {
-			topY = Math.max(12, start.top - 48);
+		// 锚点可见性：滚出屏幕则隐藏
+		const isVisible = end.bottom > 0 && start.top < window.innerHeight;
+		if (!isVisible) {
+			return { visible: false, top: 0, left: 0 };
 		}
-		setDiffPos({
-			top: topY,
-			left: Math.max(120, Math.min(centerX, window.innerWidth - 120)),
-		});
+
+		// 水平居中算法：
+		// 多行选区时以内容区（.cm-content）的水平中线居中；单行时以文本选区范围居中并限制在内容区内
+		const contentEl = view.contentDOM ?? view.dom;
+		const contentRect = contentEl.getBoundingClientRect();
+		const isMultiLine = end.bottom - start.top > 32;
+
+		let centerX: number;
+		if (isMultiLine) {
+			centerX = (contentRect.left + contentRect.right) / 2;
+		} else {
+			centerX = (start.left + end.right) / 2;
+			centerX = Math.max(
+				contentRect.left + 80,
+				Math.min(centerX, contentRect.right - 80),
+			);
+		}
+
+		const left = Math.max(120, Math.min(centerX, window.innerWidth - 120));
+		let top = end.bottom + 12;
+		if (top > window.innerHeight - 70) {
+			const above = start.top - 48;
+			top = above >= 12 ? above : Math.max(12, window.innerHeight - 70);
+		}
+
+		return { visible: true, top, left };
 	}, [view, activeDiff]);
+
+	const applyDiffCoords = useCallback(
+		(coords: { visible: boolean; top: number; left: number }, syncState = true) => {
+			if (diffBarRef.current) {
+				if (!coords.visible) {
+					diffBarRef.current.style.display = "none";
+					return;
+				}
+				diffBarRef.current.style.display = "";
+				diffBarRef.current.style.top = `${coords.top}px`;
+				diffBarRef.current.style.left = `${coords.left}px`;
+			}
+
+			if (syncState && coords.visible) {
+				if (
+					diffPosRef.current.top !== coords.top ||
+					diffPosRef.current.left !== coords.left
+				) {
+					diffPosRef.current = { top: coords.top, left: coords.left };
+					setDiffPos({ top: coords.top, left: coords.left });
+				}
+			}
+		},
+		[],
+	);
+
+	const updateDiffPosition = useCallback(
+		(syncState = true) => {
+			const coords = calculateDiffCoords();
+			if (coords) {
+				applyDiffCoords(coords, syncState);
+			}
+		},
+		[calculateDiffCoords, applyDiffCoords],
+	);
 
 	useEffect(() => {
 		if (!activeDiff) return;
-		updateDiffPosition();
-		const handleScrollOrResize = () => updateDiffPosition();
-		window.addEventListener("resize", handleScrollOrResize, { passive: true });
-		window.addEventListener("scroll", handleScrollOrResize, {
-			passive: true,
-			capture: true,
-		});
-		return () => {
-			window.removeEventListener("resize", handleScrollOrResize);
-			window.removeEventListener("scroll", handleScrollOrResize, true);
+
+		// 激活时立即同步计算位置
+		updateDiffPosition(true);
+
+		let rafId = 0;
+		const handleScroll = () => {
+			// 1. 同步直接修改 DOM style，0 帧延迟即时跟随滑动
+			const coords = calculateDiffCoords();
+			if (coords) {
+				applyDiffCoords(coords, false);
+			}
+
+			// 2. rAF 节流同步 React state，避免高频滚动产生大量 re-render
+			if (!rafId) {
+				rafId = requestAnimationFrame(() => {
+					rafId = 0;
+					if (coords && coords.visible) {
+						if (
+							diffPosRef.current.top !== coords.top ||
+							diffPosRef.current.left !== coords.left
+						) {
+							diffPosRef.current = { top: coords.top, left: coords.left };
+							setDiffPos({ top: coords.top, left: coords.left });
+						}
+					}
+				});
+			}
 		};
-	}, [activeDiff, updateDiffPosition]);
+
+		window.addEventListener("scroll", handleScroll, true);
+		window.addEventListener("resize", handleScroll);
+		return () => {
+			window.removeEventListener("scroll", handleScroll, true);
+			window.removeEventListener("resize", handleScroll);
+			if (rafId) cancelAnimationFrame(rafId);
+		};
+	}, [activeDiff, calculateDiffCoords, applyDiffCoords, updateDiffPosition]);
 
 	// ── Listen for selection changes to show/hide floating menu ───
 	useEffect(() => {
@@ -425,6 +510,7 @@ export function MarkdownAiBubbleMenu({
 
 			{/* Floating review toolbar for inline diff comparison */}
 			<AiSuggestionReviewBar
+				barRef={diffBarRef}
 				visible={activeDiff != null}
 				position={diffPos}
 				onAccept={handleAcceptDiff}

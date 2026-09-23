@@ -22,6 +22,7 @@ export interface UseAiStreamActionOptions {
 	editor: Editor;
 	onBeforeApply?: () => Promise<void>;
 	onGenerate?: (prompt: string) => Promise<string>;
+	suggestionBarRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 export interface AiStreamActionState {
@@ -78,6 +79,7 @@ export function useAiStreamAction({
 	editor,
 	onBeforeApply,
 	onGenerate,
+	suggestionBarRef,
 }: UseAiStreamActionOptions): AiStreamActionState & AiStreamActionHandlers {
 	const [state, setState] = useState<ActionState>("idle");
 	const [result, setResult] = useState("");
@@ -617,11 +619,21 @@ export function useAiStreamAction({
 
 		let rafId = 0;
 		const updateCoord = () => {
-			if (rafId) return;
-			rafId = requestAnimationFrame(() => {
-				rafId = 0;
-				updateSuggestionPos(activeSuggestion.id);
-			});
+			const coords = SuggestionController.getFloatingCoordinates(
+				editor,
+				activeSuggestion.id,
+			);
+			if (coords && suggestionBarRef?.current) {
+				suggestionBarRef.current.style.top = `${coords.top}px`;
+				suggestionBarRef.current.style.left = `${coords.left}px`;
+			}
+
+			if (!rafId) {
+				rafId = requestAnimationFrame(() => {
+					rafId = 0;
+					if (coords) setSuggestionPos(coords);
+				});
+			}
 		};
 
 		window.addEventListener("scroll", updateCoord, true);
@@ -631,7 +643,7 @@ export function useAiStreamAction({
 			window.removeEventListener("resize", updateCoord);
 			if (rafId) cancelAnimationFrame(rafId);
 		};
-	}, [activeSuggestion, updateSuggestionPos]);
+	}, [editor, activeSuggestion, suggestionBarRef]);
 
 	return {
 		// State

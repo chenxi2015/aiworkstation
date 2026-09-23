@@ -44,6 +44,7 @@ export function AiBubbleMenu({
 }: AiBubbleMenuProps) {
 	const [visible, setVisible] = useState(false);
 	const panelRef = useRef<HTMLDivElement>(null);
+	const reviewBarRef = useRef<HTMLDivElement>(null);
 
 	// ── Merged action registry ──────────────────────────────────
 	const actions = [...DEFAULT_ACTIONS];
@@ -54,7 +55,12 @@ export function AiBubbleMenu({
 	}
 
 	// ── AI action state & handlers ──────────────────────────────
-	const ai = useAiStreamAction({ editor, onBeforeApply, onGenerate });
+	const ai = useAiStreamAction({
+		editor,
+		onBeforeApply,
+		onGenerate,
+		suggestionBarRef: reviewBarRef,
+	});
 
 	// ── Floating position (rAF-throttled, cached scrollEl) ──────
 	const {
@@ -213,9 +219,9 @@ export function AiBubbleMenu({
 		<>
 			{panel && createPortal(panel, document.body)}
 			<AiSuggestionReviewBar
+				barRef={reviewBarRef}
 				visible={Boolean(ai.activeSuggestion) && !isPipelineRunning}
 				position={ai.suggestionPos}
-				isStreaming={ai.isStreaming}
 				onAccept={ai.handleAcceptSuggestion}
 				onReject={ai.handleRejectSuggestion}
 				onStopStreaming={ai.handleStopStreaming}

@@ -439,9 +439,23 @@ export const SuggestionController = {
 		try {
 			const coords = editor.view.coordsAtPos(maxPos);
 			const startCoords = editor.view.coordsAtPos(minPos);
+			const contentRect = editor.view.dom.getBoundingClientRect();
+			const isMultiLine = coords.bottom - startCoords.top > 32;
+
+			let left: number;
+			if (isMultiLine) {
+				left = (contentRect.left + contentRect.right) / 2;
+			} else {
+				left = (startCoords.left + coords.right) / 2;
+				left = Math.max(
+					contentRect.left + 80,
+					Math.min(left, contentRect.right - 80),
+				);
+			}
+
 			return {
 				top: coords.bottom + 10,
-				left: (startCoords.left + coords.right) / 2,
+				left: Math.max(120, Math.min(left, window.innerWidth - 120)),
 			};
 		} catch {
 			return null;

@@ -10,6 +10,7 @@ export interface AiSuggestionReviewBarProps {
 	onReject: () => void;
 	onStopStreaming?: () => void;
 	onClose?: () => void;
+	barRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 /**
@@ -23,11 +24,13 @@ export const AiSuggestionReviewBar: React.FC<AiSuggestionReviewBarProps> = ({
 	onReject,
 	onStopStreaming,
 	onClose,
+	barRef,
 }) => {
 	if (!visible) return null;
 
 	return createPortal(
 		<div
+			ref={barRef}
 			role="toolbar"
 			aria-label="AI建议审阅工具栏"
 			style={{
