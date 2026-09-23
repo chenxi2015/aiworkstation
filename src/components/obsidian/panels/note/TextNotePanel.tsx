@@ -294,8 +294,10 @@ export function TextNotePanel({
 		async (newName: string) => {
 			if (!note) return;
 			const trimmed = newName.trim();
-			if (!trimmed || trimmed === note.name) return;
-			const res = await renameVaultEntryRpc(note.relPath, trimmed, !isCanvas);
+			const currentBase = note.name.replace(/\.(md|canvas)$/i, "");
+			if (!trimmed || trimmed === currentBase) return;
+			const isMd = note.relPath.toLowerCase().endsWith(".md");
+			const res = await renameVaultEntryRpc(note.relPath, trimmed, isMd);
 			if (!res.success || !res.relPath) {
 				toast.danger(res.error ?? "重命名失败");
 				return;
@@ -304,7 +306,7 @@ export function TextNotePanel({
 			onMutated();
 			onRenamed(res.relPath);
 		},
-		[note, isCanvas, onMutated, onRenamed],
+		[note, onMutated, onRenamed],
 	);
 
 	const performDelete = useCallback(async () => {

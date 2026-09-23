@@ -186,7 +186,7 @@ export function NoteToolbar({
 							aria-label="重命名笔记"
 							onClick={() => {
 								if (!canDelete) return;
-								setTitleDraft(activeName);
+								setTitleDraft(activeName.replace(/\.(md|canvas)$/i, ""));
 								setEditingTitle(true);
 							}}
 							className="min-w-0 truncate px-1 py-0.5 rounded text-foreground font-medium hover:bg-surface-secondary/60 transition-colors"

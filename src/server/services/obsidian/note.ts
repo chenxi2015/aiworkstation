@@ -131,11 +131,28 @@ export async function createVaultNote(
 	content = "",
 ): Promise<ObsidianMutationResult> {
 	try {
-		const fileName = ensureMdSuffix(name.trim());
-		if (!fileName.replace(/\.md$/i, "")) throw new Error("笔记名不能为空");
-		const abs = path.join(dirAbsPath(dirRelPath), fileName);
+		const baseFileName = ensureMdSuffix(name.trim());
+		if (!baseFileName.replace(/\.md$/i, "")) throw new Error("笔记名不能为空");
+		const targetDirAbs = dirAbsPath(dirRelPath);
+		let fileName = baseFileName;
+		let abs = path.join(targetDirAbs, fileName);
 		assertWritablePath(abs);
-		if (existsSync(abs)) throw new Error(`同名笔记已存在：${fileName}`);
+
+		// If target exists, automatically increment to avoid hard error (e.g. 未命名文件 1.md)
+		if (existsSync(abs)) {
+			const ext = ".md";
+			const rawBase = baseFileName.slice(0, -ext.length);
+			for (let i = 1; i < 1000; i++) {
+				const candidate = `${rawBase} ${i}${ext}`;
+				const candAbs = path.join(targetDirAbs, candidate);
+				if (!existsSync(candAbs)) {
+					fileName = candidate;
+					abs = candAbs;
+					break;
+				}
+			}
+		}
+
 		writeTextAtomicSync(abs, content);
 		invalidateVaultTreeCache();
 		return { success: true, relPath: toPosixRelPath(vaultRoot(), abs) };
@@ -152,9 +169,23 @@ export async function createVaultFolder(
 	try {
 		const folderName = name.trim();
 		if (!folderName) throw new Error("文件夹名不能为空");
-		const abs = path.join(dirAbsPath(dirRelPath), folderName);
+		const targetDirAbs = dirAbsPath(dirRelPath);
+		let finalName = folderName;
+		let abs = path.join(targetDirAbs, finalName);
 		assertWritablePath(abs);
-		if (existsSync(abs)) throw new Error(`同名条目已存在：${folderName}`);
+
+		if (existsSync(abs)) {
+			for (let i = 1; i < 1000; i++) {
+				const candidate = `${folderName} ${i}`;
+				const candAbs = path.join(targetDirAbs, candidate);
+				if (!existsSync(candAbs)) {
+					finalName = candidate;
+					abs = candAbs;
+					break;
+				}
+			}
+		}
+
 		await fs.mkdir(abs, { recursive: true });
 		invalidateVaultTreeCache();
 		return { success: true, relPath: toPosixRelPath(vaultRoot(), abs) };
@@ -163,11 +194,51 @@ export async function createVaultFolder(
 	}
 }
 
-/** 同目录重命名；笔记自动保留 .md 后缀 */
+/** 新建白板（dirRelPath 为空串时建在 Vault 根目录） */
+export async function createVaultCanvas(
+	dirRelPath: string,
+	name: string,
+): Promise<ObsidianMutationResult> {
+	try {
+		const cleanName = name.trim();
+		const baseFileName = cleanName.toLowerCase().endsWith(".canvas")
+			? cleanName
+			: `${cleanName}.canvas`;
+		if (!baseFileName.replace(/\.canvas$/i, ""))
+			throw new Error("白板名不能为空");
+		const targetDirAbs = dirAbsPath(dirRelPath);
+		let fileName = baseFileName;
+		let abs = path.join(targetDirAbs, fileName);
+		assertWritablePath(abs);
+
+		if (existsSync(abs)) {
+			const ext = ".canvas";
+			const rawBase = baseFileName.slice(0, -ext.length);
+			for (let i = 1; i < 1000; i++) {
+				const candidate = `${rawBase} ${i}${ext}`;
+				const candAbs = path.join(targetDirAbs, candidate);
+				if (!existsSync(candAbs)) {
+					fileName = candidate;
+					abs = candAbs;
+					break;
+				}
+			}
+		}
+
+		const defaultContent = JSON.stringify({ nodes: [], edges: [] }, null, 2);
+		writeTextAtomicSync(abs, defaultContent);
+		invalidateVaultTreeCache();
+		return { success: true, relPath: toPosixRelPath(vaultRoot(), abs) };
+	} catch (err) {
+		return { success: false, error: errMessage(err, "新建白板失败") };
+	}
+}
+
+/** 同目录重命名；笔记自动保留 .md 后缀，非 md 文件（如 .canvas）保留原后缀 */
 export async function renameVaultEntry(
 	relPath: string,
 	newName: string,
-	isNote: boolean,
+	_isNote?: boolean,
 ): Promise<ObsidianMutationResult> {
 	try {
 		const trimmed = newName.trim();
@@ -177,7 +248,32 @@ export async function renameVaultEntry(
 		}
 		const abs = entryAbsPath(relPath);
 		assertWritablePath(abs);
-		const finalName = isNote ? ensureMdSuffix(trimmed) : trimmed;
+		if (!existsSync(abs)) throw new Error("目标条目不存在");
+
+		const isDirectory = statSync(abs).isDirectory();
+		let finalName: string;
+
+		if (isDirectory) {
+			finalName = trimmed;
+		} else {
+			const origExt = path.extname(abs);
+			const isMd = origExt.toLowerCase() === ".md";
+
+			if (isMd) {
+				// Retain or append .md suffix for markdown notes
+				finalName = ensureMdSuffix(trimmed);
+			} else {
+				// Non-markdown files (e.g. .canvas, .png, .pdf): keep original extension unchanged
+				if (origExt) {
+					finalName = trimmed.toLowerCase().endsWith(origExt.toLowerCase())
+						? trimmed
+						: `${trimmed}${origExt}`;
+				} else {
+					finalName = trimmed;
+				}
+			}
+		}
+
 		const target = path.join(path.dirname(abs), finalName);
 		if (target === abs) return { success: true, relPath };
 		if (existsSync(target)) throw new Error(`同名条目已存在：${finalName}`);

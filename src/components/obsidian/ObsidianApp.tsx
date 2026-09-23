@@ -93,6 +93,7 @@ export function ObsidianApp({
 		handleCreateNote,
 		handleCreateNoteFromLink,
 		handleCreateFolder,
+		handleCreateCanvas,
 		handleRenameCommit,
 		performDeleteEntry,
 		handleDeleteEntry,
@@ -186,6 +187,7 @@ export function ObsidianApp({
 						vaultExists={!!vault?.exists}
 						onCreateNote={() => void handleCreateNote()}
 						onCreateFolder={() => void handleCreateFolder()}
+						onCreateCanvas={() => void handleCreateCanvas()}
 						onRefresh={() => load(true)}
 						refreshing={refreshing}
 						anyExpanded={expanded.size > 0}
@@ -242,6 +244,7 @@ export function ObsidianApp({
 				onCloseMenu={handleCloseMenu}
 				onCreateNote={handleCreateNote}
 				onCreateFolder={handleCreateFolder}
+				onCreateCanvas={handleCreateCanvas}
 				onRename={handleStartRename}
 				onDelete={handleDeleteEntry}
 				onCopyPath={handleCopyPath}

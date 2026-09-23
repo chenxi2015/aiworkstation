@@ -5,6 +5,7 @@ import {
 	Crosshair,
 	FilePlus2,
 	FolderPlus,
+	LayoutGrid,
 	RefreshCw,
 	Search,
 } from "lucide-react";
@@ -22,6 +23,7 @@ export interface ObsidianSidebarProps {
 	vaultExists: boolean;
 	onCreateNote: () => void;
 	onCreateFolder: () => void;
+	onCreateCanvas?: () => void;
 	onRefresh: () => void;
 	refreshing: boolean;
 	anyExpanded: boolean;
@@ -37,9 +39,10 @@ export interface ObsidianSidebarProps {
 	onSelectFolder: (path: string) => void;
 	onSelectNote: (path: string) => void;
 	onOpenMenu: (
-		node: ObsidianTree["tree"][number],
+		node: ObsidianTree["tree"][number] | null,
 		x: number,
 		y: number,
+		dirPath?: string,
 	) => void;
 	onRenameCommit: (path: string, newName: string, isFolder: boolean) => void;
 	onRenameCancel: () => void;
@@ -62,6 +65,7 @@ export function ObsidianSidebar({
 	vaultExists,
 	onCreateNote,
 	onCreateFolder,
+	onCreateCanvas,
 	onRefresh,
 	refreshing,
 	anyExpanded,
@@ -86,7 +90,9 @@ export function ObsidianSidebar({
 	scannedAt,
 	onApplyVaultSettings,
 }: ObsidianSidebarProps) {
-	const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
+	const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(
+		null,
+	);
 
 	return (
 		<aside
@@ -136,6 +142,22 @@ export function ObsidianSidebar({
 						</Tooltip.Trigger>
 						<Tooltip.Content placement="bottom">新建文件夹</Tooltip.Content>
 					</Tooltip>
+					{onCreateCanvas && (
+						<Tooltip>
+							<Tooltip.Trigger>
+								<button
+									type="button"
+									onClick={onCreateCanvas}
+									disabled={!vaultExists}
+									aria-label="新建白板"
+									className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/60 transition-colors disabled:opacity-40"
+								>
+									<LayoutGrid className="w-3.5 h-3.5" />
+								</button>
+							</Tooltip.Trigger>
+							<Tooltip.Content placement="bottom">新建白板</Tooltip.Content>
+						</Tooltip>
+					)}
 					<Tooltip>
 						<Tooltip.Trigger>
 							<button
@@ -195,7 +217,7 @@ export function ObsidianSidebar({
 				</div>
 			</div>
 
-			{/* Empty area click clears selected directory */}
+			{/* Empty area click clears selected directory, right-click opens creation menu */}
 			{/* biome-ignore lint/a11y/noStaticElementInteractions lint/a11y/useKeyWithClickEvents: Click blank space to reset current directory */}
 			<div
 				ref={setScrollElement}
@@ -203,24 +225,43 @@ export function ObsidianSidebar({
 				onClick={(e) => {
 					if (e.target === e.currentTarget) onClearCurrentDir();
 				}}
+				onContextMenu={(e) => {
+					if (!vaultExists) return;
+					e.preventDefault();
+					onOpenMenu(null, e.clientX, e.clientY, currentDir);
+				}}
 			>
 				{filteredTree.length > 0 ? (
-					<VaultTree
-						key={vault?.path || "vault-tree"}
-						scrollElement={scrollElement}
-						nodes={filteredTree}
-						selectedNotePath={selectedNotePath}
-						currentDir={currentDir}
-						expanded={effectiveExpanded}
-						renamingPath={renamingPath}
-						autoReveal={autoReveal}
-						onToggleFolder={onToggleFolder}
-						onSelectFolder={onSelectFolder}
-						onSelectNote={onSelectNote}
-						onOpenMenu={onOpenMenu}
-						onRenameCommit={onRenameCommit}
-						onRenameCancel={onRenameCancel}
-					/>
+					<>
+						<VaultTree
+							key={vault?.path || "vault-tree"}
+							scrollElement={scrollElement}
+							nodes={filteredTree}
+							selectedNotePath={selectedNotePath}
+							currentDir={currentDir}
+							expanded={effectiveExpanded}
+							renamingPath={renamingPath}
+							autoReveal={autoReveal}
+							onToggleFolder={onToggleFolder}
+							onSelectFolder={onSelectFolder}
+							onSelectNote={onSelectNote}
+							onOpenMenu={onOpenMenu}
+							onRenameCommit={onRenameCommit}
+							onRenameCancel={onRenameCancel}
+						/>
+						{/* Blank area reserved at bottom for easy right-clicking and deselection when list is long */}
+						{/* biome-ignore lint/a11y/noStaticElementInteractions lint/a11y/useKeyWithClickEvents: Blank area for right-click and selection clear */}
+						<div
+							className="h-16 w-full cursor-default shrink-0"
+							onClick={onClearCurrentDir}
+							onContextMenu={(e) => {
+								if (!vaultExists) return;
+								e.preventDefault();
+								e.stopPropagation();
+								onOpenMenu(null, e.clientX, e.clientY, currentDir);
+							}}
+						/>
+					</>
 				) : (
 					<p className="px-4 py-8 text-center text-[11px] text-muted">
 						{query

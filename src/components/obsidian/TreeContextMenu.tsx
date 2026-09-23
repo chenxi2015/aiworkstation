@@ -2,10 +2,11 @@ import { toast } from "@heroui/react";
 import {
 	Copy,
 	ExternalLink,
-	FilePlus2,
-	FolderPlus,
+	Folder,
 	FolderSearch,
+	LayoutGrid,
 	Pencil,
+	SquarePen,
 	Trash2,
 } from "lucide-react";
 import { useEffect, useRef } from "react";
@@ -14,7 +15,8 @@ import { openVaultEntryRpc } from "../../services/api/obsidianClient";
 import type { ObsidianTreeNode } from "./types";
 
 export interface TreeMenuTarget {
-	node: ObsidianTreeNode;
+	node: ObsidianTreeNode | null;
+	dirPath?: string;
 	x: number;
 	y: number;
 }
@@ -24,14 +26,12 @@ export interface TreeContextMenuProps {
 	onClose: () => void;
 	onCreateNote: (dir: string) => void;
 	onCreateFolder: (dir: string) => void;
+	onCreateCanvas: (dir: string) => void;
 	onRename: (node: ObsidianTreeNode) => void;
 	onDelete: (node: ObsidianTreeNode) => void;
 	onCopyPath: (node: ObsidianTreeNode) => void;
 	onReveal: (node: ObsidianTreeNode) => void;
 }
-
-const MENU_WIDTH = 176;
-const MENU_MAX_HEIGHT = 320;
 
 function MenuItem({
 	icon: Icon,
@@ -48,29 +48,30 @@ function MenuItem({
 		<button
 			type="button"
 			onClick={onClick}
-			className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left text-xs font-medium transition-colors ${
+			className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-left text-xs font-medium transition-colors ${
 				danger
 					? "text-danger hover:bg-danger/10"
-					: "text-foreground/80 hover:bg-surface-secondary/70"
+					: "text-foreground/85 hover:bg-surface-secondary/70"
 			}`}
 		>
 			<Icon
-				className={`w-3.5 h-3.5 shrink-0 ${danger ? "text-danger" : "text-muted"}`}
+				className={`w-4 h-4 shrink-0 ${danger ? "text-danger" : "text-muted"}`}
 			/>
-			{label}
+			<span>{label}</span>
 		</button>
 	);
 }
 
 /**
  * 目录树右键/「...」操作菜单（自定义定位，样式对齐 HeroUI Dropdown.Popover）。
- * HeroUI 无 ContextMenu 组件且 Dropdown 不支持光标锚点，故菜单容器自定义。
+ * 支持空白区域右键（新建笔记/文件夹/白板）及条目右键。
  */
 export function TreeContextMenu({
 	target,
 	onClose,
 	onCreateNote,
 	onCreateFolder,
+	onCreateCanvas,
 	onRename,
 	onDelete,
 	onCopyPath,
@@ -101,38 +102,78 @@ export function TreeContextMenu({
 	if (!target) return null;
 
 	const { node } = target;
-	const isFolder = node.kind === "folder";
-	const left = Math.max(
-		4,
-		Math.min(target.x, window.innerWidth - MENU_WIDTH - 8),
-	);
-	const top = Math.max(
-		4,
-		Math.min(target.y, window.innerHeight - MENU_MAX_HEIGHT - 8),
-	);
+	const isFolder = node?.kind === "folder";
+	// Accurate heights: blank new menu (3 items ~112px), note file menu (~190px), folder menu (~250px)
+	const menuHeight = !node ? 112 : isFolder ? 250 : 190;
+	const menuWidth = !node ? 144 : 176;
+
+	// Keep horizontally within viewport, flip left if overflowing right edge
+	const left =
+		target.x + menuWidth + 8 > window.innerWidth
+			? Math.max(4, target.x - menuWidth)
+			: Math.max(4, target.x);
+
+	// Keep vertically attached to cursor; flip upwards if overflowing bottom edge
+	const top =
+		target.y + menuHeight + 8 > window.innerHeight
+			? Math.max(4, target.y - menuHeight)
+			: Math.max(4, target.y);
 
 	const act = (fn: () => void) => () => {
 		onClose();
 		fn();
 	};
 
+	// 1. 空白区域右键菜单（只显示新建笔记、新建文件夹、新建白板）
+	if (!node) {
+		const targetDir = target.dirPath ?? "";
+		return (
+			<div
+				ref={menuRef}
+				style={{ left, top }}
+				className="fixed z-50 min-w-36 p-1 shadow-lg border border-border/80 rounded-xl bg-surface animate-in fade-in zoom-in-95 duration-100 select-none"
+			>
+				<MenuItem
+					icon={SquarePen}
+					label="新建笔记"
+					onClick={act(() => onCreateNote(targetDir))}
+				/>
+				<MenuItem
+					icon={Folder}
+					label="新建文件夹"
+					onClick={act(() => onCreateFolder(targetDir))}
+				/>
+				<MenuItem
+					icon={LayoutGrid}
+					label="新建白板"
+					onClick={act(() => onCreateCanvas(targetDir))}
+				/>
+			</div>
+		);
+	}
+
 	return (
 		<div
 			ref={menuRef}
 			style={{ left, top }}
-			className="fixed z-50 min-w-44 p-1 shadow-lg border border-border/80 rounded-xl bg-surface animate-in fade-in zoom-in-95 duration-100"
+			className="fixed z-50 min-w-44 p-1 shadow-lg border border-border/80 rounded-xl bg-surface animate-in fade-in zoom-in-95 duration-100 select-none"
 		>
 			{isFolder ? (
 				<>
 					<MenuItem
-						icon={FilePlus2}
+						icon={SquarePen}
 						label="新建笔记"
 						onClick={act(() => onCreateNote(node.relPath))}
 					/>
 					<MenuItem
-						icon={FolderPlus}
+						icon={Folder}
 						label="新建文件夹"
 						onClick={act(() => onCreateFolder(node.relPath))}
+					/>
+					<MenuItem
+						icon={LayoutGrid}
+						label="新建白板"
+						onClick={act(() => onCreateCanvas(node.relPath))}
 					/>
 					<div className="my-1 border-t border-border/60" />
 				</>

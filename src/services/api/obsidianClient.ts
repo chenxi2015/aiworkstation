@@ -7,6 +7,7 @@ import type {
 import { getFileManagerName } from "../../lib/platform";
 import {
 	createLocalVaultFn,
+	createVaultCanvasFn,
 	createVaultFolderFn,
 	createVaultNoteFn,
 	deleteVaultEntryFn,
@@ -125,9 +126,7 @@ export async function fetchObsidianTree(
 		if (vaultDir) {
 			vaultNoteCache.clear();
 		}
-		return (
-			(await getObsidianTree({ data: { force, vaultDir } })) ?? EMPTY_TREE
-		);
+		return (await getObsidianTree({ data: { force, vaultDir } })) ?? EMPTY_TREE;
 	} catch (err) {
 		console.warn("[obsidianClient] getObsidianTree error:", err);
 		return EMPTY_TREE;
@@ -233,6 +232,17 @@ export async function createVaultFolderRpc(
 		return await createVaultFolderFn({ data: { dirPath, name } });
 	} catch (err) {
 		return { success: false, error: errMessage(err, "新建文件夹失败") };
+	}
+}
+
+export async function createVaultCanvasRpc(
+	dirPath: string,
+	name: string,
+): Promise<ObsidianMutationResult> {
+	try {
+		return await createVaultCanvasFn({ data: { dirPath, name } });
+	} catch (err) {
+		return { success: false, error: errMessage(err, "新建白板失败") };
 	}
 }
 

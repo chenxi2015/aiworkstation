@@ -106,7 +106,9 @@ export function RowShell({
 	const defaultName =
 		!isFolder && node.name.toLowerCase().endsWith(".md")
 			? node.name.slice(0, -3)
-			: node.name;
+			: !isFolder && node.name.toLowerCase().endsWith(".canvas")
+				? node.name.slice(0, -7)
+				: node.name;
 
 	const handleContextMenu = (e: React.MouseEvent) => {
 		e.preventDefault();

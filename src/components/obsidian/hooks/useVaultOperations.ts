@@ -2,15 +2,14 @@ import { toast } from "@heroui/react";
 import { useCallback, useState } from "react";
 import { getFileManagerName } from "../../../lib/platform";
 import {
+	createVaultCanvasRpc,
 	createVaultFolderRpc,
 	createVaultNoteRpc,
 	deleteVaultEntryRpc,
 	renameVaultEntryRpc,
 	revealVaultEntryRpc,
 } from "../../../services/api/obsidianClient";
-import {
-	shouldSkipDeleteConfirm,
-} from "../DeleteEntryDialog";
+import { shouldSkipDeleteConfirm } from "../DeleteEntryDialog";
 import { clearWikilinkCaches } from "../markdown/wikilink";
 import type { TreeMenuTarget } from "../TreeContextMenu";
 import type { ObsidianTree } from "../types";
@@ -51,31 +50,45 @@ export function useVaultOperations({
 
 	/** Generates conflict-free name in target folder: base -> base 1 -> base 2 */
 	const nextAvailableName = useCallback(
-		(dirPath: string, base: string, isFolder: boolean) => {
+		(dirPath: string, base: string, isFolder: boolean, extension?: string) => {
 			const findChildren = (
 				nodes: ObsidianTree["tree"],
 				dir: string,
-			): string[] | null => {
-				if (!dir) return nodes.map((n) => n.name);
+			): ObsidianTree["tree"] | null => {
+				if (!dir) return nodes;
 				for (const node of nodes) {
 					if (node.kind !== "folder") continue;
 					if (node.relPath === dir) {
-						return (node.children ?? []).map((c) => c.name);
+						return node.children ?? [];
 					}
 					const hit = findChildren(node.children ?? [], dir);
 					if (hit) return hit;
 				}
 				return null;
 			};
-			const existing = new Set(
-				(findChildren(treeData?.tree ?? [], dirPath) ?? []).map((n) =>
-					n.toLowerCase(),
-				),
-			);
-			const taken = (name: string) =>
-				existing.has(
-					isFolder ? name.toLowerCase() : `${name}.md`.toLowerCase(),
+			const children = findChildren(treeData?.tree ?? [], dirPath) ?? [];
+			const existing = new Set<string>();
+			for (const child of children) {
+				const fullFileName = child.relPath.split("/").pop() ?? child.name;
+				existing.add(fullFileName.toLowerCase());
+				// Markdown note nodes in tree have bare name in child.name, add both
+				if (
+					child.kind === "note" ||
+					fullFileName.toLowerCase().endsWith(".md")
+				) {
+					existing.add(fullFileName.replace(/\.md$/i, "").toLowerCase());
+				}
+			}
+			const ext = extension ?? (isFolder ? "" : ".md");
+			const taken = (name: string) => {
+				const fullCandidate = isFolder
+					? name.toLowerCase()
+					: `${name}${ext}`.toLowerCase();
+				return (
+					existing.has(fullCandidate) ||
+					(!isFolder && existing.has(name.toLowerCase()))
 				);
+			};
 			if (!taken(base)) return base;
 			for (let i = 1; i < 1000; i++) {
 				const candidate = `${base} ${i}`;
@@ -90,7 +103,7 @@ export function useVaultOperations({
 	const handleCreateNote = useCallback(
 		async (dir?: string) => {
 			const targetDir = dir ?? currentDir;
-			const name = nextAvailableName(targetDir, "未命名文件", false);
+			const name = nextAvailableName(targetDir, "未命名文件", false, ".md");
 			const res = await createVaultNoteRpc(targetDir, name);
 			if (!res.success) {
 				toast.danger(res.error ?? "新建笔记失败");
@@ -141,6 +154,26 @@ export function useVaultOperations({
 		[currentDir, nextAvailableName, expandDirChain, load],
 	);
 
+	/** Create a new canvas and enter inline rename mode directly */
+	const handleCreateCanvas = useCallback(
+		async (dir?: string) => {
+			const targetDir = dir ?? currentDir;
+			const name = nextAvailableName(targetDir, "未命名白板", false, ".canvas");
+			const res = await createVaultCanvasRpc(targetDir, name);
+			if (!res.success) {
+				toast.danger(res.error ?? "新建白板失败");
+				return;
+			}
+			expandDirChain(targetDir);
+			await load(true);
+			if (res.relPath) {
+				openNote(res.relPath);
+				setRenamingPath(res.relPath);
+			}
+		},
+		[currentDir, nextAvailableName, expandDirChain, load, openNote],
+	);
+
 	/** Commit inline rename and remap active history/expanded states */
 	const handleRenameCommit = useCallback(
 		async (relPath: string, newName: string, isFolder: boolean) => {
@@ -149,9 +182,10 @@ export function useVaultOperations({
 			const currentName = relPath.split("/").pop() ?? "";
 			const currentBase = isFolder
 				? currentName
-				: currentName.replace(/\.md$/i, "");
+				: currentName.replace(/\.(md|canvas)$/i, "");
 			if (!trimmed || trimmed === currentBase) return;
-			const res = await renameVaultEntryRpc(relPath, trimmed, !isFolder);
+			const isMdNote = !isFolder && relPath.toLowerCase().endsWith(".md");
+			const res = await renameVaultEntryRpc(relPath, trimmed, isMdNote);
 			if (!res.success || !res.relPath) {
 				toast.danger(res.error ?? "重命名失败");
 				return;
@@ -227,8 +261,13 @@ export function useVaultOperations({
 	);
 
 	const handleOpenMenu = useCallback(
-		(node: ObsidianTree["tree"][number], x: number, y: number) => {
-			setMenu({ node, x, y });
+		(
+			node: ObsidianTree["tree"][number] | null,
+			x: number,
+			y: number,
+			dirPath?: string,
+		) => {
+			setMenu({ node, x, y, dirPath });
 		},
 		[],
 	);
@@ -255,6 +294,7 @@ export function useVaultOperations({
 		handleCreateNote,
 		handleCreateNoteFromLink,
 		handleCreateFolder,
+		handleCreateCanvas,
 		handleRenameCommit,
 		performDeleteEntry,
 		handleDeleteEntry,

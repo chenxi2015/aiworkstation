@@ -16,6 +16,7 @@ import {
 } from "../services/obsidian/dataview.ts";
 import {
 	createLocalVault,
+	createVaultCanvas,
 	createVaultFolder,
 	createVaultNote,
 	deleteVaultEntry,
@@ -229,6 +230,15 @@ export const createVaultFolderFn = createServerFn({ method: "POST" })
 	.validator((data: { dirPath: string; name: string }) => data)
 	.handler(async ({ data }): Promise<ObsidianMutationResult> => {
 		return await createVaultFolder(data.dirPath, data.name);
+	});
+
+/**
+ * Server Function: 新建白板
+ */
+export const createVaultCanvasFn = createServerFn({ method: "POST" })
+	.validator((data: { dirPath: string; name: string }) => data)
+	.handler(async ({ data }): Promise<ObsidianMutationResult> => {
+		return await createVaultCanvas(data.dirPath, data.name);
 	});
 
 /**
