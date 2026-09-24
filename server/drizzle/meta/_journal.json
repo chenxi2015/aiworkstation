@@ -15,6 +15,13 @@
       "when": 1790174497685,
       "tag": "0001_empty_sunset_bain",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790200000000,
+      "tag": "0002_seed_subscription_plans",
+      "breakpoints": true
     }
   ]
 }

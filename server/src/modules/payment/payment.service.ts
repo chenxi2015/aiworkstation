@@ -125,7 +125,7 @@ export class PaymentService {
         return;
       }
 
-      const plan = getPlanById(order.planId);
+      const plan = await getPlanByIdFromDb(order.planId);
       const durationDays = plan ? plan.durationDays : 30;
       const targetTier = plan ? plan.tier : 'PRO';
 

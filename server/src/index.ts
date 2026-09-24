@@ -1,10 +1,6 @@
 import { serve } from '@hono/node-server';
 import { createApp } from './app.js';
 import { env } from './config/env.js';
-import { seedPlansIfEmpty } from './modules/plans/plans.data.js';
-
-// Auto-seed default database subscription plans if table is empty
-seedPlansIfEmpty().catch((err) => console.warn('[Startup] seedPlans failed:', err));
 
 const app = createApp();
 
