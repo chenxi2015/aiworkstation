@@ -1,4 +1,5 @@
-import { ChevronDown, LayoutGrid, List, Plus, RefreshCw, Search } from "lucide-react";
+import { ListBox, Select } from "@heroui/react";
+import { LayoutGrid, List, Plus, RefreshCw, Search } from "lucide-react";
 import type { SkillRootInfo, SkillTab, SkillViewMode } from "./types";
 
 export interface SkillsHeaderBarProps {
@@ -31,6 +32,77 @@ const TABS: { id: SkillTab; label: string }[] = [
 	{ id: "alphabetical", label: "名称 A-Z" },
 ];
 
+interface FilterOption {
+	id: string;
+	label: string;
+}
+
+interface FilterSelectProps {
+	ariaLabel: string;
+	value: string;
+	onChange: (val: string) => void;
+	options: FilterOption[];
+	className?: string;
+}
+
+// Reusable filter dropdown matching the screenshot radio style
+function FilterSelect({
+	ariaLabel,
+	value,
+	onChange,
+	options,
+	className = "min-w-[110px]",
+}: FilterSelectProps) {
+	const selectedOption = options.find((opt) => opt.id === value) ?? options[0];
+
+	return (
+		<Select
+			aria-label={ariaLabel}
+			selectedKey={value}
+			onSelectionChange={(key) => {
+				if (key != null) onChange(String(key));
+			}}
+			className={className}
+		>
+			<Select.Trigger className="h-8 min-h-8 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 text-xs font-normal hover:bg-zinc-50 dark:hover:bg-zinc-800/60 shadow-none cursor-pointer flex items-center justify-between gap-1.5 transition-colors">
+				<Select.Value className="text-xs text-zinc-800 dark:text-zinc-200 font-normal truncate leading-none">
+					{selectedOption?.label}
+				</Select.Value>
+				<Select.Indicator className="text-zinc-400 size-3 shrink-0" />
+			</Select.Trigger>
+			<Select.Popover className="min-w-[130px] max-h-60 overflow-y-auto p-1.5 rounded-xl border border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-lg text-xs z-50">
+				<ListBox className="space-y-0.5 outline-none p-0">
+					{options.map((opt) => {
+						const isSelected = opt.id === value;
+						return (
+							<ListBox.Item
+								key={opt.id}
+								id={opt.id}
+								textValue={opt.label}
+								className={`flex items-center gap-2.5 px-2.5 py-1.5 !min-h-8 rounded-lg cursor-pointer transition-colors outline-none text-xs select-none ${
+									isSelected
+										? "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-medium"
+										: "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/60"
+								}`}
+							>
+								{/* Custom Radio Button Indicator */}
+								{isSelected ? (
+									<span className="w-3.5 h-3.5 rounded-full bg-zinc-800 dark:bg-zinc-200 flex items-center justify-center shrink-0">
+										<span className="w-1.5 h-1.5 rounded-full bg-white dark:bg-zinc-900" />
+									</span>
+								) : (
+									<span className="w-3.5 h-3.5 rounded-full border border-zinc-300 dark:border-zinc-600 shrink-0" />
+								)}
+								<span className="truncate">{opt.label}</span>
+							</ListBox.Item>
+						);
+					})}
+				</ListBox>
+			</Select.Popover>
+		</Select>
+	);
+}
+
 export function SkillsHeaderBar({
 	activeTab,
 	onTabChange,
@@ -51,6 +123,28 @@ export function SkillsHeaderBar({
 	refreshing,
 	totalCount,
 }: SkillsHeaderBarProps) {
+	const sourceOptions: FilterOption[] = [
+		{ id: "__all__", label: "所有来源" },
+		...availableRoots.map((r) => ({
+			id: r.label,
+			label: `${r.label} (${r.skillCount})`,
+		})),
+	];
+
+	const categoryOptions: FilterOption[] = [
+		{ id: "__all__", label: "所有场景分类" },
+		...availableCategories.map((c) => ({
+			id: c,
+			label: c,
+		})),
+	];
+
+	const apiKeyOptions: FilterOption[] = [
+		{ id: "__all__", label: "不限 API Key" },
+		{ id: "needs_key", label: "需配置 API Key" },
+		{ id: "no_key", label: "无需 API Key" },
+	];
+
 	return (
 		<div className="space-y-4 mb-6">
 			{/* Top Control Bar: Tabs on left, dropdowns & actions on right */}
@@ -84,52 +178,31 @@ export function SkillsHeaderBar({
 				{/* Right Filters & View Switcher */}
 				<div className="flex flex-wrap items-center gap-2 text-xs">
 					{/* Source Dropdown */}
-					<div className="relative">
-						<select
-							value={sourceFilter}
-							onChange={(e) => onSourceFilterChange(e.target.value)}
-							className="appearance-none pl-3 pr-7 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-zinc-400 cursor-pointer"
-						>
-							<option value="__all__">所有来源</option>
-							{availableRoots.map((r) => (
-								<option key={r.path} value={r.label}>
-									{r.label} ({r.skillCount})
-								</option>
-							))}
-						</select>
-						<ChevronDown className="w-3.5 h-3.5 text-zinc-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-					</div>
+					<FilterSelect
+						ariaLabel="来源过滤"
+						value={sourceFilter}
+						onChange={onSourceFilterChange}
+						options={sourceOptions}
+						className="min-w-[110px]"
+					/>
 
 					{/* Category Dropdown */}
-					<div className="relative">
-						<select
-							value={categoryFilter}
-							onChange={(e) => onCategoryFilterChange(e.target.value)}
-							className="appearance-none pl-3 pr-7 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-zinc-400 cursor-pointer"
-						>
-							<option value="__all__">所有场景分类</option>
-							{availableCategories.map((c) => (
-								<option key={c} value={c}>
-									{c}
-								</option>
-							))}
-						</select>
-						<ChevronDown className="w-3.5 h-3.5 text-zinc-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-					</div>
+					<FilterSelect
+						ariaLabel="场景分类过滤"
+						value={categoryFilter}
+						onChange={onCategoryFilterChange}
+						options={categoryOptions}
+						className="min-w-[120px]"
+					/>
 
 					{/* API Key Dropdown */}
-					<div className="relative">
-						<select
-							value={apiKeyFilter}
-							onChange={(e) => onApiKeyFilterChange(e.target.value)}
-							className="appearance-none pl-3 pr-7 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-zinc-400 cursor-pointer"
-						>
-							<option value="__all__">不限 API Key</option>
-							<option value="needs_key">需配置 API Key</option>
-							<option value="no_key">无需 API Key</option>
-						</select>
-						<ChevronDown className="w-3.5 h-3.5 text-zinc-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-					</div>
+					<FilterSelect
+						ariaLabel="API Key 过滤"
+						value={apiKeyFilter}
+						onChange={onApiKeyFilterChange}
+						options={apiKeyOptions}
+						className="min-w-[110px]"
+					/>
 
 					{/* Install Skill Button */}
 					<button
