@@ -32,7 +32,11 @@ function applyThemeMode(mode: ThemeMode) {
 	document.documentElement.style.colorScheme = resolved;
 }
 
-export default function ThemeToggle() {
+export default function ThemeToggle({
+	compact = false,
+}: {
+	compact?: boolean;
+}) {
 	const [mode, setMode] = useState<ThemeMode>("auto");
 
 	useEffect(() => {
@@ -65,8 +69,30 @@ export default function ThemeToggle() {
 
 	const label =
 		mode === "auto"
-			? "Theme mode: auto (system). Click to switch to light mode."
-			: `Theme mode: ${mode}. Click to switch mode.`;
+			? "当前主题：跟随系统（点击切换）"
+			: mode === "dark"
+				? "当前主题：暗色模式（点击切换）"
+				: "当前主题：亮色模式（点击切换）";
+
+	if (compact) {
+		return (
+			<button
+				type="button"
+				onClick={toggleMode}
+				aria-label={label}
+				title={label}
+				className="h-8 w-8 rounded-lg flex items-center justify-center text-muted hover:text-foreground hover:bg-surface-secondary/80 transition-colors cursor-pointer"
+			>
+				{mode === "auto" ? (
+					<Laptop className="w-4 h-4 opacity-75" />
+				) : mode === "dark" ? (
+					<Moon className="w-4 h-4 text-accent" />
+				) : (
+					<Sun className="w-4 h-4 text-amber-500" />
+				)}
+			</button>
+		);
+	}
 
 	return (
 		<button
@@ -95,4 +121,3 @@ export default function ThemeToggle() {
 		</button>
 	);
 }
-

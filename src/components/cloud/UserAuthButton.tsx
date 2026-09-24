@@ -25,7 +25,7 @@ export function UserAuthButton() {
 					<Button
 						size="sm"
 						variant="secondary"
-						className="rounded-full flex items-center gap-1.5 px-3 cursor-pointer text-xs font-medium border border-emerald-500/25 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 shadow-2xs transition"
+						className="h-8 rounded-full flex items-center gap-1.5 px-3 cursor-pointer text-xs font-medium border border-emerald-500/25 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 shadow-2xs transition"
 						onPress={() => setShowLoginModal(true)}
 					>
 						<LogIn className="w-3.5 h-3.5" />
@@ -35,7 +35,7 @@ export function UserAuthButton() {
 					<button
 						type="button"
 						onClick={() => setShowDropdown((prev) => !prev)}
-						className="flex items-center gap-2 rounded-full border border-border/80 bg-surface/80 hover:bg-surface px-2.5 py-1 text-xs cursor-pointer transition shadow-2xs hover:shadow-xs"
+						className="h-8 pl-1.5 pr-2.5 rounded-full border border-border/80 bg-surface/80 hover:bg-surface flex items-center gap-1.5 text-xs cursor-pointer transition shadow-2xs hover:shadow-xs"
 					>
 						{user?.avatarUrl ? (
 							<img

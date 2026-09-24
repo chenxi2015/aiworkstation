@@ -1,7 +1,9 @@
 import { toast } from "@heroui/react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useCloudAuth } from "../../lib/cloud/useCloudAuth";
 import type { NavLayoutEntry } from "../../modules/registry";
 import { saveSettingsAsync } from "../../services/storage/settingsStorage";
+import { ModulePaywall } from "../cloud/ModulePaywall";
 import { useWorkbenchQuickActions } from "../workbench/layout/useWorkbenchQuickActions";
 import { WorkbenchHeader } from "../workbench/layout/WorkbenchHeader";
 import {
@@ -42,6 +44,7 @@ export function ObsidianApp({
 	initialNotePath,
 	onNoteChange,
 }: ObsidianAppProps) {
+	const { isMember } = useCloudAuth();
 	const { actionProps, modals } = useWorkbenchQuickActions({ folders });
 	const { sidebarWidth, handleSidebarResizeStart } = useSidebarResize();
 
@@ -81,7 +84,7 @@ export function ObsidianApp({
 		filteredTree,
 		autoReveal,
 		handleToggleAutoReveal,
-	} = useVaultTreeState({ selectedNotePath });
+	} = useVaultTreeState({ selectedNotePath, enabled: isMember });
 
 	// 3. Vault file/folder operations & context menu
 	const {
@@ -172,7 +175,12 @@ export function ObsidianApp({
 				{...actionProps}
 			/>
 
-			{loading ? (
+			{!isMember ? (
+				<ModulePaywall
+					moduleName="笔记"
+					description="开通工作台会员，即可解锁本地 Obsidian Vault 直连、双链图谱与 Markdown 知识库深度管理"
+				/>
+			) : loading ? (
 				<div className="flex-1 flex overflow-hidden min-h-0">
 					<ObsidianTreeSkeleton width={sidebarWidth} />
 					<ObsidianNoteCanvasSkeleton />

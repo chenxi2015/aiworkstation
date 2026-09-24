@@ -163,36 +163,46 @@ export function WorkbenchHeader({
 					</div>
 				)}
 
-				{/* Open AI Collector Extension Button */}
-				{(onOpenExtension || onOpenSearch) && (
-					<Button
-						variant="secondary"
-						size="sm"
-						className="rounded-full flex items-center gap-1.5 px-3 shadow-2xs cursor-pointer"
-						onPress={onOpenExtension || onOpenSearch}
-					>
-						<Chrome className="w-3.5 h-3.5 text-accent" />
-						<span>打开插件</span>
-					</Button>
-				)}
+				{/* Tools Group: Extension, Settings, Theme */}
+				<div className="flex items-center gap-1">
+					{/* Open AI Collector Extension */}
+					{(onOpenExtension || onOpenSearch) && (
+						<button
+							type="button"
+							onClick={onOpenExtension || onOpenSearch}
+							className="h-8 px-2.5 rounded-lg flex items-center gap-1.5 text-xs font-medium text-foreground/80 hover:text-foreground hover:bg-surface-secondary transition-all cursor-pointer"
+							title="呼起 AI Collector 浏览器插件"
+						>
+							<Chrome className="w-3.5 h-3.5 text-accent" />
+							<span>打开插件</span>
+						</button>
+					)}
 
-				{/* Settings */}
-				{onOpenSettings && (
-					<Button
-						variant="ghost"
-						size="sm"
-						className="rounded-full h-8 w-8 p-0 cursor-pointer text-muted hover:text-foreground"
-						onPress={onOpenSettings}
-						aria-label="设置"
-					>
-						<Settings className="w-4 h-4" />
-					</Button>
-				)}
+					{/* Settings */}
+					{onOpenSettings && (
+						<button
+							type="button"
+							onClick={onOpenSettings}
+							className="h-8 w-8 rounded-lg flex items-center justify-center text-muted hover:text-foreground hover:bg-surface-secondary transition-all cursor-pointer"
+							title="偏好设置"
+							aria-label="设置"
+						>
+							<Settings className="w-4 h-4" />
+						</button>
+					)}
+
+					{/* Theme Switcher (Compact Icon Mode) */}
+					<ThemeToggle compact />
+				</div>
+
+				{/* Subtle Divider */}
+				<div
+					className="h-4 w-px bg-border/60 mx-0.5 shrink-0"
+					aria-hidden="true"
+				/>
 
 				{/* Cloud User Profile & WeChat Login */}
 				<UserAuthButton />
-
-				<ThemeToggle />
 			</div>
 		</header>
 	);

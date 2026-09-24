@@ -32,6 +32,9 @@ export interface MemberCheckoutCardProps {
 	mandatory?: boolean;
 	expiredNotice?: boolean;
 	className?: string;
+	title?: string;
+	description?: string;
+	showUserInfo?: boolean;
 }
 
 /**
@@ -45,6 +48,9 @@ export function MemberCheckoutCard({
 	mandatory = false,
 	expiredNotice = false,
 	className = "",
+	title,
+	description,
+	showUserInfo = false,
 }: MemberCheckoutCardProps) {
 	const { user, logout, mockUpgradeToPro } = useCloudAuth();
 	const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
@@ -158,8 +164,8 @@ export function MemberCheckoutCard({
 				</button>
 			)}
 
-			{/* Account Info Header Bar in Mandatory Paywall Mode */}
-			{mandatory && user && (
+			{/* Account Info Header Bar in Mandatory Paywall Mode or Explicit showUserInfo */}
+			{(mandatory || showUserInfo) && user && (
 				<div className="flex items-center justify-between pb-3.5 mb-5 border-b border-border/60 text-xs">
 					<div className="flex items-center gap-2.5">
 						{user.avatarUrl ? (
@@ -205,11 +211,12 @@ export function MemberCheckoutCard({
 				<div>
 					<div className="flex items-center gap-2.5">
 						<h3 className="text-xl font-bold tracking-tight text-foreground">
-							{expiredNotice
-								? "会员已到期，请续费"
-								: mandatory
-									? "开通工作台尊享会员"
-									: "升级会员权益"}
+							{title ??
+								(expiredNotice
+									? "会员已到期，请续费"
+									: mandatory
+										? "开通工作台尊享会员"
+										: "升级会员权益")}
 						</h3>
 						<Chip
 							size="sm"
@@ -220,7 +227,8 @@ export function MemberCheckoutCard({
 						</Chip>
 					</div>
 					<p className="text-xs text-muted mt-1 leading-normal">
-						开启尊享会员，解锁本地优先 AI 深度创作、无限知识库问答与多端安全同步
+						{description ??
+							"开启尊享会员，解锁本地优先 AI 深度创作、无限知识库问答与多端安全同步"}
 					</p>
 				</div>
 			</div>

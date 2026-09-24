@@ -7,12 +7,16 @@ const AUTO_REVEAL_STORAGE_KEY = "obsidian_auto_reveal";
 
 export interface UseVaultTreeStateOptions {
 	selectedNotePath: string | null;
+	enabled?: boolean;
 }
 
 /**
  * Manages Obsidian vault tree fetching, search debouncing, folder expansions, and auto-reveal.
  */
-export function useVaultTreeState({ selectedNotePath }: UseVaultTreeStateOptions) {
+export function useVaultTreeState({
+	selectedNotePath,
+	enabled = true,
+}: UseVaultTreeStateOptions) {
 	const [treeData, setTreeData] = useState<ObsidianTree | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [refreshing, setRefreshing] = useState(false);
@@ -42,23 +46,22 @@ export function useVaultTreeState({ selectedNotePath }: UseVaultTreeStateOptions
 		});
 	}, []);
 
-	const load = useCallback(
-		async (force: boolean, targetVaultDir?: string) => {
-			if (force) setRefreshing(true);
-			try {
-				const data = await fetchObsidianTree(force, targetVaultDir);
-				setTreeData(data);
-			} finally {
-				setLoading(false);
-				setRefreshing(false);
-			}
-		},
-		[],
-	);
+	const load = useCallback(async (force: boolean, targetVaultDir?: string) => {
+		if (force) setRefreshing(true);
+		try {
+			const data = await fetchObsidianTree(force, targetVaultDir);
+			setTreeData(data);
+		} finally {
+			setLoading(false);
+			setRefreshing(false);
+		}
+	}, []);
 
 	useEffect(() => {
-		load(false);
-	}, [load]);
+		if (enabled) {
+			load(false);
+		}
+	}, [load, enabled]);
 
 	const handleQueryChange = useCallback((value: string) => {
 		setQuery(value);

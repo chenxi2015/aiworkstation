@@ -16,9 +16,7 @@ import { getModuleByRoute } from "../../modules/registry";
 import { workbenchContextActions } from "../../stores/workbenchContextStore";
 import type { ChatContextItem } from "../../types/chatContext";
 import type { PageBridge } from "../../types/pageBridge";
-import { FlutedGlassBackground } from "../cloud/FlutedGlassBackground";
 import { LoginModal } from "../cloud/LoginModal";
-import { MemberCheckoutCard } from "../cloud/MemberCheckoutCard";
 import {
 	ChatWithBookmarksPanel,
 	type ChatWithBookmarksPanelRef,
@@ -154,7 +152,7 @@ export function AppShell({
 	settings: WorkbenchSettings;
 }) {
 	const router = useRouter();
-	const { isLoggedIn, isMember, isExpired, isInitializing } = useCloudAuth();
+	const { isLoggedIn, isInitializing } = useCloudAuth();
 	const panelRef = useRef<ChatWithBookmarksPanelRef>(null);
 	const { panelWidth, isResizing, handleResizeStart } = useAiPanelResize();
 
@@ -283,19 +281,6 @@ export function AppShell({
 
 				{/* Global WeChat Login Gate Modal (Mandatory, non-closable) */}
 				<LoginModal isOpen={true} mandatory={true} />
-			</div>
-		);
-	}
-
-	// 3. Second level gate: Authenticated but not a valid member (new user or expired) -> Fullscreen Landing Page
-	if (!isMember) {
-		return (
-			<div className="h-screen w-screen flex flex-col items-center justify-center relative overflow-hidden select-none p-4">
-				{/* Fullscreen Ambient FlutedGlass Shader Background */}
-				<FlutedGlassBackground overlayClassName="bg-background/50 dark:bg-black/75" />
-
-				{/* Center Checkout Card */}
-				<MemberCheckoutCard mandatory={true} expiredNotice={isExpired} />
 			</div>
 		);
 	}
