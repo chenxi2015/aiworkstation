@@ -4,14 +4,21 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js",
+    "dev:node": "tsx watch src/index.ts",
+    "build:node": "tsc",
+    "start:node": "node dist/index.js",
+    "dev": "pnpm run dev:node",
+    "build": "pnpm run build:node",
+    "start": "pnpm run start:node",
+    "dev:cf": "wrangler dev -c wrangler.jsonc",
+    "deploy:cf": "wrangler deploy -c wrangler.jsonc",
+    "deploy:cf:dry-run": "wrangler deploy -c wrangler.jsonc --dry-run",
+    "deploy": "pnpm run deploy:cf",
+    "test": "tsx src/test-endpoints.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
-    "db:seed": "tsx src/db/seed.ts",
-    "test": "tsx src/test-endpoints.ts"
+    "db:seed": "tsx src/db/seed.ts"
   },
   "dependencies": {
     "@aiworkstation/shared-types": "workspace:*",
@@ -30,6 +37,7 @@
     "@types/qrcode": "^1.5.5",
     "drizzle-kit": "^0.30.5",
     "tsx": "^4.19.3",
-    "typescript": "^5.8.0"
+    "typescript": "^5.8.0",
+    "wrangler": "^4.70.0"
   }
 }

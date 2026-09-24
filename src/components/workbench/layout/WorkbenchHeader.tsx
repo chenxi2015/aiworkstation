@@ -3,8 +3,6 @@ import {
 	Chrome,
 	CircleAlert,
 	FolderCheck,
-	FolderDown,
-	FolderPlus,
 	Loader2,
 	Settings,
 } from "lucide-react";
@@ -45,8 +43,6 @@ export function WorkbenchHeader({
 	navLayout,
 	onOpenSearch,
 	onOpenExtension,
-	onOpenSync,
-	onOpenCreateFolder,
 	onOpenSettings,
 	onOpenAIClassifyTask,
 }: WorkbenchHeaderProps) {
@@ -177,32 +173,6 @@ export function WorkbenchHeader({
 					>
 						<Chrome className="w-3.5 h-3.5 text-accent" />
 						<span>打开插件</span>
-					</Button>
-				)}
-
-				{/* Import/Sync Bookmarks Button */}
-				{onOpenSync && (
-					<Button
-						variant="secondary"
-						size="sm"
-						className="rounded-full flex items-center gap-1.5 cursor-pointer"
-						onPress={onOpenSync}
-					>
-						<FolderDown className="w-3.5 h-3.5" />
-						<span>导入书签</span>
-					</Button>
-				)}
-
-				{/* New Folder Button */}
-				{onOpenCreateFolder && (
-					<Button
-						variant="ghost"
-						size="sm"
-						className="rounded-full flex items-center gap-1.5 cursor-pointer text-foreground/80 hover:text-foreground"
-						onPress={onOpenCreateFolder}
-					>
-						<FolderPlus className="w-3.5 h-3.5" />
-						<span>新建文件夹</span>
 					</Button>
 				)}
 

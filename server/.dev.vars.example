@@ -1,0 +1,21 @@
+# Cloudflare Workers Local Development Environment Variables
+# Copy this file to .dev.vars for `wrangler dev`
+
+# Database connection (PostgreSQL / Neon / Supabase / Hyperdrive)
+DATABASE_URL=postgres://postgres:password@localhost:5432/aiworkstation
+
+# JWT Secret
+JWT_SECRET=dev_jwt_secret_please_change_in_production
+JWT_EXPIRES_IN=7d
+
+# WeChat Open Platform
+WECHAT_APP_ID=
+WECHAT_APP_SECRET=
+WECHAT_OAUTH_CALLBACK_URL=
+
+# WeChat Pay V3
+WECHAT_PAY_MCH_ID=
+WECHAT_PAY_API_V3_KEY=
+WECHAT_PAY_SERIAL_NO=
+WECHAT_PAY_PRIVATE_KEY=
+WECHAT_PAY_NOTIFY_URL=

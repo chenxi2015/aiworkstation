@@ -269,8 +269,6 @@ export function WorkbenchApp({
 				navLayout={settings.navLayout as NavLayoutEntry[] | undefined}
 				onOpenExtension={handleOpenExtension}
 				onOpenSearch={handleOpenSearch}
-				onOpenSync={fixedCategory ? undefined : handleOpenSync}
-				onOpenCreateFolder={openCreateFolderModal}
 				onOpenSettings={() => setIsSettingsModalOpen(true)}
 				onOpenAIClassifyTask={() => setIsAIClassifyModalOpen(true)}
 			/>
@@ -346,6 +344,7 @@ export function WorkbenchApp({
 							onRefresh={handleRefresh}
 							onSelectFolder={handleSelectFolder}
 							onCreateFolder={openCreateFolderModal}
+							onOpenSync={fixedCategory ? undefined : handleOpenSync}
 							onEnterFolder={handleEnterFolder}
 							onNavigateBreadcrumb={handleNavigateToContainer}
 							onEditFolder={openEditFolderModal}

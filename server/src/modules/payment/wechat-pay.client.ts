@@ -55,6 +55,10 @@ export class WeChatPayClient {
   }
 
   private loadPrivateKey() {
+    if (env.WECHAT_PAY_PRIVATE_KEY) {
+      this.privateKeyPem = env.WECHAT_PAY_PRIVATE_KEY;
+      return;
+    }
     if (env.WECHAT_PAY_PRIVATE_KEY_PATH && fs.existsSync(env.WECHAT_PAY_PRIVATE_KEY_PATH)) {
       try {
         this.privateKeyPem = fs.readFileSync(env.WECHAT_PAY_PRIVATE_KEY_PATH, 'utf-8');

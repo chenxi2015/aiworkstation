@@ -1,5 +1,12 @@
 import { Button } from "@heroui/react";
-import { LayoutGrid, List, Pencil, RefreshCw } from "lucide-react";
+import {
+	FolderDown,
+	FolderPlus,
+	LayoutGrid,
+	List,
+	Pencil,
+	RefreshCw,
+} from "lucide-react";
 import type { Folder, FolderGridView } from "../types";
 import { CategoryView } from "./CategoryView";
 
@@ -20,6 +27,7 @@ export interface CategoryMainViewProps {
 	onRefresh: () => void;
 	onSelectFolder: (id: number) => void;
 	onCreateFolder: (parentFolder?: Folder) => void;
+	onOpenSync?: () => void;
 	onEnterFolder: (id: number) => void;
 	onNavigateBreadcrumb: (id: number | null) => void;
 	onEditFolder: (folder: Folder) => void;
@@ -49,6 +57,7 @@ export function CategoryMainView({
 	onRefresh,
 	onSelectFolder,
 	onCreateFolder,
+	onOpenSync,
 	onEnterFolder,
 	onNavigateBreadcrumb,
 	onEditFolder,
@@ -89,8 +98,32 @@ export function CategoryMainView({
 					</p>
 				</div>
 
-				{/* Action buttons: view toggle + refresh folder list */}
+				{/* Action buttons: new folder + import bookmarks + view toggle + refresh */}
 				<div className="flex items-center gap-2 shrink-0">
+					<Button
+						variant="secondary"
+						size="sm"
+						className="rounded-full flex items-center gap-1.5 cursor-pointer text-xs"
+						onPress={() => onCreateFolder(currentFolder ?? undefined)}
+					>
+						<FolderPlus className="w-3.5 h-3.5" />
+						<span>新建文件夹</span>
+					</Button>
+
+					{onOpenSync && (
+						<Button
+							variant="secondary"
+							size="sm"
+							className="rounded-full flex items-center gap-1.5 cursor-pointer text-xs"
+							onPress={onOpenSync}
+						>
+							<FolderDown className="w-3.5 h-3.5" />
+							<span>导入书签</span>
+						</Button>
+					)}
+
+					<div className="h-4 w-px bg-border/60 mx-0.5" />
+
 					<div className="flex items-center rounded-full border border-border/70 bg-surface-secondary/60 p-0.5">
 						<button
 							type="button"

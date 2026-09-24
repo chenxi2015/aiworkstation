@@ -20,6 +20,23 @@ export const env = {
   WECHAT_PAY_MCH_ID: process.env.WECHAT_PAY_MCH_ID || '',
   WECHAT_PAY_API_V3_KEY: process.env.WECHAT_PAY_API_V3_KEY || '',
   WECHAT_PAY_SERIAL_NO: process.env.WECHAT_PAY_SERIAL_NO || '',
+  WECHAT_PAY_PRIVATE_KEY: process.env.WECHAT_PAY_PRIVATE_KEY || '',
   WECHAT_PAY_PRIVATE_KEY_PATH: process.env.WECHAT_PAY_PRIVATE_KEY_PATH || '',
   WECHAT_PAY_NOTIFY_URL: process.env.WECHAT_PAY_NOTIFY_URL || '',
 };
+
+/**
+ * Sync environment variables from Cloudflare Workers bindings
+ */
+export function syncEnv(cfEnv?: Record<string, unknown>) {
+  if (!cfEnv || typeof cfEnv !== 'object') return;
+  for (const [key, value] of Object.entries(cfEnv)) {
+    if (typeof value === 'string') {
+      if (key in env) {
+        (env as Record<string, unknown>)[key] = key === 'PORT' ? Number.parseInt(value, 10) : value;
+      }
+      process.env[key] = value;
+    }
+  }
+}
+
