@@ -1,5 +1,19 @@
-import { FolderGit2, Loader2, PlusCircle, Wrench, X } from "lucide-react";
-import { useState } from "react";
+import {
+	Button,
+	Description,
+	FieldError,
+	Input,
+	Label,
+	ListBox,
+	Modal,
+	Select,
+	Tabs,
+	TextArea,
+	TextField,
+	toast,
+} from "@heroui/react";
+import { Check, FolderGit2, PlusCircle, Wrench } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { requestInstallSkill } from "../../services/api/skillsClient";
 import type { SkillRootInfo } from "./types";
 
@@ -10,6 +24,18 @@ export interface InstallSkillModalProps {
 	availableRoots: SkillRootInfo[];
 }
 
+const CATEGORIES = [
+	"开发编程",
+	"办公效率",
+	"知识管理",
+	"生活服务",
+	"设计多媒体",
+	"数据分析",
+];
+
+/**
+ * Install skill modal dialog built with HeroUI components.
+ */
 export function InstallSkillModal({
 	isOpen,
 	onClose,
@@ -29,13 +55,48 @@ export function InstallSkillModal({
 	const [submitting, setSubmitting] = useState(false);
 	const [error, setError] = useState("");
 
-	if (!isOpen) return null;
+	// Reset state when modal opens
+	useEffect(() => {
+		if (isOpen) {
+			setError("");
+		}
+	}, [isOpen]);
+
+	// Build selectable target root options
+	const rootOptions = useMemo(() => {
+		const defaultOptions = [
+			{
+				value: ".agents/skills",
+				label: "当前项目工作区",
+			},
+			{
+				value: "~/.gemini/config/skills",
+				label: "全局通用目录",
+			},
+		];
+
+		const extra = availableRoots
+			.filter(
+				(r) =>
+					r.path !== ".agents/skills" && r.path !== "~/.gemini/config/skills",
+			)
+			.map((r) => ({
+				value: r.path,
+				label: r.label || r.path,
+			}));
+
+		return [...defaultOptions, ...extra];
+	}, [availableRoots]);
+
+	const selectedRoot =
+		rootOptions.find((opt) => opt.value === targetRoot) || rootOptions[0];
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
 		setError("");
 
-		if (!skillName.trim()) {
+		const trimmedSlug = skillName.trim();
+		if (!trimmedSlug) {
 			setError("请输入技能英文标识（目录名）");
 			return;
 		}
@@ -46,240 +107,284 @@ export function InstallSkillModal({
 		}
 
 		setSubmitting(true);
-		const res = await requestInstallSkill({
-			mode,
-			skillName: skillName.trim(),
-			title: title.trim() || skillName.trim(),
-			description: description.trim(),
-			repoUrl: repoUrl.trim(),
-			category,
-			targetRoot,
-		});
+		try {
+			const res = await requestInstallSkill({
+				mode,
+				skillName: trimmedSlug,
+				title: title.trim() || trimmedSlug,
+				description: description.trim(),
+				repoUrl: repoUrl.trim(),
+				category,
+				targetRoot,
+			});
 
-		setSubmitting(false);
-		if (res.success) {
-			onSuccess();
-			onClose();
-		} else {
-			setError(res.message);
+			if (res.success) {
+				toast.success(`技能 "${title.trim() || trimmedSlug}" 已成功安装`);
+				onSuccess();
+				onClose();
+			} else {
+				setError(res.message);
+				toast.danger(res.message || "安装技能失败");
+			}
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : "安装技能时发生异常";
+			setError(msg);
+			toast.danger(msg);
+		} finally {
+			setSubmitting(false);
 		}
 	};
 
 	return (
-		<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in duration-150">
-			<div className="w-full max-w-md rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-xl overflow-hidden">
-				{/* Modal Header */}
-				<div className="px-5 py-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
-					<div className="flex items-center gap-2">
-						<div className="w-7 h-7 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-800 dark:text-zinc-200">
+		<Modal.Backdrop
+			isOpen={isOpen}
+			onOpenChange={(open) => {
+				if (!open && !submitting) {
+					onClose();
+				}
+			}}
+			variant="blur"
+		>
+			<Modal.Container size="sm" className="w-full">
+				<Modal.Dialog aria-label="安装新技能" className="w-full max-w-lg">
+					<Modal.CloseTrigger isDisabled={submitting} />
+
+					{/* Modal Header */}
+					<Modal.Header className="flex items-center gap-2.5 pb-2">
+						<div className="w-7 h-7 rounded-lg bg-surface-secondary flex items-center justify-center text-foreground">
 							<PlusCircle className="w-4 h-4" />
 						</div>
-						<h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+						<Modal.Heading className="text-base font-semibold">
 							安装新技能 (Skill)
-						</h2>
-					</div>
-					<button
-						type="button"
-						onClick={onClose}
-						disabled={submitting}
-						className="p-1 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-					>
-						<X className="w-4 h-4" />
-					</button>
-				</div>
+						</Modal.Heading>
+					</Modal.Header>
 
-				<form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs">
-					{/* Mode Tabs */}
-					<div className="flex p-1 rounded-xl bg-zinc-100 dark:bg-zinc-800/80">
-						<button
-							type="button"
-							onClick={() => setMode("scaffold")}
-							className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg font-medium transition-all ${
-								mode === "scaffold"
-									? "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-xs"
-									: "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300"
-							}`}
-						>
-							<Wrench className="w-3.5 h-3.5" />
-							快速脚手架新建
-						</button>
-						<button
-							type="button"
-							onClick={() => setMode("git")}
-							className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg font-medium transition-all ${
-								mode === "git"
-									? "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-xs"
-									: "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300"
-							}`}
-						>
-							<FolderGit2 className="w-3.5 h-3.5" />
-							Git 仓库安装
-						</button>
-					</div>
-
-					{/* Skill Directory Slug */}
-					<div>
-						<label
-							htmlFor="skill-slug-input"
-							className="block font-medium text-zinc-700 dark:text-zinc-300 mb-1"
-						>
-							技能目录标识 (英文 Slug) *
-						</label>
-						<input
-							id="skill-slug-input"
-							type="text"
-							value={skillName}
-							onChange={(e) => setSkillName(e.target.value)}
-							placeholder="例如: sql-helper 或 web-scraper"
-							className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-400 font-mono text-xs"
-							required
-						/>
-					</div>
-
-					{mode === "git" ? (
-						<div>
-							<label
-								htmlFor="skill-git-url"
-								className="block font-medium text-zinc-700 dark:text-zinc-300 mb-1"
+					<form onSubmit={handleSubmit} className="flex flex-col gap-4  h-[450px]">
+						<Modal.Body className="space-y-4 pt-1">
+							{/* Mode Tabs */}
+							<Tabs
+								selectedKey={mode}
+								onSelectionChange={(key) => {
+									setMode(key as "git" | "scaffold");
+									setError("");
+								}}
+								className="w-full"
 							>
-								Git 仓库 URL *
-							</label>
-							<input
-								id="skill-git-url"
-								type="text"
-								value={repoUrl}
-								onChange={(e) => setRepoUrl(e.target.value)}
-								placeholder="https://github.com/owner/skill-name.git"
-								className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-400 text-xs"
-								required
-							/>
-							<p className="mt-1 text-[10px] text-zinc-400">
-								将使用 git clone --depth 1 安全拉取至目标目录
-							</p>
-						</div>
-					) : (
-						<>
-							<div className="grid grid-cols-2 gap-3">
-								<div>
-									<label
-										htmlFor="skill-title-input"
-										className="block font-medium text-zinc-700 dark:text-zinc-300 mb-1"
-									>
-										技能展示名称
-									</label>
-									<input
-										id="skill-title-input"
-										type="text"
-										value={title}
-										onChange={(e) => setTitle(e.target.value)}
-										placeholder="例如: SQL 调优助手"
-										className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-400 text-xs"
-									/>
-								</div>
-								<div>
-									<label
-										htmlFor="skill-category-select"
-										className="block font-medium text-zinc-700 dark:text-zinc-300 mb-1"
-									>
-										场景分类
-									</label>
-									<select
-										id="skill-category-select"
-										value={category}
-										onChange={(e) => setCategory(e.target.value)}
-										className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-400 text-xs"
-									>
-										<option value="开发编程">开发编程</option>
-										<option value="办公效率">办公效率</option>
-										<option value="知识管理">知识管理</option>
-										<option value="生活服务">生活服务</option>
-										<option value="设计多媒体">设计多媒体</option>
-										<option value="数据分析">数据分析</option>
-									</select>
-								</div>
-							</div>
+								<Tabs.ListContainer className="w-full shrink-0">
+									<Tabs.List className="w-full flex">
+										<Tabs.Tab
+											id="scaffold"
+											className="flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium"
+										>
+											<Wrench className="w-3.5 h-3.5" />
+											<span>快速脚手架新建</span>
+											<Tabs.Indicator />
+										</Tabs.Tab>
+										<Tabs.Tab
+											id="git"
+											className="flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium"
+										>
+											<FolderGit2 className="w-3.5 h-3.5" />
+											<span>Git 仓库安装</span>
+											<Tabs.Indicator />
+										</Tabs.Tab>
+									</Tabs.List>
+								</Tabs.ListContainer>
+							</Tabs>
 
-							<div>
-								<label
-									htmlFor="skill-desc-input"
-									className="block font-medium text-zinc-700 dark:text-zinc-300 mb-1"
-								>
-									技能功能描述
-								</label>
-								<textarea
-									id="skill-desc-input"
-									value={description}
-									onChange={(e) => setDescription(e.target.value)}
-									rows={2}
-									placeholder="描述技能的主要指令、应用场景与核心能力..."
-									className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-400 text-xs resize-none"
+							{/* Skill Directory Slug */}
+							<TextField
+								value={skillName}
+								onChange={(val) => {
+									setSkillName(val);
+									if (error) setError("");
+								}}
+								isRequired
+							>
+								<Label className="text-xs font-medium text-foreground">
+									技能目录标识 (英文 Slug) <span className="text-danger">*</span>
+								</Label>
+								<Input
+									placeholder="例如: sql-helper 或 web-scraper"
+									variant="secondary"
+									className="font-mono text-xs"
+									autoFocus
 								/>
+							</TextField>
+
+							{mode === "git" ? (
+								/* Git Mode Fields */
+								<TextField
+									value={repoUrl}
+									onChange={(val) => {
+										setRepoUrl(val);
+										if (error) setError("");
+									}}
+									isRequired
+								>
+									<Label className="text-xs font-medium text-foreground">
+										Git 仓库 URL <span className="text-danger">*</span>
+									</Label>
+									<Input
+										placeholder="https://github.com/owner/skill-name.git"
+										variant="secondary"
+										className="text-xs"
+									/>
+									<Description className="text-[11px] text-muted">
+										将使用 git clone --depth 1 安全拉取至目标目录
+									</Description>
+								</TextField>
+							) : (
+								/* Scaffold Mode Fields */
+								<>
+									<div className="grid grid-cols-2 gap-3">
+										<TextField value={title} onChange={setTitle}>
+											<Label className="text-xs font-medium text-foreground">
+												技能展示名称
+											</Label>
+											<Input
+												placeholder="例如: SQL 调优助手"
+												variant="secondary"
+												className="text-xs"
+											/>
+										</TextField>
+
+										<div className="flex flex-col gap-1.5">
+											<Label className="text-xs font-medium text-foreground">
+												场景分类
+											</Label>
+											<Select
+												aria-label="选择技能场景分类"
+												selectedKey={category}
+												onSelectionChange={(key) => {
+													if (key != null) setCategory(String(key));
+												}}
+											>
+												<Select.Trigger className="h-9 px-3 py-1.5 rounded-lg border border-border bg-surface-secondary/40 text-foreground text-xs font-normal hover:bg-surface-secondary/60 shadow-none cursor-pointer flex items-center justify-between gap-1.5 transition-colors">
+													<Select.Value className="text-xs text-foreground font-normal truncate leading-none">
+														{category}
+													</Select.Value>
+													<Select.Indicator className="text-muted size-3 shrink-0" />
+												</Select.Trigger>
+												<Select.Popover className="min-w-[140px] max-h-60 overflow-y-auto p-1.5 rounded-xl border border-border bg-surface shadow-lg text-xs z-50">
+													<ListBox className="space-y-0.5 outline-none p-0">
+														{CATEGORIES.map((cat) => (
+															<ListBox.Item
+																key={cat}
+																id={cat}
+																textValue={cat}
+																className={`flex items-center justify-between px-2.5 py-1.5 min-h-8 rounded-lg cursor-pointer transition-colors outline-none text-xs select-none ${
+																	cat === category
+																		? "bg-surface-secondary text-foreground font-medium"
+																		: "text-muted hover:text-foreground hover:bg-surface-secondary/60"
+																}`}
+															>
+																<span>{cat}</span>
+																{cat === category && (
+																	<Check className="w-3.5 h-3.5 text-primary" />
+																)}
+															</ListBox.Item>
+														))}
+													</ListBox>
+												</Select.Popover>
+											</Select>
+										</div>
+									</div>
+
+									<TextField value={description} onChange={setDescription}>
+										<Label className="text-xs font-medium text-foreground">
+											技能功能描述
+										</Label>
+										<TextArea
+											rows={2}
+											placeholder="描述技能的主要指令、应用场景与核心能力..."
+											variant="secondary"
+											className="text-xs"
+										/>
+									</TextField>
+								</>
+							)}
+
+							{/* Destination Root */}
+							<div className="flex flex-col gap-1.5">
+								<Label className="text-xs font-medium text-foreground">
+									安装目标根目录
+								</Label>
+								<Select
+									aria-label="选择安装目标根目录"
+									selectedKey={targetRoot}
+									onSelectionChange={(key) => {
+										if (key != null) setTargetRoot(String(key));
+									}}
+								>
+									<Select.Trigger className="h-9 px-3 py-1.5 rounded-lg border border-border bg-surface-secondary/40 text-foreground text-xs font-normal hover:bg-surface-secondary/60 shadow-none cursor-pointer flex items-center justify-between gap-1.5 transition-colors">
+										<Select.Value className="text-xs text-foreground font-normal truncate leading-none">
+											{selectedRoot?.label || targetRoot}
+										</Select.Value>
+										<Select.Indicator className="text-muted size-3 shrink-0" />
+									</Select.Trigger>
+									<Select.Popover className="min-w-[280px] max-h-60 overflow-y-auto p-1.5 rounded-xl border border-border bg-surface shadow-lg text-xs z-50">
+										<ListBox className="space-y-0.5 outline-none p-0">
+											{rootOptions.map((opt) => (
+												<ListBox.Item
+													key={opt.value}
+													id={opt.value}
+													textValue={opt.label}
+													className={`flex items-center justify-between px-2.5 py-1.5 min-h-8 rounded-lg cursor-pointer transition-colors outline-none text-xs select-none ${
+														opt.value === targetRoot
+															? "bg-surface-secondary text-foreground font-medium"
+															: "text-muted hover:text-foreground hover:bg-surface-secondary/60"
+													}`}
+												>
+													<div className="flex flex-col min-w-0 pr-2">
+														<span className="font-medium text-foreground truncate">
+															{opt.label}
+														</span>
+														<span className="text-[10px] text-muted font-mono truncate">
+															{opt.value}
+														</span>
+													</div>
+													{opt.value === targetRoot && (
+														<Check className="w-3.5 h-3.5 text-primary shrink-0" />
+													)}
+												</ListBox.Item>
+											))}
+										</ListBox>
+									</Select.Popover>
+								</Select>
 							</div>
-						</>
-					)}
 
-					{/* Destination Root */}
-					<div>
-						<label
-							htmlFor="skill-dest-root"
-							className="block font-medium text-zinc-700 dark:text-zinc-300 mb-1"
-						>
-							安装目标根目录
-						</label>
-						<select
-							id="skill-dest-root"
-							value={targetRoot}
-							onChange={(e) => setTargetRoot(e.target.value)}
-							className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-400 text-xs"
-						>
-							<option value=".agents/skills">
-								当前项目工作区 (.agents/skills)
-							</option>
+							{error && (
+								<div className="p-2.5 rounded-xl bg-danger/10 text-danger border border-danger/20 text-xs">
+									<FieldError>{error}</FieldError>
+								</div>
+							)}
+						</Modal.Body>
 
-							<option value="~/.gemini/config/skills">
-								全局通用目录 (~/.gemini/config/skills)
-							</option>
-							{availableRoots
-								.filter(
-									(r) =>
-										r.path !== ".agents/skills" &&
-										r.path !== "~/.gemini/config/skills",
-								)
-								.map((r) => (
-									<option key={r.path} value={r.path}>
-										{r.label} ({r.path})
-									</option>
-								))}
-						</select>
-					</div>
-
-					{error && (
-						<div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-400 text-xs">
-							{error}
-						</div>
-					)}
-
-					{/* Modal Footer */}
-					<div className="pt-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-end gap-2">
-						<button
-							type="button"
-							onClick={onClose}
-							disabled={submitting}
-							className="px-3.5 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-						>
-							取消
-						</button>
-						<button
-							type="submit"
-							disabled={submitting}
-							className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
-						>
-							{submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-							开始安装
-						</button>
-					</div>
-				</form>
-			</div>
-		</div>
+						{/* Modal Footer */}
+						<Modal.Footer className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+							<Button
+								type="button"
+								variant="secondary"
+								size="sm"
+								isDisabled={submitting}
+								onPress={onClose}
+							>
+								取消
+							</Button>
+							<Button
+								type="submit"
+								variant="primary"
+								size="sm"
+								isPending={submitting}
+							>
+								开始安装
+							</Button>
+						</Modal.Footer>
+					</form>
+				</Modal.Dialog>
+			</Modal.Container>
+		</Modal.Backdrop>
 	);
 }
+
