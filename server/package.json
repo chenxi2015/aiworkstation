@@ -4,8 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev:node": "pnpm --filter @aiworkstation/shared-types build",
     "dev:node": "tsx watch src/index.ts",
+    "prebuild:node": "pnpm --filter @aiworkstation/shared-types build",
     "build:node": "tsc",
+    "prestart:node": "pnpm --filter @aiworkstation/shared-types build",
     "start:node": "node dist/index.js",
     "dev": "pnpm run dev:node",
     "build": "pnpm run build:node",

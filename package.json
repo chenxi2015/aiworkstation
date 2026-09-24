@@ -6,6 +6,7 @@
     "#/*": "./src/*"
   },
   "scripts": {
+    "postinstall": "pnpm --filter @aiworkstation/shared-types build",
     "dev": "vite dev --port 3888",
     "build": "vite build",
     "preview": "node .output/server/index.mjs",
