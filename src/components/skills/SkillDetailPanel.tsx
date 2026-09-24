@@ -29,14 +29,14 @@ export function SkillDetailPanel({ skill, onClose }: SkillDetailPanelProps) {
 	}, [skill.dirPath]);
 
 	return (
-		<div className="fixed inset-0 z-50 flex justify-end">
+		<div className="fixed inset-0 z-50 flex justify-start">
 			<button
 				type="button"
 				aria-label="关闭详情"
 				className="absolute inset-0 bg-black/30 backdrop-blur-xs cursor-default"
 				onClick={onClose}
 			/>
-			<aside className="relative w-full max-w-xl h-full bg-surface border-l border-border shadow-2xl flex flex-col animate-in slide-in-from-right">
+			<aside className="relative w-full max-w-xl h-full bg-surface border-r border-border shadow-2xl flex flex-col animate-in slide-in-from-left">
 				<header className="p-4 border-b border-border flex items-start gap-3 shrink-0">
 					<div className="min-w-0 flex-1">
 						<div className="flex items-center gap-2">

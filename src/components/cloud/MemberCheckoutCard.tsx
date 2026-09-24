@@ -150,7 +150,7 @@ export function MemberCheckoutCard({
 
 	return (
 		<Card
-			className={`relative w-full max-w-[920px] max-h-[92vh] overflow-y-auto rounded-3xl border border-border/80 bg-surface/98 p-6 sm:p-8 shadow-2xl backdrop-blur-xl transition-all ${className}`}
+			className={`relative w-full max-w-[920px] max-h-[92vh] overflow-y-auto rounded-3xl border border-border/80 bg-surface/98 p-6 sm:p-8 shadow-xl backdrop-blur-xl transition-all ${className}`}
 		>
 			{/* Optional Close Button (only when not mandatory) */}
 			{!mandatory && onClose && (
