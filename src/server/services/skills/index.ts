@@ -12,6 +12,11 @@ export {
 	type SkillContextBundle,
 } from "./contextBundle.ts";
 export { readSkillDetail } from "./detail.ts";
+export {
+	type InstallSkillOptions,
+	installSkill,
+	uninstallSkill,
+} from "./manage.ts";
 export { scanSkillsOverview } from "./overview.ts";
 export { readSkillResourceFile, resolveSkillDir } from "./resource.ts";
 export { tryInterceptSkillUrl } from "./urlIntercept.ts";

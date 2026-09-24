@@ -1,11 +1,16 @@
 import type {
+	InstallSkillResult,
 	SkillDetail,
 	SkillsOverview,
+	UninstallSkillResult,
 } from "../../components/skills/types";
 import {
 	getSkillDetail,
 	getSkillsOverview,
+	installSkillFn,
+	uninstallSkillFn,
 } from "../../server/functions/skills";
+import type { InstallSkillOptions } from "../../server/services/skills/manage";
 
 const EMPTY_OVERVIEW: SkillsOverview = { roots: [], skills: [], scannedAt: 0 };
 
@@ -36,3 +41,32 @@ export async function fetchSkillDetail(
 		return null;
 	}
 }
+
+/**
+ * 安装新技能
+ */
+export async function requestInstallSkill(
+	options: InstallSkillOptions,
+): Promise<InstallSkillResult> {
+	try {
+		return await installSkillFn({ data: options });
+	} catch (err) {
+		const msg = err instanceof Error ? err.message : String(err);
+		return { success: false, message: `安装请求异常: ${msg}` };
+	}
+}
+
+/**
+ * 安全卸载技能
+ */
+export async function requestUninstallSkill(
+	dirPath: string,
+): Promise<UninstallSkillResult> {
+	try {
+		return await uninstallSkillFn({ data: { dirPath } });
+	} catch (err) {
+		const msg = err instanceof Error ? err.message : String(err);
+		return { success: false, message: `卸载请求异常: ${msg}` };
+	}
+}
+

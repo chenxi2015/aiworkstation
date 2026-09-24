@@ -12,6 +12,11 @@ const OVERVIEW_CACHE_MS = 60_000;
 let overviewCache: { data: SkillsOverview; at: number } | null = null;
 let overviewInflight: Promise<SkillsOverview> | null = null;
 
+export function clearOverviewCache(): void {
+	overviewCache = null;
+	overviewInflight = null;
+}
+
 /** 扫描全部 skill 根目录（60s 内存缓存，force 可绕过） */
 export async function scanSkillsOverview(
 	force = false,

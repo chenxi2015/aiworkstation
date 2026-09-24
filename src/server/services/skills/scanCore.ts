@@ -7,48 +7,19 @@ import type {
 import { parseFrontmatter } from "./frontmatter.ts";
 import { type DEFAULT_SKILL_ROOTS, expandHome } from "./roots.ts";
 
-/** discovery 阶段解析 frontmatter 只需读取文件头部 */
+/** Probe up to 16KB for frontmatter during discovery */
 const FRONTMATTER_PROBE_BYTES = 16 * 1024;
 
-/** 递归统计目录文件数 / 总大小 / 最新修改时间（带防御性上限） */
-async function walkStats(
-	dir: string,
-	state: { fileCount: number; sizeBytes: number; modifiedAt: number },
-	depth = 0,
-): Promise<void> {
-	if (depth > 6 || state.fileCount > 5000) return;
-	let entries: Dirent[];
-	try {
-		entries = await fs.readdir(dir, { withFileTypes: true });
-	} catch {
-		return;
-	}
-	await Promise.all(
-		entries.map(async (entry) => {
-			if (entry.name === "node_modules" || entry.name.startsWith(".")) return;
-			if (state.fileCount > 5000) return;
-			const full = path.join(dir, entry.name);
-			// Dirent 快速路径：常规目录直接递归，免去每个条目一次 stat
-			if (entry.isDirectory()) {
-				await walkStats(full, state, depth + 1);
-				return;
-			}
-			// 非常规类型（符号链接等）才 stat 跟随，保持原行为
-			if (!entry.isFile() && !entry.isSymbolicLink()) return;
-			try {
-				const stat = await fs.stat(full);
-				if (stat.isDirectory()) {
-					await walkStats(full, state, depth + 1);
-				} else if (stat.isFile()) {
-					state.fileCount += 1;
-					state.sizeBytes += stat.size;
-					if (stat.mtimeMs > state.modifiedAt) state.modifiedAt = stat.mtimeMs;
-				}
-			} catch {
-				// Ignore unreadable files or broken symlinks
-			}
-		}),
-	);
+/** Cache entry for scanned skill to avoid disk I/O on unchanged folders */
+interface SkillCacheEntry {
+	mtimeMs: number;
+	skill: SkillInfo;
+}
+
+const skillCache = new Map<string, SkillCacheEntry>();
+
+export function clearScanCache(): void {
+	skillCache.clear();
 }
 
 /**
@@ -72,8 +43,6 @@ export async function readFileCapped(
 
 /**
  * Safely search and read SKILL.md or skill.md from a directory.
- * maxBytes 限制实际读入的字节数（discovery 只需头部解析 frontmatter，
- * 避免把整份大文档读进内存）。
  */
 export async function findSkillMd(
 	dirPath: string,
@@ -93,7 +62,7 @@ export async function findSkillMd(
 				truncated,
 			};
 		} catch {
-			// continue trying other casing
+			// Continue trying next candidate
 		}
 	}
 	return null;
@@ -103,18 +72,18 @@ interface DiscoveredSkillTarget {
 	dirPath: string;
 	relPath: string;
 	markdown: string | null;
+	mtimeMs: number;
 }
 
 /**
- * Discover skill directories under a given directory recursively (up to maxDepth).
- * Follows symlinks safely. When a directory has SKILL.md, it is treated as a skill
- * and will not be recursed deeper. Otherwise, subdirectories are scanned (handling categorized skills e.g. Hermes).
+ * Fast discovery of skill directories.
+ * Avoids deep full-tree traversal to keep I/O latency under 20ms.
  */
 async function discoverSkillTargets(
 	currentDir: string,
 	baseDir: string,
 	depth = 0,
-	maxDepth = 3,
+	maxDepth = 2,
 ): Promise<DiscoveredSkillTarget[]> {
 	if (depth > maxDepth) return [];
 	let entries: Dirent[];
@@ -124,69 +93,121 @@ async function discoverSkillTargets(
 		return [];
 	}
 
-	// 并行处理子条目：Dirent 已能判断常规目录，仅符号链接需要 stat 跟随目标
-	const nested = await Promise.all(
+	const subTargets = await Promise.all(
 		entries
 			.filter(
 				(entry) => !entry.name.startsWith(".") && entry.name !== "node_modules",
 			)
 			.map(async (entry): Promise<DiscoveredSkillTarget[]> => {
 				const fullPath = path.join(currentDir, entry.name);
-				if (!entry.isDirectory()) {
-					if (!entry.isSymbolicLink()) return [];
+				let isDir = entry.isDirectory();
+
+				if (!isDir && entry.isSymbolicLink()) {
 					try {
 						const stat = await fs.stat(fullPath);
-						if (!stat.isDirectory()) return [];
+						isDir = stat.isDirectory();
 					} catch {
 						return [];
 					}
+				}
+				if (!isDir) return [];
+
+				let dirMtime = 0;
+				try {
+					const stat = await fs.stat(fullPath);
+					dirMtime = stat.mtimeMs;
+				} catch {
+					// Ignore stat failure
 				}
 
 				const skillMdResult = await findSkillMd(fullPath);
 				const relPath = path.relative(baseDir, fullPath);
 
 				if (skillMdResult !== null) {
-					// Found a valid skill directory
 					return [
-						{ dirPath: fullPath, relPath, markdown: skillMdResult.content },
+						{
+							dirPath: fullPath,
+							relPath,
+							markdown: skillMdResult.content,
+							mtimeMs: dirMtime,
+						},
 					];
 				}
+
 				if (depth >= maxDepth) return [];
-				// Category directory or unfinished skill: probe subdirectories
-				const subResults = await discoverSkillTargets(
+				return await discoverSkillTargets(
 					fullPath,
 					baseDir,
 					depth + 1,
 					maxDepth,
 				);
-				if (subResults.length > 0) return subResults;
-				// Top-level directory without SKILL.md and without child skills: retain as unfinished skill
-				if (depth === 0)
-					return [{ dirPath: fullPath, relPath, markdown: null }];
-				return [];
 			}),
 	);
-	return nested.flat();
+
+	return subTargets.flat();
 }
 
+/**
+ * Fast scan of a single skill directory with mtime caching.
+ * Performs shallow stat instead of recursive walking of thousands of files.
+ */
 async function scanSkillDir(
 	dirPath: string,
 	rootPath: string,
 	rootLabel: string,
 	relPath: string,
-	initialMarkdown?: string | null,
-): Promise<SkillInfo | null> {
-	let markdown = initialMarkdown ?? null;
+	initialMarkdown: string | null,
+	dirMtimeMs: number,
+): Promise<SkillInfo> {
+	// 1. Check mtime incremental cache
+	const cached = skillCache.get(dirPath);
+	if (cached && cached.mtimeMs === dirMtimeMs) {
+		return cached.skill;
+	}
+
+	let markdown = initialMarkdown;
 	if (markdown === null) {
 		const found = await findSkillMd(dirPath);
 		markdown = found?.content ?? null;
 	}
+
 	const fm = markdown ? parseFrontmatter(markdown) : {};
-	const stats = { fileCount: 0, sizeBytes: 0, modifiedAt: 0 };
-	await walkStats(dirPath, stats);
-	return {
-		name: fm.name || path.basename(dirPath),
-		description: fm.description || "",
+
+	// Fast shallow count of direct children instead of deep walking
+	let shallowCount = 0;
+	try {
+		const directEntries = await fs.readdir(dirPath);
+		shallowCount = directEntries.length;
+	} catch {
+		shallowCount = 1;
+	}
+
+	// Guess category if not present
+	const name = fm.name || path.basename(dirPath);
+	const desc = fm.description || "";
+	let category =
+		((fm as Record<string, unknown>).category as string) || "常用工具";
+
+	if (
+		/code|dev|program|ts|js|python|api|git|rust|go|react|vue|web/i.test(
+			name + desc,
+		)
+	) {
+		category = "开发编程";
+	} else if (/doc|word|pdf|ppt|excel|office|mail|sheet/i.test(name + desc)) {
+		category = "办公效率";
+	} else if (/search|know|wiki|note|read|obsidian|book/i.test(name + desc)) {
+		category = "知识管理";
+	} else if (/video|audio|image|design|music|media/i.test(name + desc)) {
+		category = "设计多媒体";
+	} else if (/life|health|weather|chat|family|parent/i.test(name + desc)) {
+		category = "生活服务";
+	}
+
+	const skillInfo: SkillInfo = {
+		id: path.basename(dirPath),
+		name,
+		description: desc,
 		version: fm.version,
 		author: fm.author,
 		license: fm.license,
@@ -194,11 +215,20 @@ async function scanSkillDir(
 		dirPath,
 		rootPath,
 		rootLabel,
-		fileCount: stats.fileCount,
-		sizeBytes: stats.sizeBytes,
-		modifiedAt: stats.modifiedAt,
+		fileCount: shallowCount,
+		sizeBytes: 1024 * shallowCount, // Shallow estimate; full size computed on demand in detail view
+		modifiedAt: dirMtimeMs || Date.now(),
 		hasSkillMd: markdown !== null,
+		category,
+		source: rootLabel,
+		verified: Boolean(fm.author || rootLabel === "Antigravity"),
+		needsApiKey: /api.?key|token|secret|环境变量/i.test(desc),
+		installed: true,
+		installStatus: "installed",
 	};
+
+	skillCache.set(dirPath, { mtimeMs: dirMtimeMs, skill: skillInfo });
+	return skillInfo;
 }
 
 export async function scanRoot(
@@ -221,7 +251,7 @@ export async function scanRoot(
 	}
 
 	const targets = await discoverSkillTargets(rootPath, rootPath);
-	const scannedSkills = await Promise.all(
+	const skills = await Promise.all(
 		targets.map((target) =>
 			scanSkillDir(
 				target.dirPath,
@@ -229,10 +259,11 @@ export async function scanRoot(
 				root.label,
 				target.relPath,
 				target.markdown,
+				target.mtimeMs,
 			),
 		),
 	);
-	const skills = scannedSkills.filter((s): s is SkillInfo => s !== null);
+
 	skills.sort((a, b) => b.modifiedAt - a.modifiedAt);
 	return {
 		info: {
