@@ -64,6 +64,12 @@ export function ToolWorkspace({
 		}, 1200);
 	};
 
+	// If the tool has a dedicated interactive component, render it directly
+	if (tool.customComponent) {
+		const CustomComponent = tool.customComponent;
+		return <CustomComponent tool={tool} />;
+	}
+
 	return (
 		<div className="flex-1 flex flex-col h-full bg-background overflow-y-auto">
 			{/* Header area */}

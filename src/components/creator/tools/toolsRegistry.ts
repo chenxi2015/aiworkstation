@@ -14,6 +14,9 @@ import {
 	VolumeX,
 	Wand2,
 } from "lucide-react";
+import { AudioExtractor } from "./features/AudioExtractor";
+import { ComplianceChecker } from "./features/ComplianceChecker";
+import { ImageCropAndCompress } from "./features/ImageCropAndCompress";
 import type { ToolDefinition } from "./types";
 
 /**
@@ -30,10 +33,11 @@ export const CREATOR_TOOLS: ToolDefinition[] = [
 		description:
 			"利用本地 FFmpeg 核心秒级提取视频中的口播音轨或伴奏，无音质损耗。",
 		engine: "wasm",
-		engineLabel: "WASM 本地秒提",
+		engineLabel: "Web Audio 纯本地秒提",
 		supportedFormats: ["MP4", "MOV", "MKV", "FLV", "WebM"],
 		acceptTypes: "video/*",
 		badges: ["极速", "无损"],
+		customComponent: AudioExtractor,
 		features: [
 			"零服务器上传，纯本地浏览器离线快速处理",
 			"保留原始音频码率，秒级拷贝无需重新转码",
@@ -336,6 +340,7 @@ export const CREATOR_TOOLS: ToolDefinition[] = [
 		engineLabel: "浏览器极速",
 		supportedFormats: ["JPG", "PNG", "WebP"],
 		acceptTypes: "image/*",
+		customComponent: ImageCropAndCompress,
 		features: [
 			"内置各大自媒体主流尺寸推荐比例",
 			"支持批量保持比例居中裁剪或缩放补白边",
@@ -434,6 +439,7 @@ export const CREATOR_TOOLS: ToolDefinition[] = [
 		engine: "browser",
 		engineLabel: "字典树毫秒检测",
 		badges: ["防限流", "安全合规"],
+		customComponent: ComplianceChecker,
 		features: [
 			"内置万级自媒体敏感词与广告法红线词汇库",
 			"高亮标注风险等级并给出合规润色替换建议",
