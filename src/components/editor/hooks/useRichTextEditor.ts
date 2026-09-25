@@ -39,6 +39,15 @@ export interface UseRichTextEditorOptions {
 	externalEditorRef?: { current: Editor | null };
 }
 
+function parseDocContent(raw: string) {
+	if (!raw) return "";
+	try {
+		return sanitizeOverlayStylesInDoc(normalizeCodeCardDoc(JSON.parse(raw)));
+	} catch {
+		return markdownToHtml(raw) || raw;
+	}
+}
+
 /**
  * Hook for initializing and managing TipTap Editor instance, extensions, and event handlers
  */
@@ -56,6 +65,9 @@ export function useRichTextEditor({
 	const editorRef = useRef<Editor | null>(null);
 	const base64ScanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const base64UploadingSrcsRef = useRef<Set<string>>(new Set());
+	const onChangeRef = useRef(onChange);
+	onChangeRef.current = onChange;
+	const prevDocIdRef = useRef(docId);
 
 	// 内联 base64 媒体转存到当前文档资产目录，替换为 /api/files/... 本地 URL
 	const migrateBase64MediaToAssets = useCallback(() => {
@@ -231,35 +243,47 @@ export function useRichTextEditor({
 				return false;
 			},
 		},
-		content: (() => {
-			if (!initialContent) return "";
-			try {
-				// JSON 正文原样加载（仅做代码卡片归一化）：
-				// 完整保留 styledContainer 卡片与内联样式的排版效果。
-				// ⚠️ 切勿在此做 markdown 往返（tiptapJsonToMarkdown → markdownToHtml），
-				//    markdown 无法表达排版样式，往返会把整篇文章的样式全部洗掉。
-				// JSON 正文原样加载（仅做代码卡片归一化 + 浮层样式清理）
-				return sanitizeOverlayStylesInDoc(
-					normalizeCodeCardDoc(JSON.parse(initialContent)),
-				);
-			} catch {
-				// 历史遗留的 Markdown / 纯文本正文
-				return markdownToHtml(initialContent) || initialContent;
-			}
-		})(),
+		content: parseDocContent(initialContent),
 		onUpdate: ({ editor: e }) => {
-			onChange(JSON.stringify(e.getJSON()), e.getText());
+			onChangeRef.current(JSON.stringify(e.getJSON()), e.getText());
 			scheduleBase64Migration();
 		},
 		onTransaction: () => forceRender(),
 	});
 
+	// Fast document switch without instance recreation
+	useEffect(() => {
+		if (!editor || editor.isDestroyed) return;
+		if (prevDocIdRef.current !== docId) {
+			prevDocIdRef.current = docId;
+			const nextContent = parseDocContent(initialContent);
+			editor.commands.setContent(nextContent, { emitUpdate: false });
+			setSlashMenu(null);
+		}
+	}, [docId, initialContent, editor]);
+
 	// 打开含历史 base64 图片的文档时，自动转存一次
 	useEffect(() => {
 		if (!editor) return;
 		const timer = setTimeout(migrateBase64MediaToAssets, 1500);
-		return () => clearTimeout(timer);
+		return () => {
+			clearTimeout(timer);
+			if (base64ScanTimerRef.current) {
+				clearTimeout(base64ScanTimerRef.current);
+				base64ScanTimerRef.current = null;
+			}
+		};
 	}, [editor, migrateBase64MediaToAssets]);
+
+	// Clean up pending migration timer on unmount
+	useEffect(() => {
+		return () => {
+			if (base64ScanTimerRef.current) {
+				clearTimeout(base64ScanTimerRef.current);
+				base64ScanTimerRef.current = null;
+			}
+		};
+	}, []);
 
 	editorRef.current = editor;
 	if (externalEditorRef) {

@@ -6,6 +6,7 @@ import {
 	ExternalLink,
 	FastForward,
 	FileAudio,
+	FileText,
 	Mic,
 	Pause,
 	Play,
@@ -33,6 +34,7 @@ export function AudioStudioCanvas({
 	doc,
 	mediaInfo,
 	onTitleChange,
+	onOpenAsDoc,
 }: AudioStudioCanvasProps) {
 	const audioRef = useRef<HTMLAudioElement | null>(null);
 	const [isPlaying, setIsPlaying] = useState(false);
@@ -49,15 +51,19 @@ export function AudioStudioCanvas({
 		setTitleValue(doc.title);
 	}, [doc.title]);
 
-	// Auto stop previous audio when document switches
+	// Auto stop previous audio and release media decoder buffer when document switches or unmounts
 	useEffect(() => {
 		setIsPlaying(false);
 		setCurrentTime(0);
-		if (audioRef.current) {
-			audioRef.current.pause();
-			audioRef.current.currentTime = 0;
-		}
-	}, [doc.id]);
+		const el = audioRef.current;
+		return () => {
+			if (el) {
+				el.pause();
+				el.removeAttribute("src");
+				el.load();
+			}
+		};
+	}, [doc.id, mediaInfo.url]);
 
 	const formatTime = (seconds: number) => {
 		if (!Number.isFinite(seconds) || seconds < 0) return "00:00";
@@ -212,6 +218,17 @@ export function AudioStudioCanvas({
 				</div>
 
 				<div className="flex items-center gap-2">
+					{onOpenAsDoc && (
+						<button
+							type="button"
+							onClick={onOpenAsDoc}
+							className="px-3 py-1.5 text-xs text-muted hover:text-foreground hover:bg-muted/15 rounded-lg transition-colors flex items-center gap-1.5 border border-border/60"
+							title="转为富文本创作模式"
+						>
+							<FileText className="w-3.5 h-3.5" />
+							<span>转富文本</span>
+						</button>
+					)}
 					<button
 						type="button"
 						onClick={handleCopyUrl}

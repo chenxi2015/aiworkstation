@@ -5,7 +5,6 @@ import {
 } from "@dnd-kit/react";
 import { isSortable } from "@dnd-kit/react/sortable";
 import { toast } from "@heroui/react";
-import { useNavigate, useRouterState } from "@tanstack/react-router";
 import type { Editor, JSONContent } from "@tiptap/react";
 import { FileText, Sparkles, Square } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -14,12 +13,10 @@ import { updateDocumentRpc } from "../../services/api/editorClient";
 import { arrayMove } from "../workbench/dnd/dndUtils";
 import { EditorCanvasSkeleton } from "../workbench/skeletons";
 import type { Folder } from "../workbench/types";
-import { DocumentHeader } from "./components/DocumentHeader";
+import { DocumentEditorCanvas } from "./components/DocumentEditorCanvas";
 import { DocumentSidebar } from "./components/DocumentSidebar";
-import { EditorActionBar } from "./components/EditorActionBar";
 import { EditorDragChip } from "./components/EditorDragChip";
 import { FolderSidebar } from "./components/FolderSidebar";
-import { SplitCompareView } from "./components/SplitCompareView";
 import { DistributionModal } from "./DistributionModal";
 import { useArticleCreationPipeline } from "./hooks/useArticleCreationPipeline";
 import { useDocumentExport } from "./hooks/useDocumentExport";
@@ -29,10 +26,10 @@ import { ImportModal } from "./ImportModal";
 import { markdownToTiptapDoc } from "./markdown";
 import { AudioStudioCanvas } from "./media/AudioStudioCanvas";
 import { VideoStudioCanvas } from "./media/VideoStudioCanvas";
-import { RichTextEditor } from "./RichTextEditor";
 import { normalizeCodeCardHtml } from "./utils/codeCardNormalizer";
 import { detectDocumentMediaInfo } from "./utils/documentMediaKind";
 import type { EditorDragData } from "./utils/editorDnd";
+import { useNavigate } from "@tanstack/react-router";
 
 const FOLDER_SIDEBAR_COLLAPSED_KEY = "editor.folderSidebar.collapsed";
 
@@ -221,48 +218,80 @@ export function EditorApp({
 		],
 	);
 
-	// 深链直开：文档列表加载完成后切到指定文档（一次性）
-	const initialDocHandledRef = useRef(false);
+	const navigate = useNavigate({ from: "/creator/studio" });
+
+	// 响应外部 URL 深链或浏览器前进/后退（popstate）变更
 	useEffect(() => {
-		if (initialDocHandledRef.current || !initialDocId || loading) return;
-		if (documents.some((doc) => doc.id === initialDocId)) {
-			initialDocHandledRef.current = true;
+		if (!initialDocId || loading) return;
+		if (
+			initialDocId !== activeId &&
+			documents.some((d) => d.id === initialDocId)
+		) {
 			void switchDocument(initialDocId);
 		}
-	}, [initialDocId, loading, documents, switchDocument]);
+	}, [initialDocId, activeId, loading, documents, switchDocument]);
 
-	const navigate = useNavigate();
-	const currentSearch = useRouterState({
-		select: (s) => s.location.search as Record<string, unknown>,
-	});
-	const currentPath = useRouterState({
-		select: (s) => s.location.pathname,
-	});
+	// Support switching an audio/video asset to rich-text document editing mode
+	const [forceDocModeId, setForceDocModeId] = useState<number | null>(null);
 
 	const activeMediaInfo = useMemo(
 		() => detectDocumentMediaInfo(activeDoc),
 		[activeDoc],
 	);
 
-	// 同步当前文档及其媒体类型至 URL 查询参数（doc=id&mode=doc|audio|video）
-	useEffect(() => {
-		if (!activeDoc || !currentPath.startsWith("/creator/studio")) return;
-		const expectedMode = activeMediaInfo.kind;
-		const currentMode = currentSearch.mode;
-		const currentDoc = currentSearch.doc;
+	const effectiveMediaKind = useMemo(() => {
+		if (forceDocModeId != null && activeDoc?.id === forceDocModeId) {
+			return "doc";
+		}
+		return activeMediaInfo.kind;
+	}, [forceDocModeId, activeDoc?.id, activeMediaInfo.kind]);
 
-		if (currentDoc !== activeDoc.id || currentMode !== expectedMode) {
+	// 即时选择文档并静态联动 URL（通过 TanStack Router replace 静态更新 search 参数，不触发全路由跳转）
+	const handleSelectDoc = useCallback(
+		(id: number, overrideMode?: "doc" | "audio" | "video") => {
+			setSplitSession(null);
+			void switchDocument(id);
+
+			const targetDoc = documents.find((d) => d.id === id);
+			const mediaKind = targetDoc
+				? detectDocumentMediaInfo(targetDoc).kind
+				: "doc";
+			const expectedMode =
+				overrideMode ??
+				(forceDocModeId != null && targetDoc?.id === forceDocModeId
+					? "doc"
+					: mediaKind);
+
 			void navigate({
-				to: "/creator/studio",
 				search: (prev) => ({
 					...prev,
-					doc: activeDoc.id,
+					doc: id,
 					mode: expectedMode,
 				}),
 				replace: true,
+				resetScroll: false,
+			});
+		},
+		[switchDocument, documents, forceDocModeId, navigate],
+	);
+
+	// 初始加载完成后，若地址栏尚未包含 doc 参数，进行一次静默补全
+	const initialUrlSyncedRef = useRef(false);
+	useEffect(() => {
+		if (initialUrlSyncedRef.current || loading || !activeDoc) return;
+		initialUrlSyncedRef.current = true;
+		if (!initialDocId) {
+			void navigate({
+				search: (prev) => ({
+					...prev,
+					doc: activeDoc.id,
+					mode: effectiveMediaKind,
+				}),
+				replace: true,
+				resetScroll: false,
 			});
 		}
-	}, [activeDoc, activeMediaInfo.kind, currentPath, currentSearch, navigate]);
+	}, [loading, activeDoc, effectiveMediaKind, initialDocId, navigate]);
 
 	const {
 		currentMarkdown,
@@ -521,15 +550,21 @@ export function EditorApp({
 						activeId={activeId}
 						activeFolderId={activeFolderId}
 						folders={docFolders}
-						onSelect={(id) => {
+						onSelect={handleSelectDoc}
+						onCreate={async () => {
 							setSplitSession(null);
-							void switchDocument(id);
+							const newDoc = await handleCreate();
+							if (newDoc) {
+								handleSelectDoc(newDoc.id);
+							}
 						}}
-						onCreate={() => {
-							setSplitSession(null);
-							void handleCreate();
+						onDelete={async (id, deleteLocalAssets) => {
+							await handleDelete(id, deleteLocalAssets);
+							const remaining = documents.filter((d) => d.id !== id);
+							if (activeId === id && remaining[0]) {
+								handleSelectDoc(remaining[0].id);
+							}
 						}}
-						onDelete={handleDelete}
 						onOpenImport={() => setIsImportModalOpen(true)}
 						onTogglePin={handleTogglePinned}
 						onMoveDocument={handleMoveDocument}
@@ -553,94 +588,63 @@ export function EditorApp({
 							</div>
 						</div>
 					)}
-					{activeDoc && (
-						<>
-							{activeMediaInfo.kind === "audio" ? (
-								<AudioStudioCanvas
-									key={`audio_${activeDoc.id}`}
-									doc={activeDoc}
-									mediaInfo={activeMediaInfo}
-									onTitleChange={handleTitleChange}
-								/>
-							) : activeMediaInfo.kind === "video" ? (
-								<VideoStudioCanvas
-									key={`video_${activeDoc.id}`}
-									doc={activeDoc}
-									mediaInfo={activeMediaInfo}
-									onTitleChange={handleTitleChange}
-								/>
-							) : (
-								<>
-									{splitSession?.isOpen && editorInstanceRef.current ? (
-										<SplitCompareView
-											key={`split_${activeDoc.id}`}
-											leftEditor={editorInstanceRef.current}
-											docTitle={activeDoc.title}
-											docId={activeDoc.id}
-											stylePreset={activeDoc.stylePreset}
-											instruction={splitSession.instruction}
-											modeLabel={splitSession.modeLabel}
-											onAccept={handleAcceptSplitCompare}
-											onCancel={handleCancelSplitCompare}
-											onSaveAsNewDocument={handleSaveAsNewDocument}
-										/>
-									) : null}
-									<div
-										className={
-											splitSession?.isOpen
-												? "hidden"
-												: "flex-1 flex flex-col min-h-0"
-										}
-									>
-										<DocumentHeader
-											activeDoc={activeDoc}
-											onTitleChange={handleTitleChange}
-											isSplitLayout={splitSession?.isOpen}
-											onToggleSplitLayout={handleToggleSplitLayout}
-										/>
-										<RichTextEditor
-											key={activeDoc.id}
-											docId={activeDoc.id}
-											docTitle={activeDoc.title}
-											stylePreset={activeDoc.stylePreset}
-											initialContent={activeDoc.content}
-											onChange={handleEditorChange}
-											onAiGenerate={handleAiGenerate}
-											onBeforeAiApply={handleBeforeAiApply}
-											onEditorReady={handleEditorReady}
-											onOpenImport={() => setIsImportModalOpen(true)}
-											onRegisterPipeline={(trigger) => {
-												pipelineTriggerRef.current = trigger;
-											}}
-										/>
-										<EditorActionBar
-											activeDoc={activeDoc}
-											wordCount={wordCount}
-											saveState={saveState}
-											savedAt={savedAt}
-											contentText={contentText}
-											onSnapshot={() => void handleSnapshot()}
-											onToggleFinalized={() =>
-												void handleStatusChange(
-													activeDoc.status === "finalized"
-														? "editing"
-														: "finalized",
-												)
-											}
-											onCopyText={copyText}
-											onCopyMarkdown={copyMarkdown}
-											onCopyHtml={copyHtml}
-											onExportWord={handleExportWord}
-											onExportMarkdown={handleExportMarkdown}
-											onExportHtml={handleExportHtml}
-											onExportPdf={handleExportPdf}
-											onOpenDistribution={() => setIsDistributionModalOpen(true)}
-										/>
-									</div>
-								</>
-							)}
-						</>
-					)}
+					{activeDoc &&
+						(effectiveMediaKind === "audio" ? (
+							<AudioStudioCanvas
+								key={`audio_${activeDoc.id}`}
+								doc={activeDoc}
+								mediaInfo={activeMediaInfo}
+								onTitleChange={handleTitleChange}
+								onOpenAsDoc={() => {
+									setForceDocModeId(activeDoc.id);
+									handleSelectDoc(activeDoc.id, "doc");
+								}}
+							/>
+						) : effectiveMediaKind === "video" ? (
+							<VideoStudioCanvas
+								key={`video_${activeDoc.id}`}
+								doc={activeDoc}
+								mediaInfo={activeMediaInfo}
+								onTitleChange={handleTitleChange}
+								onOpenAsDoc={() => {
+									setForceDocModeId(activeDoc.id);
+									handleSelectDoc(activeDoc.id, "doc");
+								}}
+							/>
+						) : (
+							<DocumentEditorCanvas
+								activeDoc={activeDoc}
+								splitSession={splitSession}
+								editorRef={editorInstanceRef}
+								wordCount={wordCount}
+								saveState={saveState}
+								savedAt={savedAt}
+								contentText={contentText}
+								onTitleChange={handleTitleChange}
+								onToggleSplitLayout={handleToggleSplitLayout}
+								onAcceptSplitCompare={handleAcceptSplitCompare}
+								onCancelSplitCompare={handleCancelSplitCompare}
+								onSaveAsNewDocument={handleSaveAsNewDocument}
+								onEditorChange={handleEditorChange}
+								onAiGenerate={handleAiGenerate}
+								onBeforeAiApply={handleBeforeAiApply}
+								onEditorReady={handleEditorReady}
+								onOpenImport={() => setIsImportModalOpen(true)}
+								onRegisterPipeline={(trigger) => {
+									pipelineTriggerRef.current = trigger;
+								}}
+								onSnapshot={() => void handleSnapshot()}
+								onStatusChange={(status) => void handleStatusChange(status)}
+								onCopyText={copyText}
+								onCopyMarkdown={copyMarkdown}
+								onCopyHtml={copyHtml}
+								onExportWord={handleExportWord}
+								onExportMarkdown={handleExportMarkdown}
+								onExportHtml={handleExportHtml}
+								onExportPdf={handleExportPdf}
+								onOpenDistribution={() => setIsDistributionModalOpen(true)}
+							/>
+						))}
 				</section>
 			</main>
 			<ImportModal
@@ -648,7 +652,7 @@ export function EditorApp({
 				onClose={() => setIsImportModalOpen(false)}
 				onImport={handleImport}
 			/>
-			{activeDoc && (
+			{activeDoc && effectiveMediaKind === "doc" && (
 				<DistributionModal
 					isOpen={isDistributionModalOpen}
 					onClose={() => setIsDistributionModalOpen(false)}
@@ -658,7 +662,7 @@ export function EditorApp({
 					markdown={currentMarkdown}
 				/>
 			)}
-			{creationPipeline.isStreaming && (
+			{effectiveMediaKind === "doc" && creationPipeline.isStreaming && (
 				<output
 					aria-label="文章流式创作中"
 					className="fixed bottom-14 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 px-4 py-2.5 bg-surface/95 dark:bg-zinc-900/95 backdrop-blur-md border border-border shadow-lg rounded-2xl animate-in fade-in slide-in-from-bottom-3 duration-200 select-none max-w-md w-auto"

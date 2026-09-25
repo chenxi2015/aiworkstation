@@ -23,7 +23,7 @@ import {
 	Upload,
 	X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { openDocumentDirectoryRpc } from "../../../services/api/editorClient";
 import { ConfirmDialog } from "../../workbench/ConfirmDialog";
 import type { ActiveFolderId } from "../hooks/useDocumentManager";
@@ -112,6 +112,11 @@ export function DocumentSidebar({
 		setDeleteLocalAssets(false);
 	};
 
+	const handleRequestDelete = useCallback((d: EditorDocument) => {
+		setDeleteLocalAssets(false);
+		setDeletingDoc(d);
+	}, []);
+
 	return (
 		<>
 			<aside className="w-64 shrink-0 border-r border-border bg-surface flex flex-col min-h-0">
@@ -199,7 +204,7 @@ export function DocumentSidebar({
 						</div>
 					)}
 
-					{/* 置顶组：不参与排序拖拽，可拖到文件夹 */}
+					{/* 置顶组 */}
 					{pinnedDocs.length > 0 && (
 						<>
 							<div className="flex items-center gap-1 px-2 pt-1 pb-0.5 text-[10px] text-muted/70 select-none">
@@ -221,10 +226,7 @@ export function DocumentSidebar({
 									onTogglePin={onTogglePin}
 									onMoveDocument={onMoveDocument}
 									onArchive={onArchive}
-									onRequestDelete={(d) => {
-										setDeleteLocalAssets(false);
-										setDeletingDoc(d);
-									}}
+									onRequestDelete={handleRequestDelete}
 								/>
 							))}
 							{unpinnedDocs.length > 0 && (
@@ -233,7 +235,7 @@ export function DocumentSidebar({
 						</>
 					)}
 
-					{/* 普通组：sortable 拖拽排序（搜索时禁用，避免全局子集打乱同组顺序） */}
+					{/* 普通组：sortable 拖拽排序 */}
 					{unpinnedDocs.map((doc, index) => (
 						<SortableDocRow
 							key={doc.id}
@@ -251,10 +253,7 @@ export function DocumentSidebar({
 							onTogglePin={onTogglePin}
 							onMoveDocument={onMoveDocument}
 							onArchive={onArchive}
-							onRequestDelete={(d) => {
-								setDeleteLocalAssets(false);
-								setDeletingDoc(d);
-							}}
+							onRequestDelete={handleRequestDelete}
 						/>
 					))}
 				</div>
@@ -302,7 +301,7 @@ interface DocRowCommonProps {
 }
 
 /** 置顶文档行：可拖拽到文件夹，但不参与列表排序 */
-function PinnedDocRow(props: DocRowCommonProps) {
+const PinnedDocRow = memo(function PinnedDocRow(props: DocRowCommonProps) {
 	const { doc } = props;
 	const { ref, isDragSource } = useDraggable({
 		id: editorDocRowId(doc.id),
@@ -320,10 +319,10 @@ function PinnedDocRow(props: DocRowCommonProps) {
 			<DocRowInner {...props} />
 		</div>
 	);
-}
+});
 
 /** 普通文档行：sortable（组内拖拽排序 + 拖到文件夹） */
-function SortableDocRow(
+const SortableDocRow = memo(function SortableDocRow(
 	props: DocRowCommonProps & { index: number; disabled?: boolean },
 ) {
 	const { doc, index, disabled } = props;
@@ -348,9 +347,9 @@ function SortableDocRow(
 			<DocRowInner {...props} />
 		</div>
 	);
-}
+});
 
-function DocRowInner({
+const DocRowInner = memo(function DocRowInner({
 	doc,
 	active,
 	folderName,
@@ -387,7 +386,10 @@ function DocRowInner({
 					? "bg-accent/10 border border-accent/30"
 					: "hover:bg-muted/10 border border-transparent"
 			}`}
-			onClick={() => onSelect(doc.id)}
+			onClick={(e) => {
+				e.stopPropagation();
+				onSelect(doc.id);
+			}}
 			onKeyDown={(e) => {
 				if (e.key === "Enter") onSelect(doc.id);
 			}}
@@ -442,7 +444,7 @@ function DocRowInner({
 			</div>
 		</div>
 	);
-}
+});
 
 /** 文档 ⋯ 菜单：置顶 / 移动到文件夹 / 打开本地文件夹 / 归档 / 删除 */
 function DocRowMenu({

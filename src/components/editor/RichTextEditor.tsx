@@ -96,6 +96,15 @@ export function RichTextEditor({
 			scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" }),
 	});
 
+	// Reset scroll position and preview state on docId switch
+	useEffect(() => {
+		if (docId) {
+			scrollContainerRef.current?.scrollTo({ top: 0, behavior: "instant" });
+			setPreview(false);
+			setShowScrollTop(false);
+		}
+	}, [docId]);
+
 	if (!editor) return null;
 
 	const togglePreview = () => {

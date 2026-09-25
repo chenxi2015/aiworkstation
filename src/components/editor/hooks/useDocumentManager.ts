@@ -387,17 +387,18 @@ export function useDocumentManager(): UseDocumentManagerReturn {
 			setLoading(false);
 			setActiveId((prev) => prev ?? mergedDocs[0]?.id ?? null);
 
-			// Populate local IndexedDB cache for loaded documents
-			for (const doc of mergedDocs) {
-				void getDocDraft(doc.id).then((existing) => {
+			// Warm up local draft cache only for active initial document to save I/O and memory
+			const initialActiveDoc = mergedDocs[0];
+			if (initialActiveDoc) {
+				void getDocDraft(initialActiveDoc.id).then((existing) => {
 					if (!existing) {
 						void saveDocDraft({
-							docId: doc.id,
-							title: doc.title,
-							content: doc.content,
-							contentText: doc.contentText,
-							updatedAt: doc.updatedAt
-								? new Date(doc.updatedAt).getTime()
+							docId: initialActiveDoc.id,
+							title: initialActiveDoc.title,
+							content: initialActiveDoc.content,
+							contentText: initialActiveDoc.contentText,
+							updatedAt: initialActiveDoc.updatedAt
+								? new Date(initialActiveDoc.updatedAt).getTime()
 								: Date.now(),
 							synced: true,
 						});
