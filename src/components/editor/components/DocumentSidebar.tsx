@@ -7,8 +7,10 @@ import {
 	Archive,
 	Check,
 	Ellipsis,
+	FileAudio,
 	FilePlus2,
 	FileText,
+	FileVideo,
 	Folder as FolderIcon,
 	FolderInput,
 	FolderOpen,
@@ -26,6 +28,7 @@ import { openDocumentDirectoryRpc } from "../../../services/api/editorClient";
 import { ConfirmDialog } from "../../workbench/ConfirmDialog";
 import type { ActiveFolderId } from "../hooks/useDocumentManager";
 import type { EditorDocFolder, EditorDocument } from "../types";
+import { detectDocumentMediaInfo } from "../utils/documentMediaKind";
 import {
 	EDITOR_DOC_TYPE,
 	type EditorDocDragData,
@@ -372,6 +375,8 @@ function DocRowInner({
 		}
 	};
 
+	const mediaKind = useMemo(() => detectDocumentMediaInfo(doc).kind, [doc]);
+
 	return (
 		// biome-ignore lint/a11y/useSemanticElements: nested action buttons preclude native button element
 		<div
@@ -394,6 +399,12 @@ function DocRowInner({
 				<span className="text-[11px] font-mono font-medium text-muted/60 shrink-0 select-none">
 					#{doc.id}
 				</span>
+				{mediaKind === "audio" && (
+					<FileAudio className="w-3.5 h-3.5 text-accent shrink-0" />
+				)}
+				{mediaKind === "video" && (
+					<FileVideo className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+				)}
 				<span className="text-xs font-medium truncate flex-1 select-none">
 					{doc.title}
 				</span>

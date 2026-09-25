@@ -1,3 +1,4 @@
+import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Table } from "@tiptap/extension-table";
 import TableCell from "@tiptap/extension-table-cell";
@@ -22,8 +23,15 @@ export function getEditorBaseExtensions(options?: { placeholder?: string }) {
 	return [
 		StarterKit.configure({
 			heading: { levels: [1, 2, 3] },
-			link: { openOnClick: false },
 			codeBlock: false,
+		}),
+		Link.configure({
+			openOnClick: false,
+			HTMLAttributes: {
+				class: "text-accent underline hover:opacity-80 transition-opacity",
+				target: "_blank",
+				rel: "noopener noreferrer",
+			},
 		}),
 		TextAlign.configure({
 			types: ["heading", "paragraph", "image", "video"],

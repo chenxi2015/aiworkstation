@@ -5,9 +5,10 @@ import {
 } from "@dnd-kit/react";
 import { isSortable } from "@dnd-kit/react/sortable";
 import { toast } from "@heroui/react";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import type { Editor, JSONContent } from "@tiptap/react";
 import { FileText, Sparkles, Square } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { NavLayoutEntry } from "../../modules/registry";
 import { updateDocumentRpc } from "../../services/api/editorClient";
 import { arrayMove } from "../workbench/dnd/dndUtils";
@@ -26,8 +27,11 @@ import { useDocumentManager } from "./hooks/useDocumentManager";
 import { useEditorAiBridge } from "./hooks/useEditorAiBridge";
 import { ImportModal } from "./ImportModal";
 import { markdownToTiptapDoc } from "./markdown";
+import { AudioStudioCanvas } from "./media/AudioStudioCanvas";
+import { VideoStudioCanvas } from "./media/VideoStudioCanvas";
 import { RichTextEditor } from "./RichTextEditor";
 import { normalizeCodeCardHtml } from "./utils/codeCardNormalizer";
+import { detectDocumentMediaInfo } from "./utils/documentMediaKind";
 import type { EditorDragData } from "./utils/editorDnd";
 
 const FOLDER_SIDEBAR_COLLAPSED_KEY = "editor.folderSidebar.collapsed";
@@ -63,11 +67,11 @@ export interface EditorAppProps {
  * Bottom: Word count / Save state / Export actions.
  */
 export function EditorApp({
-	unclassifiedCount,
-	navLayout,
-	folders,
+	unclassifiedCount: _unclassifiedCount,
+	navLayout: _navLayout,
+	folders: _folders,
 	initialDocId,
-	embedded = false,
+	embedded: _embedded = false,
 }: EditorAppProps) {
 	const docManager = useDocumentManager();
 	const {
@@ -226,6 +230,39 @@ export function EditorApp({
 			void switchDocument(initialDocId);
 		}
 	}, [initialDocId, loading, documents, switchDocument]);
+
+	const navigate = useNavigate();
+	const currentSearch = useRouterState({
+		select: (s) => s.location.search as Record<string, unknown>,
+	});
+	const currentPath = useRouterState({
+		select: (s) => s.location.pathname,
+	});
+
+	const activeMediaInfo = useMemo(
+		() => detectDocumentMediaInfo(activeDoc),
+		[activeDoc],
+	);
+
+	// 同步当前文档及其媒体类型至 URL 查询参数（doc=id&mode=doc|audio|video）
+	useEffect(() => {
+		if (!activeDoc || !currentPath.startsWith("/creator/studio")) return;
+		const expectedMode = activeMediaInfo.kind;
+		const currentMode = currentSearch.mode;
+		const currentDoc = currentSearch.doc;
+
+		if (currentDoc !== activeDoc.id || currentMode !== expectedMode) {
+			void navigate({
+				to: "/creator/studio",
+				search: (prev) => ({
+					...prev,
+					doc: activeDoc.id,
+					mode: expectedMode,
+				}),
+				replace: true,
+			});
+		}
+	}, [activeDoc, activeMediaInfo.kind, currentPath, currentSearch, navigate]);
 
 	const {
 		currentMarkdown,
@@ -502,7 +539,7 @@ export function EditorApp({
 					<EditorDragChip />
 				</DragDropProvider>
 
-				{/* Center: Title + Editor + Bottom actions or Split Diff View */}
+				{/* Center: Title + Editor + Bottom actions or Dedicated Media Canvases */}
 				<section className="flex-1 flex flex-col min-w-0 min-h-0">
 					{loading && !activeDoc && <EditorCanvasSkeleton />}
 					{!activeDoc && !loading && (
@@ -518,72 +555,90 @@ export function EditorApp({
 					)}
 					{activeDoc && (
 						<>
-							{splitSession?.isOpen && editorInstanceRef.current ? (
-								<SplitCompareView
-									key={`split_${activeDoc.id}`}
-									leftEditor={editorInstanceRef.current}
-									docTitle={activeDoc.title}
-									docId={activeDoc.id}
-									stylePreset={activeDoc.stylePreset}
-									instruction={splitSession.instruction}
-									modeLabel={splitSession.modeLabel}
-									onAccept={handleAcceptSplitCompare}
-									onCancel={handleCancelSplitCompare}
-									onSaveAsNewDocument={handleSaveAsNewDocument}
-								/>
-							) : null}
-							<div
-								className={
-									splitSession?.isOpen
-										? "hidden"
-										: "flex-1 flex flex-col min-h-0"
-								}
-							>
-								<DocumentHeader
-									activeDoc={activeDoc}
+							{activeMediaInfo.kind === "audio" ? (
+								<AudioStudioCanvas
+									key={`audio_${activeDoc.id}`}
+									doc={activeDoc}
+									mediaInfo={activeMediaInfo}
 									onTitleChange={handleTitleChange}
-									isSplitLayout={splitSession?.isOpen}
-									onToggleSplitLayout={handleToggleSplitLayout}
 								/>
-								<RichTextEditor
-									key={activeDoc.id}
-									docId={activeDoc.id}
-									docTitle={activeDoc.title}
-									stylePreset={activeDoc.stylePreset}
-									initialContent={activeDoc.content}
-									onChange={handleEditorChange}
-									onAiGenerate={handleAiGenerate}
-									onBeforeAiApply={handleBeforeAiApply}
-									onEditorReady={handleEditorReady}
-									onOpenImport={() => setIsImportModalOpen(true)}
-									onRegisterPipeline={(trigger) => {
-										pipelineTriggerRef.current = trigger;
-									}}
+							) : activeMediaInfo.kind === "video" ? (
+								<VideoStudioCanvas
+									key={`video_${activeDoc.id}`}
+									doc={activeDoc}
+									mediaInfo={activeMediaInfo}
+									onTitleChange={handleTitleChange}
 								/>
-								<EditorActionBar
-									activeDoc={activeDoc}
-									wordCount={wordCount}
-									saveState={saveState}
-									savedAt={savedAt}
-									contentText={contentText}
-									onSnapshot={() => void handleSnapshot()}
-									onToggleFinalized={() =>
-										void handleStatusChange(
-											activeDoc.status === "finalized"
-												? "editing"
-												: "finalized",
-										)
-									}
-									onCopyText={copyText}
-									onCopyMarkdown={copyMarkdown}
-									onCopyHtml={copyHtml}
-									onExportWord={handleExportWord}
-									onExportMarkdown={handleExportMarkdown}
-									onExportHtml={handleExportHtml}
-									onExportPdf={handleExportPdf}
-									onOpenDistribution={() => setIsDistributionModalOpen(true)}
-								/>
-							</div>
+							) : (
+								<>
+									{splitSession?.isOpen && editorInstanceRef.current ? (
+										<SplitCompareView
+											key={`split_${activeDoc.id}`}
+											leftEditor={editorInstanceRef.current}
+											docTitle={activeDoc.title}
+											docId={activeDoc.id}
+											stylePreset={activeDoc.stylePreset}
+											instruction={splitSession.instruction}
+											modeLabel={splitSession.modeLabel}
+											onAccept={handleAcceptSplitCompare}
+											onCancel={handleCancelSplitCompare}
+											onSaveAsNewDocument={handleSaveAsNewDocument}
+										/>
+									) : null}
+									<div
+										className={
+											splitSession?.isOpen
+												? "hidden"
+												: "flex-1 flex flex-col min-h-0"
+										}
+									>
+										<DocumentHeader
+											activeDoc={activeDoc}
+											onTitleChange={handleTitleChange}
+											isSplitLayout={splitSession?.isOpen}
+											onToggleSplitLayout={handleToggleSplitLayout}
+										/>
+										<RichTextEditor
+											key={activeDoc.id}
+											docId={activeDoc.id}
+											docTitle={activeDoc.title}
+											stylePreset={activeDoc.stylePreset}
+											initialContent={activeDoc.content}
+											onChange={handleEditorChange}
+											onAiGenerate={handleAiGenerate}
+											onBeforeAiApply={handleBeforeAiApply}
+											onEditorReady={handleEditorReady}
+											onOpenImport={() => setIsImportModalOpen(true)}
+											onRegisterPipeline={(trigger) => {
+												pipelineTriggerRef.current = trigger;
+											}}
+										/>
+										<EditorActionBar
+											activeDoc={activeDoc}
+											wordCount={wordCount}
+											saveState={saveState}
+											savedAt={savedAt}
+											contentText={contentText}
+											onSnapshot={() => void handleSnapshot()}
+											onToggleFinalized={() =>
+												void handleStatusChange(
+													activeDoc.status === "finalized"
+														? "editing"
+														: "finalized",
+												)
+											}
+											onCopyText={copyText}
+											onCopyMarkdown={copyMarkdown}
+											onCopyHtml={copyHtml}
+											onExportWord={handleExportWord}
+											onExportMarkdown={handleExportMarkdown}
+											onExportHtml={handleExportHtml}
+											onExportPdf={handleExportPdf}
+											onOpenDistribution={() => setIsDistributionModalOpen(true)}
+										/>
+									</div>
+								</>
+							)}
 						</>
 					)}
 				</section>

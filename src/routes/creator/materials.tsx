@@ -34,10 +34,10 @@ function MaterialsPage() {
 	}, [reload]);
 
 	const handleImportToStudio = useCallback(
-		(docId: number) => {
+		(docId: number, mode?: "doc" | "audio" | "video") => {
 			void navigate({
 				to: "/creator/studio",
-				search: { doc: docId, mode: "doc" },
+				search: { doc: docId, mode: mode ?? "doc" },
 			});
 		},
 		[navigate],

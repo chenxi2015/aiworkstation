@@ -16,7 +16,10 @@ import { getMaterialKind } from "./utils";
 interface UseMaterialsStateProps {
 	materials: Material[];
 	onChanged: () => Promise<void>;
-	onImportToStudioSuccess: (docId: number) => void;
+	onImportToStudioSuccess: (
+		docId: number,
+		mode?: "doc" | "audio" | "video",
+	) => void;
 }
 
 export function useMaterialsState({
@@ -237,9 +240,11 @@ export function useMaterialsState({
 	const handleImportToStudio = async (material: Material) => {
 		setImportingId(material.id);
 		try {
-			const { documentId } = await createDocumentFromMaterialRpc(material.id);
+			const { documentId, mode } = await createDocumentFromMaterialRpc(
+				material.id,
+			);
 			toast.success(`「${material.title}」已导入创作台`);
-			onImportToStudioSuccess(documentId);
+			onImportToStudioSuccess(documentId, mode);
 		} catch (err) {
 			toast.danger(
 				`导入失败：${err instanceof Error ? err.message : String(err)}`,

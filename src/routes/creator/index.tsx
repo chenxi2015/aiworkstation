@@ -2,7 +2,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export interface CreatorIndexSearch {
 	tab?: "materials" | "studio" | "archive" | "tools" | "radar" | "workbench" | "drafts";
-	mode?: "doc" | "batch" | "drafts";
+	mode?: "doc" | "batch" | "drafts" | "audio" | "video";
 	doc?: number;
 	draft?: number;
 	material?: number;

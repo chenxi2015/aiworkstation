@@ -18,7 +18,10 @@ import { getFilesRootDir } from "../services/filesRoot.ts";
  */
 export const createDocumentFromMaterial = createServerFn({ method: "POST" })
 	.validator((data: { materialId: number }) => data)
-	.handler(async ({ data }): Promise<{ documentId: number }> => {
+	.handler(
+		async ({
+			data,
+		}): Promise<{ documentId: number; mode: "doc" | "audio" | "video" }> => {
 		const materialId = Number(data.materialId);
 		if (!materialId || Number.isNaN(materialId)) {
 			throw new Error("无效的素材 ID");
@@ -211,8 +214,31 @@ export const createDocumentFromMaterial = createServerFn({ method: "POST" })
 			}
 		}
 
+		let mediaMeta: Record<string, unknown> | undefined;
+		const primaryAudio = binaryAssets.find((a) => a.kind === "audio");
+		const primaryVideo = binaryAssets.find((a) => a.kind === "video");
+
+		if (primaryAudio && textAssets.length === 0) {
+			mediaMeta = {
+				kind: "audio",
+				url: getAssetUrl(primaryAudio),
+				filename: primaryAudio.filename,
+				size: primaryAudio.sizeBytes ?? undefined,
+				materialId: material.id,
+			};
+		} else if (primaryVideo && textAssets.length === 0) {
+			mediaMeta = {
+				kind: "video",
+				url: getAssetUrl(primaryVideo),
+				filename: primaryVideo.filename,
+				size: primaryVideo.sizeBytes ?? undefined,
+				materialId: material.id,
+			};
+		}
+
 		const jsonString = JSON.stringify({
 			type: "doc",
+			mediaMeta,
 			content: [...nodes, ...mediaNodes],
 		});
 		const documentId = workbenchDb.createDocument({
@@ -221,5 +247,11 @@ export const createDocumentFromMaterial = createServerFn({ method: "POST" })
 			contentText,
 		});
 
-		return { documentId };
+		return {
+			documentId,
+			mode: ((mediaMeta?.kind as "doc" | "audio" | "video") || "doc") as
+				| "doc"
+				| "audio"
+				| "video",
+		};
 	});

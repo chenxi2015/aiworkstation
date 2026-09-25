@@ -41,23 +41,32 @@ export function ChartNodeView({
 		instance.resize({ height });
 	}, [specString, height]);
 
-	// 卸载销毁
-	useEffect(() => {
-		return () => {
-			chartInstanceRef.current?.dispose();
-			chartInstanceRef.current = null;
-		};
-	}, []);
-
-	// 容器宽度变化时自适应
+	// 容器宽度变化时自适应（防抖避免死循环触发）
 	useEffect(() => {
 		const container = chartContainerRef.current;
 		if (!container || typeof ResizeObserver === "undefined") return;
-		const observer = new ResizeObserver(() => {
-			chartInstanceRef.current?.resize();
+		let rafId: number | null = null;
+		let lastWidth = container.clientWidth;
+
+		const observer = new ResizeObserver((entries) => {
+			const entry = entries[0];
+			if (!entry) return;
+			const newWidth = Math.round(entry.contentRect.width);
+			if (Math.abs(newWidth - lastWidth) < 2) return;
+			lastWidth = newWidth;
+
+			if (rafId) cancelAnimationFrame(rafId);
+			rafId = requestAnimationFrame(() => {
+				chartInstanceRef.current?.resize();
+			});
 		});
 		observer.observe(container);
-		return () => observer.disconnect();
+		return () => {
+			if (rafId) cancelAnimationFrame(rafId);
+			observer.disconnect();
+			chartInstanceRef.current?.dispose();
+			chartInstanceRef.current = null;
+		};
 	}, []);
 
 	const handleSelectNode = (e: React.MouseEvent) => {

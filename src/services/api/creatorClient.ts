@@ -163,7 +163,7 @@ export async function openMaterialAssetsDirRpc(params: {
 /** 素材一键导入创作台：以素材快照新建创作文档，返回文档 id */
 export async function createDocumentFromMaterialRpc(
 	materialId: number,
-): Promise<{ documentId: number }> {
+): Promise<{ documentId: number; mode: "doc" | "audio" | "video" }> {
 	return await createDocumentFromMaterial({ data: { materialId } });
 }
 

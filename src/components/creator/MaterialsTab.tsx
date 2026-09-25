@@ -22,7 +22,10 @@ interface MaterialsTabProps {
 	loading: boolean;
 	onChanged: () => Promise<void>;
 	/** 素材一键导入创作台后跳转打开新文档 */
-	onImportToStudio: (docId: number) => void;
+	onImportToStudio: (
+		docId: number,
+		mode?: "doc" | "audio" | "video",
+	) => void;
 }
 
 /**

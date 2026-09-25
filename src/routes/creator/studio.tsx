@@ -9,13 +9,13 @@ import { fetchDrafts, fetchMaterials } from "../../services/api/creatorClient";
 import { workbenchContextActions } from "../../stores/workbenchContextStore";
 
 export interface CreatorStudioSearch {
-	mode?: "doc" | "batch" | "drafts";
+	mode?: "doc" | "batch" | "drafts" | "audio" | "video";
 	doc?: number;
 	draft?: number;
 	material?: number;
 }
 
-const STUDIO_MODES = new Set(["doc", "batch", "drafts"]);
+const STUDIO_MODES = new Set(["doc", "batch", "drafts", "audio", "video"]);
 
 export const Route = createFileRoute("/creator/studio")({
 	validateSearch: (search: Record<string, unknown>): CreatorStudioSearch => {
@@ -28,15 +28,21 @@ export const Route = createFileRoute("/creator/studio")({
 			doc:
 				typeof search.doc === "number" && Number.isFinite(search.doc)
 					? search.doc
-					: undefined,
+					: typeof search.doc === "string" && Number.isFinite(Number(search.doc))
+						? Number(search.doc)
+						: undefined,
 			draft:
 				typeof search.draft === "number" && Number.isFinite(search.draft)
 					? search.draft
-					: undefined,
+					: typeof search.draft === "string" && Number.isFinite(Number(search.draft))
+						? Number(search.draft)
+						: undefined,
 			material:
 				typeof search.material === "number" && Number.isFinite(search.material)
 					? search.material
-					: undefined,
+					: typeof search.material === "string" && Number.isFinite(Number(search.material))
+						? Number(search.material)
+						: undefined,
 		};
 	},
 	component: StudioPage,
@@ -53,16 +59,17 @@ function StudioPage() {
 	const { folders, unclassifiedCount, navLayout } = useCreatorContext();
 
 	const mode = search.mode ?? (search.draft ? "drafts" : "doc");
+	const isCanvasMode = mode === "doc" || mode === "audio" || mode === "video";
 
 	const [materials, setMaterials] = useState<Material[]>([]);
 	const [drafts, setDrafts] = useState<DraftWithMaterial[]>([]);
-	const [loading, setLoading] = useState(mode !== "doc");
+	const [loading, setLoading] = useState(!isCanvasMode);
 	const [selectedMaterialId, setSelectedMaterialId] = useState<number | null>(
 		search.material ?? null,
 	);
 
 	const reloadSecondaryData = useCallback(async () => {
-		if (mode === "doc") return;
+		if (isCanvasMode) return;
 		setLoading(true);
 		try {
 			const [m, d] = await Promise.all([fetchMaterials(), fetchDrafts()]);
@@ -75,13 +82,13 @@ function StudioPage() {
 		} finally {
 			setLoading(false);
 		}
-	}, [mode]);
+	}, [isCanvasMode]);
 
 	useEffect(() => {
-		if (mode !== "doc") {
+		if (!isCanvasMode) {
 			void reloadSecondaryData();
 		}
-	}, [mode, reloadSecondaryData]);
+	}, [isCanvasMode, reloadSecondaryData]);
 
 	// Sync active material context to workbenchContextStore
 	useEffect(() => {
@@ -106,7 +113,7 @@ function StudioPage() {
 
 	return (
 		<div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-			{mode === "doc" && (
+			{isCanvasMode && (
 				<div className="flex-1 min-h-0 flex flex-col">
 					<EditorApp
 						embedded
