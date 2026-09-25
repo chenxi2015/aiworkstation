@@ -2,16 +2,18 @@ import { Button, Chip, Dropdown, Table } from "@heroui/react";
 import {
 	Archive,
 	Ellipsis,
+	Eye,
 	FolderOpen,
 	Loader2,
 	Paperclip,
+	Play,
 	Sparkles,
 	Star,
 	Trash2,
 } from "lucide-react";
 import type { Material } from "../types";
 import { KIND_BADGES, SOURCE_BADGES } from "./types";
-import { getMaterialKind } from "./utils";
+import { getImageAssets, getMaterialKind, getVideoAssets } from "./utils";
 
 interface MaterialsTableViewProps {
 	materials: Material[];
@@ -25,6 +27,8 @@ interface MaterialsTableViewProps {
 	onOpenDir: (material: Material) => void;
 	onArchive: (material: Material) => void;
 	onDelete: (material: Material) => void;
+	onPlayVideo?: (material: Material, assetId?: number) => void;
+	onPreviewImage?: (material: Material, assetId?: number) => void;
 }
 
 /**
@@ -42,6 +46,8 @@ export function MaterialsTableView({
 	onOpenDir,
 	onArchive,
 	onDelete,
+	onPlayVideo,
+	onPreviewImage,
 }: MaterialsTableViewProps) {
 	return (
 		<Table className="w-full text-xs rounded-none">
@@ -101,6 +107,11 @@ export function MaterialsTableView({
 					<Table.Body>
 						{materials.map((material) => {
 							const kind = getMaterialKind(material);
+							const videos = getVideoAssets(material);
+							const hasVideo = videos.length > 0;
+							const images = getImageAssets(material);
+							const hasImage = images.length > 0;
+
 							return (
 								<Table.Row
 									key={material.id}
@@ -124,7 +135,22 @@ export function MaterialsTableView({
 										</span>
 									</Table.Cell>
 									<Table.Cell className="px-4 py-2.5 max-w-0">
-										<p className="text-xs font-medium text-foreground truncate">
+										{/* biome-ignore lint/a11y/useKeyWithClickEvents: Clickable title for quick media preview */}
+										<p
+											className={`text-xs font-medium text-foreground truncate ${
+												hasVideo || hasImage
+													? "cursor-pointer hover:text-accent"
+													: ""
+											}`}
+											title={material.title}
+											onClick={() => {
+												if (hasVideo) {
+													onPlayVideo?.(material, videos[0]?.id);
+												} else if (hasImage) {
+													onPreviewImage?.(material, images[0]?.id);
+												}
+											}}
+										>
 											{material.title}
 										</p>
 										{material.note && (
@@ -168,6 +194,38 @@ export function MaterialsTableView({
 									</Table.Cell>
 									<Table.Cell className="px-4 py-2.5">
 										<div className="flex items-center justify-end gap-1.5">
+											{/* 播放视频操作 */}
+											{hasVideo && (
+												<Button
+													type="button"
+													variant="ghost"
+													size="sm"
+													className="h-7 px-2 rounded-lg text-[11px] font-medium flex items-center gap-1 cursor-pointer shrink-0 text-accent hover:bg-accent/10"
+													onPress={() => onPlayVideo?.(material, videos[0]?.id)}
+													aria-label={`播放视频「${material.title}」`}
+												>
+													<Play className="w-3 h-3 fill-accent" />
+													播放
+												</Button>
+											)}
+
+											{/* 预览图片操作 */}
+											{hasImage && !hasVideo && (
+												<Button
+													type="button"
+													variant="ghost"
+													size="sm"
+													className="h-7 px-2 rounded-lg text-[11px] font-medium flex items-center gap-1 cursor-pointer shrink-0 text-accent hover:bg-accent/10"
+													onPress={() =>
+														onPreviewImage?.(material, images[0]?.id)
+													}
+													aria-label={`预览图片「${material.title}」`}
+												>
+													<Eye className="w-3 h-3 text-accent" />
+													预览
+												</Button>
+											)}
+
 											{/* 核心操作：导入创作台 */}
 											<Button
 												type="button"
@@ -198,6 +256,43 @@ export function MaterialsTableView({
 													className="min-w-[140px] p-1 shadow-lg border border-border/80 rounded-xl bg-surface"
 												>
 													<Dropdown.Menu aria-label="素材更多操作">
+														{hasVideo && (
+															<Dropdown.Item
+																id="play-video"
+																textValue="播放视频"
+																onAction={() =>
+																	onPlayVideo?.(material, videos[0]?.id)
+																}
+															>
+																<div className="flex items-center gap-2 w-full py-0.5">
+																	<Play className="w-3.5 h-3.5 text-accent fill-accent" />
+																	<span className="text-xs font-medium flex-1">
+																		播放视频
+																	</span>
+																</div>
+															</Dropdown.Item>
+														)}
+
+														{hasImage && (
+															<Dropdown.Item
+																id="preview-image"
+																textValue="预览图片"
+																onAction={() =>
+																	onPreviewImage?.(material, images[0]?.id)
+																}
+															>
+																<div className="flex items-center gap-2 w-full py-0.5">
+																	<Eye className="w-3.5 h-3.5 text-accent" />
+																	<span className="text-xs font-medium flex-1">
+																		预览图片
+																		{images.length > 1
+																			? ` (${images.length})`
+																			: ""}
+																	</span>
+																</div>
+															</Dropdown.Item>
+														)}
+
 														<Dropdown.Item
 															id="star"
 															textValue={material.starred ? "取消收藏" : "收藏"}

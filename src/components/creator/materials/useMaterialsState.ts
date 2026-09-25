@@ -53,6 +53,40 @@ export function useMaterialsState({
 	const [deleting, setDeleting] = useState<Material | null>(null);
 	const [showMoveModal, setShowMoveModal] = useState(false);
 	const [confirmBatchDelete, setConfirmBatchDelete] = useState(false);
+	const [playingMaterial, setPlayingMaterial] = useState<Material | null>(null);
+	const [playingAssetId, setPlayingAssetId] = useState<number | null>(null);
+	const [previewingMaterial, setPreviewingMaterial] = useState<Material | null>(
+		null,
+	);
+	const [previewingAssetId, setPreviewingAssetId] = useState<number | null>(
+		null,
+	);
+
+	const handlePlayVideo = useCallback(
+		(material: Material, assetId?: number) => {
+			setPlayingMaterial(material);
+			setPlayingAssetId(assetId ?? null);
+		},
+		[],
+	);
+
+	const closeVideoModal = useCallback(() => {
+		setPlayingMaterial(null);
+		setPlayingAssetId(null);
+	}, []);
+
+	const handlePreviewImage = useCallback(
+		(material: Material, assetId?: number) => {
+			setPreviewingMaterial(material);
+			setPreviewingAssetId(assetId ?? null);
+		},
+		[],
+	);
+
+	const closeImageModal = useCallback(() => {
+		setPreviewingMaterial(null);
+		setPreviewingAssetId(null);
+	}, []);
 
 	const [search, setSearch] = useState("");
 	const [refreshing, setRefreshing] = useState(false);
@@ -382,5 +416,13 @@ export function useMaterialsState({
 		setShowMoveModal,
 		confirmBatchDelete,
 		setConfirmBatchDelete,
+		playingMaterial,
+		playingAssetId,
+		handlePlayVideo,
+		closeVideoModal,
+		previewingMaterial,
+		previewingAssetId,
+		handlePreviewImage,
+		closeImageModal,
 	};
 }

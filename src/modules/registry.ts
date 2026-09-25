@@ -1,12 +1,10 @@
 import {
 	Blocks,
 	Bookmark,
-	GraduationCap,
 	LayoutGrid,
 	type LucideIcon,
 	Megaphone,
 	NotebookPen,
-	ShoppingBag,
 } from "lucide-react";
 
 /**

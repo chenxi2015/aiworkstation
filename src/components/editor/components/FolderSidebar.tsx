@@ -168,7 +168,7 @@ export function FolderSidebar({
 							<button
 								type="button"
 								onClick={openCreateModal}
-								className="flex-1 flex items-center justify-center gap-1.5 px-3 h-8 rounded-lg bg-accent text-accent-foreground text-xs font-medium hover:opacity-90 transition-opacity cursor-pointer whitespace-nowrap"
+								className="flex-1 flex items-center justify-center gap-1.5 px-3 h-8 rounded-lg bg-green-500 text-accent-foreground text-xs font-medium hover:opacity-90 transition-opacity cursor-pointer whitespace-nowrap"
 							>
 								<FolderPlus className="w-3.5 h-3.5 shrink-0" />
 								新建文件夹

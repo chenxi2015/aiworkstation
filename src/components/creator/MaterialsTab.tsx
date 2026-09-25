@@ -8,9 +8,11 @@ import {
 import { ImportMaterialModal } from "./ImportMaterialModal";
 import { FolderFormModal } from "./materials/FolderFormModal";
 import { FolderSidebar } from "./materials/FolderSidebar";
+import { MaterialImageModal } from "./materials/MaterialImageModal";
 import { MaterialsGridView } from "./materials/MaterialsGridView";
 import { MaterialsTableView } from "./materials/MaterialsTableView";
 import { MaterialsToolbar } from "./materials/MaterialsToolbar";
+import { MaterialVideoModal } from "./materials/MaterialVideoModal";
 import { MoveToFolderModal } from "./materials/MoveToFolderModal";
 import { useMaterialsState } from "./materials/useMaterialsState";
 import type { Material } from "./types";
@@ -141,6 +143,8 @@ export function MaterialsTab({
 									onOpenDir={(m) => void state.handleOpenDir(m)}
 									onArchive={(m) => state.setArchiving(m)}
 									onDelete={(m) => state.setDeleting(m)}
+									onPlayVideo={state.handlePlayVideo}
+									onPreviewImage={state.handlePreviewImage}
 								/>
 							) : (
 								<MaterialsTableView
@@ -155,6 +159,8 @@ export function MaterialsTab({
 									onOpenDir={(m) => void state.handleOpenDir(m)}
 									onArchive={(m) => state.setArchiving(m)}
 									onDelete={(m) => state.setDeleting(m)}
+									onPlayVideo={state.handlePlayVideo}
+									onPreviewImage={state.handlePreviewImage}
 								/>
 							)}
 
@@ -288,6 +294,27 @@ export function MaterialsTab({
 				}
 				confirmLabel={state.batchBusy ? "删除中..." : "确认删除"}
 				onConfirm={state.handleBatchDelete}
+			/>
+
+			{/* 视频素材播放/预览弹窗 */}
+			<MaterialVideoModal
+				isOpen={state.playingMaterial !== null}
+				material={state.playingMaterial}
+				initialAssetId={state.playingAssetId}
+				onClose={state.closeVideoModal}
+				onOpenDir={(m) => void state.handleOpenDir(m)}
+				onImportToStudio={(m) => void state.handleImportToStudio(m)}
+			/>
+
+			{/* 图片素材预览/翻页弹窗 */}
+			<MaterialImageModal
+				isOpen={state.previewingMaterial !== null}
+				material={state.previewingMaterial}
+				initialAssetId={state.previewingAssetId}
+				materials={state.displayedMaterials}
+				onClose={state.closeImageModal}
+				onOpenDir={(m) => void state.handleOpenDir(m)}
+				onImportToStudio={(m) => void state.handleImportToStudio(m)}
 			/>
 		</div>
 	);
