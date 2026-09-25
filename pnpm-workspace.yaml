@@ -9,6 +9,7 @@ allowBuilds:
   '@turbodocx/html-to-docx': true
   better-sqlite3: false
   core-js: true
+  electron-winstaller: true
   esbuild: true
   lightningcss: true
   protobufjs: true

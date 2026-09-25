@@ -4,6 +4,7 @@ dist
 dist-ssr
 *.local
 .env
+.dev.vars
 .nitro
 .tanstack
 .wrangler
@@ -17,3 +18,9 @@ todos.json
 .aiworkstation/
 # ffmpeg.wasm binaries (regenerate via pnpm --filter wxt-react-starter setup:ffmpeg)
 extensions/aicollector/public/ffmpeg/
+.idea/*
+docs
+index.mts
+# Electron build outputs
+dist-electron/
+electron-dist/

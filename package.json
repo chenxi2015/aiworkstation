@@ -1,7 +1,11 @@
 {
   "name": "aiworkstation",
+  "version": "0.1.0",
+  "description": "本地优先的个人知识 Agent 工作台",
+  "author": "AI Workstation",
   "private": true,
   "type": "module",
+  "main": "dist-electron/main.js",
   "imports": {
     "#/*": "./src/*"
   },
@@ -26,7 +30,14 @@
     "lint": "biome lint",
     "format": "biome format",
     "zip:extension": "pnpm -C extensions/aicollector zip",
-    "zip:extension:firefox": "pnpm -C extensions/aicollector zip:firefox"
+    "zip:extension:firefox": "pnpm -C extensions/aicollector zip:firefox",
+    "electron:build:main": "tsc -p electron/tsconfig.json",
+    "electron:rebuild": "electron-rebuild -f -w better-sqlite3",
+    "electron:dev": "pnpm run build && pnpm run electron:build:main && electron dist-electron/main.js",
+    "electron:pack": "pnpm run build && pnpm run electron:build:main && electron-builder --config electron/builder.config.ts --dir",
+    "electron:dist": "pnpm run build && pnpm run electron:build:main && electron-builder --config electron/builder.config.ts",
+    "electron:dist:mac": "pnpm run build && pnpm run electron:build:main && electron-builder --config electron/builder.config.ts --mac",
+    "electron:dist:win": "pnpm run build && pnpm run electron:build:main && electron-builder --config electron/builder.config.ts --win"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",
@@ -125,6 +136,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.4.5",
     "@cloudflare/vite-plugin": "^1.26.0",
+    "@electron/rebuild": "^4.2.0",
     "@tailwindcss/typography": "^0.5.16",
     "@tanstack/devtools-event-client": "latest",
     "@tanstack/devtools-vite": "latest",
@@ -135,6 +147,8 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^6.0.1",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
     "nitro": "npm:nitro-nightly@3.0.1-20260907-125141-8baa894b",
     "typescript": "^6.0.2",
     "vite": "^8.0.0",
