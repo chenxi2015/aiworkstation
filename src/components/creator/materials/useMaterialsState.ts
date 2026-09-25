@@ -51,6 +51,7 @@ export function useMaterialsState({
 	const [archiving, setArchiving] = useState<Material | null>(null);
 	const [archiveBusy, setArchiveBusy] = useState(false);
 	const [deleting, setDeleting] = useState<Material | null>(null);
+	const [deleteLocalAssets, setDeleteLocalAssets] = useState(false);
 	const [showMoveModal, setShowMoveModal] = useState(false);
 	const [confirmBatchDelete, setConfirmBatchDelete] = useState(false);
 	const [playingMaterial, setPlayingMaterial] = useState<Material | null>(null);
@@ -293,9 +294,13 @@ export function useMaterialsState({
 		setBatchBusy(true);
 		try {
 			const ids = Array.from(selectedIds);
-			const { deletedCount } = await batchDeleteMaterialsRpc({ ids });
+			const { deletedCount } = await batchDeleteMaterialsRpc({
+				ids,
+				deleteLocalAssets,
+			});
 			toast.success(`已删除 ${deletedCount} 条素材`);
 			setConfirmBatchDelete(false);
+			setDeleteLocalAssets(false);
 			exitSelectMode();
 			await handleChanged();
 		} catch (err) {
@@ -328,9 +333,10 @@ export function useMaterialsState({
 	const handleDelete = async () => {
 		if (!deleting) return;
 		try {
-			await deleteMaterialRpc({ id: deleting.id });
+			await deleteMaterialRpc({ id: deleting.id, deleteLocalAssets });
 			toast.success(`素材「${deleting.title}」已删除`);
 			setDeleting(null);
+			setDeleteLocalAssets(false);
 			await handleChanged();
 		} catch (err) {
 			toast.danger(
@@ -412,6 +418,8 @@ export function useMaterialsState({
 		archiveBusy,
 		deleting,
 		setDeleting,
+		deleteLocalAssets,
+		setDeleteLocalAssets,
 		showMoveModal,
 		setShowMoveModal,
 		confirmBatchDelete,

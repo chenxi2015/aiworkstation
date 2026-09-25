@@ -487,10 +487,52 @@ export const updateMaterial = createServerFn({ method: "POST" })
 	});
 
 /**
- * Server Function: 删除素材（幂等操作，外键已解绑，原位引用保护）
+ * Clean up local files for a material (both managed directory and external reference files).
+ */
+function cleanupMaterialLocalFiles(material: Material): void {
+	try {
+		// 1. Delete managed assets directory if exists
+		const hasManagedAssets = (material.assets ?? []).some(
+			(a) => a.storageMode !== "external",
+		);
+		if (hasManagedAssets) {
+			const assetsDir = getMaterialAssetsDir(material.id);
+			assertPathWithinRoot(assetsDir, getFilesRootDir());
+			if (existsSync(assetsDir)) {
+				rmSync(assetsDir, { recursive: true, force: true });
+			}
+		}
+	} catch (err) {
+		console.warn(
+			`[cleanupMaterialLocalFiles] Failed to remove managed assets dir for material ${material.id}:`,
+			err,
+		);
+	}
+
+	// 2. Delete external reference files
+	for (const asset of material.assets ?? []) {
+		if (asset.storageMode === "external" && asset.sourcePath) {
+			try {
+				const target = resolveUserPath(asset.sourcePath);
+				assertWritablePath(target);
+				if (existsSync(target)) {
+					rmSync(target, { force: true });
+				}
+			} catch (err) {
+				console.warn(
+					`[cleanupMaterialLocalFiles] Failed to remove external file ${asset.sourcePath}:`,
+					err,
+				);
+			}
+		}
+	}
+}
+
+/**
+ * Server Function: 删除素材（幂等操作，外键已解绑，可选连带清理本地素材文件）
  */
 export const deleteMaterial = createServerFn({ method: "POST" })
-	.validator((data: { id: number }) => data)
+	.validator((data: { id: number; deleteLocalAssets?: boolean }) => data)
 	.handler(async ({ data }): Promise<{ deleted: boolean }> => {
 		const materialId = Number(data.id);
 		if (!materialId || Number.isNaN(materialId)) return { deleted: true };
@@ -499,46 +541,40 @@ export const deleteMaterial = createServerFn({ method: "POST" })
 			// 幂等容错：若素材已不存在，视为已删除，不抛出异常打断用户批量流程
 			return { deleted: true };
 		}
-		const hasManagedAssets = (material.assets ?? []).some(
-			(a) => a.storageMode !== "external",
-		);
 		workbenchDb.deleteMaterial(materialId);
-		// 仅当存在工作台托管文件时清理内部资产目录；原位引用模式绝对不删除用户的本地源文件
-		if (hasManagedAssets) {
-			const assetsDir = getMaterialAssetsDir(materialId);
-			assertPathWithinRoot(assetsDir, getFilesRootDir());
-			rmSync(assetsDir, { recursive: true, force: true });
+
+		// 仅当用户明确勾选删除本地素材时，才清理托管目录与外部本地源文件
+		if (data.deleteLocalAssets) {
+			cleanupMaterialLocalFiles(material);
 		}
 		return { deleted: true };
 	});
 
 /**
- * Server Function: 批量删除素材（原子事务，幂等且兼顾资产清理与外键解绑）
+ * Server Function: 批量删除素材（原子事务，幂等且兼顾资产清理与外键解绑，可选连带清理本地素材文件）
  */
 export const batchDeleteMaterials = createServerFn({ method: "POST" })
-	.validator((data: { ids: number[] }) => data)
+	.validator((data: { ids: number[]; deleteLocalAssets?: boolean }) => data)
 	.handler(async ({ data }): Promise<{ deletedCount: number }> => {
 		const rawIds = (data.ids ?? [])
 			.map((id) => Number(id))
 			.filter((id) => !Number.isNaN(id) && id > 0);
 		if (rawIds.length === 0) return { deletedCount: 0 };
 
-		// 检查哪些素材有托管文件，以便清理资产目录
-		for (const id of rawIds) {
-			try {
-				const material = workbenchDb.getMaterial(id);
-				if (material) {
-					const hasManaged = (material.assets ?? []).some(
-						(a) => a.storageMode !== "external",
-					);
-					if (hasManaged) {
-						const assetsDir = getMaterialAssetsDir(id);
-						assertPathWithinRoot(assetsDir, getFilesRootDir());
-						rmSync(assetsDir, { recursive: true, force: true });
+		// 仅当用户明确勾选删除本地素材时，才清理托管目录与外部本地源文件
+		if (data.deleteLocalAssets) {
+			for (const id of rawIds) {
+				try {
+					const material = workbenchDb.getMaterial(id);
+					if (material) {
+						cleanupMaterialLocalFiles(material);
 					}
+				} catch (err) {
+					console.warn(
+						`[batchDeleteMaterials] Failed to cleanup assets for material ${id}:`,
+						err,
+					);
 				}
-			} catch {
-				// Ignore directory cleaning errors
 			}
 		}
 

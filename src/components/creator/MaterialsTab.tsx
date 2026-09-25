@@ -259,7 +259,10 @@ export function MaterialsTab({
 			<ConfirmDialog
 				isOpen={!!state.deleting}
 				onOpenChange={(open) => {
-					if (!open) state.setDeleting(null);
+					if (!open) {
+						state.setDeleting(null);
+						state.setDeleteLocalAssets(false);
+					}
 				}}
 				title="删除素材"
 				description={
@@ -269,18 +272,33 @@ export function MaterialsTab({
 							<strong className="font-semibold text-foreground">
 								{state.deleting.title}
 							</strong>{" "}
-							吗？素材及其关联文件将被永久删除，且不可恢复。
+							吗？此操作不可撤销。
 						</span>
 					) : undefined
 				}
 				confirmLabel="确认删除"
 				onConfirm={state.handleDelete}
-			/>
+			>
+				<label className="flex items-center gap-2 mt-3 p-2 rounded-lg bg-surface-secondary/50 border border-border/50 text-xs text-foreground cursor-pointer select-none hover:bg-surface-secondary transition-colors">
+					<input
+						type="checkbox"
+						checked={state.deleteLocalAssets}
+						onChange={(e) => state.setDeleteLocalAssets(e.target.checked)}
+						className="accent-accent w-3.5 h-3.5 rounded cursor-pointer shrink-0"
+					/>
+					<span className="text-muted text-[11px] leading-snug">
+						同时删除本地素材（本地磁盘源文件及关联文件）
+					</span>
+				</label>
+			</ConfirmDialog>
 
 			<ConfirmDialog
 				isOpen={state.confirmBatchDelete}
 				onOpenChange={(open) => {
-					if (!open) state.setConfirmBatchDelete(false);
+					if (!open) {
+						state.setConfirmBatchDelete(false);
+						state.setDeleteLocalAssets(false);
+					}
 				}}
 				title="批量删除素材"
 				description={
@@ -289,12 +307,24 @@ export function MaterialsTab({
 						<strong className="font-semibold text-foreground">
 							{state.selectedIds.size}
 						</strong>{" "}
-						条素材吗？素材及其关联文件将被永久删除，且不可恢复。
+						条素材吗？此操作不可撤销。
 					</span>
 				}
 				confirmLabel={state.batchBusy ? "删除中..." : "确认删除"}
 				onConfirm={state.handleBatchDelete}
-			/>
+			>
+				<label className="flex items-center gap-2 mt-3 p-2 rounded-lg bg-surface-secondary/50 border border-border/50 text-xs text-foreground cursor-pointer select-none hover:bg-surface-secondary transition-colors">
+					<input
+						type="checkbox"
+						checked={state.deleteLocalAssets}
+						onChange={(e) => state.setDeleteLocalAssets(e.target.checked)}
+						className="accent-accent w-3.5 h-3.5 rounded cursor-pointer shrink-0"
+					/>
+					<span className="text-muted text-[11px] leading-snug">
+						同时删除本地素材（本地磁盘源文件及关联文件）
+					</span>
+				</label>
+			</ConfirmDialog>
 
 			{/* 视频素材播放/预览弹窗 */}
 			<MaterialVideoModal

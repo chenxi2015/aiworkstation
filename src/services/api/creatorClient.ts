@@ -137,16 +137,18 @@ export async function updateMaterialRpc(params: {
 	return await updateMaterial({ data: params });
 }
 
-/** 删除素材（连带资产文件，草稿保留并展示「素材已删除」） */
+/** 删除素材（可选连带删除本地素材文件） */
 export async function deleteMaterialRpc(params: {
 	id: number;
+	deleteLocalAssets?: boolean;
 }): Promise<{ deleted: boolean }> {
 	return await deleteMaterial({ data: params });
 }
 
-/** 批量删除素材 */
+/** 批量删除素材（可选连带删除本地素材文件） */
 export async function batchDeleteMaterialsRpc(params: {
 	ids: number[];
+	deleteLocalAssets?: boolean;
 }): Promise<{ deletedCount: number }> {
 	return await batchDeleteMaterials({ data: params });
 }

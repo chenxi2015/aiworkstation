@@ -38,6 +38,7 @@ export function ArchiveTab() {
 	const [loading, setLoading] = useState(true);
 	const [busyId, setBusyId] = useState<number | null>(null);
 	const [deleting, setDeleting] = useState<Material | null>(null);
+	const [deleteLocalAssets, setDeleteLocalAssets] = useState(false);
 
 	const reload = useCallback(async () => {
 		setLoading(true);
@@ -104,9 +105,10 @@ export function ArchiveTab() {
 	const handleDeleteMaterial = async () => {
 		if (!deleting) return;
 		try {
-			await deleteMaterialRpc({ id: deleting.id });
+			await deleteMaterialRpc({ id: deleting.id, deleteLocalAssets });
 			toast.success(`素材「${deleting.title}」已彻底删除`);
 			setDeleting(null);
+			setDeleteLocalAssets(false);
 			await reload();
 		} catch (err) {
 			toast.danger(
@@ -292,7 +294,10 @@ export function ArchiveTab() {
 			<ConfirmDialog
 				isOpen={!!deleting}
 				onOpenChange={(open) => {
-					if (!open) setDeleting(null);
+					if (!open) {
+						setDeleting(null);
+						setDeleteLocalAssets(false);
+					}
 				}}
 				title="彻底删除素材"
 				description={
@@ -302,13 +307,25 @@ export function ArchiveTab() {
 							<strong className="font-semibold text-foreground">
 								{deleting.title}
 							</strong>{" "}
-							吗？素材及其关联文件将被永久删除，且不可恢复。
+							吗？此操作不可撤销。
 						</span>
 					) : undefined
 				}
 				confirmLabel="确认删除"
 				onConfirm={handleDeleteMaterial}
-			/>
+			>
+				<label className="flex items-center gap-2 mt-3 p-2 rounded-lg bg-surface-secondary/50 border border-border/50 text-xs text-foreground cursor-pointer select-none hover:bg-surface-secondary transition-colors">
+					<input
+						type="checkbox"
+						checked={deleteLocalAssets}
+						onChange={(e) => setDeleteLocalAssets(e.target.checked)}
+						className="accent-accent w-3.5 h-3.5 rounded cursor-pointer shrink-0"
+					/>
+					<span className="text-muted text-[11px] leading-snug">
+						同时删除本地素材（本地磁盘源文件及关联文件）
+					</span>
+				</label>
+			</ConfirmDialog>
 		</div>
 	);
 }
