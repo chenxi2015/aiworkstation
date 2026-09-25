@@ -157,17 +157,25 @@ export function AppShell({
 	const { panelWidth, isResizing, handleResizeStart } = useAiPanelResize();
 
 	const pathname = useRouterState({ select: (s) => s.location.pathname });
+	const searchTab = useRouterState({
+		select: (s) => (s.location.search as { tab?: string }).tab,
+	});
 	const activeModule = getModuleByRoute(pathname)?.code ?? "workbench";
 
-	const isEditorRoute = pathname.startsWith("/editor");
-	const [isCollapsed, setIsCollapsed] = useState<boolean>(() => isEditorRoute);
+	// 富文本编辑面：/editor 历史路由，或自媒体「创作台」Tab（editor 已并入 creator）
+	const isEditorSurface =
+		pathname.startsWith("/editor") ||
+		(pathname.startsWith("/creator") && searchTab === "studio");
+	const [isCollapsed, setIsCollapsed] = useState<boolean>(
+		() => isEditorSurface,
+	);
 
 	// Automatically collapse global AI panel when entering editor to release 100% canvas width
 	useEffect(() => {
-		if (isEditorRoute) {
+		if (isEditorSurface) {
 			setIsCollapsed(true);
 		}
-	}, [isEditorRoute]);
+	}, [isEditorSurface]);
 
 	const toggleCollapsed = useCallback(() => {
 		setIsCollapsed((prev) => !prev);

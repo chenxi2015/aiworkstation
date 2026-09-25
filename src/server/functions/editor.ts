@@ -31,6 +31,36 @@ export const listDocuments = createServerFn({ method: "GET" }).handler(
 );
 
 /**
+ * Server Function: 归档库文档列表（仅 status='archived'）
+ */
+export const listArchivedDocuments = createServerFn({ method: "GET" }).handler(
+	async (): Promise<EditorDocument[]> => {
+		return workbenchDb.listArchivedDocuments();
+	},
+);
+
+/**
+ * Server Function: 归档「再次创作」—— 复制副本回到创作台（status='editing'），
+ * 原归档文档不动，保证创作中 ⇄ 归档互斥（docs/selfmedia-merge-plan.md 第三节）。
+ */
+export const duplicateDocument = createServerFn({ method: "POST" })
+	.validator((data: { id: number }) => data)
+	.handler(async ({ data }): Promise<EditorDocument> => {
+		const source = workbenchDb.getDocument(data.id);
+		if (!source) throw new Error("文档不存在");
+		const newId = workbenchDb.createDocument({
+			title: `${source.title}（再次创作）`,
+			content: source.content,
+			contentText: source.contentText,
+			stylePreset: source.stylePreset,
+			folderId: source.folderId ?? null,
+		});
+		const doc = workbenchDb.getDocument(newId);
+		if (!doc) throw new Error("副本创建失败");
+		return doc;
+	});
+
+/**
  * Server Function: 读取单个文档
  */
 export const getDocument = createServerFn({ method: "GET" })
@@ -559,8 +589,7 @@ export const generateAiBarText = createServerFn({ method: "POST" })
 		const presetPrompt = resolveEditorPresetPrompt(data.stylePreset);
 		const defaultSystemHint =
 			"你是一名专业高效的写作与文本处理助手。你的任务是直接对用户选中的文本进行处理并输出最终正文。\n【核心准则】：\n1. 直接输出处理后的正文内容，严禁输出任何思考过程、自我问答、字数统计、前缀标签或客套话。\n2. 严禁添加 Markdown 代码块围栏（如 ``` 或 ~~~）包裹全篇。";
-		const systemPrompt =
-			(data.systemHint || defaultSystemHint) + presetPrompt;
+		const systemPrompt = (data.systemHint || defaultSystemHint) + presetPrompt;
 
 		const stream = await chat({
 			adapter,

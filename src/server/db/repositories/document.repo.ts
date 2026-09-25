@@ -96,6 +96,16 @@ export class DocumentRepository {
 		return rows.map(rowToDocument);
 	}
 
+	/** 归档库：仅 status='archived'（docs/selfmedia-merge-plan.md 归档互斥状态机） */
+	listArchivedDocuments(): EditorDocument[] {
+		const rows = this.db
+			.prepare(
+				"SELECT * FROM documents WHERE status = 'archived' ORDER BY updated_at DESC, id DESC",
+			)
+			.all() as DocumentRow[];
+		return rows.map(rowToDocument);
+	}
+
 	getDocument(id: number): EditorDocument | null {
 		const row = this.db
 			.prepare("SELECT * FROM documents WHERE id = ?")

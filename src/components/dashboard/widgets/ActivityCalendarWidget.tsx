@@ -78,10 +78,21 @@ function eventLink(kind: ActivityKind, id: string | number) {
 		case "draft":
 			return {
 				to: "/creator" as const,
-				search: { tab: "workbench" as const, draft: Number(id) },
+				search: {
+					tab: "studio" as const,
+					mode: "drafts" as const,
+					draft: Number(id),
+				},
 			};
 		case "document":
-			return { to: "/editor" as const, search: { doc: Number(id) } };
+			return {
+				to: "/creator" as const,
+				search: {
+					tab: "studio" as const,
+					mode: "doc" as const,
+					doc: Number(id),
+				},
+			};
 	}
 }
 

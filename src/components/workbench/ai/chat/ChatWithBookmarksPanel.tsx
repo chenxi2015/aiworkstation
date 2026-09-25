@@ -274,7 +274,10 @@ export const ChatWithBookmarksPanel = forwardRef<
 
 		const storeState = workbenchContextStore.state;
 		const effectiveModule =
-			options?.module ?? activeModule ?? storeState.activeModule;
+			options?.module ??
+			pageBridge?.module ??
+			activeModule ??
+			storeState.activeModule;
 		const rawDocId =
 			pageBridge?.activeDocumentId ?? storeState.activeDocument?.id;
 		const isDocDetached =
@@ -307,13 +310,18 @@ export const ChatWithBookmarksPanel = forwardRef<
 	};
 
 	// 当前模块的 AI 贡献包：切换导航时更新推荐提问与（服务端）模块视角
-	const moduleContribution = getAiContribution(activeModule);
-	const currentModuleDef = activeModule
-		? getModuleByCode(activeModule)
+	// 页面桥接（如创作台内嵌的富文本编辑器）优先于路由模块：
+	// 「自媒体」板块创作台编辑态下，AI 以 editor 写作人格工作。
+	const resolvedModule = pageBridge?.module ?? activeModule;
+	const moduleContribution = getAiContribution(resolvedModule);
+	const currentModuleDef = resolvedModule
+		? getModuleByCode(resolvedModule)
 		: undefined;
 	const currentModuleLabel = currentModuleDef?.label
 		? `${currentModuleDef.label}模式`
-		: "全库知识";
+		: resolvedModule === "editor"
+			? "创作台模式"
+			: "全库知识";
 
 	// Expose methods for parent components
 	useImperativeHandle(ref, () => ({
@@ -472,7 +480,7 @@ export const ChatWithBookmarksPanel = forwardRef<
 						onOpenAssignSingle={folderAssign.openAssignSingle}
 						onOpenAssignMultiple={folderAssign.openAssignMultiple}
 						modulePrompts={moduleContribution.promptSuggestions}
-						activeModule={activeModule}
+						activeModule={resolvedModule}
 						onSelectPrompt={(p) => handleSendPrompt(p)}
 						folders={folders}
 						onNavigateToFolder={onNavigateToFolder}

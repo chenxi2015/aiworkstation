@@ -6,7 +6,6 @@ import {
 	type LucideIcon,
 	Megaphone,
 	NotebookPen,
-	PenLine,
 	ShoppingBag,
 } from "lucide-react";
 
@@ -28,7 +27,6 @@ export type ModuleRoute =
 	| "/bookmarks"
 	| "/creator"
 	| "/learn"
-	| "/editor"
 	| "/ecommerce"
 	| "/obsidian"
 	| "/skills";
@@ -70,16 +68,9 @@ export const MODULES: readonly ModuleDef[] = [
 		label: "自媒体",
 		route: "/creator",
 		icon: Megaphone,
-		description: "采集 → AI 二创 → 草稿审稿 → 人工确认发布的自媒体工作流。",
-		aliases: ["自媒体"],
-	},
-	{
-		code: "editor",
-		label: "创作",
-		route: "/editor",
-		icon: PenLine,
-		description: "强大的文本预览与 Markdown 操作台。",
-		aliases: ["创作"],
+		description:
+			"自媒体一体化板块：素材库 / 创作台 / 归档 / 工具箱 / 热点雷达（docs/selfmedia-merge-plan.md）。",
+		aliases: ["自媒体", "创作", "editor"],
 	},
 	{
 		code: "learn",

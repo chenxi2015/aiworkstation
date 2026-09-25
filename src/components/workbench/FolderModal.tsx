@@ -217,7 +217,7 @@ export function FolderModal({
 										文件夹名称 <span className="text-danger">*</span>
 									</Label>
 									<Input
-										placeholder="例如：内容创作工具集"
+										placeholder="例如：内容创作工具箱"
 										maxLength={30}
 										className={fieldClassName}
 									/>

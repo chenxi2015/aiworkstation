@@ -1,5 +1,6 @@
 import type {
 	AssetKind,
+	AssetStorageMode,
 	Draft,
 	DraftOrigin,
 	DraftPlatform,
@@ -37,6 +38,7 @@ interface MaterialRow {
 	content: string;
 	note: string | null;
 	status: string;
+	starred: number;
 	created_at: string | null;
 	updated_at: string | null;
 }
@@ -62,6 +64,8 @@ interface AssetRow {
 	filename: string;
 	mime: string | null;
 	size_bytes: number | null;
+	storage_mode: string | null;
+	source_path: string | null;
 	created_at: string | null;
 }
 
@@ -85,6 +89,7 @@ function rowToMaterial(r: MaterialRow): Material {
 		content: r.content,
 		note: r.note,
 		status: r.status as Material["status"],
+		starred: Boolean(r.starred),
 		createdAt: r.created_at ?? undefined,
 		updatedAt: r.updated_at ?? undefined,
 	};
@@ -126,6 +131,8 @@ function rowToAsset(r: AssetRow): MaterialAsset {
 		filename: r.filename,
 		mime: r.mime,
 		sizeBytes: r.size_bytes,
+		storageMode: (r.storage_mode as AssetStorageMode) || "managed",
+		sourcePath: r.source_path ?? null,
 		createdAt: r.created_at ?? undefined,
 	};
 }
@@ -138,14 +145,36 @@ export class CreatorRepository {
 
 	// ================= Materials =================
 
-	listMaterials(includeArchived = false): Material[] {
+	listMaterials(
+		statusFilter: boolean | "active" | "archived" | "all" = "active",
+	): Material[] {
+		let statusCondition = "WHERE status = 'active'";
+		if (statusFilter === true || statusFilter === "all") {
+			statusCondition = "";
+		} else if (statusFilter === "archived") {
+			statusCondition = "WHERE status = 'archived'";
+		}
+
+		// Select truncated content preview (up to 300 chars) for lightweight payload in list view
 		const rows = this.db
 			.prepare(
-				`SELECT * FROM materials ${includeArchived ? "" : "WHERE status = 'active'"} ORDER BY updated_at DESC, id DESC`,
+				`SELECT id, source_type, bookmark_id, folder_id, title,
+                substr(content, 1, 300) AS content,
+                note, status, starred, created_at, updated_at
+         FROM materials ${statusCondition}
+         ORDER BY updated_at DESC, id DESC`,
 			)
 			.all() as MaterialRow[];
+
+		if (rows.length === 0) return [];
+
+		// Query only assets belonging to the queried materials instead of full table scan
 		const assetRows = this.db
-			.prepare("SELECT * FROM assets ORDER BY id ASC")
+			.prepare(
+				`SELECT a.* FROM assets a
+         WHERE a.material_id IN (SELECT id FROM materials ${statusCondition})
+         ORDER BY a.id ASC`,
+			)
 			.all() as AssetRow[];
 		const assetsByMaterial = new Map<number, MaterialAsset[]>();
 		for (const a of assetRows) {
@@ -205,6 +234,7 @@ export class CreatorRepository {
 			content?: string;
 			note?: string | null;
 			status?: Material["status"];
+			starred?: boolean;
 		},
 	): void {
 		const current = this.getMaterial(id);
@@ -212,13 +242,20 @@ export class CreatorRepository {
 		const now = new Date().toISOString();
 		this.db
 			.prepare(
-				`UPDATE materials SET title = ?, content = ?, note = ?, status = ?, updated_at = ? WHERE id = ?`,
+				`UPDATE materials SET title = ?, content = ?, note = ?, status = ?, starred = ?, updated_at = ? WHERE id = ?`,
 			)
 			.run(
 				patch.title ?? current.title,
 				patch.content ?? current.content,
 				patch.note !== undefined ? patch.note : (current.note ?? null),
 				patch.status ?? current.status,
+				patch.starred === undefined
+					? current.starred
+						? 1
+						: 0
+					: patch.starred
+						? 1
+						: 0,
 				now,
 				id,
 			);
@@ -231,6 +268,40 @@ export class CreatorRepository {
 				)
 				.run(patch.folderId, now, id);
 		}
+	}
+
+	/**
+	 * 删除素材：连带删除资产记录（草稿保留，草稿箱列表展示「素材已删除」）。
+	 * 资产文件目录由 server function 层负责清理（repo 不碰文件系统）。
+	 */
+	deleteMaterial(id: number): void {
+		const tx = this.db.transaction(() => {
+			this.db.prepare("DELETE FROM assets WHERE material_id = ?").run(id);
+			this.db
+				.prepare("UPDATE drafts SET material_id = NULL WHERE material_id = ?")
+				.run(id);
+			this.db.prepare("DELETE FROM materials WHERE id = ?").run(id);
+		});
+		tx();
+	}
+
+	batchDeleteMaterials(ids: number[]): void {
+		if (ids.length === 0) return;
+		const tx = this.db.transaction(() => {
+			const placeholders = ids.map(() => "?").join(",");
+			this.db
+				.prepare(`DELETE FROM assets WHERE material_id IN (${placeholders})`)
+				.run(...ids);
+			this.db
+				.prepare(
+					`UPDATE drafts SET material_id = NULL WHERE material_id IN (${placeholders})`,
+				)
+				.run(...ids);
+			this.db
+				.prepare(`DELETE FROM materials WHERE id IN (${placeholders})`)
+				.run(...ids);
+		});
+		tx();
 	}
 
 	// ================= Material Folders =================
@@ -317,6 +388,13 @@ export class CreatorRepository {
 
 	// ================= Assets =================
 
+	getAsset(id: number): MaterialAsset | null {
+		const row = this.db.prepare("SELECT * FROM assets WHERE id = ?").get(id) as
+			| AssetRow
+			| undefined;
+		return row ? rowToAsset(row) : null;
+	}
+
 	addAsset(params: {
 		materialId: number;
 		relPath: string;
@@ -324,12 +402,14 @@ export class CreatorRepository {
 		filename: string;
 		mime?: string | null;
 		sizeBytes?: number | null;
+		storageMode?: AssetStorageMode;
+		sourcePath?: string | null;
 	}): number {
 		const now = new Date().toISOString();
 		const res = this.db
 			.prepare(
-				`INSERT INTO assets (material_id, rel_path, kind, filename, mime, size_bytes, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+				`INSERT INTO assets (material_id, rel_path, kind, filename, mime, size_bytes, storage_mode, source_path, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			)
 			.run(
 				params.materialId,
@@ -338,6 +418,8 @@ export class CreatorRepository {
 				params.filename,
 				params.mime ?? null,
 				params.sizeBytes ?? null,
+				params.storageMode ?? "managed",
+				params.sourcePath ?? null,
 				now,
 			);
 		return Number(res.lastInsertRowid);

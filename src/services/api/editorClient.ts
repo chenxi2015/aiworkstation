@@ -10,7 +10,9 @@ import {
 	deleteDocument,
 	deleteDocumentFolder,
 	downloadExternalAssetToDocument,
+	duplicateDocument,
 	generateAiBarText,
+	listArchivedDocuments,
 	listDocumentFolders,
 	listDocuments,
 	listDocumentVersions,
@@ -32,6 +34,21 @@ export async function fetchDocuments(): Promise<EditorDocument[]> {
 		console.warn("[editorClient] listDocuments error:", err);
 		return [];
 	}
+}
+
+export async function fetchArchivedDocuments(): Promise<EditorDocument[]> {
+	try {
+		return (await listArchivedDocuments()) ?? [];
+	} catch (err) {
+		console.warn("[editorClient] listArchivedDocuments error:", err);
+		return [];
+	}
+}
+
+export async function duplicateDocumentRpc(
+	id: number,
+): Promise<EditorDocument> {
+	return await duplicateDocument({ data: { id } });
 }
 
 export async function createDocumentRpc(params: {

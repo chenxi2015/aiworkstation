@@ -100,6 +100,16 @@ const routes: RouteDefinition[] = [
 		},
 	},
 	{
+		path: "/api/assets/stream",
+		exact: true,
+		handler: async (req, res) => {
+			const { handleAssetStreamRequest } = await import(
+				"./handlers/assetStreamHandler.ts"
+			);
+			return handleAssetStreamRequest(req, res);
+		},
+	},
+	{
 		path: "/api/extension/download",
 		exact: true,
 		handler: async (req, res) => {

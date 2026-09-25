@@ -309,9 +309,10 @@ export class WorkbenchDatabase {
 		return this.tagRepo.renameOrMergeTags(sourceTags, targetTag);
 	}
 
-	// ================= Creator (自媒体) Operations =================
-	listMaterials(includeArchived = false) {
-		return this.creatorRepo.listMaterials(includeArchived);
+	listMaterials(
+		statusFilter: Parameters<CreatorRepository["listMaterials"]>[0] = "active",
+	) {
+		return this.creatorRepo.listMaterials(statusFilter);
 	}
 
 	getMaterial(id: number) {
@@ -354,6 +355,18 @@ export class WorkbenchDatabase {
 		return this.creatorRepo.deleteMaterialFolder(id);
 	}
 
+	deleteMaterial(id: number) {
+		return this.creatorRepo.deleteMaterial(id);
+	}
+
+	batchDeleteMaterials(ids: number[]) {
+		return this.creatorRepo.batchDeleteMaterials(ids);
+	}
+
+	getAsset(id: number) {
+		return this.creatorRepo.getAsset(id);
+	}
+
 	addAsset(params: Parameters<CreatorRepository["addAsset"]>[0]) {
 		return this.creatorRepo.addAsset(params);
 	}
@@ -385,6 +398,10 @@ export class WorkbenchDatabase {
 	// ================= Editor (创作) Operations =================
 	listDocuments(includeArchived = false) {
 		return this.documentRepo.listDocuments(includeArchived);
+	}
+
+	listArchivedDocuments() {
+		return this.documentRepo.listArchivedDocuments();
 	}
 
 	getDocument(id: number) {

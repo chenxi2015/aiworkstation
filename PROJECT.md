@@ -27,9 +27,9 @@
   |---|---|---|---|
   | `workbench` | 工作台 | `/workbench`（`/` 重定向至此） | 跨模块汇总首页：可自定义组合的 widget 仪表盘（不再是文件夹分类） |
   | `bookmarks` | 书签 | `/bookmarks` | 全部书签库 + 未分类缓冲池，分类在此作为筛选维度 |
-  | `creator` | 自媒体 | `/creator` | 采集 → 二创 → 审稿 → 发布工作流 |
+  | `creator` | 自媒体 | `/creator` | 自媒体一体化板块：素材库 / 创作台 / 归档 / 工具箱 / 热点雷达（规划见 `docs/selfmedia-merge-plan.md`） |
   | `learn` | 学习 | `/learn` | 学习资源聚合 |
-  | `editor` | 创作 | `/editor` | AI 富文本创作台：单篇深度加工、划词 AI 改写、多格式导入导出 |
+  | ~~`editor`~~ | ~~创作~~ | ~~`/editor`~~ | ⚠️ 已定案并入 `creator`（统称「自媒体」），不再独立导航；富文本创作台迁入 creator「创作台」子板块，见 `docs/selfmedia-merge-plan.md` |
   | `ecommerce` | 电商 | `/ecommerce` | 电商资源归集 |
   | `obsidian` | 笔记 | `/obsidian` | Obsidian 本地 Vault 直连：目录即分类，Markdown 文件直接读写，不落库（不与 editor documents 混合） |
   | `skills` | Skills | `/skills` | 本地散落 skills 目录的集合管理（后续落库） |
@@ -125,6 +125,9 @@
 - `settings`：key/value（token、AI 配置、分类偏好）
 
 > 规划中未落地：`tweets` 表（推特工作流用，见上节）。
+> 自媒体板块合并规划已定稿于 `docs/selfmedia-merge-plan.md`：editor 并入 creator（统称「自媒体」）、
+> 素材库/创作台/归档/工具箱/热点雷达五子板块划分、进度台抛弃、`documents.status` 归档互斥状态机、
+> P0-P4 分期均以该文档为准。
 > 自媒体（creator）模块的产品规划已定稿于 `docs/creator-plan.md`：`materials` / `drafts` / `assets` 表、
 > `downloadsDir` → `filesRootDir` 文件管理根目录升级、M4-α/β/γ 分期均以该文档为准。
 > 创作（editor）模块的产品规划已定稿于 `docs/editor-plan.md`：`documents` / `document_versions` 表、

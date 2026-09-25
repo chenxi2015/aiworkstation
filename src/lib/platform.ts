@@ -6,23 +6,28 @@
 export type HostOS = "macos" | "windows" | "linux" | "other";
 
 export function detectHostOS(): HostOS {
-	if (typeof navigator !== "undefined") {
+	// 1. Prefer Node.js process.platform on server-side
+	if (typeof process !== "undefined" && process.platform) {
+		switch (process.platform) {
+			case "darwin":
+				return "macos";
+			case "win32":
+				return "windows";
+			case "linux":
+				return "linux";
+		}
+	}
+	// 2. Client-side browser navigator.userAgent
+	if (
+		typeof navigator !== "undefined" &&
+		typeof navigator.userAgent === "string"
+	) {
 		const ua = navigator.userAgent;
 		if (/windows/i.test(ua)) return "windows";
 		if (/mac os|macintosh/i.test(ua)) return "macos";
 		if (/linux|android/i.test(ua)) return "linux";
-		return "other";
 	}
-	switch (globalThis.process?.platform) {
-		case "darwin":
-			return "macos";
-		case "win32":
-			return "windows";
-		case "linux":
-			return "linux";
-		default:
-			return "other";
-	}
+	return "other";
 }
 
 /** 各平台文件管理器的本地化叫法 */

@@ -4,6 +4,7 @@ import { useSortable } from "@dnd-kit/react/sortable";
 import { Dropdown, Skeleton, toast } from "@heroui/react";
 import dayjs from "dayjs";
 import {
+	Archive,
 	Check,
 	Ellipsis,
 	FilePlus2,
@@ -50,6 +51,7 @@ export interface DocumentSidebarProps {
 	onOpenImport: () => void;
 	onTogglePin: (docId: number, pinned: boolean) => Promise<void>;
 	onMoveDocument: (docId: number, folderId: number | null) => Promise<void>;
+	onArchive: (docId: number) => Promise<void>;
 }
 
 export function DocumentSidebar({
@@ -64,6 +66,7 @@ export function DocumentSidebar({
 	onOpenImport,
 	onTogglePin,
 	onMoveDocument,
+	onArchive,
 }: DocumentSidebarProps) {
 	const [deletingDoc, setDeletingDoc] = useState<EditorDocument | null>(null);
 	const [deleteLocalAssets, setDeleteLocalAssets] = useState(false);
@@ -214,6 +217,7 @@ export function DocumentSidebar({
 									onSelect={onSelect}
 									onTogglePin={onTogglePin}
 									onMoveDocument={onMoveDocument}
+									onArchive={onArchive}
 									onRequestDelete={(d) => {
 										setDeleteLocalAssets(false);
 										setDeletingDoc(d);
@@ -243,6 +247,7 @@ export function DocumentSidebar({
 							onSelect={onSelect}
 							onTogglePin={onTogglePin}
 							onMoveDocument={onMoveDocument}
+							onArchive={onArchive}
 							onRequestDelete={(d) => {
 								setDeleteLocalAssets(false);
 								setDeletingDoc(d);
@@ -289,6 +294,7 @@ interface DocRowCommonProps {
 	onSelect: (id: number) => void;
 	onTogglePin: (docId: number, pinned: boolean) => Promise<void>;
 	onMoveDocument: (docId: number, folderId: number | null) => Promise<void>;
+	onArchive: (docId: number) => Promise<void>;
 	onRequestDelete: (doc: EditorDocument) => void;
 }
 
@@ -349,6 +355,7 @@ function DocRowInner({
 	onSelect,
 	onTogglePin,
 	onMoveDocument,
+	onArchive,
 	onRequestDelete,
 }: DocRowCommonProps) {
 	const [opening, setOpening] = useState(false);
@@ -396,6 +403,7 @@ function DocRowInner({
 					opening={opening}
 					onTogglePin={onTogglePin}
 					onMoveDocument={onMoveDocument}
+					onArchive={onArchive}
 					onOpenLocalFolder={handleOpenLocalFolder}
 					onRequestDelete={onRequestDelete}
 				/>
@@ -425,13 +433,14 @@ function DocRowInner({
 	);
 }
 
-/** 文档 ⋯ 菜单：置顶 / 移动到文件夹 / 打开本地文件夹 / 删除 */
+/** 文档 ⋯ 菜单：置顶 / 移动到文件夹 / 打开本地文件夹 / 归档 / 删除 */
 function DocRowMenu({
 	doc,
 	folders,
 	opening,
 	onTogglePin,
 	onMoveDocument,
+	onArchive,
 	onOpenLocalFolder,
 	onRequestDelete,
 }: {
@@ -440,6 +449,7 @@ function DocRowMenu({
 	opening: boolean;
 	onTogglePin: (docId: number, pinned: boolean) => Promise<void>;
 	onMoveDocument: (docId: number, folderId: number | null) => Promise<void>;
+	onArchive: (docId: number) => Promise<void>;
 	onOpenLocalFolder: () => void;
 	onRequestDelete: (doc: EditorDocument) => void;
 }) {
@@ -543,6 +553,24 @@ function DocRowMenu({
 							</Dropdown.Menu>
 						</Dropdown.Popover>
 					</Dropdown.SubmenuTrigger>
+					<Dropdown.Item
+						id="archive"
+						textValue="归档"
+						onAction={() => {
+							void onArchive(doc.id).then(
+								() => toast.success(`「${doc.title}」已归档`),
+								(err) =>
+									toast.danger(
+										`归档失败：${err instanceof Error ? err.message : String(err)}`,
+									),
+							);
+						}}
+					>
+						<div className="flex items-center gap-2 py-0.5">
+							<Archive className="w-3.5 h-3.5 text-muted shrink-0" />
+							<span className="text-xs">归档（移出创作台）</span>
+						</div>
+					</Dropdown.Item>
 					<Dropdown.Item
 						id="delete"
 						textValue="删除文档"

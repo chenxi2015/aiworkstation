@@ -65,10 +65,14 @@ export interface Material {
 	content: string;
 	note?: string | null;
 	status: MaterialStatus;
+	/** 收藏标记（素材库「已收藏」筛选） */
+	starred?: boolean;
 	createdAt?: string;
 	updatedAt?: string;
 	assets?: MaterialAsset[];
 }
+
+export type AssetStorageMode = "managed" | "external";
 
 export interface MaterialAsset {
 	id: number;
@@ -78,6 +82,8 @@ export interface MaterialAsset {
 	filename: string;
 	mime?: string | null;
 	sizeBytes?: number | null;
+	storageMode?: AssetStorageMode;
+	sourcePath?: string | null;
 	createdAt?: string;
 }
 

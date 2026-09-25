@@ -1,35 +1,21 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { EditorApp } from "../components/editor/EditorApp";
-import { EditorSkeleton } from "../components/workbench/skeletons";
-import { workbenchLoader } from "./-workbenchLoader";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
-/** 创作模块深链参数：直接打开指定文档 */
-export interface EditorSearch {
-	doc?: number;
-}
-
+/**
+ * 「创作」模块已并入「自媒体」（docs/selfmedia-merge-plan.md）：
+ * /editor?doc=N → /creator?tab=studio&mode=doc&doc=N，保留历史深链。
+ */
 export const Route = createFileRoute("/editor")({
-	validateSearch: (search: Record<string, unknown>): EditorSearch => ({
+	validateSearch: (search: Record<string, unknown>): { doc?: number } => ({
 		doc:
 			typeof search.doc === "number" && Number.isFinite(search.doc)
 				? search.doc
 				: undefined,
 	}),
-	loader: workbenchLoader,
-	pendingComponent: EditorSkeleton,
-	pendingMs: 200,
-	component: EditorPage,
+	beforeLoad: ({ search }) => {
+		throw redirect({
+			to: "/creator",
+			search: { tab: "studio", mode: "doc", doc: search.doc },
+			replace: true,
+		});
+	},
 });
-
-function EditorPage() {
-	const { unclassified, settings, folders } = Route.useLoaderData();
-	const search = Route.useSearch();
-	return (
-		<EditorApp
-			unclassifiedCount={unclassified.length}
-			navLayout={settings.navLayout}
-			folders={folders}
-			initialDocId={search.doc}
-		/>
-	);
-}

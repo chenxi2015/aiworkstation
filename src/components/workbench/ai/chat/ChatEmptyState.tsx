@@ -26,7 +26,7 @@ const DEFAULT_GLOBAL_PROMPTS = [
 	"检索我收藏的所有关于 AI 与大模型相关的开源工具",
 	"盘点我最近收藏的前端开发框架与高质量资源",
 	"从我的收藏中挑选 3 个最适合独立开发者的盈利产品案例",
-	"根据我的书签库，推荐一套高效的内容创作工具集",
+	"根据我的书签库，推荐一套高效的内容创作工具箱",
 ];
 
 interface PromptListItem {
@@ -112,7 +112,7 @@ function parsePromptMeta(prompt: string) {
 			title: "前端资源，精选推荐",
 		};
 	}
-	if (prompt.includes("创作") || prompt.includes("工具集")) {
+	if (prompt.includes("创作") || prompt.includes("工具箱")) {
 		return {
 			icon: Sparkles,
 			title: "创作工具，场景搭配",

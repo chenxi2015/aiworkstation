@@ -73,7 +73,7 @@ export const WORKBENCH_WIDGETS: readonly WidgetDef[] = [
 		label: "创作文档",
 		description: "最近编辑的创作台文档",
 		icon: PenLine,
-		moduleCode: "editor",
+		moduleCode: "creator",
 		tone: "emerald",
 	},
 	{

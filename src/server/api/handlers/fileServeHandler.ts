@@ -4,27 +4,6 @@ import path from "node:path";
 import { assertPathWithinRoot } from "../../ai/fs/fsSafety.ts";
 import { getFilesRootDir } from "../../services/filesRoot.ts";
 
-const MIME_BY_EXT: Record<string, string> = {
-	png: "image/png",
-	jpg: "image/jpeg",
-	jpeg: "image/jpeg",
-	gif: "image/gif",
-	webp: "image/webp",
-	svg: "image/svg+xml",
-	mp4: "video/mp4",
-	mov: "video/quicktime",
-	webm: "video/webm",
-	mkv: "video/x-matroska",
-	m4v: "video/x-m4v",
-	mp3: "audio/mpeg",
-	wav: "audio/wav",
-	m4a: "audio/mp4",
-	ogg: "audio/ogg",
-	flac: "audio/flac",
-	md: "text/markdown; charset=utf-8",
-	pdf: "application/pdf",
-};
-
 /**
  * GET /api/files/<relPath>
  * 以只读方式回读 filesRootDir 内的文件（编辑器媒体、素材资产等），
@@ -58,13 +37,8 @@ export async function handleFileServeRequest(
 			return;
 		}
 		const ext = path.extname(absPath).replace(/^\./, "").toLowerCase();
-		res.setHeader(
-			"Content-Type",
-			MIME_BY_EXT[ext] ?? "application/octet-stream",
-		);
-		res.setHeader("Content-Length", fs.statSync(absPath).size);
-		res.setHeader("Cache-Control", "private, max-age=3600");
-		fs.createReadStream(absPath).pipe(res);
+		const { streamLocalFile } = await import("./assetStreamHandler.ts");
+		streamLocalFile(req, res, absPath, ext);
 	} catch (err: unknown) {
 		const errMsg = err instanceof Error ? err.message : String(err);
 		res.statusCode = 403;

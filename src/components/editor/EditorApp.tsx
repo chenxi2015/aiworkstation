@@ -54,6 +54,8 @@ export interface EditorAppProps {
 	folders: Folder[];
 	/** 深链：文档就绪后直接打开指定文档 */
 	initialDocId?: number;
+	/** 嵌入自媒体「创作台」时隐藏全局头部与快捷动作弹窗（由宿主 CreatorApp 渲染） */
+	embedded?: boolean;
 }
 
 /**
@@ -67,6 +69,7 @@ export function EditorApp({
 	navLayout,
 	folders,
 	initialDocId,
+	embedded = false,
 }: EditorAppProps) {
 	const { actionProps, modals } = useWorkbenchQuickActions({ folders });
 	const docManager = useDocumentManager();
@@ -95,6 +98,7 @@ export function EditorApp({
 		handleTitleChange,
 		handleStylePresetChange,
 		handleStatusChange,
+		handleArchive,
 		handleSnapshot,
 		handleBeforeAiApply,
 		handleAiGenerate,
@@ -458,12 +462,16 @@ export function EditorApp({
 	const wordCount = contentText.length || (activeDoc?.contentText.length ?? 0);
 
 	return (
-		<div className="h-screen bg-surface dark:bg-background text-foreground flex flex-col overflow-hidden">
-			<WorkbenchHeader
-				unclassifiedCount={unclassifiedCount}
-				navLayout={navLayout}
-				{...actionProps}
-			/>
+		<div
+			className={`${embedded ? "h-full" : "h-screen"} bg-surface dark:bg-background text-foreground flex flex-col overflow-hidden`}
+		>
+			{!embedded && (
+				<WorkbenchHeader
+					unclassifiedCount={unclassifiedCount}
+					navLayout={navLayout}
+					{...actionProps}
+				/>
+			)}
 			<main className="flex-1 overflow-hidden flex min-h-0">
 				{/* Left: Folders + Documents（Notes 式三栏，跨栏拖拽共用一个 provider） */}
 				<DragDropProvider
@@ -500,6 +508,7 @@ export function EditorApp({
 						onOpenImport={() => setIsImportModalOpen(true)}
 						onTogglePin={handleTogglePinned}
 						onMoveDocument={handleMoveDocument}
+						onArchive={handleArchive}
 					/>
 					{/* 拖拽跟随物：Notes 式纯图标芯片，紧贴指针左侧（自绘，不用 DragOverlay 避免继承源卡片宽度） */}
 					<EditorDragChip />
@@ -591,7 +600,7 @@ export function EditorApp({
 					)}
 				</section>
 			</main>
-			{modals}
+			{!embedded && modals}
 			<ImportModal
 				isOpen={isImportModalOpen}
 				onClose={() => setIsImportModalOpen(false)}

@@ -77,6 +77,7 @@ export interface UseDocumentManagerReturn {
 	handleTitleChange: (title: string) => void;
 	handleStylePresetChange: (stylePreset: string) => void;
 	handleStatusChange: (status: EditorDocument["status"]) => Promise<void>;
+	handleArchive: (docId: number) => Promise<void>;
 	handleSnapshot: (note?: string) => Promise<void>;
 	handleBeforeAiApply: () => Promise<void>;
 	handleAiGenerate: (prompt: string) => Promise<string>;
@@ -591,6 +592,22 @@ export function useDocumentManager(): UseDocumentManagerReturn {
 		[flushSave],
 	);
 
+	/** 归档指定文档（docs/selfmedia-merge-plan.md：创作中 ⇄ 归档互斥，归档后从创作台列表消失） */
+	const handleArchive = useCallback(
+		async (docId: number) => {
+			if (activeIdRef.current === docId) await flushSave();
+			await updateDocumentRpc({ id: docId, status: "archived" });
+			setDocuments((prev) => {
+				const next = prev.filter((d) => d.id !== docId);
+				if (activeIdRef.current === docId) {
+					setActiveId(next[0]?.id ?? null);
+				}
+				return next;
+			});
+		},
+		[flushSave],
+	);
+
 	const handleSnapshot = useCallback(
 		async (note = "手动存档") => {
 			const id = activeIdRef.current;
@@ -650,6 +667,7 @@ export function useDocumentManager(): UseDocumentManagerReturn {
 		handleTitleChange,
 		handleStylePresetChange,
 		handleStatusChange,
+		handleArchive,
 		handleSnapshot,
 		handleBeforeAiApply,
 		handleAiGenerate,

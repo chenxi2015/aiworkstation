@@ -274,7 +274,7 @@ pnpm --filter ./extensions/aicollector dev
   - [x] 实时折叠步骤时间轴（AgentStepTimeline）
 - [x] **M3: 智能爬虫通道与 Browser Co-Pilot**
   - [x] 插件静默抓取通道（调度扩展后台抓取，突破 SPA 客户端渲染与登录态）
-  - [x] 联网搜索工具集成（`web_search`）
+  - [x] 联网搜索工具箱成（`web_search`）
   - [ ] 选区规则模板化（Recipe：可视化点选录制选择器 ➔ 持久化精准定向爬取）
   - [ ] 浏览器原子动作驱动（点击、滚动翻页、表单填写交互流）
 - [x] **M4: 创作台与自媒体工作流**

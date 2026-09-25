@@ -71,13 +71,21 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 	creator: {
 		code: "creator",
 		systemPromptHint:
-			"用户正在「自媒体」模块。偏向内容生产：从收藏库检索素材与选题、提炼观点、生成二创草稿（推文/小红书/脚本），并提醒人工确认后再发布。",
+			"用户正在「自媒体」板块（素材库/创作台/归档/工具箱/热点雷达）。偏向内容生产：管理素材、从收藏库检索选题、提炼观点、生成二创草稿（推文/小红书/脚本），并提醒人工确认后再发布。创作台编辑态下由 editor 写作人格接管（页面桥接）。",
 		promptSuggestions: [
 			"从我的收藏里挖掘 3 个值得二创的选题并给出切入角度",
 			"基于我收藏的 AI 工具资料，起草一条小红书风格的推荐帖",
 			"把某个主题文件夹提炼成一篇口播脚本大纲",
+			"帮我把最近的素材整理成一篇长文大纲，导入创作台",
 		],
-		contextItemTypes: ["bookmark", "folder", "tag", "image", "file"],
+		contextItemTypes: [
+			"bookmark",
+			"folder",
+			"tag",
+			"image",
+			"file",
+			"document",
+		],
 	},
 	learn: {
 		code: "learn",

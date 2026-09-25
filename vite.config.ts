@@ -16,37 +16,40 @@ process.env.VITE_CONFIG_NATIVE_IGNORE_WARNING = "true";
 const config = defineConfig(({ command, mode }) => {
 	const isCloudflareTarget = mode === "cloudflare";
 	return {
-	server: {
-		port: 3888,
-	},
-	resolve: { tsconfigPaths: true },
-	plugins: [
-		extensionApiPlugin(),
-		devtools(),
-		// Only enable Cloudflare worker runner for the cloudflare build to
-		// allow native SQLite in local dev / Node builds
-		...(command === "build" && isCloudflareTarget
-			? [cloudflare({ viteEnvironment: { name: "ssr" } })]
-			: []),
-		tailwindcss(),
-		tanstackStart(),
-		// Node/Docker target: Nitro bundles the SSR server plus the extension
-		// API routes (same route table as the dev plugin, node-format handler).
-		...(command === "build" && !isCloudflareTarget
-			? [
-					nitro({
-						handlers: [
-							{
-								route: "/api/**",
-								handler: "./src/server/api/extensionApi.nitro.ts",
-								format: "node",
-							},
-						],
-					}),
-				]
-			: []),
-		viteReact(),
-	],
+		server: {
+			port: 3888,
+		},
+		resolve: { tsconfigPaths: true },
+		optimizeDeps: {
+			exclude: ["better-sqlite3"],
+		},
+		plugins: [
+			extensionApiPlugin(),
+			devtools(),
+			// Only enable Cloudflare worker runner for the cloudflare build to
+			// allow native SQLite in local dev / Node builds
+			...(command === "build" && isCloudflareTarget
+				? [cloudflare({ viteEnvironment: { name: "ssr" } })]
+				: []),
+			tailwindcss(),
+			tanstackStart(),
+			// Node/Docker target: Nitro bundles the SSR server plus the extension
+			// API routes (same route table as the dev plugin, node-format handler).
+			...(command === "build" && !isCloudflareTarget
+				? [
+						nitro({
+							handlers: [
+								{
+									route: "/api/**",
+									handler: "./src/server/api/extensionApi.nitro.ts",
+									format: "node",
+								},
+							],
+						}),
+					]
+				: []),
+			viteReact(),
+		],
 	};
 });
 

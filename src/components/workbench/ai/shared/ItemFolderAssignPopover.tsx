@@ -223,7 +223,7 @@ export function ItemFolderAssignPopover({
 												onCreateFolderAndMove();
 											}
 										}}
-										placeholder="例如：AI 探索与工具集"
+										placeholder="例如：AI 探索与工具箱"
 										className="w-full bg-surface-secondary/70 border border-border rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:outline-none focus:border-accent transition-colors"
 										autoFocus
 									/>
