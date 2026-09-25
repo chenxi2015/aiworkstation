@@ -75,13 +75,15 @@ export function MaterialsToolbar({
 	getTypeCount,
 }: MaterialsToolbarProps) {
 	return (
-		<div className="shrink-0 px-5 pt-4 border-b border-border">
+		<div className="shrink-0 px-4 sm:px-5 pt-3 sm:pt-4 border-b border-border">
 			<div className="flex flex-wrap items-center gap-2 mb-3">
-				<h2 className="text-sm font-semibold text-foreground mr-1">{title}</h2>
-				<span className="text-[10px] text-muted">
+				<h2 className="text-sm font-semibold text-foreground mr-1 shrink-0">
+					{title}
+				</h2>
+				<span className="text-[10px] text-muted shrink-0">
 					{totalInFolder} 条素材
 				</span>
-				<div className="ml-auto flex items-center gap-2">
+				<div className="ml-auto flex flex-wrap items-center gap-1.5 sm:gap-2">
 					{/* Search input */}
 					<div className="relative">
 						<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted pointer-events-none" />
@@ -90,7 +92,7 @@ export function MaterialsToolbar({
 							value={search}
 							onChange={(e) => onSearchChange(e.target.value)}
 							placeholder="搜索素材…"
-							className="w-40 rounded-full border border-border/70 bg-surface pl-7 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted/70 focus:outline-none focus:border-accent/60 transition-colors"
+							className="w-32 sm:w-40 rounded-full border border-border/70 bg-surface pl-7 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted/70 focus:outline-none focus:border-accent/60 transition-colors"
 						/>
 					</div>
 
@@ -235,7 +237,7 @@ export function MaterialsToolbar({
 			</div>
 
 			{/* Type filter tabs */}
-			<div className="flex items-center gap-1">
+			<div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
 				{TYPE_TABS.map((tab) => {
 					const Icon = tab.icon;
 					const active = typeTab === tab.id;
@@ -245,7 +247,7 @@ export function MaterialsToolbar({
 							key={tab.id}
 							type="button"
 							onClick={() => onTypeTabChange(tab.id)}
-							className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 -mb-px transition-colors cursor-pointer ${
+							className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 -mb-px transition-colors cursor-pointer shrink-0 ${
 								active
 									? "border-accent text-accent"
 									: "border-transparent text-muted hover:text-foreground"

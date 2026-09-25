@@ -96,7 +96,7 @@ export function MaterialsGridSkeleton({ count = 12 }: { count?: number }) {
 	const items = Array.from({ length: count }, (_, i) => i);
 
 	return (
-		<div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-6 gap-3 p-5 animate-pulse">
+		<div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-3 sm:gap-4 p-4 sm:p-5 animate-pulse">
 			{items.map((i) => (
 				<div
 					key={`grid-card-skel-${i}`}

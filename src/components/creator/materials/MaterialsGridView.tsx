@@ -43,7 +43,7 @@ export function MaterialsGridView({
 	onDelete,
 }: MaterialsGridViewProps) {
 	return (
-		<ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-6 gap-3 p-5">
+		<ul className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-3 sm:gap-4 p-4 sm:p-5">
 			{materials.map((material) => {
 				const kind = getMaterialKind(material);
 				const KindIcon = KIND_ICONS[kind];
@@ -95,28 +95,31 @@ export function MaterialsGridView({
 							>
 								{material.title}
 							</p>
-							<p className="text-[10px] text-muted mt-0.5">
+							<p
+								className="text-[10px] text-muted mt-0.5 truncate whitespace-nowrap"
+								title={`#${material.id} · ${KIND_BADGES[kind]} · ${(material.updatedAt ?? material.createdAt ?? "").slice(0, 10)}`}
+							>
 								<span className="font-mono text-muted/80 mr-1">
 									#{material.id}
 								</span>
 								· {KIND_BADGES[kind]} ·{" "}
 								{(material.updatedAt ?? material.createdAt ?? "").slice(0, 10)}
 							</p>
-							<div className="flex items-center justify-between gap-1 mt-2">
+							<div className="flex items-center justify-between gap-1.5 mt-2">
 								<Button
 									type="button"
 									variant="secondary"
 									size="sm"
-									className="rounded-lg h-6 text-[10px] px-2 flex items-center gap-1 cursor-pointer shrink-0"
+									className="rounded-lg h-6 text-[10px] px-2 flex items-center gap-1 cursor-pointer shrink min-w-0"
 									isDisabled={importingId === material.id}
 									onPress={() => onImportToStudio(material)}
 								>
 									{importingId === material.id ? (
-										<Loader2 className="w-3 h-3 animate-spin" />
+										<Loader2 className="w-3 h-3 animate-spin shrink-0" />
 									) : (
-										<Sparkles className="w-3 h-3 text-accent" />
+										<Sparkles className="w-3 h-3 text-accent shrink-0" />
 									)}
-									导入创作台
+									<span className="truncate">导入创作台</span>
 								</Button>
 
 								<Dropdown>

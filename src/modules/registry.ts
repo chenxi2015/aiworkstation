@@ -56,6 +56,14 @@ export const MODULES: readonly ModuleDef[] = [
 		aliases: ["工作台"],
 	},
 	{
+		code: "obsidian",
+		label: "笔记",
+		route: "/obsidian",
+		icon: NotebookPen,
+		description:
+			"Obsidian 本地 Vault 直连：目录即分类，Markdown 文件直接读写，不落库。",
+	},
+	{
 		code: "bookmarks",
 		label: "书签",
 		route: "/bookmarks",
@@ -72,30 +80,22 @@ export const MODULES: readonly ModuleDef[] = [
 			"自媒体一体化板块：素材库 / 创作台 / 归档 / 工具箱 / 热点雷达（docs/selfmedia-merge-plan.md）。",
 		aliases: ["自媒体", "创作", "editor"],
 	},
-	{
-		code: "learn",
-		label: "学习",
-		route: "/learn",
-		icon: GraduationCap,
-		description: "学习主题资源聚合与学习路径管理。",
-		aliases: ["学习"],
-	},
-	{
-		code: "ecommerce",
-		label: "电商",
-		route: "/ecommerce",
-		icon: ShoppingBag,
-		description: "电商选品、素材与运营资源的归集。",
-		aliases: ["电商"],
-	},
-	{
-		code: "obsidian",
-		label: "笔记",
-		route: "/obsidian",
-		icon: NotebookPen,
-		description:
-			"Obsidian 本地 Vault 直连：目录即分类，Markdown 文件直接读写，不落库。",
-	},
+	// {
+	// 	code: "learn",
+	// 	label: "学习",
+	// 	route: "/learn",
+	// 	icon: GraduationCap,
+	// 	description: "学习主题资源聚合与学习路径管理。",
+	// 	aliases: ["学习"],
+	// },
+	// {
+	// 	code: "ecommerce",
+	// 	label: "电商",
+	// 	route: "/ecommerce",
+	// 	icon: ShoppingBag,
+	// 	description: "电商选品、素材与运营资源的归集。",
+	// 	aliases: ["电商"],
+	// },
 	{
 		code: "skills",
 		label: "Skills",
