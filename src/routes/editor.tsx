@@ -13,8 +13,8 @@ export const Route = createFileRoute("/editor")({
 	}),
 	beforeLoad: ({ search }) => {
 		throw redirect({
-			to: "/creator",
-			search: { tab: "studio", mode: "doc", doc: search.doc },
+			to: "/creator/studio",
+			search: { mode: "doc", doc: search.doc },
 			replace: true,
 		});
 	},

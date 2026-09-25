@@ -19,8 +19,7 @@ export function EditorRecentWidget({ summary }: DashboardWidgetProps) {
 	return (
 		<div className="flex flex-col gap-2 h-full">
 			<Link
-				to="/creator"
-				search={{ tab: "studio", mode: "doc" }}
+				to="/creator/studio"
 				className="text-[11px] text-muted hover:text-emerald-600 dark:hover:text-emerald-300 transition-colors w-fit"
 			>
 				共 <span className="font-mono text-foreground">{total}</span> 篇文档
@@ -29,8 +28,8 @@ export function EditorRecentWidget({ summary }: DashboardWidgetProps) {
 				{recent.map((doc) => (
 					<li key={doc.id}>
 						<Link
-							to="/creator"
-							search={{ tab: "studio", mode: "doc", doc: doc.id }}
+							to="/creator/studio"
+							search={{ doc: doc.id }}
 							title={`打开文档：${doc.title}`}
 							className="flex items-center gap-2 text-[11px] rounded-lg px-1.5 -mx-1.5 py-0.5 hover:bg-emerald-50 dark:hover:bg-emerald-400/10 transition-colors group"
 						>

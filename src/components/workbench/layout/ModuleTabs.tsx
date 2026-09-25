@@ -85,7 +85,9 @@ export const ModuleTabs = memo(function ModuleTabs({
 				<ModuleTabItem
 					key={mod.code}
 					module={mod}
-					isActive={pathname === mod.route}
+					isActive={
+						pathname === mod.route || pathname.startsWith(`${mod.route}/`)
+					}
 					unclassifiedCount={unclassifiedCount}
 				/>
 			))}

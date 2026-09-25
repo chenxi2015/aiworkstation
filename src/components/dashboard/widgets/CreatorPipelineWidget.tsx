@@ -16,8 +16,7 @@ export function CreatorPipelineWidget({ summary }: DashboardWidgetProps) {
 		<div className="flex flex-col gap-2.5 h-full">
 			<div className="grid grid-cols-3 gap-2">
 				<Link
-					to="/creator"
-					search={{ tab: "materials" }}
+					to="/creator/materials"
 					title="打开素材库"
 					className="rounded-xl bg-violet-50 dark:bg-violet-400/10 px-2.5 py-2 transition-transform hover:scale-[1.03]"
 				>
@@ -27,8 +26,8 @@ export function CreatorPipelineWidget({ summary }: DashboardWidgetProps) {
 					<div className="text-[10px] text-muted">素材</div>
 				</Link>
 				<Link
-					to="/creator"
-					search={{ tab: "studio", mode: "drafts" }}
+					to="/creator/studio"
+					search={{ mode: "drafts" }}
 					title="打开进度台审稿"
 					className="rounded-xl bg-amber-50 dark:bg-amber-400/10 px-2.5 py-2 transition-transform hover:scale-[1.03]"
 				>
@@ -40,8 +39,8 @@ export function CreatorPipelineWidget({ summary }: DashboardWidgetProps) {
 					<div className="text-[10px] text-muted">待审稿</div>
 				</Link>
 				<Link
-					to="/creator"
-					search={{ tab: "studio", mode: "drafts" }}
+					to="/creator/studio"
+					search={{ mode: "drafts" }}
 					title="打开进度台"
 					className="rounded-xl bg-sky-50 dark:bg-sky-400/10 px-2.5 py-2 transition-transform hover:scale-[1.03]"
 				>
@@ -56,8 +55,8 @@ export function CreatorPipelineWidget({ summary }: DashboardWidgetProps) {
 					{recentDrafts.map((draft) => (
 						<li key={draft.id}>
 							<Link
-								to="/creator"
-								search={{ tab: "studio", mode: "drafts", draft: draft.id }}
+								to="/creator/studio"
+								search={{ mode: "drafts", draft: draft.id }}
 								title={`打开草稿编辑器：${draft.materialTitle}`}
 								className="flex items-center gap-2 text-[11px] min-w-0 rounded-lg px-1.5 -mx-1.5 py-0.5 hover:bg-violet-50 dark:hover:bg-violet-400/10 transition-colors group"
 							>

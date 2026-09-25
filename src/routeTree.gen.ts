@@ -19,6 +19,12 @@ import { Route as LearnRouteImport } from './routes/learn'
 import { Route as ObsidianRouteImport } from './routes/obsidian'
 import { Route as SkillsRouteImport } from './routes/skills'
 import { Route as WorkbenchRouteImport } from './routes/workbench'
+import { Route as CreatorIndexRouteImport } from './routes/creator/index'
+import { Route as CreatorArchiveRouteImport } from './routes/creator/archive'
+import { Route as CreatorMaterialsRouteImport } from './routes/creator/materials'
+import { Route as CreatorRadarRouteImport } from './routes/creator/radar'
+import { Route as CreatorStudioRouteImport } from './routes/creator/studio'
+import { Route as CreatorToolsRouteImport } from './routes/creator/tools'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -70,43 +76,90 @@ const WorkbenchRoute = WorkbenchRouteImport.update({
   path: '/workbench',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CreatorIndexRoute = CreatorIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => CreatorRoute,
+} as any)
+const CreatorArchiveRoute = CreatorArchiveRouteImport.update({
+  id: '/archive',
+  path: '/archive',
+  getParentRoute: () => CreatorRoute,
+} as any)
+const CreatorMaterialsRoute = CreatorMaterialsRouteImport.update({
+  id: '/materials',
+  path: '/materials',
+  getParentRoute: () => CreatorRoute,
+} as any)
+const CreatorRadarRoute = CreatorRadarRouteImport.update({
+  id: '/radar',
+  path: '/radar',
+  getParentRoute: () => CreatorRoute,
+} as any)
+const CreatorStudioRoute = CreatorStudioRouteImport.update({
+  id: '/studio',
+  path: '/studio',
+  getParentRoute: () => CreatorRoute,
+} as any)
+const CreatorToolsRoute = CreatorToolsRouteImport.update({
+  id: '/tools',
+  path: '/tools',
+  getParentRoute: () => CreatorRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/bookmarks': typeof BookmarksRoute
-  '/creator': typeof CreatorRoute
+  '/creator': typeof CreatorRouteWithChildren
   '/ecommerce': typeof EcommerceRoute
   '/editor': typeof EditorRoute
   '/learn': typeof LearnRoute
   '/obsidian': typeof ObsidianRoute
   '/skills': typeof SkillsRoute
   '/workbench': typeof WorkbenchRoute
+  '/creator/archive': typeof CreatorArchiveRoute
+  '/creator/materials': typeof CreatorMaterialsRoute
+  '/creator/radar': typeof CreatorRadarRoute
+  '/creator/studio': typeof CreatorStudioRoute
+  '/creator/tools': typeof CreatorToolsRoute
+  '/creator/': typeof CreatorIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/bookmarks': typeof BookmarksRoute
-  '/creator': typeof CreatorRoute
   '/ecommerce': typeof EcommerceRoute
   '/editor': typeof EditorRoute
   '/learn': typeof LearnRoute
   '/obsidian': typeof ObsidianRoute
   '/skills': typeof SkillsRoute
   '/workbench': typeof WorkbenchRoute
+  '/creator/archive': typeof CreatorArchiveRoute
+  '/creator/materials': typeof CreatorMaterialsRoute
+  '/creator/radar': typeof CreatorRadarRoute
+  '/creator/studio': typeof CreatorStudioRoute
+  '/creator/tools': typeof CreatorToolsRoute
+  '/creator': typeof CreatorIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/bookmarks': typeof BookmarksRoute
-  '/creator': typeof CreatorRoute
+  '/creator': typeof CreatorRouteWithChildren
   '/ecommerce': typeof EcommerceRoute
   '/editor': typeof EditorRoute
   '/learn': typeof LearnRoute
   '/obsidian': typeof ObsidianRoute
   '/skills': typeof SkillsRoute
   '/workbench': typeof WorkbenchRoute
+  '/creator/archive': typeof CreatorArchiveRoute
+  '/creator/materials': typeof CreatorMaterialsRoute
+  '/creator/radar': typeof CreatorRadarRoute
+  '/creator/studio': typeof CreatorStudioRoute
+  '/creator/tools': typeof CreatorToolsRoute
+  '/creator/': typeof CreatorIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -121,18 +174,29 @@ export interface FileRouteTypes {
     | '/obsidian'
     | '/skills'
     | '/workbench'
+    | '/creator/archive'
+    | '/creator/materials'
+    | '/creator/radar'
+    | '/creator/studio'
+    | '/creator/tools'
+    | '/creator/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/about'
     | '/bookmarks'
-    | '/creator'
     | '/ecommerce'
     | '/editor'
     | '/learn'
     | '/obsidian'
     | '/skills'
     | '/workbench'
+    | '/creator/archive'
+    | '/creator/materials'
+    | '/creator/radar'
+    | '/creator/studio'
+    | '/creator/tools'
+    | '/creator'
   id:
     | '__root__'
     | '/'
@@ -145,13 +209,19 @@ export interface FileRouteTypes {
     | '/obsidian'
     | '/skills'
     | '/workbench'
+    | '/creator/archive'
+    | '/creator/materials'
+    | '/creator/radar'
+    | '/creator/studio'
+    | '/creator/tools'
+    | '/creator/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
   BookmarksRoute: typeof BookmarksRoute
-  CreatorRoute: typeof CreatorRoute
+  CreatorRoute: typeof CreatorRouteWithChildren
   EcommerceRoute: typeof EcommerceRoute
   EditorRoute: typeof EditorRoute
   LearnRoute: typeof LearnRoute
@@ -232,14 +302,77 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkbenchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/creator/': {
+      id: '/creator/'
+      path: '/'
+      fullPath: '/creator/'
+      preLoaderRoute: typeof CreatorIndexRouteImport
+      parentRoute: typeof CreatorRoute
+    }
+    '/creator/archive': {
+      id: '/creator/archive'
+      path: '/archive'
+      fullPath: '/creator/archive'
+      preLoaderRoute: typeof CreatorArchiveRouteImport
+      parentRoute: typeof CreatorRoute
+    }
+    '/creator/materials': {
+      id: '/creator/materials'
+      path: '/materials'
+      fullPath: '/creator/materials'
+      preLoaderRoute: typeof CreatorMaterialsRouteImport
+      parentRoute: typeof CreatorRoute
+    }
+    '/creator/radar': {
+      id: '/creator/radar'
+      path: '/radar'
+      fullPath: '/creator/radar'
+      preLoaderRoute: typeof CreatorRadarRouteImport
+      parentRoute: typeof CreatorRoute
+    }
+    '/creator/studio': {
+      id: '/creator/studio'
+      path: '/studio'
+      fullPath: '/creator/studio'
+      preLoaderRoute: typeof CreatorStudioRouteImport
+      parentRoute: typeof CreatorRoute
+    }
+    '/creator/tools': {
+      id: '/creator/tools'
+      path: '/tools'
+      fullPath: '/creator/tools'
+      preLoaderRoute: typeof CreatorToolsRouteImport
+      parentRoute: typeof CreatorRoute
+    }
   }
 }
+
+interface CreatorRouteChildren {
+  CreatorArchiveRoute: typeof CreatorArchiveRoute
+  CreatorMaterialsRoute: typeof CreatorMaterialsRoute
+  CreatorRadarRoute: typeof CreatorRadarRoute
+  CreatorStudioRoute: typeof CreatorStudioRoute
+  CreatorToolsRoute: typeof CreatorToolsRoute
+  CreatorIndexRoute: typeof CreatorIndexRoute
+}
+
+const CreatorRouteChildren: CreatorRouteChildren = {
+  CreatorArchiveRoute: CreatorArchiveRoute,
+  CreatorMaterialsRoute: CreatorMaterialsRoute,
+  CreatorRadarRoute: CreatorRadarRoute,
+  CreatorStudioRoute: CreatorStudioRoute,
+  CreatorToolsRoute: CreatorToolsRoute,
+  CreatorIndexRoute: CreatorIndexRoute,
+}
+
+const CreatorRouteWithChildren =
+  CreatorRoute._addFileChildren(CreatorRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
   BookmarksRoute: BookmarksRoute,
-  CreatorRoute: CreatorRoute,
+  CreatorRoute: CreatorRouteWithChildren,
   EcommerceRoute: EcommerceRoute,
   EditorRoute: EditorRoute,
   LearnRoute: LearnRoute,

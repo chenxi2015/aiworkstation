@@ -7,4 +7,5 @@ export * from "./FolderGridSkeleton";
 export * from "./HeaderSkeleton";
 export * from "./ModuleSkeleton";
 export * from "./ObsidianSkeleton";
+export * from "./SkillsSkeleton";
 export * from "./WorkbenchSkeleton";

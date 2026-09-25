@@ -72,23 +72,20 @@ function eventLink(kind: ActivityKind, id: string | number) {
 			return { to: "/bookmarks" as const, search: { item: String(id) } };
 		case "material":
 			return {
-				to: "/creator" as const,
-				search: { tab: "materials" as const, material: Number(id) },
+				to: "/creator/materials" as const,
 			};
 		case "draft":
 			return {
-				to: "/creator" as const,
+				to: "/creator/studio" as const,
 				search: {
-					tab: "studio" as const,
 					mode: "drafts" as const,
 					draft: Number(id),
 				},
 			};
 		case "document":
 			return {
-				to: "/creator" as const,
+				to: "/creator/studio" as const,
 				search: {
-					tab: "studio" as const,
 					mode: "doc" as const,
 					doc: Number(id),
 				},

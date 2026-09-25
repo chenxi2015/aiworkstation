@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SkillsApp } from "../components/skills/SkillsApp";
-import { ModuleSkeleton } from "../components/workbench/skeletons";
+import { SkillsSkeleton } from "../components/workbench/skeletons";
 import { workbenchLoader } from "./-workbenchLoader";
 
 /** Skills 模块深链参数：按目录路径直接打开 skill 详情面板 */
@@ -16,7 +16,7 @@ export const Route = createFileRoute("/skills")({
 				: undefined,
 	}),
 	loader: workbenchLoader,
-	pendingComponent: ModuleSkeleton,
+	pendingComponent: SkillsSkeleton,
 	pendingMs: 200,
 	component: SkillsPage,
 });

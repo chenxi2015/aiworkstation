@@ -6,6 +6,7 @@ import type { NavLayoutEntry } from "../../modules/registry";
 import { fetchSkillsOverview } from "../../services/api/skillsClient";
 import { useWorkbenchQuickActions } from "../workbench/layout/useWorkbenchQuickActions";
 import { WorkbenchHeader } from "../workbench/layout/WorkbenchHeader";
+import { SkillsGridSkeleton, SkillsListSkeleton } from "../workbench/skeletons";
 import type { Folder } from "../workbench/types";
 import { InstallSkillModal } from "./InstallSkillModal";
 import { SkillDetailPanel } from "./SkillDetailPanel";
@@ -214,14 +215,11 @@ export function SkillsApp({
 
 					{/* Loading Skeletons */}
 					{loading ? (
-						<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-							{["sk-1", "sk-2", "sk-3", "sk-4", "sk-5", "sk-6"].map((key) => (
-								<div
-									key={key}
-									className="h-44 rounded-2xl border border-zinc-200/60 dark:border-zinc-800/60 bg-white/60 dark:bg-zinc-900/40 animate-pulse"
-								/>
-							))}
-						</div>
+						viewMode === "grid" ? (
+							<SkillsGridSkeleton count={6} />
+						) : (
+							<SkillsListSkeleton count={6} />
+						)
 					) : filteredSkills.length === 0 ? (
 						/* Empty State */
 						<div className="flex flex-col items-center justify-center py-20 text-center">

@@ -54,20 +54,20 @@ export const MODULES: readonly ModuleDef[] = [
 		aliases: ["工作台"],
 	},
 	{
-		code: "obsidian",
-		label: "笔记",
-		route: "/obsidian",
-		icon: NotebookPen,
-		description:
-			"Obsidian 本地 Vault 直连：目录即分类，Markdown 文件直接读写，不落库。",
-	},
-	{
 		code: "bookmarks",
 		label: "书签",
 		route: "/bookmarks",
 		icon: Bookmark,
 		description: "全部书签库与未分类缓冲池，按分类筛选浏览。",
 		aliases: ["书签"],
+	},
+	{
+		code: "obsidian",
+		label: "笔记",
+		route: "/obsidian",
+		icon: NotebookPen,
+		description:
+			"Obsidian 本地 Vault 直连：目录即分类，Markdown 文件直接读写，不落库。",
 	},
 	{
 		code: "creator",
