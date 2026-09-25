@@ -116,7 +116,11 @@ function AppShellWithData({ children }: { children: React.ReactNode }) {
 	const data = Route.useLoaderData();
 	if (!data) return null;
 	return (
-		<AppShell folders={data.folders} settings={data.settings}>
+		<AppShell
+			folders={data.folders}
+			settings={data.settings}
+			unclassified={data.unclassified}
+		>
 			{children}
 		</AppShell>
 	);

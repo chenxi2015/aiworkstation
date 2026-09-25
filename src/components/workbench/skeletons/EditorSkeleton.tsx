@@ -1,5 +1,4 @@
 import { Skeleton } from "@heroui/react";
-import { HeaderSkeleton } from "./HeaderSkeleton";
 
 /**
  * Editor canvas placeholder showing header, toolbar, content lines and status bar.
@@ -153,8 +152,7 @@ export function DocumentSidebarSkeleton() {
  */
 export function EditorSkeleton() {
 	return (
-		<div className="h-screen bg-surface dark:bg-background text-foreground flex flex-col overflow-hidden selection:bg-accent-soft selection:text-accent-soft-foreground">
-			<HeaderSkeleton />
+		<div className="h-full bg-surface dark:bg-background text-foreground flex flex-col overflow-hidden selection:bg-accent-soft selection:text-accent-soft-foreground">
 			<main className="flex-1 overflow-hidden flex min-h-0">
 				<DocumentSidebarSkeleton />
 				<EditorCanvasSkeleton />

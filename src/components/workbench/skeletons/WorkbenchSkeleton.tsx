@@ -1,6 +1,5 @@
 import { FolderDetailSkeleton } from "./FolderDetailSkeleton";
 import { FolderGridSkeleton } from "./FolderGridSkeleton";
-import { HeaderSkeleton } from "./HeaderSkeleton";
 
 /**
  * Full page skeleton placeholder for AI Workbench route pending state.
@@ -24,10 +23,7 @@ export function WorkbenchSkeleton() {
 	}
 
 	return (
-		<div className="h-screen bg-background text-foreground flex flex-col overflow-hidden selection:bg-accent-soft selection:text-accent-soft-foreground">
-			{/* Top Header Skeleton */}
-			<HeaderSkeleton />
-
+		<div className="h-full bg-background text-foreground flex flex-col overflow-hidden selection:bg-accent-soft selection:text-accent-soft-foreground">
 			{/* Main Workspace Layout */}
 			<div className="flex-1 flex w-full min-h-0 overflow-hidden">
 				{isUnclassified ? (

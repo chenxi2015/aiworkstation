@@ -4,8 +4,6 @@ import type { NavLayoutEntry } from "../../modules/registry";
 import { fetchDrafts, fetchMaterials } from "../../services/api/creatorClient";
 import { workbenchContextActions } from "../../stores/workbenchContextStore";
 import { EditorApp } from "../editor/EditorApp";
-import { useWorkbenchQuickActions } from "../workbench/layout/useWorkbenchQuickActions";
-import { WorkbenchHeader } from "../workbench/layout/WorkbenchHeader";
 import type { Folder } from "../workbench/types";
 import { ArchiveTab } from "./ArchiveTab";
 import { DraftsTab } from "./DraftsTab";
@@ -56,7 +54,6 @@ export function CreatorApp({
 	initialDraftId,
 	initialMaterialId,
 }: CreatorAppProps) {
-	const { actionProps, modals } = useWorkbenchQuickActions({ folders });
 	const [activeTab, setActiveTab] = useState<CreatorTab>(
 		initialTab ?? "materials",
 	);
@@ -116,12 +113,7 @@ export function CreatorApp({
 	}, []);
 
 	return (
-		<div className="h-screen bg-surface dark:bg-background text-foreground flex flex-col overflow-hidden">
-			<WorkbenchHeader
-				unclassifiedCount={unclassifiedCount}
-				navLayout={navLayout}
-				{...actionProps}
-			/>
+		<div className="h-full bg-surface dark:bg-background text-foreground flex flex-col overflow-hidden">
 			<div className="border-b border-border bg-surface/60 shrink-0">
 				<div className="mx-auto px-6 flex items-center gap-1">
 					{TABS.map((tab) => {
@@ -219,7 +211,6 @@ export function CreatorApp({
 					/>
 				)}
 			</main>
-			{modals}
 		</div>
 	);
 }

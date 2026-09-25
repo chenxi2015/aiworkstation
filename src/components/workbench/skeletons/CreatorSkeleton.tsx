@@ -1,4 +1,3 @@
-import { HeaderSkeleton } from "./HeaderSkeleton";
 
 /**
  * Skeleton for materials table view layout
@@ -362,11 +361,8 @@ export function ArchiveTableSkeleton() {
  */
 export function CreatorSkeleton() {
 	return (
-		<div className="h-screen bg-surface dark:bg-background text-foreground flex flex-col overflow-hidden">
-			{/* 1. Top Workbench Header */}
-			<HeaderSkeleton />
-
-			{/* 2. Creator Sub-Navigation Tabs */}
+		<div className="h-full bg-surface dark:bg-background text-foreground flex flex-col overflow-hidden">
+			{/* 1. Creator Sub-Navigation Tabs */}
 			<div className="border-b border-border bg-surface/60 shrink-0">
 				<div className="mx-auto px-6 flex items-center gap-1">
 					<div className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 border-accent text-accent">

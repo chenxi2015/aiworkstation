@@ -11,8 +11,6 @@ import {
 } from "../../modules/widgetRegistry";
 import { saveSettings } from "../../services/storage/settingsStorage";
 import { arrayMove } from "../workbench/dnd/dndUtils";
-import { useWorkbenchQuickActions } from "../workbench/layout/useWorkbenchQuickActions";
-import { WorkbenchHeader } from "../workbench/layout/WorkbenchHeader";
 import type {
 	Folder,
 	WorkbenchItem,
@@ -65,7 +63,6 @@ export function DashboardApp({
 	folders,
 	summary,
 }: DashboardAppProps) {
-	const { actionProps, modals } = useWorkbenchQuickActions({ folders });
 	const [editing, setEditing] = useState(false);
 	// 已保存布局（落库的那份）；归一化为全量列表，保证编辑态拖拽下标与渲染列表对齐
 	const [committedLayout, setCommittedLayout] = useState<
@@ -167,12 +164,7 @@ export function DashboardApp({
 	];
 
 	return (
-		<div className="h-screen bg-surface-secondary/60 dark:bg-background text-foreground flex flex-col overflow-hidden">
-			<WorkbenchHeader
-				unclassifiedCount={unclassified.length}
-				navLayout={settings.navLayout}
-				{...actionProps}
-			/>
+		<div className="h-full bg-surface-secondary/60 dark:bg-background text-foreground flex flex-col overflow-hidden">
 			<main className="flex-1 overflow-y-auto">
 				<div className="max-w-7xl mx-auto px-6 py-6">
 					<div className="mb-5 rounded-2xl border border-border/60 bg-gradient-to-r from-accent/8 via-sky-50/80 to-surface dark:from-accent/15 dark:via-surface dark:to-surface px-5 py-4 flex items-center gap-4">
@@ -271,7 +263,6 @@ export function DashboardApp({
 					)}
 				</div>
 			</main>
-			{modals}
 		</div>
 	);
 }

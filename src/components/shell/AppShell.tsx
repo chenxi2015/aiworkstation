@@ -1,8 +1,11 @@
+import { toast } from "@heroui/react";
 import { useRouter, useRouterState } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import {
 	createContext,
+	lazy,
 	type ReactNode,
+	Suspense,
 	useCallback,
 	useContext,
 	useEffect,
@@ -11,8 +14,12 @@ import {
 	useState,
 } from "react";
 import { useAiPanelResize } from "../../hooks/ai/useAiPanelResize";
+import type { SaveFolderPayload } from "../../hooks/workbench/useWorkbenchFolderActions";
 import { useCloudAuth } from "../../lib/cloud/useCloudAuth";
+import type { NavLayoutEntry } from "../../modules/registry";
 import { getModuleByRoute } from "../../modules/registry";
+import { ExtensionBridgeService } from "../../services/extensionBridge";
+import { WorkbenchStorageService } from "../../services/workbenchStorage";
 import { workbenchContextActions } from "../../stores/workbenchContextStore";
 import type { ChatContextItem } from "../../types/chatContext";
 import type { PageBridge } from "../../types/pageBridge";
@@ -25,6 +32,7 @@ import {
 	WorkbenchDndProvider,
 	type WorkbenchDragData,
 } from "../workbench/dnd/WorkbenchDnd";
+import { WorkbenchHeader } from "../workbench/layout/WorkbenchHeader";
 import { AiPanelSkeleton } from "../workbench/skeletons/AiPanelSkeleton";
 import type {
 	Category,
@@ -33,6 +41,25 @@ import type {
 	WorkbenchSettings,
 } from "../workbench/types";
 import { FloatingDockProvider } from "./FloatingDock";
+
+const FolderModal = lazy(() =>
+	import("../workbench/FolderModal").then((m) => ({ default: m.FolderModal })),
+);
+const SettingsModal = lazy(() =>
+	import("../workbench/SettingsModal").then((m) => ({
+		default: m.SettingsModal,
+	})),
+);
+const ExtensionIntroModal = lazy(() =>
+	import("../workbench/ExtensionIntroModal").then((m) => ({
+		default: m.ExtensionIntroModal,
+	})),
+);
+const AIClassifyModal = lazy(() =>
+	import("../workbench/ai/classify/AIClassifyModal").then((m) => ({
+		default: m.AIClassifyModal,
+	})),
+);
 
 /** 面板浏览上下文：由当前页面声明（如书签页选中的文件夹），其他页面回落到全局模式 */
 export interface AiPanelScope {
@@ -67,11 +94,12 @@ export interface WorkbenchDndHandlers {
 	onAttachToChat?: (data: WorkbenchDragData) => void;
 }
 
-/** 页面（WorkbenchApp）持有的最新数据，优先于根 loader 数据喂给 AI 面板 */
+/** 页面（WorkbenchApp）持有的最新数据，优先于根 loader 数据喂给 AI 面板与全局顶栏 */
 export interface AiPanelPageData {
 	folders: Folder[];
 	categories: string[];
 	settings: WorkbenchSettings;
+	unclassified?: WorkbenchItem[];
 }
 
 export interface AiPanelApi {
@@ -146,10 +174,12 @@ export function AppShell({
 	children,
 	folders: loaderFolders,
 	settings: loaderSettings,
+	unclassified: loaderUnclassified = [],
 }: {
 	children: ReactNode;
 	folders: Folder[];
 	settings: WorkbenchSettings;
+	unclassified?: WorkbenchItem[];
 }) {
 	const router = useRouter();
 	const { isLoggedIn, isInitializing } = useCloudAuth();
@@ -197,6 +227,12 @@ export function AppShell({
 
 	const [pageBridge, setPageBridge] = useState<PageBridge | null>(null);
 
+	// Global quick modals state
+	const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
+	const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+	const [isIntroModalOpen, setIsIntroModalOpen] = useState(false);
+	const [isAIClassifyModalOpen, setIsAIClassifyModalOpen] = useState(false);
+
 	// Clear active page bridge if navigation moved to a different module
 	useEffect(() => {
 		if (pageBridge && pageBridge.module !== activeModule) {
@@ -206,6 +242,7 @@ export function AppShell({
 
 	const folders = pageData?.folders ?? loaderFolders;
 	const settings = pageData?.settings ?? loaderSettings;
+	const unclassified = pageData?.unclassified ?? loaderUnclassified;
 	const categories = useMemo(
 		() => pageData?.categories ?? collectCategories(loaderFolders),
 		[pageData, loaderFolders],
@@ -238,6 +275,33 @@ export function AppShell({
 			void router.invalidate();
 		}
 	}, [router]);
+
+	const handleOpenExtension = useCallback(async () => {
+		const installed = await ExtensionBridgeService.checkInstalled();
+		if (installed) {
+			const res = await ExtensionBridgeService.openBookmarksPanel();
+			if (res.success) {
+				toast.success("已呼起 AI Collector 插件侧边栏");
+				return;
+			}
+		}
+		setIsIntroModalOpen(true);
+	}, []);
+
+	const handleSaveFolder = useCallback(
+		async (data: SaveFolderPayload) => {
+			await WorkbenchStorageService.saveFolderToDb(data);
+			toast.success("已保存文件夹至 SQLite 数据库");
+			setIsFolderModalOpen(false);
+			handleDataChanged();
+		},
+		[handleDataChanged],
+	);
+
+	const handleOpenSearch = useCallback(() => {
+		setIsCollapsed(false);
+		panelRef.current?.openSearchTab();
+	}, []);
 
 	const api = useMemo<AiPanelApi>(
 		() => ({
@@ -317,15 +381,28 @@ export function AppShell({
 					{!isCollapsed && (
 						<AiPanelSkeleton style={{ width: `${panelWidth}px` }} />
 					)}
-					{/* Left Region: 当前路由页面（含各自的顶栏与内容）；relative 为右下角浮动坞提供定位上下文 */}
-					<div className="order-1 relative flex-1 flex flex-col min-w-0 min-h-0">
+					{/* Left Region: 全局公共顶栏 + 子路由内容区 */}
+					<div className="order-1 relative flex-1 flex flex-col min-w-0 min-h-0 h-full overflow-hidden">
+						{/* Global persistent header: shared across all route transitions */}
+						<WorkbenchHeader
+							unclassifiedCount={unclassified.length}
+							navLayout={settings.navLayout as NavLayoutEntry[] | undefined}
+							onOpenSearch={handleOpenSearch}
+							onOpenExtension={handleOpenExtension}
+							onOpenSettings={() => setIsSettingsModalOpen(true)}
+							onOpenCreateFolder={() => setIsFolderModalOpen(true)}
+							onOpenAIClassifyTask={() => setIsAIClassifyModalOpen(true)}
+						/>
+						{/* Active route page content */}
 						<FloatingDockProvider
 							aiTrigger={{
 								collapsed: isCollapsed,
 								onOpen: () => setIsCollapsed(false),
 							}}
 						>
-							{children}
+							<div className="flex-1 min-h-0 flex flex-col overflow-hidden relative">
+								{children}
+							</div>
 						</FloatingDockProvider>
 					</div>
 					{/* Right: 常驻 AI 搜索与知识问答中枢（全局单例，占满视口高度）；
@@ -355,6 +432,48 @@ export function AppShell({
 						/>
 					</div>
 				</div>
+
+				{/* Global modals for topbar quick actions */}
+				<Suspense fallback={null}>
+					{isFolderModalOpen && (
+						<FolderModal
+							isOpen={isFolderModalOpen}
+							folder={null}
+							folders={folders}
+							categories={categories}
+							defaultCategory="工作台"
+							onClose={() => setIsFolderModalOpen(false)}
+							onSave={handleSaveFolder}
+							onDelete={() => {}}
+						/>
+					)}
+					{isSettingsModalOpen && (
+						<SettingsModal
+							isOpen={isSettingsModalOpen}
+							onClose={() => setIsSettingsModalOpen(false)}
+						/>
+					)}
+					{isIntroModalOpen && (
+						<ExtensionIntroModal
+							isOpen={isIntroModalOpen}
+							onClose={() => setIsIntroModalOpen(false)}
+						/>
+					)}
+					{isAIClassifyModalOpen && (
+						<AIClassifyModal
+							isOpen={isAIClassifyModalOpen}
+							itemsToClassify={unclassified}
+							folders={folders}
+							settings={settings}
+							onClose={() => setIsAIClassifyModalOpen(false)}
+							onClassificationComplete={handleDataChanged}
+							onOpenSettings={() => {
+								setIsAIClassifyModalOpen(false);
+								setIsSettingsModalOpen(true);
+							}}
+						/>
+					)}
+				</Suspense>
 			</WorkbenchDndProvider>
 		</AiPanelContext.Provider>
 	);

@@ -2,8 +2,6 @@ import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { CreatorContextProvider } from "../components/creator/CreatorContext";
 import { CreatorSubNav } from "../components/creator/CreatorSubNav";
-import { useWorkbenchQuickActions } from "../components/workbench/layout/useWorkbenchQuickActions";
-import { WorkbenchHeader } from "../components/workbench/layout/WorkbenchHeader";
 import { CreatorSkeleton } from "../components/workbench/skeletons";
 import { fetchMaterials } from "../services/api/creatorClient";
 import { workbenchLoader } from "./-workbenchLoader";
@@ -17,11 +15,11 @@ export const Route = createFileRoute("/creator")({
 
 /**
  * Creator Layout route:
- * Renders global WorkbenchHeader, secondary sub-navigation, and sub-route outlet.
+ * Sub-routes inherit the persistent global WorkbenchHeader from AppShell,
+ * rendering only secondary sub-navigation and sub-route outlet here.
  */
 function CreatorLayout() {
 	const { unclassified, settings, folders } = Route.useLoaderData();
-	const { actionProps, modals } = useWorkbenchQuickActions({ folders });
 	const [materialsCount, setMaterialsCount] = useState<number>(0);
 
 	useEffect(() => {
@@ -46,17 +44,11 @@ function CreatorLayout() {
 				setMaterialsCount,
 			}}
 		>
-			<div className="h-screen bg-surface dark:bg-background text-foreground flex flex-col overflow-hidden">
-				<WorkbenchHeader
-					unclassifiedCount={unclassified.length}
-					navLayout={settings.navLayout}
-					{...actionProps}
-				/>
+			<div className="h-full bg-surface dark:bg-background text-foreground flex flex-col overflow-hidden">
 				<CreatorSubNav materialsCount={materialsCount} />
 				<main className="flex-1 overflow-hidden flex flex-col min-h-0">
 					<Outlet />
 				</main>
-				{modals}
 			</div>
 		</CreatorContextProvider>
 	);

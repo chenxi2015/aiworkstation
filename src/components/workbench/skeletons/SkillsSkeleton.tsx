@@ -1,4 +1,3 @@
-import { HeaderSkeleton } from "./HeaderSkeleton";
 
 /**
  * Skeleton for single Skill grid card matching SkillGridCard layout.
@@ -138,8 +137,7 @@ export function SkillsListSkeleton({ count = 6 }: { count?: number }) {
  */
 export function SkillsSkeleton() {
 	return (
-		<div className="h-screen bg-[#fcfcfd] dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col overflow-hidden">
-			<HeaderSkeleton />
+		<div className="h-full bg-[#fcfcfd] dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col overflow-hidden">
 			<main className="flex-1 overflow-y-auto">
 				<div className="max-w-6xl mx-auto px-6 py-4">
 					<SkillsHeaderBarSkeleton />

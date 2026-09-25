@@ -4,8 +4,6 @@ import { useCloudAuth } from "../../lib/cloud/useCloudAuth";
 import type { NavLayoutEntry } from "../../modules/registry";
 import { saveSettingsAsync } from "../../services/storage/settingsStorage";
 import { ModulePaywall } from "../cloud/ModulePaywall";
-import { useWorkbenchQuickActions } from "../workbench/layout/useWorkbenchQuickActions";
-import { WorkbenchHeader } from "../workbench/layout/WorkbenchHeader";
 import {
 	ObsidianNoteCanvasSkeleton,
 	ObsidianTreeSkeleton,
@@ -45,7 +43,6 @@ export function ObsidianApp({
 	onNoteChange,
 }: ObsidianAppProps) {
 	const { isMember } = useCloudAuth();
-	const { actionProps, modals } = useWorkbenchQuickActions({ folders });
 	const { sidebarWidth, handleSidebarResizeStart } = useSidebarResize();
 
 	// 1. Navigation history state
@@ -168,12 +165,7 @@ export function ObsidianApp({
 	const vaultMissing = treeData !== null && !vault?.exists;
 
 	return (
-		<div className="h-screen bg-surface dark:bg-background text-foreground flex flex-col overflow-hidden">
-			<WorkbenchHeader
-				unclassifiedCount={unclassifiedCount}
-				navLayout={navLayout}
-				{...actionProps}
-			/>
+		<div className="h-full bg-surface dark:bg-background text-foreground flex flex-col overflow-hidden">
 
 			{!isMember ? (
 				<ModulePaywall
@@ -245,7 +237,6 @@ export function ObsidianApp({
 				</div>
 			)}
 
-			{modals}
 
 			<ObsidianModals
 				menu={menu}

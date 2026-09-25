@@ -1,5 +1,4 @@
 import { Skeleton } from "@heroui/react";
-import { HeaderSkeleton } from "./HeaderSkeleton";
 
 /** Mock tree items for rendering realistic hierarchical directory tree skeleton */
 const TREE_SKELETON_ITEMS = [
@@ -217,8 +216,7 @@ export function ObsidianNoteCanvasSkeleton() {
  */
 export function ObsidianSkeleton() {
 	return (
-		<div className="h-screen bg-surface dark:bg-background text-foreground flex flex-col overflow-hidden selection:bg-accent-soft selection:text-accent-soft-foreground">
-			<HeaderSkeleton />
+		<div className="h-full bg-surface dark:bg-background text-foreground flex flex-col overflow-hidden selection:bg-accent-soft selection:text-accent-soft-foreground">
 			<div className="flex-1 flex overflow-hidden min-h-0">
 				<ObsidianTreeSkeleton />
 				<ObsidianNoteCanvasSkeleton />

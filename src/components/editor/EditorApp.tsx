@@ -11,8 +11,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { NavLayoutEntry } from "../../modules/registry";
 import { updateDocumentRpc } from "../../services/api/editorClient";
 import { arrayMove } from "../workbench/dnd/dndUtils";
-import { useWorkbenchQuickActions } from "../workbench/layout/useWorkbenchQuickActions";
-import { WorkbenchHeader } from "../workbench/layout/WorkbenchHeader";
 import { EditorCanvasSkeleton } from "../workbench/skeletons";
 import type { Folder } from "../workbench/types";
 import { DocumentHeader } from "./components/DocumentHeader";
@@ -71,7 +69,6 @@ export function EditorApp({
 	initialDocId,
 	embedded = false,
 }: EditorAppProps) {
-	const { actionProps, modals } = useWorkbenchQuickActions({ folders });
 	const docManager = useDocumentManager();
 	const {
 		documents,
@@ -462,16 +459,7 @@ export function EditorApp({
 	const wordCount = contentText.length || (activeDoc?.contentText.length ?? 0);
 
 	return (
-		<div
-			className={`${embedded ? "h-full" : "h-screen"} bg-surface dark:bg-background text-foreground flex flex-col overflow-hidden`}
-		>
-			{!embedded && (
-				<WorkbenchHeader
-					unclassifiedCount={unclassifiedCount}
-					navLayout={navLayout}
-					{...actionProps}
-				/>
-			)}
+		<div className="h-full bg-surface dark:bg-background text-foreground flex flex-col overflow-hidden">
 			<main className="flex-1 overflow-hidden flex min-h-0">
 				{/* Left: Folders + Documents（Notes 式三栏，跨栏拖拽共用一个 provider） */}
 				<DragDropProvider
@@ -600,7 +588,6 @@ export function EditorApp({
 					)}
 				</section>
 			</main>
-			{!embedded && modals}
 			<ImportModal
 				isOpen={isImportModalOpen}
 				onClose={() => setIsImportModalOpen(false)}

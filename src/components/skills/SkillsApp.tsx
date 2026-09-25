@@ -4,8 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { NavLayoutEntry } from "../../modules/registry";
 import { fetchSkillsOverview } from "../../services/api/skillsClient";
-import { useWorkbenchQuickActions } from "../workbench/layout/useWorkbenchQuickActions";
-import { WorkbenchHeader } from "../workbench/layout/WorkbenchHeader";
 import { SkillsGridSkeleton, SkillsListSkeleton } from "../workbench/skeletons";
 import type { Folder } from "../workbench/types";
 import { InstallSkillModal } from "./InstallSkillModal";
@@ -41,7 +39,6 @@ export function SkillsApp({
 	folders,
 	initialSkillPath,
 }: SkillsAppProps) {
-	const { actionProps, modals } = useWorkbenchQuickActions({ folders });
 	const [overview, setOverview] = useState<SkillsOverview | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [refreshing, setRefreshing] = useState(false);
@@ -178,12 +175,7 @@ export function SkillsApp({
 	};
 
 	return (
-		<div className="h-screen bg-[#fcfcfd] dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col overflow-hidden">
-			<WorkbenchHeader
-				unclassifiedCount={unclassifiedCount}
-				navLayout={navLayout}
-				{...actionProps}
-			/>
+		<div className="h-full bg-[#fcfcfd] dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col overflow-hidden">
 
 			{/* Main Scroll Container */}
 			<main ref={scrollContainerRef} className="flex-1 overflow-y-auto">
@@ -317,8 +309,6 @@ export function SkillsApp({
 				onClose={() => setSkillToUninstall(null)}
 				onSuccess={() => load(true)}
 			/>
-
-			{modals}
 		</div>
 	);
 }

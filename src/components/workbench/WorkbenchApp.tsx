@@ -17,7 +17,6 @@ import { useWorkbenchAiBridge } from "./hooks/useWorkbenchAiBridge";
 import { CategoryFilterBar } from "./layout/CategoryFilterBar";
 import { CategoryMainView } from "./layout/CategoryMainView";
 import { UnclassifiedWorkspace } from "./layout/UnclassifiedWorkspace";
-import { WorkbenchHeader } from "./layout/WorkbenchHeader";
 import type {
 	Folder,
 	FolderGridView,
@@ -175,8 +174,6 @@ export function WorkbenchApp({
 		handleAttachBookmarkToChat,
 		handleAskAIAboutFolder,
 		handleAskAISummarizeFolder,
-		handleOpenSearch,
-		handleOpenExtension,
 	} = useWorkbenchAiBridge({
 		folders,
 		dynamicCategories,
@@ -262,17 +259,7 @@ export function WorkbenchApp({
 			: resolveCategoryLabel(activeCategory);
 
 	return (
-		<div className="h-screen bg-surface dark:bg-background text-foreground flex flex-col overflow-hidden selection:bg-accent-soft selection:text-accent-soft-foreground">
-			{/* Topbar Navigation Header — Unified Search Triggers Right Panel */}
-			<WorkbenchHeader
-				unclassifiedCount={unclassified.length}
-				navLayout={settings.navLayout as NavLayoutEntry[] | undefined}
-				onOpenExtension={handleOpenExtension}
-				onOpenSearch={handleOpenSearch}
-				onOpenSettings={() => setIsSettingsModalOpen(true)}
-				onOpenAIClassifyTask={() => setIsAIClassifyModalOpen(true)}
-			/>
-
+		<div className="h-full bg-surface dark:bg-background text-foreground flex flex-col overflow-hidden selection:bg-accent-soft selection:text-accent-soft-foreground">
 			{/* 书签模块：分类筛选条（数据维度，非导航） */}
 			{showCategoryFilter && (
 				<CategoryFilterBar

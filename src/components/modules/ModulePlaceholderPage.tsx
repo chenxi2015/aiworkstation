@@ -1,13 +1,11 @@
 import { getModuleByCode, type NavLayoutEntry } from "../../modules/registry";
-import { useWorkbenchQuickActions } from "../workbench/layout/useWorkbenchQuickActions";
-import { WorkbenchHeader } from "../workbench/layout/WorkbenchHeader";
 import type { Folder } from "../workbench/types";
 
 export interface ModulePlaceholderPageProps {
 	moduleCode: string;
-	unclassifiedCount: number;
+	unclassifiedCount?: number;
 	navLayout?: NavLayoutEntry[];
-	folders: Folder[];
+	folders?: Folder[];
 }
 
 /** 各模块的规划功能要点（占位页展示） */
@@ -33,27 +31,18 @@ const MODULE_PLANS: Record<string, string[]> = {
 
 /**
  * Placeholder for module routes whose dedicated features are still planned.
- * Keeps the global module navigation so wayfinding stays consistent.
+ * Inherits the persistent WorkbenchHeader from AppShell.
  */
 export function ModulePlaceholderPage({
 	moduleCode,
-	unclassifiedCount,
-	navLayout,
-	folders,
 }: ModulePlaceholderPageProps) {
 	const module = getModuleByCode(moduleCode);
-	const { actionProps, modals } = useWorkbenchQuickActions({ folders });
 	if (!module) return null;
 	const Icon = module.icon;
 	const plans = MODULE_PLANS[moduleCode] ?? [];
 
 	return (
-		<div className="h-screen bg-surface dark:bg-background text-foreground flex flex-col overflow-hidden">
-			<WorkbenchHeader
-				unclassifiedCount={unclassifiedCount}
-				navLayout={navLayout}
-				{...actionProps}
-			/>
+		<div className="h-full bg-surface dark:bg-background text-foreground flex flex-col overflow-hidden">
 			<main className="flex-1 flex items-center justify-center p-8 overflow-y-auto">
 				<div className="max-w-md w-full rounded-2xl border border-border bg-surface-secondary/40 p-8 text-center shadow-xs">
 					<div className="w-14 h-14 rounded-2xl bg-accent-soft text-accent flex items-center justify-center mx-auto mb-4">
@@ -83,7 +72,6 @@ export function ModulePlaceholderPage({
 					</p>
 				</div>
 			</main>
-			{modals}
 		</div>
 	);
 }
