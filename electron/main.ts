@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell } from "electron";
+import { app, BrowserWindow, screen, shell } from "electron";
 import { spawn, type ChildProcess } from "node:child_process";
 import { createServer, Socket } from "node:net";
 import path from "node:path";
@@ -100,12 +100,25 @@ async function startServer(): Promise<void> {
 
 // ── Create the main BrowserWindow ─────────────────────────────────────────────
 async function createWindow(): Promise<void> {
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: workWidth, height: workHeight } = primaryDisplay.workAreaSize;
+
+  // Optimized for 1080p displays (1920x1080, work area typically ~1920x1000).
+  // 1680x960 accommodates the 4-column widget dashboard + AI panel comfortably.
+  const optimalWidth = Math.min(1680, workWidth);
+  const optimalHeight = Math.min(960, workHeight);
+
   mainWindow = new BrowserWindow({
-    width: 1440,
-    height: 900,
-    minWidth: 1024,
-    minHeight: 700,
+    width: optimalWidth,
+    height: optimalHeight,
+    // Minimum dimensions based on Figure 2 (uncompressed dashboard cards + AI sidebar)
+    minWidth: Math.min(1366, workWidth),
+    minHeight: Math.min(800, workHeight),
+    center: true,
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
+    ...(process.platform === "darwin"
+      ? { trafficLightPosition: { x: 18, y: 20 } }
+      : {}),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,

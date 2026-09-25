@@ -91,7 +91,7 @@ export function WorkbenchHeader({
 	const tipVisible = Boolean(tipText) && (hintVisible || hoverVisible);
 
 	return (
-		<header className="shrink-0 z-50 bg-surface/80 border-b border-border px-6 h-15 flex items-center gap-4 justify-between backdrop-blur-md">
+		<header className="shrink-0 z-50 bg-surface/80 border-b border-border px-6 h-15 flex items-center gap-4 justify-between backdrop-blur-md workbench-top-header window-drag-region select-none">
 			{/* Left: Brand */}
 			<div className="flex items-center gap-2.5 shrink-0 pr-2">
 				<WorkbenchLogoIcon className="w-9 h-9 shrink-0" />
@@ -106,10 +106,15 @@ export function WorkbenchHeader({
 			</div>
 
 			{/* Center: Fixed Module Navigation */}
-			<ModuleTabs unclassifiedCount={unclassifiedCount} navLayout={navLayout} />
+			<div className="window-no-drag">
+				<ModuleTabs
+					unclassifiedCount={unclassifiedCount}
+					navLayout={navLayout}
+				/>
+			</div>
 
 			{/* Right: Actions */}
-			<div className="flex items-center gap-2 shrink-0">
+			<div className="flex items-center gap-2 shrink-0 window-no-drag">
 				{/* Background AI Classification Task Indicator */}
 				{onOpenAIClassifyTask && aiClassifyTask.status !== "idle" && (
 					// biome-ignore lint/a11y/noStaticElementInteractions: hover wrapper only drives tooltip visibility

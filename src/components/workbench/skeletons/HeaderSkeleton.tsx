@@ -4,7 +4,7 @@
  */
 export function HeaderSkeleton() {
 	return (
-		<header className="shrink-0 bg-surface/80 border-b border-border px-6 h-15 flex items-center gap-4 justify-between backdrop-blur-md animate-pulse">
+		<header className="shrink-0 bg-surface/80 border-b border-border px-6 h-15 flex items-center gap-4 justify-between backdrop-blur-md animate-pulse workbench-top-header window-drag-region select-none">
 			{/* Left: Brand */}
 			<div className="flex items-center gap-2.5 shrink-0 pr-2">
 				<div className="w-8 h-8 rounded-xl bg-surface-secondary/80 shrink-0" />

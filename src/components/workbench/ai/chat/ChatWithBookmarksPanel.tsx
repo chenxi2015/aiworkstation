@@ -386,8 +386,8 @@ export const ChatWithBookmarksPanel = forwardRef<
 				)}
 
 				{/* Top Header: Clean, lightweight single-row header */}
-				<div className="h-12 px-3.5 bg-surface/80 backdrop-blur-md shrink-0 flex items-center justify-between z-10">
-					<div className="flex items-center gap-2 min-w-0">
+				<div className="h-12 px-3.5 bg-surface/80 backdrop-blur-md shrink-0 flex items-center justify-between z-10 window-drag-region select-none">
+					<div className="flex items-center gap-2 min-w-0 window-no-drag">
 						<AiAssistantLogoIcon className="w-6 h-6 shrink-0" />
 						<h3 className="font-bold text-xs text-foreground tracking-tight shrink-0">
 							AI 助手
@@ -399,7 +399,7 @@ export const ChatWithBookmarksPanel = forwardRef<
 					</div>
 
 					{/* Right actions: New Chat & History */}
-					<div className="flex items-center gap-1 shrink-0">
+					<div className="flex items-center gap-1 shrink-0 window-no-drag">
 						<Tooltip>
 							<Tooltip.Trigger>
 								<Button

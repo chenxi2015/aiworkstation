@@ -24,7 +24,7 @@ interface MyRouterContext {
 	queryClient: QueryClient;
 }
 
-const THEME_INIT_SCRIPT = `(function(){try{var stored=window.localStorage.getItem('theme');var mode=(stored==='light'||stored==='dark')?stored:'light';var root=document.documentElement;root.classList.remove('light','dark');root.classList.add(mode);root.setAttribute('data-theme',mode);root.style.colorScheme=mode;}catch(e){}})();`;
+const THEME_INIT_SCRIPT = `(function(){try{var stored=window.localStorage.getItem('theme');var mode=(stored==='light'||stored==='dark')?stored:'light';var root=document.documentElement;root.classList.remove('light','dark');root.classList.add(mode);root.setAttribute('data-theme',mode);root.style.colorScheme=mode;if((window.electronAPI&&window.electronAPI.platform==='darwin')||(navigator.userAgent.indexOf('Electron')!==-1&&(navigator.platform.indexOf('Mac')!==-1||navigator.userAgent.indexOf('Mac')!==-1))){root.classList.add('electron-mac');}}catch(e){}})();`;
 
 export const Route = createRootRouteWithContext<MyRouterContext>()({
 	// 根级加载文件夹/设置：喂给全局常驻 AI 面板（右侧边栏）

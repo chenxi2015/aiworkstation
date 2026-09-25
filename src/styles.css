@@ -1298,3 +1298,24 @@ blockquote::after {
 	color: var(--foreground-muted);
 	margin: 0.4rem 0;
 }
+
+/* ── Electron Window Drag Region & macOS Controls ────────────────────────── */
+.window-drag-region {
+	-webkit-app-region: drag;
+}
+
+.window-no-drag,
+.window-drag-region button,
+.window-drag-region a,
+.window-drag-region input,
+.window-drag-region select,
+.window-drag-region textarea,
+.window-drag-region [role="button"],
+.window-drag-region [role="tab"] {
+	-webkit-app-region: no-drag;
+}
+
+/* In Electron on macOS, offset the top header so the traffic lights do not overlap the logo */
+html.electron-mac .workbench-top-header {
+	padding-left: 5.5rem; /* 88px, leaves clear spacing for traffic lights (x: 18px ~ 70px) */
+}
