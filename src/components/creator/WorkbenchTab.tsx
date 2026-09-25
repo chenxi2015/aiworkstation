@@ -16,6 +16,7 @@ import {
 	updateMaterialRpc,
 } from "../../services/api/creatorClient";
 import { AiMarkdownRenderer } from "../workbench/ai/shared/AiMarkdownRenderer";
+import { StudioBatchSkeleton } from "../workbench/skeletons";
 import {
 	DRAFT_PLATFORMS,
 	type DraftPlatform,
@@ -204,6 +205,10 @@ export function WorkbenchTab({
 			toast.danger("复制失败，请手动选择文本复制");
 		}
 	};
+
+	if (loading && materials.length === 0) {
+		return <StudioBatchSkeleton />;
+	}
 
 	if (!loading && materials.length === 0) {
 		return (

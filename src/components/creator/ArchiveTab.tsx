@@ -3,7 +3,6 @@ import {
 	Archive,
 	FileText,
 	Library,
-	Loader2,
 	PenSquare,
 	Trash2,
 	Undo2,
@@ -21,6 +20,7 @@ import {
 } from "../../services/api/editorClient";
 import type { EditorDocument } from "../editor/types";
 import { ConfirmDialog } from "../workbench/ConfirmDialog";
+import { ArchiveTableSkeleton } from "../workbench/skeletons";
 import type { Material } from "./types";
 
 type ArchiveSection = "materials" | "documents";
@@ -116,12 +116,7 @@ export function ArchiveTab() {
 	};
 
 	if (loading) {
-		return (
-			<div className="flex-1 flex items-center justify-center gap-2 text-xs text-muted">
-				<Loader2 className="w-4 h-4 animate-spin" />
-				<span>正在加载归档库…</span>
-			</div>
-		);
+		return <ArchiveTableSkeleton />;
 	}
 
 	if (documents.length === 0 && materials.length === 0) {

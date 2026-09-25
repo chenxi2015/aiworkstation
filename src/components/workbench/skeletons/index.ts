@@ -1,4 +1,5 @@
 export * from "./AiPanelSkeleton";
+export * from "./CreatorSkeleton";
 export * from "./DashboardSkeleton";
 export * from "./EditorSkeleton";
 export * from "./FolderDetailSkeleton";

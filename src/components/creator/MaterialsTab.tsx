@@ -1,6 +1,10 @@
-import { Loader2 } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { ConfirmDialog } from "../workbench/ConfirmDialog";
+import {
+	CreatorFolderSidebarSkeleton,
+	MaterialsGridSkeleton,
+	MaterialsTableSkeleton,
+} from "../workbench/skeletons";
 import { ImportMaterialModal } from "./ImportMaterialModal";
 import { FolderFormModal } from "./materials/FolderFormModal";
 import { FolderSidebar } from "./materials/FolderSidebar";
@@ -63,17 +67,21 @@ export function MaterialsTab({
 	return (
 		<div className="flex-1 flex min-h-0">
 			{/* 左侧：文件夹列表 */}
-			<FolderSidebar
-				folders={state.folders}
-				selection={state.selection}
-				totalCount={materials.length}
-				unfiledCount={state.unfiledCount}
-				starredCount={state.starredCount}
-				onSelect={state.setSelection}
-				onCreateFolder={() => state.setFolderModal({ folder: null })}
-				onRenameFolder={(folder) => state.setFolderModal({ folder })}
-				onDeleteFolder={(folder) => state.setDeletingFolder(folder)}
-			/>
+			{loading && materials.length === 0 ? (
+				<CreatorFolderSidebarSkeleton />
+			) : (
+				<FolderSidebar
+					folders={state.folders}
+					selection={state.selection}
+					totalCount={materials.length}
+					unfiledCount={state.unfiledCount}
+					starredCount={state.starredCount}
+					onSelect={state.setSelection}
+					onCreateFolder={() => state.setFolderModal({ folder: null })}
+					onRenameFolder={(folder) => state.setFolderModal({ folder })}
+					onDeleteFolder={(folder) => state.setDeletingFolder(folder)}
+				/>
+			)}
 
 			{/* 右侧：素材内容 */}
 			<section className="flex-1 min-w-0 flex flex-col">
@@ -105,10 +113,11 @@ export function MaterialsTab({
 
 				<div className="flex-1 overflow-y-auto min-h-0">
 					{loading ? (
-						<div className="py-16 flex items-center justify-center gap-2 text-xs text-muted">
-							<Loader2 className="w-4 h-4 animate-spin" />
-							<span>正在加载素材库…</span>
-						</div>
+						state.viewMode === "grid" ? (
+							<MaterialsGridSkeleton count={12} />
+						) : (
+							<MaterialsTableSkeleton rowCount={8} />
+						)
 					) : state.visibleMaterials.length === 0 ? (
 						<div className="m-5 py-16 text-center text-xs text-muted bg-surface/50 border border-dashed border-border rounded-2xl">
 							{state.search.trim()

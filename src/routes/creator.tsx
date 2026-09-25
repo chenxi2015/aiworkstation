@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { CreatorApp } from "../components/creator/CreatorApp";
-import { ModuleSkeleton } from "../components/workbench/skeletons";
+import { CreatorSkeleton } from "../components/workbench/skeletons";
 import { workbenchLoader } from "./-workbenchLoader";
 
 /**
@@ -65,7 +65,7 @@ export const Route = createFileRoute("/creator")({
 		};
 	},
 	loader: workbenchLoader,
-	pendingComponent: ModuleSkeleton,
+	pendingComponent: CreatorSkeleton,
 	pendingMs: 200,
 	component: CreatorPage,
 });

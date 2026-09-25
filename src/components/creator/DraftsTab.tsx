@@ -5,7 +5,7 @@ import {
 	useDroppable,
 } from "@dnd-kit/react";
 import { Button, Tooltip, toast } from "@heroui/react";
-import { Copy, Download, Loader2, Pencil, Trash2 } from "lucide-react";
+import { Copy, Download, Pencil, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
 	exportDraftRpc,
@@ -13,6 +13,7 @@ import {
 } from "../../services/api/creatorClient";
 import { AiMarkdownRenderer } from "../workbench/ai/shared/AiMarkdownRenderer";
 import { ConfirmDialog } from "../workbench/ConfirmDialog";
+import { DraftsKanbanSkeleton } from "../workbench/skeletons";
 import { DraftEditorDrawer } from "./DraftEditorDrawer";
 import {
 	type DraftStatus,
@@ -163,12 +164,7 @@ export function DraftsTab({
 	};
 
 	if (loading) {
-		return (
-			<div className="flex-1 flex items-center justify-center gap-2 text-xs text-muted">
-				<Loader2 className="w-4 h-4 animate-spin" />
-				<span>正在加载草稿箱…</span>
-			</div>
-		);
+		return <DraftsKanbanSkeleton />;
 	}
 
 	return (

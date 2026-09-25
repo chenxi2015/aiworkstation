@@ -1,6 +1,7 @@
-import { Button } from "@heroui/react";
+import { Button, Dropdown } from "@heroui/react";
 import {
 	Archive,
+	Ellipsis,
 	FolderOpen,
 	Loader2,
 	Sparkles,
@@ -95,53 +96,107 @@ export function MaterialsGridView({
 								{material.title}
 							</p>
 							<p className="text-[10px] text-muted mt-0.5">
-								{KIND_BADGES[kind]} ·{" "}
+								<span className="font-mono text-muted/80 mr-1">
+									#{material.id}
+								</span>
+								· {KIND_BADGES[kind]} ·{" "}
 								{(material.updatedAt ?? material.createdAt ?? "").slice(0, 10)}
 							</p>
-							<div className="flex items-center gap-1 mt-2">
+							<div className="flex items-center justify-between gap-1 mt-2">
 								<Button
 									type="button"
 									variant="secondary"
 									size="sm"
-									className="rounded-full h-6 text-[10px] px-2 flex items-center gap-1 cursor-pointer"
+									className="rounded-lg h-6 text-[10px] px-2 flex items-center gap-1 cursor-pointer shrink-0"
 									isDisabled={importingId === material.id}
 									onPress={() => onImportToStudio(material)}
 								>
 									{importingId === material.id ? (
 										<Loader2 className="w-3 h-3 animate-spin" />
 									) : (
-										<Sparkles className="w-3 h-3" />
+										<Sparkles className="w-3 h-3 text-accent" />
 									)}
 									导入创作台
 								</Button>
-								<button
-									type="button"
-									title="打开所在目录"
-									onClick={() => onOpenDir(material)}
-									className="ml-auto p-1 rounded-full text-muted hover:text-accent transition-colors cursor-pointer"
-								>
-									{openingDirId === material.id ? (
-										<Loader2 className="w-3.5 h-3.5 animate-spin" />
-									) : (
-										<FolderOpen className="w-3.5 h-3.5" />
-									)}
-								</button>
-								<button
-									type="button"
-									title="归档素材"
-									onClick={() => onArchive(material)}
-									className="p-1 rounded-full text-muted hover:text-danger transition-colors cursor-pointer"
-								>
-									<Archive className="w-3.5 h-3.5" />
-								</button>
-								<button
-									type="button"
-									title="删除素材"
-									onClick={() => onDelete(material)}
-									className="p-1 rounded-full text-muted hover:text-danger transition-colors cursor-pointer"
-								>
-									<Trash2 className="w-3.5 h-3.5" />
-								</button>
+
+								<Dropdown>
+									<Dropdown.Trigger
+										aria-label={`素材「${material.title}」更多操作`}
+										className="h-6 w-6 rounded-md text-muted hover:text-foreground hover:bg-foreground/[0.06] dark:hover:bg-white/[0.08] flex items-center justify-center cursor-pointer transition-colors shrink-0 ml-auto"
+									>
+										<Ellipsis className="w-3.5 h-3.5" />
+									</Dropdown.Trigger>
+									<Dropdown.Popover
+										placement="bottom end"
+										className="min-w-[140px] p-1 shadow-lg border border-border/80 rounded-xl bg-surface"
+									>
+										<Dropdown.Menu aria-label="素材更多操作">
+											<Dropdown.Item
+												id="star"
+												textValue={material.starred ? "取消收藏" : "收藏"}
+												onAction={() => onToggleStar(material)}
+											>
+												<div className="flex items-center gap-2 w-full py-0.5">
+													<Star
+														className={`w-3.5 h-3.5 ${
+															material.starred
+																? "fill-amber-500 text-amber-500"
+																: "text-muted"
+														}`}
+													/>
+													<span className="text-xs font-medium flex-1">
+														{material.starred ? "取消收藏" : "收藏"}
+													</span>
+												</div>
+											</Dropdown.Item>
+
+											<Dropdown.Item
+												id="open-dir"
+												textValue="打开所在目录"
+												isDisabled={openingDirId === material.id}
+												onAction={() => onOpenDir(material)}
+											>
+												<div className="flex items-center gap-2 w-full py-0.5">
+													{openingDirId === material.id ? (
+														<Loader2 className="w-3.5 h-3.5 animate-spin text-muted" />
+													) : (
+														<FolderOpen className="w-3.5 h-3.5 text-muted" />
+													)}
+													<span className="text-xs font-medium flex-1">
+														打开所在目录
+													</span>
+												</div>
+											</Dropdown.Item>
+
+											<Dropdown.Item
+												id="archive"
+												textValue="归档"
+												onAction={() => onArchive(material)}
+											>
+												<div className="flex items-center gap-2 w-full py-0.5">
+													<Archive className="w-3.5 h-3.5 text-muted" />
+													<span className="text-xs font-medium flex-1">
+														归档
+													</span>
+												</div>
+											</Dropdown.Item>
+
+											<Dropdown.Item
+												id="delete"
+												textValue="删除"
+												className="text-danger hover:bg-danger/10"
+												onAction={() => onDelete(material)}
+											>
+												<div className="flex items-center gap-2 w-full py-0.5">
+													<Trash2 className="w-3.5 h-3.5 text-danger" />
+													<span className="text-xs font-medium flex-1 text-danger">
+														删除
+													</span>
+												</div>
+											</Dropdown.Item>
+										</Dropdown.Menu>
+									</Dropdown.Popover>
+								</Dropdown>
 							</div>
 						</div>
 					</li>
