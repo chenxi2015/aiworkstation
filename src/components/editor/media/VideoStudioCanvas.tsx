@@ -46,23 +46,24 @@ export function VideoStudioCanvas({
 	const [playbackRate, setPlaybackRate] = useState(1);
 	const [isEditingTitle, setIsEditingTitle] = useState(false);
 	const [titleValue, setTitleValue] = useState(doc.title);
+	const [loadError, setLoadError] = useState(false);
 
 	// Sync title when active document changes
 	useEffect(() => {
 		setTitleValue(doc.title);
 	}, [doc.title]);
 
-	// Auto stop previous video and release media decoder buffer when document switches or unmounts
+	// Auto stop previous video when document switches or unmounts.
+	// 注意：不要在 cleanup 里 removeAttribute("src")/load() —— effect 重跑（如开发环境
+	// passive effect 重连）会把仍在挂载状态的视频 src 抹掉，导致视频再也无法加载；
+	// 文档切换时 key 重挂载会创建新元素，旧元素随 DOM 移除自然释放解码器缓冲。
 	useEffect(() => {
 		setIsPlaying(false);
 		setCurrentTime(0);
+		setLoadError(false);
 		const el = videoRef.current;
 		return () => {
-			if (el) {
-				el.pause();
-				el.removeAttribute("src");
-				el.load();
-			}
+			el?.pause();
 		};
 	}, [doc.id, mediaInfo.url]);
 
@@ -275,7 +276,13 @@ export function VideoStudioCanvas({
 							ref={videoRef}
 							src={videoUrl}
 							preload="metadata"
+							// React 类型尚未为 video 声明 referrerPolicy，运行时 React 19 会透传为 DOM 属性
+							{...({
+								referrerPolicy: "no-referrer",
+							} as React.VideoHTMLAttributes<HTMLVideoElement>)}
 							className="w-full h-full object-contain"
+							onError={() => setLoadError(true)}
+							onLoadedData={() => setLoadError(false)}
 							onTimeUpdate={() => {
 								if (videoRef.current) {
 									setCurrentTime(videoRef.current.currentTime);
@@ -290,11 +297,34 @@ export function VideoStudioCanvas({
 						/>
 
 						{/* Center Play Overlay Icon when paused */}
-						{!isPlaying && (
+						{!isPlaying && !loadError && (
 							<div className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-[1px] transition-opacity">
 								<div className="w-16 h-16 rounded-full bg-accent/90 text-white flex items-center justify-center shadow-xl group-hover:scale-110 transition-transform">
 									<Play className="w-7 h-7 fill-current ml-1" />
 								</div>
+							</div>
+						)}
+
+						{/* 加载失败提示（外链失效 / 防盗链拦截等） */}
+						{loadError && (
+							<div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70 text-center px-6">
+								<FileVideo className="w-10 h-10 text-zinc-500" />
+								<p className="text-sm text-zinc-300">视频加载失败，无法播放</p>
+								<p className="text-xs text-zinc-500 max-w-md break-all">
+									可能是外部链接已失效或被源站防盗链拦截
+								</p>
+								{videoUrl && (
+									<a
+										href={videoUrl}
+										target="_blank"
+										rel="noreferrer"
+										className="mt-1 px-3 py-1.5 text-xs text-accent hover:bg-accent/10 rounded-lg transition-colors flex items-center gap-1.5 border border-accent/30 font-medium"
+										onClick={(e) => e.stopPropagation()}
+									>
+										<ExternalLink className="w-3.5 h-3.5" />
+										<span>尝试在新窗口打开</span>
+									</a>
+								)}
 							</div>
 						)}
 					</div>

@@ -1,4 +1,5 @@
 import { createStore, del, get, set } from "idb-keyval";
+import { MAX_DOC_CONTENT_CHARS } from "../types";
 
 export interface DocumentDraft {
 	docId: number;
@@ -17,6 +18,12 @@ const draftStore = createStore("aiworkstation_editor_db", "document_drafts");
  */
 export async function saveDocDraft(draft: DocumentDraft): Promise<void> {
 	try {
+		if (draft.content && draft.content.length > MAX_DOC_CONTENT_CHARS) {
+			console.warn(
+				`[editorDraftStorage] 文档 ${draft.docId} 内容体积超限（${draft.content.length} 字符），跳过草稿写入以防撑爆内存`,
+			);
+			return;
+		}
 		await set(`draft:${draft.docId}`, draft, draftStore);
 	} catch (err) {
 		console.warn("[editorDraftStorage] Failed to save draft:", err);

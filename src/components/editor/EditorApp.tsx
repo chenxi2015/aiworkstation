@@ -643,6 +643,19 @@ export function EditorApp({
 								onExportHtml={handleExportHtml}
 								onExportPdf={handleExportPdf}
 								onOpenDistribution={() => setIsDistributionModalOpen(true)}
+								mediaMode={
+									forceDocModeId === activeDoc.id &&
+									activeMediaInfo.kind !== "doc"
+										? {
+												kind: activeMediaInfo.kind,
+												onSwitch: () => {
+													// 清除强制富文本模式，切回音视频工作室
+													setForceDocModeId(null);
+													handleSelectDoc(activeDoc.id, activeMediaInfo.kind);
+												},
+											}
+										: undefined
+								}
 							/>
 						))}
 				</section>

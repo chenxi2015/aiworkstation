@@ -51,17 +51,15 @@ export function AudioStudioCanvas({
 		setTitleValue(doc.title);
 	}, [doc.title]);
 
-	// Auto stop previous audio and release media decoder buffer when document switches or unmounts
+	// Auto stop previous audio when document switches or unmounts.
+	// 同 VideoStudioCanvas：不要在 cleanup 里 removeAttribute("src")/load()，
+	// effect 重跑会抹掉仍在挂载状态的音频 src，导致无法加载。
 	useEffect(() => {
 		setIsPlaying(false);
 		setCurrentTime(0);
 		const el = audioRef.current;
 		return () => {
-			if (el) {
-				el.pause();
-				el.removeAttribute("src");
-				el.load();
-			}
+			el?.pause();
 		};
 	}, [doc.id, mediaInfo.url]);
 

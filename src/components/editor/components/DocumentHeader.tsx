@@ -1,5 +1,12 @@
 import { toast } from "@heroui/react";
-import { FolderOpen, Loader2, Pencil, Sparkles } from "lucide-react";
+import {
+	Film,
+	FolderOpen,
+	Loader2,
+	Music,
+	Pencil,
+	Sparkles,
+} from "lucide-react";
 import { useRef, useState } from "react";
 import { openDocumentDirectoryRpc } from "../../../services/api/editorClient";
 import type { EditorDocument } from "../types";
@@ -9,6 +16,8 @@ export interface DocumentHeaderProps {
 	onTitleChange: (title: string) => void;
 	isSplitLayout?: boolean;
 	onToggleSplitLayout?: () => void;
+	/** 媒体资产文档被切到富文本模式时，提供切回音视频工作室的入口 */
+	mediaMode?: { kind: "audio" | "video"; onSwitch: () => void };
 }
 
 /**
@@ -21,6 +30,7 @@ export function DocumentHeader({
 	onTitleChange,
 	isSplitLayout,
 	onToggleSplitLayout,
+	mediaMode,
 }: DocumentHeaderProps) {
 	const inputRef = useRef<HTMLInputElement>(null);
 	const [isOpeningFolder, setIsOpeningFolder] = useState(false);
@@ -79,6 +89,24 @@ export function DocumentHeader({
 
 			{/* Right: Folder + Split/Single Layout Mode */}
 			<div className="flex items-center gap-1.5 shrink-0">
+				{mediaMode && (
+					<button
+						type="button"
+						onClick={mediaMode.onSwitch}
+						className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-lg transition-colors cursor-pointer border bg-surface-secondary border-border text-muted hover:text-foreground hover:bg-muted/15"
+						title={mediaMode.kind === "video" ? "切回视频模式" : "切回音频模式"}
+					>
+						{mediaMode.kind === "video" ? (
+							<Film className="w-3.5 h-3.5 text-purple-500" />
+						) : (
+							<Music className="w-3.5 h-3.5 text-purple-500" />
+						)}
+						<span>
+							{mediaMode.kind === "video" ? "转视频模式" : "转音频模式"}
+						</span>
+					</button>
+				)}
+
 				<button
 					type="button"
 					title="打开本地存储文件夹"

@@ -48,6 +48,8 @@ export interface DocumentEditorCanvasProps {
 	onExportHtml: () => void;
 	onExportPdf: () => void;
 	onOpenDistribution: () => void;
+	/** 媒体资产文档被切到富文本模式时，提供切回音视频工作室的入口 */
+	mediaMode?: { kind: "audio" | "video"; onSwitch: () => void };
 }
 
 /**
@@ -84,6 +86,7 @@ export function DocumentEditorCanvas({
 	onExportHtml,
 	onExportPdf,
 	onOpenDistribution,
+	mediaMode,
 }: DocumentEditorCanvasProps) {
 	return (
 		<>
@@ -111,6 +114,7 @@ export function DocumentEditorCanvas({
 					onTitleChange={onTitleChange}
 					isSplitLayout={splitSession?.isOpen}
 					onToggleSplitLayout={onToggleSplitLayout}
+					mediaMode={mediaMode}
 				/>
 				<RichTextEditor
 					docId={activeDoc.id}

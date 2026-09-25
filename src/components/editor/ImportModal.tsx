@@ -19,6 +19,7 @@ import {
 	parsePdfText,
 	parseWordDocx,
 } from "./importers";
+import { MAX_DOC_CONTENT_CHARS, MAX_IMPORT_FILE_BYTES } from "./types";
 
 export interface ImportModalProps {
 	isOpen: boolean;
@@ -91,6 +92,11 @@ export function ImportModal({ isOpen, onClose, onImport }: ImportModalProps) {
 			setFileResult(null);
 
 			try {
+				if (file.size > MAX_IMPORT_FILE_BYTES) {
+					throw new Error(
+						`文件体积 ${(file.size / 1024 / 1024).toFixed(1)}MB，超过 ${MAX_IMPORT_FILE_BYTES / 1024 / 1024}MB 上限。超大文档请先拆分为多个小文件再导入`,
+					);
+				}
 				const ext = file.name.split(".").pop()?.toLowerCase();
 				let parsed: { title: string; html: string };
 
@@ -109,6 +115,12 @@ export function ImportModal({ isOpen, onClose, onImport }: ImportModalProps) {
 				} else {
 					throw new Error(
 						"不支持的文件类型，请选择 Word/PDF/Excel/Markdown 文件",
+					);
+				}
+
+				if (parsed.html.length > MAX_DOC_CONTENT_CHARS) {
+					throw new Error(
+						`解析后的内容约 ${(parsed.html.length / 1_000_000).toFixed(1)}M 字符，超过编辑器单文档容量上限，请先拆分文档再导入`,
 					);
 				}
 

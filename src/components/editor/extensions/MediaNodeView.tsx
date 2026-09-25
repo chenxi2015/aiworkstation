@@ -157,6 +157,10 @@ export function MediaNodeView(props: NodeViewProps) {
 							src={src}
 							controls
 							preload="metadata"
+							// React 类型尚未为 video 声明 referrerPolicy，运行时 React 19 会透传为 DOM 属性
+							{...({
+								referrerPolicy: "no-referrer",
+							} as React.VideoHTMLAttributes<HTMLVideoElement>)}
 							className="w-full max-w-full rounded-xl bg-black block m-0 max-h-[520px]"
 							onError={() => setMediaLoadError(true)}
 							onLoadedData={() => setMediaLoadError(false)}

@@ -1,4 +1,4 @@
-import Link from "@tiptap/extension-link";
+// import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Table } from "@tiptap/extension-table";
 import TableCell from "@tiptap/extension-table-cell";
@@ -25,14 +25,14 @@ export function getEditorBaseExtensions(options?: { placeholder?: string }) {
 			heading: { levels: [1, 2, 3] },
 			codeBlock: false,
 		}),
-		Link.configure({
-			openOnClick: false,
-			HTMLAttributes: {
-				class: "text-accent underline hover:opacity-80 transition-opacity",
-				target: "_blank",
-				rel: "noopener noreferrer",
-			},
-		}),
+		// Link.configure({
+		// 	openOnClick: false,
+		// 	HTMLAttributes: {
+		// 		class: "text-accent underline hover:opacity-80 transition-opacity",
+		// 		target: "_blank",
+		// 		rel: "noopener noreferrer",
+		// 	},
+		// }),
 		TextAlign.configure({
 			types: ["heading", "paragraph", "image", "video"],
 			defaultAlignment: "left",

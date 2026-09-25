@@ -16,6 +16,17 @@ export type StylePreset =
 	| "rewrite"
 	| "custom";
 
+/**
+ * 单文档内容体积上限（字符数）。
+ * 超过该体积的 TipTap JSON 会把渲染进程内存顶爆（V8 OOM 崩溃），
+ * 草稿合并/媒体类型探测等环节统一以此值为界跳过超大内容。
+ * 参考：正常文档最大约 10 万字符，2M 已是 20 倍余量。
+ */
+export const MAX_DOC_CONTENT_CHARS = 2_000_000;
+
+/** 导入文件体积上限（字节）：超大 Word/PDF 解析后会病态膨胀为数十倍体积的富文本 JSON */
+export const MAX_IMPORT_FILE_BYTES = 10 * 1024 * 1024;
+
 export const STYLE_PRESETS: readonly StylePreset[] = [
 	"official",
 	"media",

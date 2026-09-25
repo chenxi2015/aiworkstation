@@ -23,6 +23,7 @@ import {
 	type EditorDocFolder,
 	type EditorDocument,
 	type EditorStylePreset,
+	MAX_DOC_CONTENT_CHARS,
 } from "../types";
 import {
 	clearDocDraft,
@@ -370,6 +371,15 @@ export function useDocumentManager(): UseDocumentManagerReturn {
 						const remoteTime = doc.updatedAt
 							? new Date(doc.updatedAt).getTime()
 							: 0;
+						if (
+							draft?.content &&
+							draft.content.length > MAX_DOC_CONTENT_CHARS
+						) {
+							console.warn(
+								`[useDocumentManager] 文档 ${doc.id} 的本地草稿体积超限（${draft.content.length} 字符），跳过合并以防内存耗尽；建议清除该草稿`,
+							);
+							return doc;
+						}
 						if (draft && draft.updatedAt > remoteTime && draft.content) {
 							return {
 								...doc,
