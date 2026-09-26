@@ -241,7 +241,13 @@ extensions/aicollector/ # Chrome 插件（WXT 框架）：background / content /
 | `update_folder` | 更新文件夹属性与描述 | 修改单个或特定文件夹元信息 | ✅ 已实现 |
 | `remove_bookmarks_from_folder` | 从文件夹移出书签 | 移回未分类或清空目录 | ✅ 已实现 |
 | `crawl_webpage_via_extension` | 调度 Chrome 插件静默抓取网页 | 突破 SPA/反爬/需登录限制，支持指定 CSS 选择器定向提纯 Markdown | ✅ 已实现 |
+| `canvas_create_board` | **创建新 Canvas 空白白板文件并自动打开画布** | 单一职责新建 .canvas 白板文件并自动打开视图，内容写入由 `canvas_create_elements` 链式承接 | ✅ 已实现 |
+| `canvas_create_elements` | **Canvas 白板批量创建节点与连线（复合工具，支持 groups 分组）** | 批量生成思维导图/架构图/卡片矩阵/分区容器，前端自动排版与实时渲染，支持 Cmd+Z | ✅ 已实现 |
+| `canvas_create_group` | **Canvas 白板节点逻辑分组框** | 为指定节点列表创建自适应包围盒的 Group 容器框，自动外扩 padding | ✅ 已实现 |
+| `canvas_update_node` | 更新 Canvas 白板卡片内容与颜色 | 局部安全修改卡片文本或 Obsidian 预设颜色，不破坏周围排版 | ✅ 已实现 |
+| `canvas_tidy_layout` | **Canvas 白板一键几何规整与锚点优化** | 20px 网格吸附、卡片宽度标准化、防碰撞防重叠、智能连接面计算 | ✅ 已实现 |
 | `execute_browser_action` | 驱动浏览器插件执行原子交互序列 | 支持模拟点击、滚动翻页、表单填写等自动化操作流 | P2 |
+
 | `find_duplicates` | 基于 URL 和语义的重复检测 | 扫描知识库中潜在冗余条目 | P1 |
 | `batch_classify` | 批量智能分类（复用 AIClassifier） | 自动化大批量未分类数据清洗 | P1 |
 | `delete_bookmark` | 删除书签 | 单条或按条件批量清理失效/无用书签 | P1 |
@@ -280,12 +286,15 @@ extensions/aicollector/ # Chrome 插件（WXT 框架）：background / content /
    - 写作时自动关联并引用收藏库中的工具/素材
    - 推文/小红书/视频脚本二创与草稿生成
    - 指令通道回灌至网页编辑器并保留人工确认发布
-5. **M4.5 Obsidian 本地笔记生态与 Markdown 渲染引擎**（✅ 已完成）：
+5. **M4.5 Obsidian 本地笔记生态、双栏 Diff 创作与 Canvas 白板空间智能体**（✅ 已完成）：
    - 本地 Vault 目录即分类直读直写（完全兼容外部 Obsidian/Git 库，数据不落 SQLite 库）
    - CodeMirror 6 深度定制专业 Markdown 编辑器，支持编辑/阅读视图自由切换
    - 双链系统（Wikilink）：`[[笔记名]]` 语法高亮、点击跳转、目标缺失时一键就地新建笔记
+   - **双栏 Diff 审阅与通篇流式创作流水线**：红绿高亮比对、一键采纳覆盖或另存为新笔记
+   - **Canvas 白板 AI 实时写入与智能排版规整**：提供 `canvas_create_board`（创建新白板并自动打开画布）、`canvas_create_elements`（批量建节点/连线/分组）、`canvas_create_group`（自适应框选分组）、`canvas_update_node`（更新节点）、`canvas_tidy_layout`（规整排版），搭配前端确定性几何排版引擎（`canvasLayoutEngine`，支持树状/网格排版、20px 网格吸附、卡片宽度标准化、自适应外接包围盒、防重叠防遮挡、智能连接面计算），右下角控制条支持一键规整，零延迟高亮渲染与视口平滑聚焦，且完整接入 `useCanvasHistory` 快照栈支持 Cmd+Z 一键撤销。
    - 丰富渲染扩展：KaTeX 数学公式（`$...$` 与 `$$...$$`）、Mermaid 交互图表、水平分割线 Widget、完成状态任务复选框
    - 桌面级工程体验：侧栏拖拽调宽记忆、面包屑与前进后退、跨平台直接在系统文件管理器打开、删除文件移入系统回收站（Trash）
+
 6. **M5 打磨与分发矩阵**：
    - Chrome side panel 深度联动
    - 个人专属视觉导航页（Showcase）一键导出

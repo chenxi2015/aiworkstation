@@ -19,11 +19,19 @@ import {
 	genId,
 	parseCanvas,
 	serializeCanvas,
+	sideOf,
 	toFlowEdge,
 	toFlowNodes,
 } from "./canvasSerializer";
-import type { CanvasNode } from "./canvasUtils";
+import type { CanvasEdge, CanvasNode } from "./canvasUtils";
+import {
+	computeGroupBounds,
+	layoutAiElements,
+	type TidyLayoutOptions,
+	tidyUpCanvasElements,
+} from "./canvasLayoutEngine";
 import { useCanvasHistory } from "./useCanvasHistory";
+
 
 export interface UseCanvasGraphOptions {
 	content: string;
@@ -585,6 +593,279 @@ export function useCanvasGraph({
 		[onNavigateNote, readOnly, commitText, deleteNode, setNodeColor, startEdit],
 	);
 
+	/**
+	 * Apply AI generated elements with auto-layout and record to history
+	 */
+	const applyAiElements = useCallback(
+		(params: {
+			nodes: Array<{
+				id: string;
+				type?: "text" | "file" | "group";
+				text?: string;
+				file?: string;
+				label?: string;
+				color?: "1" | "2" | "3" | "4" | "5" | "6";
+			}>;
+			edges?: Array<{
+				fromNode: string;
+				toNode: string;
+				label?: string;
+				color?: "1" | "2" | "3" | "4" | "5" | "6";
+				toEnd?: "arrow" | "none";
+			}>;
+			groups?: Array<{
+				id?: string;
+				label: string;
+				nodeIds: string[];
+				color?: "1" | "2" | "3" | "4" | "5" | "6";
+			}>;
+			layout?: "horizontal_tree" | "vertical_tree" | "grid" | "free";
+			referenceNodeId?: string;
+		}): string[] => {
+			if (readOnly || !buildOptionsRef.current) return [];
+
+			// Collect current CanvasNode models
+			const existingCanvasNodes: CanvasNode[] = nodesRef.current
+				.map((n) => {
+					if (n.type === "canvasCard") {
+						return (n.data as { canvasNode: CanvasNode }).canvasNode;
+					}
+					if (n.type === "canvasGroup") {
+						const d = n.data as any;
+						return {
+							id: n.id,
+							type: "group" as const,
+							x: n.position.x,
+							y: n.position.y,
+							width: n.style?.width ? Number(n.style.width) : 400,
+							height: n.style?.height ? Number(n.style.height) : 300,
+							label: d.label,
+							color: d.color,
+						};
+					}
+					return null;
+				})
+				.filter((n): n is CanvasNode => n !== null);
+
+			const rawNodes = params.nodes.map((n) => ({
+				id: n.id,
+				type: n.type ?? "text",
+				text: n.text,
+				file: n.file,
+				label: n.label,
+				color: n.color,
+			}));
+
+			const { nodes: newCanvasNodes, edges: newCanvasEdges } = layoutAiElements(
+				rawNodes,
+				params.edges ?? [],
+				{
+					existingNodes: existingCanvasNodes,
+					layout: params.layout ?? "horizontal_tree",
+					referenceNodeId: params.referenceNodeId,
+				},
+				params.groups ?? [],
+			);
+
+			const newFlowNodes = toFlowNodes(newCanvasNodes, buildOptionsRef.current);
+			const allCanvasNodesMap = new Map<string, CanvasNode>();
+			existingCanvasNodes.forEach((n) => allCanvasNodesMap.set(n.id, n));
+			newCanvasNodes.forEach((n) => allCanvasNodesMap.set(n.id, n));
+
+			const newFlowEdges = newCanvasEdges
+				.map((e) => toFlowEdge(e, allCanvasNodesMap))
+				.filter((e): e is Edge => e !== null);
+
+			const existingNodeIds = new Set(nodesRef.current.map((n) => n.id));
+			const mergedNodes = [
+				...nodesRef.current,
+				...newFlowNodes.filter((n) => !existingNodeIds.has(n.id)),
+			];
+
+			const existingEdgeIds = new Set(edgesRef.current.map((e) => e.id));
+			const mergedEdges = [
+				...edgesRef.current,
+				...newFlowEdges.filter((e) => !existingEdgeIds.has(e.id)),
+			];
+
+			setNodes(mergedNodes);
+			setEdges(mergedEdges);
+			emitRef.current(mergedNodes, mergedEdges);
+
+			return newFlowNodes.map((n) => n.id);
+		},
+		[readOnly],
+	);
+
+	/**
+	 * Create an enclosing group container for specified nodes by AI
+	 */
+	const createAiGroup = useCallback(
+		(params: {
+			label: string;
+			nodeIds: string[];
+			color?: "1" | "2" | "3" | "4" | "5" | "6";
+		}): boolean => {
+			if (readOnly || !buildOptionsRef.current || params.nodeIds.length === 0) {
+				return false;
+			}
+
+			const targetNodes: CanvasNode[] = nodesRef.current
+				.filter((n) => params.nodeIds.includes(n.id))
+				.map((n) => {
+					if (n.type === "canvasCard") {
+						return (n.data as { canvasNode: CanvasNode }).canvasNode;
+					}
+					return null;
+				})
+				.filter((n): n is CanvasNode => n !== null);
+
+			if (targetNodes.length === 0) return false;
+
+			const groupCanvasNode = computeGroupBounds(
+				targetNodes,
+				params.label,
+				`ai_grp_${Date.now()}`,
+				params.color,
+			);
+			if (!groupCanvasNode) return false;
+
+			const flowNodes = toFlowNodes([groupCanvasNode], buildOptionsRef.current);
+			if (flowNodes.length === 0) return false;
+
+			// Prepend group node to the list so cards render above it
+			const nextNodes = [flowNodes[0], ...nodesRef.current];
+			setNodes(nextNodes);
+			emitRef.current(nextNodes, edgesRef.current);
+			return true;
+		},
+		[readOnly],
+	);
+
+	/**
+	 * Update content or color of a specific node by AI
+	 */
+	const updateAiNode = useCallback(
+		(
+			id: string,
+			updates: { text?: string; color?: "1" | "2" | "3" | "4" | "5" | "6" },
+		): boolean => {
+			if (readOnly) return false;
+			let found = false;
+			const nextNodes = nodesRef.current.map((node) => {
+				if (node.id !== id) return node;
+				found = true;
+				if (node.type === "canvasCard") {
+					const prevData = node.data as { canvasNode: CanvasNode };
+					return {
+						...node,
+						data: {
+							...node.data,
+							canvasNode: {
+								...prevData.canvasNode,
+								...(updates.text !== undefined ? { text: updates.text } : {}),
+								...(updates.color !== undefined ? { color: updates.color } : {}),
+							},
+						},
+					};
+				}
+				if (node.type === "canvasGroup") {
+					return {
+						...node,
+						data: {
+							...node.data,
+							...(updates.text !== undefined ? { label: updates.text } : {}),
+							...(updates.color !== undefined ? { color: updates.color } : {}),
+						},
+					};
+				}
+				return node;
+			});
+			if (found) {
+				setNodes(nextNodes);
+				emitRef.current(nextNodes, edgesRef.current);
+			}
+			return found;
+		},
+		[readOnly],
+	);
+
+	/**
+	 * Tidy up existing canvas layout (standardize dimensions, snap grid, re-route edges)
+	 */
+	const tidyCanvasLayout = useCallback(
+		(options?: TidyLayoutOptions): boolean => {
+			if (readOnly || !buildOptionsRef.current) return false;
+
+			const existingCanvasNodes: CanvasNode[] = nodesRef.current
+				.map((n) => {
+					if (n.type === "canvasCard") {
+						const cn = (n.data as { canvasNode: CanvasNode }).canvasNode;
+						return {
+							...cn,
+							x: Math.round(n.position.x),
+							y: Math.round(n.position.y),
+							width: Math.round(
+								n.measured?.width ?? n.width ?? cn.width ?? 260,
+							),
+							height: Math.round(
+								n.measured?.height ?? n.height ?? cn.height ?? 140,
+							),
+						};
+					}
+					if (n.type === "canvasGroup") {
+						const d = n.data as any;
+						return {
+							id: n.id,
+							type: "group" as const,
+							x: n.position.x,
+							y: n.position.y,
+							width: n.style?.width ? Number(n.style.width) : 400,
+							height: n.style?.height ? Number(n.style.height) : 300,
+							label: d.label,
+							color: d.color,
+						};
+					}
+					return null;
+				})
+				.filter((n): n is CanvasNode => n !== null);
+
+			const existingCanvasEdges: CanvasEdge[] = edgesRef.current.map((e) => {
+				const fromSide = e.sourceHandle ? sideOf(e.sourceHandle) : undefined;
+				const toSide = e.targetHandle ? sideOf(e.targetHandle) : undefined;
+				return {
+					id: e.id,
+					fromNode: e.source,
+					toNode: e.target,
+					fromSide,
+					toSide,
+					label: typeof e.label === "string" ? e.label : undefined,
+				};
+			});
+
+			const { nodes: tidyNodes, edges: tidyEdges } = tidyUpCanvasElements(
+				existingCanvasNodes,
+				existingCanvasEdges,
+				options,
+			);
+
+			const newFlowNodes = toFlowNodes(tidyNodes, buildOptionsRef.current);
+			const allNodesMap = new Map<string, CanvasNode>(
+				tidyNodes.map((n) => [n.id, n]),
+			);
+			const newFlowEdges = tidyEdges
+				.map((e) => toFlowEdge(e, allNodesMap))
+				.filter((e): e is Edge => e !== null);
+
+			setNodes(newFlowNodes);
+			setEdges(newFlowEdges);
+			emitRef.current(newFlowNodes, newFlowEdges);
+
+			return true;
+		},
+		[readOnly],
+	);
+
 	return {
 		parsed,
 		nodes,
@@ -608,6 +889,10 @@ export function useCanvasGraph({
 		handleNodesChange,
 		handleEdgesChange,
 		addCardAtPosition,
+		applyAiElements,
+		createAiGroup,
+		updateAiNode,
+		tidyCanvasLayout,
 		emit,
 		undo,
 		redo,
@@ -615,3 +900,5 @@ export function useCanvasGraph({
 		canRedo,
 	};
 }
+
+

@@ -31,6 +31,7 @@ import {
 } from "./CanvasToolbar";
 import { resolveColor } from "./canvasUtils";
 import { markCanvasMoving } from "./cards/useSmartNodeScroll";
+import type { ObsidianCanvasApi } from "../types";
 import { useCanvasConnections } from "./useCanvasConnections";
 import { useCanvasGraph } from "./useCanvasGraph";
 
@@ -48,7 +49,10 @@ export interface CanvasViewProps {
 	 * Returns the new note's relPath, or null on failure.
 	 */
 	onCreateNoteFile?: (name?: string) => Promise<string | null>;
+	/** Expose canvas API for AI assistants or external tools */
+	onRegisterCanvasApi?: (api: ObsidianCanvasApi | null) => void;
 }
+
 
 const nodeTypes = {
 	canvasCard: CanvasCardNode,
@@ -86,9 +90,10 @@ function CanvasFlow({
 	onNavigateNote,
 	readOnly = false,
 	onCreateNoteFile,
+	onRegisterCanvasApi,
 }: CanvasViewProps) {
 	const colorMode = useColorMode();
-	const { screenToFlowPosition } = useReactFlow();
+	const { screenToFlowPosition, fitView } = useReactFlow();
 	const wrapperRef = useRef<HTMLDivElement>(null);
 	const [searchCategory, setSearchCategory] = useState<
 		"all" | "note" | "media"
@@ -118,6 +123,10 @@ function CanvasFlow({
 		handleNodesChange,
 		handleEdgesChange,
 		addCardAtPosition,
+		applyAiElements,
+		createAiGroup,
+		updateAiNode,
+		tidyCanvasLayout,
 		emit,
 		undo,
 		redo,
@@ -129,6 +138,58 @@ function CanvasFlow({
 		onNavigateNote,
 		readOnly,
 	});
+
+	// Register canvas API for AI sidebar assistant
+	useEffect(() => {
+		if (!onRegisterCanvasApi) return;
+		onRegisterCanvasApi({
+			addElements: (params) => {
+				const newNodeIds = applyAiElements(params);
+				if (newNodeIds.length > 0) {
+					// Smoothly zoom and pan to the newly created elements
+					setTimeout(() => {
+						fitView({
+							nodes: newNodeIds.map((id) => ({ id })),
+							duration: 600,
+							padding: 0.3,
+						});
+					}, 60);
+					return true;
+				}
+				return false;
+			},
+			createGroup: (params) => {
+				const ok = createAiGroup(params);
+				if (ok) {
+					setTimeout(() => {
+						fitView({ duration: 500, padding: 0.25 });
+					}, 60);
+				}
+				return ok;
+			},
+			updateNode: (id, updates) => {
+				return updateAiNode(id, updates);
+			},
+			tidyLayout: (options) => {
+				const ok = tidyCanvasLayout(options);
+				if (ok) {
+					setTimeout(() => {
+						fitView({ duration: 600, padding: 0.2 });
+					}, 60);
+				}
+				return ok;
+			},
+		});
+		return () => onRegisterCanvasApi(null);
+	}, [
+		onRegisterCanvasApi,
+		applyAiElements,
+		createAiGroup,
+		updateAiNode,
+		tidyCanvasLayout,
+		fitView,
+	]);
+
 
 	// Space key and V/H mode shortcuts
 	useEffect(() => {
@@ -247,6 +308,14 @@ function CanvasFlow({
 		[readOnly, addCardAt],
 	);
 
+	const handleManualTidy = useCallback(() => {
+		if (readOnly) return;
+		tidyCanvasLayout({ layout: "horizontal_tree" });
+		setTimeout(() => {
+			fitView({ duration: 400, padding: 0.15 });
+		}, 50);
+	}, [readOnly, tidyCanvasLayout, fitView]);
+
 	const handleNodeDoubleClick = useCallback(
 		(_: React.MouseEvent, node: Node) => {
 			if (readOnly) return;
@@ -316,6 +385,7 @@ function CanvasFlow({
 			alignGroupChildren,
 			createGroupFromSelection,
 			alignSelectedNodes,
+			tidyCanvasLayout,
 			onNavigateNote,
 			deleteEdge,
 			setEdgeColor,
@@ -335,6 +405,7 @@ function CanvasFlow({
 			alignGroupChildren,
 			createGroupFromSelection,
 			alignSelectedNodes,
+			tidyCanvasLayout,
 			onNavigateNote,
 			deleteEdge,
 			setEdgeColor,
@@ -343,6 +414,7 @@ function CanvasFlow({
 			startEditEdge,
 			commitEdgeLabel,
 		],
+
 	);
 
 	useEffect(() => {
@@ -461,6 +533,7 @@ function CanvasFlow({
 							canUndo={canUndo}
 							canRedo={canRedo}
 							readOnly={readOnly}
+							onTidyLayout={handleManualTidy}
 						/>
 						<MiniMap
 							pannable

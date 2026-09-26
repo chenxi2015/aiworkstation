@@ -27,6 +27,15 @@ export interface UseAiChatOptions {
 		prompt: string;
 		stylePreset?: string;
 	}) => void;
+	onCanvasAction?: (
+		toolName:
+			| "canvas_create_board"
+			| "canvas_create_elements"
+			| "canvas_create_group"
+			| "canvas_update_node"
+			| "canvas_tidy_layout",
+		args: any,
+	) => void;
 }
 
 /**
@@ -378,6 +387,15 @@ export function useAiChat(options?: UseAiChatOptions) {
 										? step.args.instruction
 										: undefined;
 								options?.onTriggerRewritePipeline?.(instruction);
+							}
+							if (
+								step.toolName === "canvas_create_board" ||
+								step.toolName === "canvas_create_elements" ||
+								step.toolName === "canvas_create_group" ||
+								step.toolName === "canvas_update_node" ||
+								step.toolName === "canvas_tidy_layout"
+							) {
+								options?.onCanvasAction?.(step.toolName, step.args);
 							}
 							setMessages((prev) => {
 								const last = prev[prev.length - 1];

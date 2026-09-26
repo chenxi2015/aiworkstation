@@ -93,4 +93,60 @@ export interface ObsidianNoteApi {
 	canUndo?: () => boolean;
 	/** 是否可重做 */
 	canRedo?: () => boolean;
+	/** 当前打开的文件是否为 Canvas 白板 */
+	isCanvas?: () => boolean;
+	/** 白板操作句柄（仅在打开 .canvas 文件且处于可视视图时生效） */
+	canvasApi?: ObsidianCanvasApi;
 }
+
+/**
+ * 白板操作句柄（AI 侧边栏实时写入与渲染使用）
+ */
+export interface ObsidianCanvasApi {
+	/** 批量添加节点与连线，自动排版并平滑聚焦 */
+	addElements: (params: {
+		nodes: Array<{
+			id: string;
+			type?: "text" | "file" | "group";
+			text?: string;
+			file?: string;
+			label?: string;
+			color?: "1" | "2" | "3" | "4" | "5" | "6";
+		}>;
+		edges?: Array<{
+			fromNode: string;
+			toNode: string;
+			label?: string;
+			color?: "1" | "2" | "3" | "4" | "5" | "6";
+			toEnd?: "arrow" | "none";
+		}>;
+		groups?: Array<{
+			id?: string;
+			label: string;
+			nodeIds: string[];
+			color?: "1" | "2" | "3" | "4" | "5" | "6";
+		}>;
+		layout?: "horizontal_tree" | "vertical_tree" | "grid" | "free";
+		referenceNodeId?: string;
+	}) => boolean;
+	/** 为指定的若干节点创建分组框，自动计算包围盒与内边距 */
+	createGroup: (params: {
+		label: string;
+		nodeIds: string[];
+		color?: "1" | "2" | "3" | "4" | "5" | "6";
+	}) => boolean;
+	/** 更新指定卡片的内容或样式 */
+	updateNode: (
+		id: string,
+		updates: { text?: string; color?: "1" | "2" | "3" | "4" | "5" | "6" },
+	) => boolean;
+	/** 对现有白板进行几何规整（标准化尺寸、对齐网格、优化连线） */
+	tidyLayout: (options?: {
+		layout?: "horizontal_tree" | "vertical_tree" | "grid" | "compact";
+		standardizeWidth?: boolean;
+		alignHandles?: boolean;
+		targetNodeIds?: string[];
+	}) => boolean;
+}
+
+

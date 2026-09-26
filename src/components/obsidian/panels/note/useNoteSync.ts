@@ -1,4 +1,5 @@
 import { toast } from "@heroui/react";
+import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	fetchVaultNote,
@@ -6,12 +7,17 @@ import {
 	saveVaultNoteRpc,
 } from "../../../../services/api/obsidianClient";
 import { clearWikilinkCaches } from "../../markdown/wikilink";
-import type { ObsidianNoteApi, ObsidianNoteContent } from "../../types";
+import type {
+	ObsidianCanvasApi,
+	ObsidianNoteApi,
+	ObsidianNoteContent,
+} from "../../types";
 import { tryReapplyChanges } from "../../utils/merge";
 import type { NoteSaveState } from "./NoteStatusBar";
 
 /** Autosave debounce delay in milliseconds */
 const AUTOSAVE_DELAY = 800;
+
 /** Throttle interval for refreshing vault tree after autosave (avoids rescan flood) */
 const TREE_SYNC_THROTTLE = 10000;
 
@@ -28,6 +34,7 @@ export interface UseNoteSyncOptions {
 	onRedo?: () => boolean;
 	canUndo?: () => boolean;
 	canRedo?: () => boolean;
+	canvasApiRef?: React.RefObject<ObsidianCanvasApi | null>;
 }
 
 export interface UseNoteSyncReturn {
@@ -60,6 +67,7 @@ export function useNoteSync({
 	onRedo,
 	canUndo,
 	canRedo,
+	canvasApiRef,
 }: UseNoteSyncOptions): UseNoteSyncReturn {
 	const initialCached = getCachedVaultNote(relPath);
 	const [note, setNote] = useState<ObsidianNoteContent | null>(initialCached);
@@ -248,6 +256,10 @@ export function useNoteSync({
 			redo: onRedo,
 			canUndo,
 			canRedo,
+			isCanvas: () => relPath.endsWith(".canvas"),
+			get canvasApi() {
+				return canvasApiRef?.current ?? undefined;
+			},
 		});
 		return () => onRegisterNoteApi(null);
 	}, [
@@ -258,7 +270,10 @@ export function useNoteSync({
 		onRedo,
 		canUndo,
 		canRedo,
+		canvasApiRef,
+		relPath,
 	]);
+
 
 	return {
 		note,

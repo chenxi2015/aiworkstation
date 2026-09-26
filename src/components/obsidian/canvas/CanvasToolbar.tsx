@@ -4,6 +4,7 @@ import {
 	File,
 	FileText,
 	Image as ImageIcon,
+	LayoutGrid,
 	Maximize2,
 	Minus,
 	Plus,
@@ -134,6 +135,7 @@ export interface CanvasViewControlsProps {
 	canUndo: boolean;
 	canRedo: boolean;
 	readOnly?: boolean;
+	onTidyLayout?: () => void;
 }
 
 const controlBtnClass =
@@ -141,7 +143,7 @@ const controlBtnClass =
 
 /**
  * Bottom-right controls matching Obsidian canvas (Figure 1):
- * - Top block: Zoom In (+), Reset 100% (↻), Fit View (⛶), Zoom Out (-)
+ * - Top block: Zoom In (+), Reset 100% (↻), Fit View (⛶), Tidy Layout (⊞), Zoom Out (-)
  * - Bottom block: Undo (↶), Redo (↷)
  */
 export function CanvasViewControls({
@@ -150,6 +152,7 @@ export function CanvasViewControls({
 	canUndo,
 	canRedo,
 	readOnly,
+	onTidyLayout,
 }: CanvasViewControlsProps) {
 	const { zoomIn, zoomOut, zoomTo, fitView } = useReactFlow();
 
@@ -187,6 +190,17 @@ export function CanvasViewControls({
 				>
 					<Maximize2 className="w-3.5 h-3.5" strokeWidth={1.75} />
 				</button>
+				{!readOnly && onTidyLayout && (
+					<button
+						type="button"
+						aria-label="一键规整排版"
+						title="一键规整排版 (自动对齐网格与优化连线)"
+						onClick={onTidyLayout}
+						className={controlBtnClass}
+					>
+						<LayoutGrid className="w-3.5 h-3.5" strokeWidth={1.75} />
+					</button>
+				)}
 				<button
 					type="button"
 					aria-label="缩小"

@@ -16,6 +16,7 @@ export interface CanvasActionContextValue {
 		box: { minX: number; minY: number; width: number; height: number },
 	) => void;
 	alignSelectedNodes: (type: AlignmentType) => void;
+	tidyCanvasLayout?: (options?: any) => boolean;
 	onNavigateNote?: (relPath: string) => void;
 
 	// Edge operations

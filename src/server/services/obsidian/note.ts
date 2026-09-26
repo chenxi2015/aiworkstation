@@ -134,6 +134,9 @@ export async function createVaultNote(
 		const baseFileName = ensureMdSuffix(name.trim());
 		if (!baseFileName.replace(/\.md$/i, "")) throw new Error("笔记名不能为空");
 		const targetDirAbs = dirAbsPath(dirRelPath);
+		if (!existsSync(targetDirAbs)) {
+			await fs.mkdir(targetDirAbs, { recursive: true });
+		}
 		let fileName = baseFileName;
 		let abs = path.join(targetDirAbs, fileName);
 		assertWritablePath(abs);
@@ -207,6 +210,9 @@ export async function createVaultCanvas(
 		if (!baseFileName.replace(/\.canvas$/i, ""))
 			throw new Error("白板名不能为空");
 		const targetDirAbs = dirAbsPath(dirRelPath);
+		if (!existsSync(targetDirAbs)) {
+			await fs.mkdir(targetDirAbs, { recursive: true });
+		}
 		let fileName = baseFileName;
 		let abs = path.join(targetDirAbs, fileName);
 		assertWritablePath(abs);

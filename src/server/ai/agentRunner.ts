@@ -13,6 +13,7 @@ import {
 } from "./editorTools.ts";
 import { createFsServerTools } from "./fs/index.ts";
 import { prepareRagAgentContext, resolveLlmConfig } from "./ragContext.ts";
+import { createCanvasServerTools } from "./tools/canvasTools.ts";
 import type { BookmarkToolHooks } from "./tools/types.ts";
 
 export type StreamEventEmitter = (event: AgentStreamEvent) => void;
@@ -157,6 +158,10 @@ export async function runAgentStream(
 		// Inject rewrite pipeline tool when in obsidian module with an active note
 		...(module === "obsidian" || Boolean(activeNotePath)
 			? [createRewritePipelineTool(toolHooks)]
+			: []),
+		// Inject canvas tools when in obsidian module or viewing a canvas file
+		...(module === "obsidian" || activeNotePath?.endsWith(".canvas")
+			? createCanvasServerTools(toolHooks)
 			: []),
 	];
 	// Deduplicate tools by name to ensure uniqueness for TanStack AI chat()

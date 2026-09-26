@@ -215,7 +215,22 @@ export const ChatWithBookmarksPanel = forwardRef<
 				void createAct.onAction(JSON.stringify(params));
 			}
 		},
+		onCanvasAction: (toolName, args) => {
+			// console.log("[ChatPanel onCanvasAction]", toolName, args);
+			const act = pageBridge?.actions.find((a) => a.id === toolName);
+			if (act) {
+				void act.onAction(
+					typeof args === "string" ? args : JSON.stringify(args),
+				);
+			} else {
+				console.warn(
+					"[ChatPanel onCanvasAction] No matching bridge action found for:",
+					toolName,
+				);
+			}
+		},
 	});
+
 
 	// Helper to send prompts with active scope options
 	const handleSendPrompt = async (

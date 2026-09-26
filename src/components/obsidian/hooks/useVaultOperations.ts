@@ -154,22 +154,26 @@ export function useVaultOperations({
 		[currentDir, nextAvailableName, expandDirChain, load],
 	);
 
-	/** Create a new canvas and enter inline rename mode directly */
+	/** Create a new canvas, optionally with a custom name, and open it */
 	const handleCreateCanvas = useCallback(
-		async (dir?: string) => {
+		async (dir?: string, customName?: string, enterRename = true) => {
 			const targetDir = dir ?? currentDir;
-			const name = nextAvailableName(targetDir, "未命名白板", false, ".canvas");
+			const defaultTitle = customName?.trim() || "未命名白板";
+			const name = nextAvailableName(targetDir, defaultTitle, false, ".canvas");
 			const res = await createVaultCanvasRpc(targetDir, name);
 			if (!res.success) {
 				toast.danger(res.error ?? "新建白板失败");
-				return;
+				return res;
 			}
 			expandDirChain(targetDir);
 			await load(true);
 			if (res.relPath) {
 				openNote(res.relPath);
-				setRenamingPath(res.relPath);
+				if (enterRename) {
+					setRenamingPath(res.relPath);
+				}
 			}
+			return res;
 		},
 		[currentDir, nextAvailableName, expandDirChain, load, openNote],
 	);

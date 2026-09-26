@@ -1,7 +1,9 @@
 import {
 	chmodSync,
 	closeSync,
+	existsSync,
 	fsyncSync,
+	mkdirSync,
 	openSync,
 	realpathSync,
 	renameSync,
@@ -126,7 +128,14 @@ export function looksBinary(buf: Buffer): boolean {
  */
 export function writeTextAtomicSync(absPath: string, content: string): void {
 	const dir = dirname(absPath);
-	const tempPath = join(dir, `.${basename(absPath)}.${process.pid}.tmp`);
+	if (!existsSync(dir)) {
+		mkdirSync(dir, { recursive: true });
+	}
+	const randomSuffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+	const tempPath = join(
+		dir,
+		`.${basename(absPath)}.${process.pid}.${randomSuffix}.tmp`,
+	);
 	let fd: number | undefined;
 	try {
 		fd = openSync(tempPath, "w", 0o600);

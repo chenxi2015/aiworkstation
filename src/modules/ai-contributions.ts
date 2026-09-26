@@ -153,23 +153,30 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 	obsidian: {
 		code: "obsidian",
 		systemPromptHint:
-			"用户正在「笔记」模块（Obsidian Vault 直连）。偏向笔记协同：总结与润色当前笔记、从收藏库检索素材补充笔记、整理知识结构；笔记正文通过对话上下文提供，修改由用户在编辑器确认后落盘。",
+			"用户正在「笔记」模块（Obsidian Vault 直连）。偏向笔记与白板协同：总结润色笔记、二创改写；当打开 .canvas 白板时，可通过 canvas 工具实时绘制思维导图、架构图与知识卡片网络，修改由用户确认或实时呈现在白板上。",
 		promptSuggestions: [
+			"帮我新建一个名为「系统架构」的白板并梳理核心模块",
+			"帮我规整一下当前白板的排版，对齐节点并优化连线",
+			"帮我在当前白板中梳理思维导图，向右延伸层级结构",
+			"根据这篇笔记的内容在白板中绘制系统架构与模块流向图",
 			"基于当前笔记事实进行二创改写与重新表述，生成全新的内容稿件",
 			"对当前笔记全文进行精细润色，纠正语病并优化行文逻辑",
 			"提炼并总结当前笔记的核心要点与结构脉络",
-			"帮我梳理当前笔记的结构，给出知识扩充与修改建议",
-			"从我的收藏库找一些能补充当前笔记主题的素材",
-			"为这篇笔记生成 3~5 个关联标签和双链建议",
 		],
 		tools: [
 			"trigger_paragraph_rewrite",
+			"canvas_create_board",
+			"canvas_create_elements",
+			"canvas_create_group",
+			"canvas_update_node",
+			"canvas_tidy_layout",
 			"read_webpage_content",
 			"query_bookmarks",
 			"web_search",
 		],
 		contextItemTypes: ["bookmark", "folder", "tag", "image", "file"],
 	},
+
 	ecommerce: {
 		code: "ecommerce",
 		systemPromptHint:

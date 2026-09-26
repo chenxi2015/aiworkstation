@@ -21,6 +21,7 @@ import { MarkdownAiBubbleMenu } from "../../markdown/MarkdownAiBubbleMenu";
 import { MarkdownEditor } from "../../markdown/MarkdownEditor";
 import { SplitNoteCompareView } from "../../markdown/SplitNoteCompareView";
 import type { NotePanelProps } from "../../NotePanel";
+import type { ObsidianCanvasApi } from "../../types";
 import { JsonEditor } from "../JsonEditor";
 import { NoteConflictBanner } from "./NoteConflictBanner";
 import { NoteStatusBar } from "./NoteStatusBar";
@@ -122,6 +123,14 @@ export function TextNotePanel({
 	const canUndoRef = useRef<() => boolean>(() => false);
 	const canRedoRef = useRef<() => boolean>(() => false);
 
+	const canvasApiRef = useRef<ObsidianCanvasApi | null>(null);
+	const handleRegisterCanvasApi = useCallback(
+		(api: ObsidianCanvasApi | null) => {
+			canvasApiRef.current = api;
+		},
+		[],
+	);
+
 	const {
 		note,
 		draft,
@@ -143,7 +152,9 @@ export function TextNotePanel({
 		onRedo: () => handleRedoRef.current(),
 		canUndo: () => canUndoRef.current(),
 		canRedo: () => canRedoRef.current(),
+		canvasApiRef,
 	});
+
 
 	const isEditableDoc = !isCanvas || canvasMode === "source";
 	const effectiveCanUndo = canUndo && !note?.truncated && isEditableDoc;
@@ -400,7 +411,9 @@ export function TextNotePanel({
 								onNavigateNote={onNavigateNote}
 								readOnly={Boolean(note.truncated)}
 								onCreateNoteFile={handleCanvasCreateNote}
+								onRegisterCanvasApi={handleRegisterCanvasApi}
 							/>
+
 						) : (
 							<JsonEditor
 								key={note.relPath}

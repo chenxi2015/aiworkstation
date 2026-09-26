@@ -35,9 +35,9 @@ export interface ObsidianAppProps {
  * Vault directory is the single source of truth; notes read/write directly as Markdown files.
  */
 export function ObsidianApp({
-	unclassifiedCount,
-	navLayout,
-	folders,
+	unclassifiedCount: _unclassifiedCount,
+	navLayout: _navLayout,
+	folders: _folders,
 	settings,
 	initialNotePath,
 	onNoteChange,
@@ -120,7 +120,11 @@ export function ObsidianApp({
 	const handleRegisterNoteApi = useCallback((api: ObsidianNoteApi | null) => {
 		noteApiRef.current = api;
 	}, []);
-	useObsidianAiBridge({ noteApiRef, selectedNotePath });
+	useObsidianAiBridge({
+		noteApiRef,
+		selectedNotePath,
+		onCreateCanvas: handleCreateCanvas,
+	});
 
 	// 5. Vault directory configuration & switcher
 	const [pickerOpen, setPickerOpen] = useState(false);
@@ -166,7 +170,6 @@ export function ObsidianApp({
 
 	return (
 		<div className="h-full bg-surface dark:bg-background text-foreground flex flex-col overflow-hidden">
-
 			{!isMember ? (
 				<ModulePaywall
 					moduleName="笔记"
@@ -236,7 +239,6 @@ export function ObsidianApp({
 					/>
 				</div>
 			)}
-
 
 			<ObsidianModals
 				menu={menu}
