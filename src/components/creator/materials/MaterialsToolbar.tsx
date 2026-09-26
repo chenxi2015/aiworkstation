@@ -14,7 +14,7 @@ import {
 	Trash2,
 	X,
 } from "lucide-react";
-import { TYPE_TABS, type TypeTab } from "./types";
+import { KIND_CONFIG, TYPE_TABS, type TypeTab } from "./types";
 
 interface MaterialsToolbarProps {
 	title: string;
@@ -242,18 +242,28 @@ export function MaterialsToolbar({
 					const Icon = tab.icon;
 					const active = typeTab === tab.id;
 					const count = getTypeCount(tab.id);
+					const tabConfig = tab.id !== "all" ? KIND_CONFIG[tab.id] : null;
+
 					return (
 						<button
 							key={tab.id}
 							type="button"
 							onClick={() => onTypeTabChange(tab.id)}
-							className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 -mb-px transition-colors cursor-pointer shrink-0 ${
+							className={`group flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 -mb-px transition-colors cursor-pointer shrink-0 ${
 								active
 									? "border-accent text-accent"
 									: "border-transparent text-muted hover:text-foreground"
 							}`}
 						>
-							<Icon className="w-3.5 h-3.5" />
+							<Icon
+								className={`w-3.5 h-3.5 transition-colors ${
+									tabConfig
+										? active
+											? tabConfig.iconClass
+											: `${tabConfig.iconClass} opacity-70 group-hover:opacity-100`
+										: ""
+								}`}
+							/>
 							{tab.label}
 							{count > 0 && (
 								<span className="px-1.5 py-0.5 rounded-full bg-muted/10 text-[10px] text-muted">

@@ -9,7 +9,8 @@ import TaskList from "@tiptap/extension-task-list";
 import { generateJSON } from "@tiptap/html";
 import StarterKit from "@tiptap/starter-kit";
 import { renderToMarkdown } from "@tiptap/static-renderer";
-import { marked } from "marked";
+import hljs from "highlight.js";
+import { Marked } from "marked";
 import { getStylePreservationExtensions } from "./extensions/stylePreservation.ts";
 import { SuggestionDiffExtensions } from "./extensions/suggestionDiff.ts";
 import { normalizeCodeCardDoc } from "./utils/codeCardNormalizer.ts";
@@ -110,14 +111,34 @@ function convertChartCodeBlocks(node: JSONContent): JSONContent {
 }
 
 /**
- * Converts Markdown text into clean HTML using marked with GFM support
+ * Marked instance configured with GFM, line breaks, and highlight.js syntax highlighting
+ */
+const markedInstance = new Marked({
+	gfm: true,
+	breaks: true,
+	renderer: {
+		code({ text, lang }: { text: string; lang?: string }) {
+			const validLang = lang && hljs.getLanguage(lang) ? lang : undefined;
+			let highlighted = "";
+			try {
+				highlighted = validLang
+					? hljs.highlight(text, { language: validLang, ignoreIllegals: true })
+							.value
+					: hljs.highlightAuto(text).value;
+			} catch {
+				highlighted = text;
+			}
+			return `<pre><code class="hljs ${validLang ? `language-${validLang}` : ""}">${highlighted}</code></pre>`;
+		},
+	},
+});
+
+/**
+ * Converts Markdown text into clean HTML using marked with GFM support and syntax highlighting
  */
 export function markdownToHtml(markdown: string): string {
 	if (!markdown || !markdown.trim()) return "";
-	return marked.parse(markdown, {
-		gfm: true,
-		breaks: true,
-	}) as string;
+	return markedInstance.parse(markdown) as string;
 }
 
 /**

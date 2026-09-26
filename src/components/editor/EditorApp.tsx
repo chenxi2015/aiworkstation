@@ -5,14 +5,13 @@ import {
 } from "@dnd-kit/react";
 import { isSortable } from "@dnd-kit/react/sortable";
 import { toast } from "@heroui/react";
+import { useNavigate } from "@tanstack/react-router";
 import type { Editor, JSONContent } from "@tiptap/react";
 import { FileText, Sparkles, Square } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { NavLayoutEntry } from "../../modules/registry";
 import { updateDocumentRpc } from "../../services/api/editorClient";
 import { arrayMove } from "../workbench/dnd/dndUtils";
 import { EditorCanvasSkeleton } from "../workbench/skeletons";
-import type { Folder } from "../workbench/types";
 import { DocumentEditorCanvas } from "./components/DocumentEditorCanvas";
 import { DocumentSidebar } from "./components/DocumentSidebar";
 import { EditorDragChip } from "./components/EditorDragChip";
@@ -29,7 +28,6 @@ import { VideoStudioCanvas } from "./media/VideoStudioCanvas";
 import { normalizeCodeCardHtml } from "./utils/codeCardNormalizer";
 import { detectDocumentMediaInfo } from "./utils/documentMediaKind";
 import type { EditorDragData } from "./utils/editorDnd";
-import { useNavigate } from "@tanstack/react-router";
 
 const FOLDER_SIDEBAR_COLLAPSED_KEY = "editor.folderSidebar.collapsed";
 
@@ -48,28 +46,17 @@ function hitTestFolderRow(point: {
 }
 
 export interface EditorAppProps {
-	unclassifiedCount: number;
-	navLayout?: NavLayoutEntry[];
-	folders: Folder[];
-	/** 深链：文档就绪后直接打开指定文档 */
+	/** Deep-link: automatically open the document when ready */
 	initialDocId?: number;
-	/** 嵌入自媒体「创作台」时隐藏全局头部与快捷动作弹窗（由宿主 CreatorApp 渲染） */
-	embedded?: boolean;
 }
 
 /**
- * Creation workbench module entry (docs/editor-plan.md Editor-α).
+ * Creation workbench module entry (integrated into Creator Studio).
  * Left: Documents sidebar (drafts);
  * Center: Title + TipTap canvas;
  * Bottom: Word count / Save state / Export actions.
  */
-export function EditorApp({
-	unclassifiedCount: _unclassifiedCount,
-	navLayout: _navLayout,
-	folders: _folders,
-	initialDocId,
-	embedded: _embedded = false,
-}: EditorAppProps) {
+export function EditorApp({ initialDocId }: EditorAppProps = {}) {
 	const docManager = useDocumentManager();
 	const {
 		documents,

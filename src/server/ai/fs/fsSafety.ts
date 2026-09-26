@@ -257,8 +257,8 @@ export function defaultSearchRoots(): string[] {
 		join(home, "Downloads"),
 		join(home, "Projects"),
 		join(home, "WebstormProjects"),
-		// 工作台运行时数据目录（process.cwd()/.aiworkstation，含 pages/ 爬取全文、workbench.db）
-		resolve(".aiworkstation"),
+		// 工作台运行时数据目录（~/.aiworkstation，含 pages/ 爬取全文、workbench.db）
+		join(home, ".aiworkstation"),
 	];
 	return candidates.filter((p) => {
 		try {

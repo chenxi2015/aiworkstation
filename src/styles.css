@@ -1286,17 +1286,123 @@ blockquote::after {
 	margin-top: 0.15rem;
 	margin-bottom: 0.15rem;
 }
-.canvas-markdown-preview code {
-	background: var(--surface-secondary);
-	padding: 0.15rem 0.3rem;
+.canvas-markdown-preview code:not(pre code) {
+	background: rgba(255, 255, 255, 0.7);
+	border: 1px solid rgba(0, 0, 0, 0.08);
+	color: var(--foreground);
+	padding: 0.12rem 0.35rem;
 	border-radius: 4px;
 	font-size: 0.85em;
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+.dark .canvas-markdown-preview code:not(pre code) {
+	background: rgba(255, 255, 255, 0.08);
+	border-color: rgba(255, 255, 255, 0.12);
+	color: var(--foreground);
 }
 .canvas-markdown-preview blockquote {
 	border-left: 3px solid var(--border);
 	padding-left: 0.75rem;
 	color: var(--foreground-muted);
 	margin: 0.4rem 0;
+}
+.canvas-markdown-preview > :first-child {
+	margin-top: 0 !important;
+}
+.canvas-markdown-preview > :last-child {
+	margin-bottom: 0 !important;
+}
+.canvas-markdown-preview pre {
+	background: rgba(255, 255, 255, 0.65) !important;
+	border: 1px solid rgba(0, 0, 0, 0.07);
+	border-radius: 8px;
+	padding: 0.6rem 0.85rem;
+	overflow-x: auto;
+	margin: 0.45rem 0;
+	font-size: 0.85em;
+	line-height: 1.55;
+	color: var(--foreground) !important;
+}
+.dark .canvas-markdown-preview pre {
+	background: rgba(0, 0, 0, 0.3) !important;
+	border-color: rgba(255, 255, 255, 0.08);
+	color: var(--foreground) !important;
+}
+.canvas-markdown-preview pre code {
+	background: transparent !important;
+	border: none !important;
+	padding: 0 !important;
+	border-radius: 0 !important;
+	color: inherit !important;
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+.canvas-markdown-preview a {
+	color: var(--accent);
+	text-decoration: underline;
+	text-underline-offset: 2px;
+}
+
+/* Obsidian code syntax highlighting in canvas cards */
+.canvas-markdown-preview .hljs-attr,
+.canvas-markdown-preview .hljs-property {
+	color: #0098dd !important;
+}
+.canvas-markdown-preview .hljs-string {
+	color: #10b981 !important;
+}
+.canvas-markdown-preview .hljs-punctuation {
+	color: var(--foreground) !important;
+}
+.canvas-markdown-preview .hljs-keyword {
+	color: #7c3aed !important;
+}
+.canvas-markdown-preview .hljs-function,
+.canvas-markdown-preview .hljs-title.function_ {
+	color: #2563eb !important;
+}
+.canvas-markdown-preview .hljs-number {
+	color: #d97706 !important;
+}
+.canvas-markdown-preview .hljs-literal,
+.canvas-markdown-preview .hljs-boolean {
+	color: #0284c7 !important;
+}
+.canvas-markdown-preview .hljs-comment {
+	color: #94a3b8 !important;
+	font-style: italic !important;
+}
+.canvas-markdown-preview .hljs-variable,
+.canvas-markdown-preview .hljs-params {
+	color: var(--foreground) !important;
+}
+
+/* Dark mode syntax highlighting */
+.dark .canvas-markdown-preview .hljs-attr,
+.dark .canvas-markdown-preview .hljs-property {
+	color: #38bdf8 !important;
+}
+.dark .canvas-markdown-preview .hljs-string {
+	color: #4ade80 !important;
+}
+.dark .canvas-markdown-preview .hljs-punctuation {
+	color: #94a3b8 !important;
+}
+.dark .canvas-markdown-preview .hljs-keyword {
+	color: #c084fc !important;
+}
+.dark .canvas-markdown-preview .hljs-function,
+.dark .canvas-markdown-preview .hljs-title.function_ {
+	color: #60a5fa !important;
+}
+.dark .canvas-markdown-preview .hljs-number {
+	color: #fb923c !important;
+}
+.dark .canvas-markdown-preview .hljs-literal,
+.dark .canvas-markdown-preview .hljs-boolean {
+	color: #38bdf8 !important;
+}
+.dark .canvas-markdown-preview .hljs-comment {
+	color: #64748b !important;
 }
 
 /* ── Electron Window Drag Region & macOS Controls ────────────────────────── */

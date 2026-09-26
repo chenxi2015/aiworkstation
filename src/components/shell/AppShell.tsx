@@ -192,9 +192,8 @@ export function AppShell({
 	});
 	const activeModule = getModuleByRoute(pathname)?.code ?? "workbench";
 
-	// 富文本编辑面：/editor 历史路由，或自媒体「创作台」/creator/studio（editor 已并入 creator）
+	// 富文本编辑面：自媒体「创作台」/creator/studio（editor 已并入 creator）
 	const isEditorSurface =
-		pathname.startsWith("/editor") ||
 		pathname.startsWith("/creator/studio") ||
 		(pathname.startsWith("/creator") && searchTab === "studio");
 	const [isCollapsed, setIsCollapsed] = useState<boolean>(

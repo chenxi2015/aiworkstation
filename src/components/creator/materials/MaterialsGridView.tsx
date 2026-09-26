@@ -12,7 +12,7 @@ import {
 	Trash2,
 } from "lucide-react";
 import type { Material } from "../types";
-import { KIND_BADGES, KIND_ICONS } from "./types";
+import { KIND_CONFIG, KIND_ICONS } from "./types";
 import {
 	getAssetMediaUrl,
 	getImageAssets,
@@ -58,6 +58,7 @@ export function MaterialsGridView({
 		<ul className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-3 sm:gap-4 p-4 sm:p-5">
 			{materials.map((material) => {
 				const kind = getMaterialKind(material);
+				const kindConfig = KIND_CONFIG[kind];
 				const KindIcon = KIND_ICONS[kind];
 				const images = getImageAssets(material);
 				const hasImage = images.length > 0;
@@ -123,7 +124,9 @@ export function MaterialsGridView({
 									<track kind="captions" />
 								</video>
 							) : (
-								<KindIcon className="w-8 h-8 text-muted/50" />
+								<KindIcon
+									className={`w-8 h-8 ${kindConfig.iconClass} opacity-60`}
+								/>
 							)}
 
 							{/* Multi-image count badge */}
@@ -168,12 +171,16 @@ export function MaterialsGridView({
 							</p>
 							<p
 								className="text-[10px] text-muted mt-0.5 truncate whitespace-nowrap"
-								title={`#${material.id} · ${KIND_BADGES[kind]} · ${(material.updatedAt ?? material.createdAt ?? "").slice(0, 10)}`}
+								title={`#${material.id} · ${kindConfig.label} · ${(material.updatedAt ?? material.createdAt ?? "").slice(0, 10)}`}
 							>
 								<span className="font-mono text-muted/80 mr-1">
 									#{material.id}
 								</span>
-								· {KIND_BADGES[kind]} ·{" "}
+								·{" "}
+								<span className={`font-medium ${kindConfig.colorClass}`}>
+									{kindConfig.label}
+								</span>{" "}
+								·{" "}
 								{(material.updatedAt ?? material.createdAt ?? "").slice(0, 10)}
 							</p>
 							<div className="flex items-center justify-between gap-1.5 mt-2">

@@ -45,9 +45,9 @@ const TABS: Array<{ id: CreatorTab; label: string; icon: typeof PenSquare }> = [
  * 主线：素材 → 创作 → 归档；热点 → 创作 → 归档。
  */
 export function CreatorApp({
-	unclassifiedCount,
-	navLayout,
-	folders,
+	unclassifiedCount: _unclassifiedCount,
+	navLayout: _navLayout,
+	folders: _folders,
 	initialTab,
 	initialStudioMode,
 	initialDocId,
@@ -162,13 +162,7 @@ export function CreatorApp({
 						{/* 子模式按需挂载：保证文档/草稿列表数据新鲜（素材导入创作台后能立即看到新文档） */}
 						{studioMode === "doc" && (
 							<div className="flex-1 min-h-0 flex flex-col">
-								<EditorApp
-									embedded
-									unclassifiedCount={unclassifiedCount}
-									navLayout={navLayout}
-									folders={folders}
-									initialDocId={pendingDocId ?? initialDocId}
-								/>
+								<EditorApp initialDocId={pendingDocId ?? initialDocId} />
 							</div>
 						)}
 						{studioMode === "batch" && (

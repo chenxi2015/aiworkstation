@@ -74,16 +74,21 @@ async function startServer(): Promise<void> {
 
   const serverEntry = resolveFromRoot(".output", "server", "index.mjs");
 
-  const userDataPath = app.getPath("userData");
+  // Store user database & data in ~/.aiworkstation under user's home directory.
+  // This guarantees data persistence across application upgrades/uninstalls and avoids macOS TCC permission issues.
+  const defaultDataDir = path.join(app.getPath("home"), ".aiworkstation");
+  const dataDir = process.env.AIWORKSTATION_DATA_DIR?.trim() || defaultDataDir;
   try {
     const fs = await import("node:fs");
-    if (!fs.existsSync(userDataPath)) {
-      fs.mkdirSync(userDataPath, { recursive: true });
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
     }
-  } catch {}
+  } catch (err) {
+    console.error("[electron] Failed to ensure data directory exists:", dataDir, err);
+  }
 
   serverProcess = spawn(process.execPath, [serverEntry], {
-    cwd: userDataPath,
+    cwd: dataDir,
     env: {
       ...process.env,
       PORT: String(serverPort),
@@ -92,8 +97,8 @@ async function startServer(): Promise<void> {
       // Crucial: instruct Electron binary to run as pure Node.js CLI runtime.
       // Without this, Electron launches as a GUI app and creates a duplicate Dock icon!
       ELECTRON_RUN_AS_NODE: "1",
-      // Data directory: ~/Library/Application Support/<AppName> or equivalent
-      AIWORKSTATION_DATA_DIR: userDataPath,
+      // Data directory: ~/.aiworkstation
+      AIWORKSTATION_DATA_DIR: dataDir,
     },
     // Pipe stdio so server errors can be logged even in production
     stdio: isDev ? "inherit" : ["ignore", "pipe", "pipe"],

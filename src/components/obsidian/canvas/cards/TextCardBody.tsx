@@ -1,7 +1,7 @@
-import { memo, useCallback, useEffect, useRef } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { useCanvasActions } from "../CanvasActionContext";
 import type { CanvasNode } from "../canvasUtils";
-import { autoFocus, cardClass } from "./cardShared";
+import { autoFocus, cardClass, getRenderedMarkdownHtml } from "./cardShared";
 import { useSmartNodeScroll } from "./useSmartNodeScroll";
 
 export interface TextCardBodyProps {
@@ -47,6 +47,24 @@ export const TextCardBody = memo(function TextCardBody({
 		(onCommitText ?? actions.commitText)(node.id, text);
 	};
 
+	const html = useMemo(
+		() => getRenderedMarkdownHtml(node.text ?? ""),
+		[node.text],
+	);
+
+	// Intercept link clicks in preview mode to open externally and prevent navigating away
+	const handleContentClick = useCallback(
+		(e: React.MouseEvent<HTMLDivElement>) => {
+			const target = (e.target as HTMLElement).closest("a");
+			if (target?.href) {
+				e.preventDefault();
+				e.stopPropagation();
+				window.open(target.href, "_blank", "noopener,noreferrer");
+			}
+		},
+		[],
+	);
+
 	if (editing) {
 		return (
 			<textarea
@@ -66,14 +84,25 @@ export const TextCardBody = memo(function TextCardBody({
 	}
 
 	return (
+		// biome-ignore lint/a11y/noStaticElementInteractions: delegated link navigation
+		// biome-ignore lint/a11y/useKeyWithClickEvents: link navigation is handled via anchor tags
 		<div
 			ref={divScrollRef}
+			onClick={handleContentClick}
 			className={`${cardClass} ${
 				selected ? "nowheel" : ""
-			} p-3 text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap overflow-y-auto overscroll-contain cursor-default`}
+			} p-3 text-xs text-foreground/90 leading-relaxed overflow-y-auto overscroll-contain cursor-default select-text`}
 			style={borderStyle}
 		>
-			{node.text ?? ""}
+			{html ? (
+				<div
+					className="canvas-markdown-preview prose prose-sm dark:prose-invert max-w-none break-words"
+					// biome-ignore lint/security/noDangerouslySetInnerHtml: rendered markdown HTML
+					dangerouslySetInnerHTML={{ __html: html }}
+				/>
+			) : (
+				<span className="text-muted italic select-none">（空卡片）</span>
+			)}
 		</div>
 	);
 });

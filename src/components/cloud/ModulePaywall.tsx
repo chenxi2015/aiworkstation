@@ -29,11 +29,8 @@ export function ModulePaywall({
 		<div
 			className={`flex-1 overflow-y-auto flex flex-col items-center justify-center p-4 sm:p-6 relative select-none bg-surface/30 ${className}`}
 		>
-			{/* Ambient background glow */}
-			<div className="absolute inset-0 bg-radial from-amber-500/5 via-transparent to-transparent pointer-events-none" />
-
 			{/* Center Paywall Card */}
-			<div className="w-full max-w-[920px] relative z-10 flex flex-col items-center py-4">
+			<div className="w-full max-w-[900px] max-h-[88vh] relative z-10 flex flex-col items-center">
 				<MemberCheckoutCard
 					title={`开通会员解锁「${moduleName}」特权`}
 					description={

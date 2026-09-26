@@ -4,12 +4,15 @@ import relativeTime from "dayjs/plugin/relativeTime";
 import "dayjs/locale/zh-cn";
 import {
 	AlertTriangle,
+	Check,
+	Copy,
 	Database,
 	FolderOpen,
 	History,
 	Loader2,
 	Plus,
 	RotateCcw,
+	Server,
 	Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -65,6 +68,33 @@ export function DataMaintenanceTab({
 	const [confirmDeleteItem, setConfirmDeleteItem] =
 		useState<BackupFileInfo | null>(null);
 	const [deletingFilename, setDeletingFilename] = useState<string | null>(null);
+
+	// Local HTTP server status and connection info
+	const [serverUrl, setServerUrl] = useState("http://127.0.0.1:3888");
+	const [serverPort, setServerPort] = useState("3888");
+	const [isCopied, setIsCopied] = useState(false);
+
+	useEffect(() => {
+		if (typeof window !== "undefined") {
+			const origin = window.location.origin;
+			const port =
+				window.location.port ||
+				(window.location.protocol === "https:" ? "443" : "80");
+			setServerUrl(origin);
+			setServerPort(port);
+		}
+	}, []);
+
+	const handleCopyServerUrl = async () => {
+		try {
+			await navigator.clipboard.writeText(serverUrl);
+			setIsCopied(true);
+			toast.success("已复制本地服务地址到剪贴板");
+			setTimeout(() => setIsCopied(false), 2000);
+		} catch {
+			toast.danger("复制失败，请手动复制");
+		}
+	};
 
 	const loadBackups = useCallback(async () => {
 		setIsLoadingBackups(true);
@@ -165,6 +195,64 @@ export function DataMaintenanceTab({
 
 	return (
 		<div className="flex flex-col gap-6 pt-3">
+			{/* Section 0: Local Server & Connection */}
+			<div className="flex flex-col gap-3">
+				<div className="flex items-center gap-2 pb-1 border-b border-border">
+					<Server className="w-4 h-4 text-accent shrink-0" />
+					<span className="font-semibold text-foreground text-xs">
+						本地服务与外部连接 (Local Server)
+					</span>
+				</div>
+
+				<div className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-surface/60 border border-border">
+					<div className="flex flex-col min-w-0">
+						<div className="flex items-center gap-2">
+							<span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-foreground">
+								<span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+								服务运行中
+							</span>
+							<span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-accent/10 text-accent font-medium">
+								Port: {serverPort}
+							</span>
+						</div>
+						<code className="text-[10px] text-muted truncate font-mono mt-0.5">
+							{serverUrl}
+						</code>
+					</div>
+					<Button
+						type="button"
+						variant="secondary"
+						size="sm"
+						className="rounded-full flex items-center gap-1.5 cursor-pointer shrink-0 h-7 text-[11px]"
+						onPress={handleCopyServerUrl}
+					>
+						{isCopied ? (
+							<Check className="w-3 h-3 text-emerald-500" />
+						) : (
+							<Copy className="w-3 h-3 text-accent" />
+						)}
+						<span>{isCopied ? "已复制" : "复制地址"}</span>
+					</Button>
+				</div>
+
+				{serverPort && serverPort !== "3888" && (
+					<div className="flex items-start gap-2 p-2 rounded-lg bg-warning/10 border border-warning/20 text-warning text-[11px] leading-relaxed">
+						<AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+						<span>
+							默认端口 <strong>3888</strong> 被占用，当前服务运行在备用端口{" "}
+							<strong>{serverPort}</strong>。若使用 AI Collector
+							浏览器插件，请在插件「设置」中将服务地址同步更新为{" "}
+							<code>{serverUrl}</code>。
+						</span>
+					</div>
+				)}
+
+				<p className="text-[11px] text-muted leading-relaxed -mt-1.5">
+					浏览器插件（AI
+					Collector）及外部数据通道通过此端口与工作台通信。若需自定义或修改，可通过插件侧边栏的「设置」配置此地址。
+				</p>
+			</div>
+
 			{/* Section 1: Storage Location */}
 			<div className="flex flex-col gap-3">
 				<div className="flex items-center gap-2 pb-1 border-b border-border">

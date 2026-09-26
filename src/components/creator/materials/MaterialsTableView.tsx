@@ -1,4 +1,4 @@
-import { Button, Chip, Dropdown, Table } from "@heroui/react";
+import { Button, Dropdown, Table } from "@heroui/react";
 import {
 	Archive,
 	Ellipsis,
@@ -12,7 +12,7 @@ import {
 	Trash2,
 } from "lucide-react";
 import type { Material } from "../types";
-import { KIND_BADGES, SOURCE_BADGES } from "./types";
+import { KIND_CONFIG, SOURCE_BADGES } from "./types";
 import { getImageAssets, getMaterialKind, getVideoAssets } from "./utils";
 
 interface MaterialsTableViewProps {
@@ -75,7 +75,7 @@ export function MaterialsTableView({
 						</Table.Column>
 						<Table.Column
 							id="kind"
-							className="px-3 py-2 font-medium w-16 text-muted"
+							className="px-3 py-2 font-medium w-20 text-muted"
 						>
 							类型
 						</Table.Column>
@@ -107,6 +107,8 @@ export function MaterialsTableView({
 					<Table.Body>
 						{materials.map((material) => {
 							const kind = getMaterialKind(material);
+							const kindConfig = KIND_CONFIG[kind];
+							const KindIcon = kindConfig.icon;
 							const videos = getVideoAssets(material);
 							const hasVideo = videos.length > 0;
 							const images = getImageAssets(material);
@@ -159,15 +161,15 @@ export function MaterialsTableView({
 											</p>
 										)}
 									</Table.Cell>
-									<Table.Cell className="px-3 py-2.5">
-										<Chip
-											size="sm"
-											variant="soft"
-											color="accent"
-											className="h-5 px-1.5 text-[10px] font-medium"
+									<Table.Cell className="px-3 py-2.5 whitespace-nowrap">
+										<span
+											className={`inline-flex items-center gap-1 h-5 px-1.5 rounded-full text-[10px] font-medium border ${kindConfig.badgeClass}`}
 										>
-											{KIND_BADGES[kind]}
-										</Chip>
+											<KindIcon
+												className={`w-2.5 h-2.5 shrink-0 ${kindConfig.iconClass}`}
+											/>
+											<span>{kindConfig.label}</span>
+										</span>
 									</Table.Cell>
 									<Table.Cell className="px-3 py-2.5 text-muted whitespace-nowrap">
 										{material.assets?.[0]?.storageMode === "external"

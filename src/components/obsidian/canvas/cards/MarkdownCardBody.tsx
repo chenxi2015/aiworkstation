@@ -3,30 +3,8 @@ import {
 	fetchVaultNote,
 	getCachedVaultNote,
 } from "../../../../services/api/obsidianClient";
-import { markdownToHtml } from "../../../editor/markdown";
-import { cardClass } from "./cardShared";
+import { cardClass, getRenderedMarkdownHtml } from "./cardShared";
 import { useSmartNodeScroll } from "./useSmartNodeScroll";
-
-// In-memory LRU cache for rendered Markdown HTML strings to avoid expensive re-parsing
-const MAX_MARKDOWN_CACHE_SIZE = 150;
-const markdownCache = new Map<string, string>();
-
-function getRenderedMarkdownHtml(raw: string): string {
-	if (!raw) return "";
-	const cached = markdownCache.get(raw);
-	if (cached !== undefined) return cached;
-
-	// Strip YAML frontmatter
-	const body = raw.replace(/^---\n[\s\S]*?\n---\n?/, "").trim();
-	const html = markdownToHtml(body);
-
-	if (markdownCache.size >= MAX_MARKDOWN_CACHE_SIZE) {
-		const firstKey = markdownCache.keys().next().value;
-		if (firstKey !== undefined) markdownCache.delete(firstKey);
-	}
-	markdownCache.set(raw, html);
-	return html;
-}
 
 export interface MarkdownCardBodyProps {
 	file: string;

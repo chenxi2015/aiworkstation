@@ -1,8 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
-import { useCreatorContext } from "../../components/creator/CreatorContext";
 import { DraftsTab } from "../../components/creator/DraftsTab";
-import type { DraftWithMaterial, Material } from "../../components/creator/types";
+import type {
+	DraftWithMaterial,
+	Material,
+} from "../../components/creator/types";
 import { WorkbenchTab } from "../../components/creator/WorkbenchTab";
 import { EditorApp } from "../../components/editor/EditorApp";
 import { fetchDrafts, fetchMaterials } from "../../services/api/creatorClient";
@@ -28,19 +30,22 @@ export const Route = createFileRoute("/creator/studio")({
 			doc:
 				typeof search.doc === "number" && Number.isFinite(search.doc)
 					? search.doc
-					: typeof search.doc === "string" && Number.isFinite(Number(search.doc))
+					: typeof search.doc === "string" &&
+							Number.isFinite(Number(search.doc))
 						? Number(search.doc)
 						: undefined,
 			draft:
 				typeof search.draft === "number" && Number.isFinite(search.draft)
 					? search.draft
-					: typeof search.draft === "string" && Number.isFinite(Number(search.draft))
+					: typeof search.draft === "string" &&
+							Number.isFinite(Number(search.draft))
 						? Number(search.draft)
 						: undefined,
 			material:
 				typeof search.material === "number" && Number.isFinite(search.material)
 					? search.material
-					: typeof search.material === "string" && Number.isFinite(Number(search.material))
+					: typeof search.material === "string" &&
+							Number.isFinite(Number(search.material))
 						? Number(search.material)
 						: undefined,
 		};
@@ -56,7 +61,6 @@ export const Route = createFileRoute("/creator/studio")({
 function StudioPage() {
 	const navigate = useNavigate();
 	const search = Route.useSearch();
-	const { folders, unclassifiedCount, navLayout } = useCreatorContext();
 
 	const mode = search.mode ?? (search.draft ? "drafts" : "doc");
 	const isCanvasMode = mode === "doc" || mode === "audio" || mode === "video";
@@ -115,13 +119,7 @@ function StudioPage() {
 		<div className="flex-1 min-h-0 flex flex-col overflow-hidden">
 			{isCanvasMode && (
 				<div className="flex-1 min-h-0 flex flex-col">
-					<EditorApp
-						embedded
-						unclassifiedCount={unclassifiedCount}
-						navLayout={navLayout}
-						folders={folders}
-						initialDocId={search.doc}
-					/>
+					<EditorApp initialDocId={search.doc} />
 				</div>
 			)}
 			{mode === "batch" && (

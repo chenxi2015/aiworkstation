@@ -436,15 +436,20 @@ export const CanvasCardNode = memo(function CanvasCardNode({
 	const { canvasNode: node, onNavigateNote } = data;
 	const color = resolveColor(node.color);
 	const activeColor = color ?? "#7853ee";
+	const cardBackground = color
+		? `linear-gradient(${colorToAlpha(color, 0.08)}, ${colorToAlpha(color, 0.08)}), var(--surface)`
+		: undefined;
 	const borderStyle: React.CSSProperties = selected
 		? {
 				borderColor: activeColor,
 				boxShadow: `0 0 0 1px ${activeColor}, 0 4px 14px -2px ${
 					color ? `${color}40` : "rgba(120, 83, 238, 0.28)"
 				}`,
+				background: cardBackground,
 			}
 		: {
 				borderColor: color,
+				background: cardBackground,
 			};
 
 	let body: React.ReactNode = null;
