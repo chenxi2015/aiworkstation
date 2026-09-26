@@ -18,9 +18,87 @@ import {
 	TableWidget,
 } from "./widgets";
 
+/** Collected HTMLBlock range before merging pass */
+interface HtmlBlockRange {
+	from: number;
+	to: number;
+}
+
 type AstNodeRef = Parameters<
 	NonNullable<Parameters<ReturnType<typeof syntaxTree>["iterate"]>[0]["enter"]>
 >[0];
+
+const CONTAINER_TAGS = new Set([
+	"section",
+	"div",
+	"article",
+	"aside",
+	"nav",
+	"header",
+	"footer",
+	"main",
+	"figure",
+	"details",
+	"table",
+	"blockquote",
+]);
+
+/**
+ * Detects if a position starts an open container HTML tag (e.g. `<section...>`, `<div...>`)
+ * and scans forward to find its matching closing tag line (`</section>`, `</div>`).
+ * Returns the full [from, to] range covering all lines from open to close tags.
+ */
+function findEnclosingHtmlBlockRange(
+	state: LivePreviewContext["state"],
+	startPos: number,
+): HtmlBlockRange | null {
+	const startLine = state.doc.lineAt(startPos);
+	const lineText = startLine.text.trimStart();
+	const openMatch = lineText.match(/^<([a-zA-Z][a-zA-Z0-9]*)\b[^>]*>/);
+	if (!openMatch) return null;
+
+	const fullOpenTag = openMatch[0];
+	if (fullOpenTag.endsWith("/>")) return null; // self-closing
+
+	const tagName = openMatch[1]!.toLowerCase();
+	if (!CONTAINER_TAGS.has(tagName)) return null;
+
+	const openRegex = new RegExp(`<${tagName}\\b[^>]*>`, "gi");
+	const closeRegex = new RegExp(`</${tagName}\\s*>`, "gi");
+
+	let depth = 0;
+	let endLine = startLine;
+	const totalLines = state.doc.lines;
+
+	for (let lineNo = startLine.number; lineNo <= totalLines; lineNo++) {
+		const line = state.doc.line(lineNo);
+		const text = line.text;
+
+		let m: RegExpExecArray | null;
+		openRegex.lastIndex = 0;
+		while ((m = openRegex.exec(text)) !== null) {
+			if (!m[0].endsWith("/>")) {
+				depth++;
+			}
+		}
+
+		closeRegex.lastIndex = 0;
+		while (closeRegex.exec(text) !== null) {
+			depth--;
+		}
+
+		if (depth <= 0) {
+			endLine = line;
+			break;
+		}
+	}
+
+	if (depth <= 0) {
+		return { from: startLine.from, to: endLine.to };
+	}
+
+	return null;
+}
 
 /**
  * Handles HTMLBlock and Table block replacements
@@ -29,28 +107,39 @@ type AstNodeRef = Parameters<
 function handleBlockReplacements(
 	node: AstNodeRef,
 	ctx: LivePreviewContext,
+	pendingHtmlBlocks: HtmlBlockRange[],
 ): boolean | undefined {
 	const { from, to, name } = node;
-	const { state, touches, replacedBlocks, blockWidgets, resolveHtmlAssetSrc } =
-		ctx;
+	const { state, touches, replacedBlocks, blockWidgets, resolveHtmlAssetSrc } = ctx;
 
 	if (name === "HTMLBlock") {
+		// Check if this HTMLBlock opens a multi-line enclosing container (e.g. <section> ... </section>)
+		const enclosing = findEnclosingHtmlBlockRange(state, from);
+		if (enclosing) {
+			if (!touches(enclosing.from, enclosing.to)) {
+				replacedBlocks.push(enclosing);
+				blockWidgets.push({
+					from: enclosing.from,
+					to: enclosing.to,
+					deco: Decoration.replace({
+						widget: new HtmlBlockWidget(
+							resolveHtmlAssetSrc(
+								state.doc.sliceString(enclosing.from, enclosing.to),
+							),
+						),
+						block: true,
+					}),
+				});
+			}
+			return false;
+		}
+
 		if (!touches(from, to)) {
 			const fromLine = state.doc.lineAt(from);
 			const toLine = state.doc.lineAt(to);
-			const blockFrom = fromLine.from;
-			const blockTo = toLine.to;
-			replacedBlocks.push({ from: blockFrom, to: blockTo });
-			blockWidgets.push({
-				from: blockFrom,
-				to: blockTo,
-				deco: Decoration.replace({
-					widget: new HtmlBlockWidget(
-						resolveHtmlAssetSrc(state.doc.sliceString(blockFrom, blockTo)),
-					),
-					block: true,
-				}),
-			});
+			pendingHtmlBlocks.push({ from: fromLine.from, to: toLine.to });
+			// Mark as replaced so other decorators skip it
+			replacedBlocks.push({ from: fromLine.from, to: toLine.to });
 		}
 		return false;
 	}
@@ -573,6 +662,53 @@ function handleInlineHtmlTag(
 }
 
 /**
+ * Merges adjacent HTMLBlock ranges separated only by blank lines into a single widget.
+ * CommonMark terminates HTMLBlock (Type 6) at any blank line, causing multi-section
+ * HTML to be split into independent nodes. We re-join them here to match Obsidian's behavior.
+ */
+function mergeAdjacentHtmlBlocks(
+	blocks: HtmlBlockRange[],
+	ctx: LivePreviewContext,
+): void {
+	if (!blocks.length) return;
+	const { state, blockWidgets, resolveHtmlAssetSrc } = ctx;
+	const docLen = state.doc.length;
+
+	// Sort by position (should already be in order, but defensive)
+	blocks.sort((a, b) => a.from - b.from);
+
+	const merged: HtmlBlockRange[] = [blocks[0]!];
+	for (let i = 1; i < blocks.length; i++) {
+		const prev = merged[merged.length - 1]!;
+		const curr = blocks[i]!;
+		// Check if the gap between prev.to and curr.from is only whitespace
+		const gap = state.doc.sliceString(
+			Math.min(prev.to, docLen),
+			Math.min(curr.from, docLen),
+		);
+		if (/^\s*$/.test(gap)) {
+			// Extend the previous range to absorb this block
+			prev.to = curr.to;
+		} else {
+			merged.push(curr);
+		}
+	}
+
+	for (const range of merged) {
+		blockWidgets.push({
+			from: range.from,
+			to: range.to,
+			deco: Decoration.replace({
+				widget: new HtmlBlockWidget(
+					resolveHtmlAssetSrc(state.doc.sliceString(range.from, range.to)),
+				),
+				block: true,
+			}),
+		});
+	}
+}
+
+/**
  * Traverses Lezer syntax tree and applies Markdown/GFM live preview decorations
  */
 export function processLezerSyntaxTree(
@@ -580,6 +716,8 @@ export function processLezerSyntaxTree(
 	_options: LivePreviewContext["options"],
 	ctx: LivePreviewContext,
 ) {
+	const pendingHtmlBlocks: HtmlBlockRange[] = [];
+
 	syntaxTree(state).iterate({
 		from: 0,
 		to: state.doc.length,
@@ -589,7 +727,7 @@ export function processLezerSyntaxTree(
 				return false;
 
 			// 1. Block-level replacements (HTMLBlock, Table)
-			const blockResult = handleBlockReplacements(node, ctx);
+			const blockResult = handleBlockReplacements(node, ctx, pendingHtmlBlocks);
 			if (blockResult !== undefined) return blockResult;
 
 			// 2. Headings and header marks
@@ -617,4 +755,7 @@ export function processLezerSyntaxTree(
 			if (handleInlineHtmlTag(node, ctx)) return;
 		},
 	});
+
+	// Merge adjacent HTMLBlock fragments (split by blank lines per CommonMark spec)
+	mergeAdjacentHtmlBlocks(pendingHtmlBlocks, ctx);
 }

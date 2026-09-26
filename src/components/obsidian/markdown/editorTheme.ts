@@ -368,9 +368,10 @@ export const appTheme = EditorView.theme({
 	".cm-live-callout-quote": {
 		"--callout-color": "rgb(158, 158, 158)",
 	},
-	".cm-live-callout-abstract, .cm-live-callout-summary, .cm-live-callout-tldr": {
-		"--callout-color": "rgb(0, 191, 188)",
-	},
+	".cm-live-callout-abstract, .cm-live-callout-summary, .cm-live-callout-tldr":
+		{
+			"--callout-color": "rgb(0, 191, 188)",
+		},
 	".cm-live-callout-icon": {
 		display: "inline-flex",
 		alignItems: "center",
@@ -500,7 +501,13 @@ export const appTheme = EditorView.theme({
 		cursor: "text",
 	},
 	".cm-live-html-block": {
-		margin: "4px 0",
+		// Host element positioning in CodeMirror; shadow root isolates inner HTML from CM styles
+		display: "block",
+		margin: "0",
+		padding: "0",
+		border: "none",
+		whiteSpace: "normal !important",
+		lineHeight: "normal",
 	},
 	".cm-live-html-raw": {
 		color: "var(--muted)",

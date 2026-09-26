@@ -504,7 +504,7 @@ export class InlineHtmlWidget extends WidgetType {
 	}
 }
 
-/** HTML block widget: multi-line raw HTML rendered when cursor is outside */
+/** HTML block widget: rendered inside a Shadow DOM with CSS reset to isolate from CodeMirror cascade */
 export class HtmlBlockWidget extends WidgetType {
 	constructor(readonly source: string) {
 		super();
@@ -514,10 +514,99 @@ export class HtmlBlockWidget extends WidgetType {
 		return other.source === this.source;
 	}
 
-	override toDOM() {
-		const div = document.createElement("div");
-		div.className = "cm-live-html-block";
-		div.innerHTML = sanitizeHtmlBlock(this.source);
-		return div;
+	override toDOM(view: EditorView) {
+		const host = document.createElement("div");
+		host.className = "cm-live-html-block";
+
+		const shadow = host.attachShadow({ mode: "open" });
+
+		// Inject reset styles into shadow DOM:
+		// CodeMirror sets `white-space: break-spaces` and theme line-height on .cm-content.
+		// These inherited properties punch through the shadow boundary unless explicitly reset.
+		const style = document.createElement("style");
+		style.textContent = `
+			:host {
+				display: block;
+				position: relative;
+				margin: 0;
+				padding: 0;
+				white-space: normal !important;
+				line-height: normal;
+				letter-spacing: normal;
+				word-spacing: normal;
+				text-align: start;
+				font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+				color: inherit;
+			}
+			* {
+				white-space: normal;
+				box-sizing: border-box;
+			}
+			.cm-html-source-btn {
+				position: absolute;
+				top: 8px;
+				right: 8px;
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				width: 26px;
+				height: 26px;
+				padding: 0;
+				margin: 0;
+				border-radius: 6px;
+				border: 1px solid var(--border, rgba(128, 128, 128, 0.25));
+				background: var(--surface, rgba(255, 255, 255, 0.9));
+				backdrop-filter: blur(4px);
+				color: var(--muted, #666);
+				cursor: pointer;
+				opacity: 0;
+				transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+				z-index: 10;
+				user-select: none;
+				box-sizing: border-box;
+			}
+			:host(:hover) .cm-html-source-btn {
+				opacity: 0.85;
+			}
+			.cm-html-source-btn:hover {
+				opacity: 1 !important;
+				background: var(--surface-secondary, rgba(240, 240, 240, 1));
+				color: var(--foreground, #111);
+			}
+			.cm-html-source-btn svg {
+				width: 14px;
+				height: 14px;
+				flex-shrink: 0;
+				display: block;
+			}
+		`;
+		shadow.appendChild(style);
+
+		// Source toggle button (Obsidian </> SVG icon)
+		const btn = document.createElement("button");
+		btn.className = "cm-html-source-btn";
+		btn.type = "button";
+		btn.title = "编辑 HTML 源码";
+		btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg>`;
+		btn.addEventListener("mousedown", (e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			const pos = view.posAtDOM(host);
+			if (pos >= 0) {
+				view.dispatch({
+					selection: { anchor: pos },
+					scrollIntoView: true,
+				});
+				view.focus();
+			}
+		});
+		shadow.appendChild(btn);
+
+		const contentDiv = document.createElement("div");
+		contentDiv.className = "cm-html-content";
+		contentDiv.innerHTML = sanitizeHtmlBlock(this.source);
+		shadow.appendChild(contentDiv);
+
+		return host;
 	}
 }
