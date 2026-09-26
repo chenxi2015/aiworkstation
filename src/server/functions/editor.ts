@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { extname, join } from "node:path";
 import { createServerFn } from "@tanstack/react-start";
 import type {
@@ -40,21 +40,44 @@ export const listArchivedDocuments = createServerFn({ method: "GET" }).handler(
 );
 
 /**
- * Server Function: 归档「再次创作」—— 复制副本回到创作台（status='editing'），
- * 原归档文档不动，保证创作中 ⇄ 归档互斥（docs/selfmedia-merge-plan.md 第三节）。
+ * Server Function: 归档「再次创作」或创作台「复制文档」—— 复制副本回到创作台（status='editing'），
+ * 原文档不动，保证创作中 ⇄ 归档互斥（docs/selfmedia-merge-plan.md 第三节）。
  */
 export const duplicateDocument = createServerFn({ method: "POST" })
-	.validator((data: { id: number }) => data)
+	.validator((data: { id: number; title?: string }) => data)
 	.handler(async ({ data }): Promise<EditorDocument> => {
 		const source = workbenchDb.getDocument(data.id);
 		if (!source) throw new Error("文档不存在");
+
+		const targetTitle =
+			data.title?.trim() ||
+			(source.status === "archived"
+				? `${source.title}（再次创作）`
+				: `${source.title}（副本）`);
+
 		const newId = workbenchDb.createDocument({
-			title: `${source.title}（再次创作）`,
+			title: targetTitle,
 			content: source.content,
 			contentText: source.contentText,
 			stylePreset: source.stylePreset,
 			folderId: source.folderId ?? null,
 		});
+
+		// Copy local asset files if existing
+		try {
+			const sourceAssetsDir = getDocumentAssetsDir(data.id);
+			if (existsSync(sourceAssetsDir)) {
+				const destAssetsDir = getDocumentAssetsDir(newId);
+				mkdirSync(destAssetsDir, { recursive: true });
+				cpSync(sourceAssetsDir, destAssetsDir, { recursive: true });
+			}
+		} catch (err) {
+			console.warn(
+				`[duplicateDocument] Failed to copy local assets for document ${data.id}:`,
+				err,
+			);
+		}
+
 		const doc = workbenchDb.getDocument(newId);
 		if (!doc) throw new Error("副本创建失败");
 		return doc;

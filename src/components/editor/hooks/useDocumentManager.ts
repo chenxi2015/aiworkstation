@@ -6,6 +6,7 @@ import {
 	createDocumentRpc,
 	deleteDocumentFolderRpc,
 	deleteDocumentRpc,
+	duplicateDocumentRpc,
 	fetchDocumentFolders,
 	fetchDocuments,
 	generateAiBarTextRpc,
@@ -73,6 +74,10 @@ export interface UseDocumentManagerReturn {
 	setStylePresets: React.Dispatch<React.SetStateAction<EditorStylePreset[]>>;
 	switchDocument: (nextId: number | null) => Promise<void>;
 	handleCreate: () => Promise<EditorDocument>;
+	handleDuplicate: (
+		docId: number,
+		options?: { activate?: boolean },
+	) => Promise<EditorDocument>;
 	handleDelete: (docId: number, deleteLocalAssets?: boolean) => Promise<void>;
 	handleEditorChange: (contentJson: string, text: string) => void;
 	handleTitleChange: (title: string) => void;
@@ -490,6 +495,31 @@ export function useDocumentManager(): UseDocumentManagerReturn {
 		return doc;
 	}, [switchDocument, activeFolderId, reloadFolders]);
 
+	const handleDuplicate = useCallback(
+		async (docId: number, options?: { activate?: boolean }) => {
+			if (activeIdRef.current === docId) {
+				if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+				await flushSave();
+			}
+			const copy = await duplicateDocumentRpc(docId);
+			setDocuments((prev) =>
+				sortDocuments([copy, ...prev.filter((d) => d.id !== copy.id)]),
+			);
+			const activate = options?.activate ?? true;
+			if (activate) {
+				setActiveId(copy.id);
+				setSaveState("idle");
+				workbenchContextActions.setActiveDocument({
+					id: copy.id,
+					title: copy.title,
+				});
+			}
+			void reloadFolders();
+			return copy;
+		},
+		[flushSave, reloadFolders],
+	);
+
 	const handleInsertNewDocument = useCallback(
 		async (title: string, options?: { activate?: boolean }) => {
 			const activate = options?.activate ?? true;
@@ -673,6 +703,7 @@ export function useDocumentManager(): UseDocumentManagerReturn {
 		setStylePresets,
 		switchDocument,
 		handleCreate,
+		handleDuplicate,
 		handleDelete,
 		handleEditorChange,
 		handleTitleChange,

@@ -6,6 +6,7 @@ import dayjs from "dayjs";
 import {
 	Archive,
 	Check,
+	Copy,
 	Ellipsis,
 	FileAudio,
 	FilePlus2,
@@ -50,6 +51,7 @@ export interface DocumentSidebarProps {
 	folders: EditorDocFolder[];
 	onSelect: (id: number) => void;
 	onCreate: () => void;
+	onDuplicate: (id: number) => Promise<void>;
 	onDelete: (id: number, deleteLocalAssets?: boolean) => Promise<void>;
 	onOpenImport: () => void;
 	onTogglePin: (docId: number, pinned: boolean) => Promise<void>;
@@ -65,6 +67,7 @@ export function DocumentSidebar({
 	folders,
 	onSelect,
 	onCreate,
+	onDuplicate,
 	onDelete,
 	onOpenImport,
 	onTogglePin,
@@ -223,6 +226,7 @@ export function DocumentSidebar({
 											: null
 									}
 									onSelect={onSelect}
+									onDuplicate={onDuplicate}
 									onTogglePin={onTogglePin}
 									onMoveDocument={onMoveDocument}
 									onArchive={onArchive}
@@ -250,6 +254,7 @@ export function DocumentSidebar({
 									: null
 							}
 							onSelect={onSelect}
+							onDuplicate={onDuplicate}
 							onTogglePin={onTogglePin}
 							onMoveDocument={onMoveDocument}
 							onArchive={onArchive}
@@ -294,6 +299,7 @@ interface DocRowCommonProps {
 	folderName: string | null;
 	folders: EditorDocFolder[];
 	onSelect: (id: number) => void;
+	onDuplicate: (id: number) => Promise<void>;
 	onTogglePin: (docId: number, pinned: boolean) => Promise<void>;
 	onMoveDocument: (docId: number, folderId: number | null) => Promise<void>;
 	onArchive: (docId: number) => Promise<void>;
@@ -355,6 +361,7 @@ const DocRowInner = memo(function DocRowInner({
 	folderName,
 	folders,
 	onSelect,
+	onDuplicate,
 	onTogglePin,
 	onMoveDocument,
 	onArchive,
@@ -414,6 +421,7 @@ const DocRowInner = memo(function DocRowInner({
 					doc={doc}
 					folders={folders}
 					opening={opening}
+					onDuplicate={onDuplicate}
 					onTogglePin={onTogglePin}
 					onMoveDocument={onMoveDocument}
 					onArchive={onArchive}
@@ -446,11 +454,12 @@ const DocRowInner = memo(function DocRowInner({
 	);
 });
 
-/** 文档 ⋯ 菜单：置顶 / 移动到文件夹 / 打开本地文件夹 / 归档 / 删除 */
+/** 文档 ⋯ 菜单：置顶 / 复制 / 打开本地文件夹 / 移动到文件夹 / 归档 / 删除 */
 function DocRowMenu({
 	doc,
 	folders,
 	opening,
+	onDuplicate,
 	onTogglePin,
 	onMoveDocument,
 	onArchive,
@@ -460,6 +469,7 @@ function DocRowMenu({
 	doc: EditorDocument;
 	folders: EditorDocFolder[];
 	opening: boolean;
+	onDuplicate: (docId: number) => Promise<void>;
 	onTogglePin: (docId: number, pinned: boolean) => Promise<void>;
 	onMoveDocument: (docId: number, folderId: number | null) => Promise<void>;
 	onArchive: (docId: number) => Promise<void>;
@@ -496,6 +506,16 @@ function DocRowMenu({
 							<span className="text-xs">
 								{doc.pinned ? "取消置顶" : "置顶"}
 							</span>
+						</div>
+					</Dropdown.Item>
+					<Dropdown.Item
+						id="duplicate"
+						textValue="复制文档"
+						onAction={() => void onDuplicate(doc.id)}
+					>
+						<div className="flex items-center gap-2 py-0.5">
+							<Copy className="w-3.5 h-3.5 text-muted shrink-0" />
+							<span className="text-xs">复制文档</span>
 						</div>
 					</Dropdown.Item>
 					<Dropdown.Item

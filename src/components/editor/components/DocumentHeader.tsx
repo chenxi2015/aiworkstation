@@ -1,5 +1,6 @@
 import { toast } from "@heroui/react";
 import {
+	Copy,
 	Film,
 	FolderOpen,
 	Loader2,
@@ -18,6 +19,7 @@ export interface DocumentHeaderProps {
 	onToggleSplitLayout?: () => void;
 	/** 媒体资产文档被切到富文本模式时，提供切回音视频工作室的入口 */
 	mediaMode?: { kind: "audio" | "video"; onSwitch: () => void };
+	onDuplicate?: () => void;
 }
 
 /**
@@ -31,6 +33,7 @@ export function DocumentHeader({
 	isSplitLayout,
 	onToggleSplitLayout,
 	mediaMode,
+	onDuplicate,
 }: DocumentHeaderProps) {
 	const inputRef = useRef<HTMLInputElement>(null);
 	const [isOpeningFolder, setIsOpeningFolder] = useState(false);
@@ -121,6 +124,18 @@ export function DocumentHeader({
 						<FolderOpen className="w-3.5 h-3.5" />
 					)}
 				</button>
+
+				{onDuplicate && (
+					<button
+						type="button"
+						title="复制当前文档"
+						aria-label="复制当前文档"
+						onClick={onDuplicate}
+						className="p-1.5 text-muted hover:text-foreground hover:bg-muted/10 rounded-md transition-colors cursor-pointer"
+					>
+						<Copy className="w-3.5 h-3.5" />
+					</button>
+				)}
 
 				{onToggleSplitLayout && (
 					<button

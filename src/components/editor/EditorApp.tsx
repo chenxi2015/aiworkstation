@@ -78,6 +78,7 @@ export function EditorApp({ initialDocId }: EditorAppProps = {}) {
 		contentText,
 		switchDocument,
 		handleCreate,
+		handleDuplicate,
 		handleDelete,
 		handleEditorChange,
 		handleTitleChange,
@@ -260,6 +261,24 @@ export function EditorApp({ initialDocId }: EditorAppProps = {}) {
 			});
 		},
 		[switchDocument, documents, forceDocModeId, navigate],
+	);
+
+	const handleDuplicateDoc = useCallback(
+		async (id: number) => {
+			setSplitSession(null);
+			try {
+				const copy = await handleDuplicate(id);
+				if (copy) {
+					handleSelectDoc(copy.id);
+					toast.success(`已复制文档「${copy.title}」`);
+				}
+			} catch (err) {
+				toast.danger(
+					`复制文档失败: ${err instanceof Error ? err.message : String(err)}`,
+				);
+			}
+		},
+		[handleDuplicate, handleSelectDoc],
 	);
 
 	// 初始加载完成后，若地址栏尚未包含 doc 参数，进行一次静默补全
@@ -553,6 +572,7 @@ export function EditorApp({ initialDocId }: EditorAppProps = {}) {
 							}
 						}}
 						onOpenImport={() => setIsImportModalOpen(true)}
+						onDuplicate={handleDuplicateDoc}
 						onTogglePin={handleTogglePinned}
 						onMoveDocument={handleMoveDocument}
 						onArchive={handleArchive}
@@ -643,6 +663,7 @@ export function EditorApp({ initialDocId }: EditorAppProps = {}) {
 											}
 										: undefined
 								}
+								onDuplicate={() => void handleDuplicateDoc(activeDoc.id)}
 							/>
 						))}
 				</section>

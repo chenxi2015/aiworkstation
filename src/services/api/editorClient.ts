@@ -47,8 +47,9 @@ export async function fetchArchivedDocuments(): Promise<EditorDocument[]> {
 
 export async function duplicateDocumentRpc(
 	id: number,
+	title?: string,
 ): Promise<EditorDocument> {
-	return await duplicateDocument({ data: { id } });
+	return await duplicateDocument({ data: { id, title } });
 }
 
 export async function createDocumentRpc(params: {

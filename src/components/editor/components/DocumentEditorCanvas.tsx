@@ -50,6 +50,7 @@ export interface DocumentEditorCanvasProps {
 	onOpenDistribution: () => void;
 	/** 媒体资产文档被切到富文本模式时，提供切回音视频工作室的入口 */
 	mediaMode?: { kind: "audio" | "video"; onSwitch: () => void };
+	onDuplicate?: () => void;
 }
 
 /**
@@ -87,6 +88,7 @@ export function DocumentEditorCanvas({
 	onExportPdf,
 	onOpenDistribution,
 	mediaMode,
+	onDuplicate,
 }: DocumentEditorCanvasProps) {
 	return (
 		<>
@@ -115,6 +117,7 @@ export function DocumentEditorCanvas({
 					isSplitLayout={splitSession?.isOpen}
 					onToggleSplitLayout={onToggleSplitLayout}
 					mediaMode={mediaMode}
+					onDuplicate={onDuplicate}
 				/>
 				<RichTextEditor
 					docId={activeDoc.id}
