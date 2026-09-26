@@ -6,10 +6,24 @@ import type { SqliteDatabase } from "./types.ts";
 
 export type { SqliteDatabase };
 
-// Determine database file path (stored in local .aiworkstation directory)
-export const DB_DIR = path.resolve(process.cwd(), ".aiworkstation");
-if (!fs.existsSync(DB_DIR)) {
-	fs.mkdirSync(DB_DIR, { recursive: true });
+// Determine database directory:
+// 1. In Electron or custom environments: use AIWORKSTATION_DATA_DIR
+// 2. Otherwise fall back to local .aiworkstation directory under process.cwd()
+function resolveDbDir(): string {
+	const customDir = process.env.AIWORKSTATION_DATA_DIR?.trim();
+	if (customDir) {
+		return path.resolve(customDir);
+	}
+	return path.resolve(process.cwd(), ".aiworkstation");
+}
+
+export const DB_DIR = resolveDbDir();
+try {
+	if (!fs.existsSync(DB_DIR)) {
+		fs.mkdirSync(DB_DIR, { recursive: true });
+	}
+} catch (error) {
+	console.error("[SQLite] Failed to ensure database directory exists:", DB_DIR, error);
 }
 export const DB_PATH = path.join(DB_DIR, "workbench.db");
 

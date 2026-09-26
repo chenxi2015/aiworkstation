@@ -1,4 +1,4 @@
-import { app, BrowserWindow, screen, shell } from "electron";
+import { app, BrowserWindow, dialog, screen, shell } from "electron";
 import { spawn, type ChildProcess } from "node:child_process";
 import { createServer, Socket } from "node:net";
 import path from "node:path";
@@ -74,7 +74,16 @@ async function startServer(): Promise<void> {
 
   const serverEntry = resolveFromRoot(".output", "server", "index.mjs");
 
+  const userDataPath = app.getPath("userData");
+  try {
+    const fs = await import("node:fs");
+    if (!fs.existsSync(userDataPath)) {
+      fs.mkdirSync(userDataPath, { recursive: true });
+    }
+  } catch {}
+
   serverProcess = spawn(process.execPath, [serverEntry], {
+    cwd: userDataPath,
     env: {
       ...process.env,
       PORT: String(serverPort),
@@ -84,11 +93,17 @@ async function startServer(): Promise<void> {
       // Without this, Electron launches as a GUI app and creates a duplicate Dock icon!
       ELECTRON_RUN_AS_NODE: "1",
       // Data directory: ~/Library/Application Support/<AppName> or equivalent
-      AIWORKSTATION_DATA_DIR: app.getPath("userData"),
+      AIWORKSTATION_DATA_DIR: userDataPath,
     },
-    // Inherit stdio in dev so logs are visible; suppress in production
-    stdio: isDev ? "inherit" : "ignore",
+    // Pipe stdio so server errors can be logged even in production
+    stdio: isDev ? "inherit" : ["ignore", "pipe", "pipe"],
   });
+
+  if (!isDev && serverProcess.stderr) {
+    serverProcess.stderr.on("data", (chunk: Buffer) => {
+      console.error("[electron][server-stderr]", chunk.toString().trim());
+    });
+  }
 
   serverProcess.on("error", (err) => {
     console.error("[electron] server process error:", err);
@@ -120,7 +135,7 @@ async function createWindow(): Promise<void> {
       ? { trafficLightPosition: { x: 18, y: 20 } }
       : {}),
     webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
+      preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
       // Allow loading from localhost
@@ -134,6 +149,26 @@ async function createWindow(): Promise<void> {
   mainWindow.once("ready-to-show", () => {
     mainWindow?.show();
     if (isDev) mainWindow?.webContents.openDevTools();
+  });
+
+  // Retry loading if initial connection refused while server warms up
+  mainWindow.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL) => {
+    console.error(`[electron] Page load failed: ${validatedURL} (${errorCode} - ${errorDescription})`);
+    if (errorCode === -102 /* ERR_CONNECTION_REFUSED */) {
+      setTimeout(() => {
+        mainWindow?.loadURL(`http://127.0.0.1:${serverPort}`);
+      }, 500);
+    }
+  });
+
+  // Enable DevTools shortcut (F12 or Cmd+Alt+I) even in packaged app for diagnostics
+  mainWindow.webContents.on("before-input-event", (_event, input) => {
+    const isDevToolsKey =
+      input.key === "F12" ||
+      ((input.meta || input.control) && input.alt && input.key.toLowerCase() === "i");
+    if (isDevToolsKey && input.type === "keyDown") {
+      mainWindow?.webContents.toggleDevTools();
+    }
   });
 
   // Open external links in the system browser, not inside the app
@@ -171,8 +206,17 @@ if (!gotLock) {
       app.dock?.setIcon(devIconPath);
     }
 
-    await startServer();
-    await createWindow();
+    try {
+      await startServer();
+      await createWindow();
+    } catch (err) {
+      console.error("[electron] Startup failed:", err);
+      dialog.showErrorBox(
+        "Application Startup Error",
+        `Failed to start local service:\n${err instanceof Error ? err.message : String(err)}`
+      );
+      app.quit();
+    }
 
     // macOS: re-create window when dock icon is clicked
     app.on("activate", async () => {
