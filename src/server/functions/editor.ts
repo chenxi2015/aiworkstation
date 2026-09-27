@@ -1,5 +1,7 @@
 import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { extname, join } from "node:path";
+import { chat } from "@tanstack/ai";
+import { openaiCompatibleText } from "@tanstack/ai-openai/compatible";
 import { createServerFn } from "@tanstack/react-start";
 import type {
 	DocumentVersion,
@@ -7,11 +9,13 @@ import type {
 	EditorDocFolder,
 	EditorDocument,
 } from "../../components/editor/types.ts";
+import { resolveEditorPresetPrompt } from "../ai/editorPresets.ts";
 import {
 	assertPathWithinRoot,
 	assertWritablePath,
 	formatBytes,
 } from "../ai/fs/fsSafety.ts";
+import { resolveLlmConfig } from "../ai/ragContext.ts";
 import { workbenchDb } from "../db/sqlite.ts";
 import {
 	getDocumentAssetsDir,
@@ -592,15 +596,6 @@ export const generateAiBarText = createServerFn({ method: "POST" })
 			data,
 	)
 	.handler(async ({ data }): Promise<{ text: string }> => {
-		const { chat } = await import("@tanstack/ai");
-		const { openaiCompatibleText } = await import(
-			"@tanstack/ai-openai/compatible"
-		);
-		const { resolveLlmConfig } = await import("../ai/ragContext.ts");
-		const { resolveEditorPresetPrompt } = await import(
-			"../ai/editorPresets.ts"
-		);
-
 		const { apiKey, baseUrl, model } = resolveLlmConfig();
 		if (!apiKey) {
 			return {
@@ -614,7 +609,7 @@ export const generateAiBarText = createServerFn({ method: "POST" })
 			"你是一名专业高效的写作与文本处理助手。你的任务是直接对用户选中的文本进行处理并输出最终正文。\n【核心准则】：\n1. 直接输出处理后的正文内容，严禁输出任何思考过程、自我问答、字数统计、前缀标签或客套话。\n2. 严禁添加 Markdown 代码块围栏（如 ``` 或 ~~~）包裹全篇。";
 		const systemPrompt = (data.systemHint || defaultSystemHint) + presetPrompt;
 
-		const stream = await chat({
+		const stream = chat({
 			adapter,
 			systemPrompts: [systemPrompt],
 			messages: [{ role: "user", content: data.prompt }],

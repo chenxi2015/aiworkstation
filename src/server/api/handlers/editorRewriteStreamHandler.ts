@@ -1,4 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { chat } from "@tanstack/ai";
+import { openaiCompatibleText } from "@tanstack/ai-openai/compatible";
+import { resolveEditorPresetPrompt } from "../../ai/editorPresets.ts";
+import { resolveLlmConfig } from "../../ai/ragContext.ts";
 import { readJsonBody, sendJson } from "../utils.ts";
 
 export interface EditorRewriteStreamParams {
@@ -65,15 +69,6 @@ export async function handleEditorRewriteStreamRequest(
 		const rawBody = await readJsonBody(req);
 		const params = rawBody as EditorRewriteStreamParams;
 
-		const { chat } = await import("@tanstack/ai");
-		const { openaiCompatibleText } = await import(
-			"@tanstack/ai-openai/compatible"
-		);
-		const { resolveLlmConfig } = await import("../../ai/ragContext.ts");
-		const { resolveEditorPresetPrompt } = await import(
-			"../../ai/editorPresets.ts"
-		);
-
 		const { apiKey, baseUrl, model } = resolveLlmConfig();
 		if (!apiKey) {
 			res.write(
@@ -129,7 +124,7 @@ export async function handleEditorRewriteStreamRequest(
 
 		const systemPrompt = baseHint + presetPrompt + contextSection + strictRules;
 
-		const stream = await chat({
+		const stream = chat({
 			adapter,
 			systemPrompts: [systemPrompt],
 			messages: [{ role: "user", content: params.prompt }],
