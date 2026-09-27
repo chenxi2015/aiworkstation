@@ -94,7 +94,7 @@ export function CategoryMainView({
 						{currentFolder
 							? currentFolder.desc?.trim() ||
 								`当前位于「${currentFolder.name}」文件夹，可在此浏览子文件夹与归集书签。`
-							: "点击文件夹卡片可在左侧查看书签与快捷看板，支持自由拖拽排序与移动归类；右侧随时进行 AI 搜索与知识问答。"}
+							: "点击文件夹卡片可在左侧查看书签与快捷看板，支持自由拖拽排序与移动归类。"}
 					</p>
 				</div>
 
