@@ -510,12 +510,12 @@ function DocRowMenu({
 					</Dropdown.Item>
 					<Dropdown.Item
 						id="duplicate"
-						textValue="复制文档"
+						textValue="复制为新文档"
 						onAction={() => void onDuplicate(doc.id)}
 					>
 						<div className="flex items-center gap-2 py-0.5">
 							<Copy className="w-3.5 h-3.5 text-muted shrink-0" />
-							<span className="text-xs">复制文档</span>
+							<span className="text-xs">复制为新文档</span>
 						</div>
 					</Dropdown.Item>
 					<Dropdown.Item

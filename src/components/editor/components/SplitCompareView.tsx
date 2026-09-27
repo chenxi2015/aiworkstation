@@ -65,6 +65,9 @@ export function SplitCompareView(props: SplitCompareViewProps) {
 		rightScrollRef,
 		handleLeftScroll,
 		handleRightScroll,
+		handleRightWheel,
+		isSyncScroll,
+		toggleSyncScroll,
 		isRightAtTop,
 		isRightAtBottom,
 		scrollRightToTop,
@@ -82,13 +85,15 @@ export function SplitCompareView(props: SplitCompareViewProps) {
 
 	return (
 		<div className="flex-1 flex flex-col min-h-0 bg-surface dark:bg-background overflow-hidden relative select-text">
-			{/* Top Control Header with Diff Mode Switcher & Save Version Button */}
+			{/* Top Control Header with Diff Mode Switcher, Sync Scroll Toggle & Action Buttons */}
 			<SplitCompareHeader
 				docTitle={docTitle}
 				modeLabel={modeLabel}
 				isStreaming={isStreaming}
 				diffViewMode={diffViewMode}
 				onChangeDiffViewMode={setDiffViewMode}
+				isSyncScroll={isSyncScroll}
+				onToggleSyncScroll={toggleSyncScroll}
 				onSaveVersionToDb={handleSaveCurrentVersionToDb}
 				isSavingVersion={isSavingVersion}
 				canAccept={canAccept}
@@ -129,6 +134,7 @@ export function SplitCompareView(props: SplitCompareViewProps) {
 						isStreaming={isStreaming}
 						scrollRef={rightScrollRef}
 						onScroll={handleRightScroll}
+						onWheel={handleRightWheel}
 						isAtTop={isRightAtTop}
 						isAtBottom={isRightAtBottom}
 						onScrollToTop={scrollRightToTop}

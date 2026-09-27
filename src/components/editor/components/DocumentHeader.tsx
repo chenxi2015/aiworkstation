@@ -125,17 +125,17 @@ export function DocumentHeader({
 					)}
 				</button>
 
-				{onDuplicate && (
+				{/* {onDuplicate && (
 					<button
 						type="button"
-						title="复制当前文档"
-						aria-label="复制当前文档"
+						title="复制当前文档为新文档"
+						aria-label="复制当前文档为新文档"
 						onClick={onDuplicate}
 						className="p-1.5 text-muted hover:text-foreground hover:bg-muted/10 rounded-md transition-colors cursor-pointer"
 					>
 						<Copy className="w-3.5 h-3.5" />
 					</button>
-				)}
+				)} */}
 
 				{onToggleSplitLayout && (
 					<button

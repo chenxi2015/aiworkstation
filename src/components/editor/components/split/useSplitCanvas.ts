@@ -156,18 +156,22 @@ export function useSplitCanvas({
 		}
 	}, [activeRightVersion?.content]);
 
-	// 5. Sub-hook: Scroll Synchronization & Edge navigation
+	// 5. Sub-hook: Dual Column Scrolling (Independent while streaming, customizable toggle)
 	const {
 		leftScrollRef,
 		rightScrollRef,
 		isRightAtBottomRef,
 		isRightAtTop,
 		isRightAtBottom,
+		isSyncScroll,
+		toggleSyncScroll,
 		handleLeftScroll,
 		handleRightScroll,
+		handleRightWheel,
 		scrollRightToTop,
 		scrollRightToBottom,
 		trackRightScrollPosition,
+		setIsStreaming: setScrollStreaming,
 	} = useSplitScroll();
 
 	// 6. Sub-hook: AI Streaming Rewriter
@@ -198,6 +202,11 @@ export function useSplitCanvas({
 		draftOriginRef,
 		draftActionRef,
 	});
+
+	// Keep scroll synchronizer updated with streaming state
+	useEffect(() => {
+		setScrollStreaming(isStreaming);
+	}, [isStreaming, setScrollStreaming]);
 
 	// 7. Sub-hook: Diff Comparison & View synchronization
 	const {
@@ -357,11 +366,14 @@ export function useSplitCanvas({
 		handleStartGenerate,
 		handleStopGenerate,
 
-		// Synchronized scroll refs & handlers
+		// Dual column scroll refs, handlers & user sync toggle
 		leftScrollRef,
 		rightScrollRef,
 		handleLeftScroll,
 		handleRightScroll,
+		handleRightWheel,
+		isSyncScroll,
+		toggleSyncScroll,
 
 		// Right column scroll-follow UI
 		isRightAtTop,

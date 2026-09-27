@@ -62,14 +62,76 @@ export function useSplitAiStream({
 	const [isStreaming, setIsStreaming] = useState(false);
 	const abortControllerRef = useRef<AbortController | null>(null);
 
-	// Stop AI generation
+	// Streaming batch & throttle refs to prevent CPU pegging on long articles
+	const pendingTextRef = useRef<string | null>(null);
+	const renderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const effectivePromptRef = useRef<string>("");
+
+	// Helper to batch-render markdown into right rich-text editor
+	const renderStreamContent = useCallback(
+		(text: string, promptForNormalize: string) => {
+			if (!rightEditor) return null;
+			try {
+				const normalizedText = normalizeAiGeneratedDocument(
+					text,
+					promptForNormalize,
+				);
+				const { nodes } = markdownToTiptapDoc(normalizedText);
+				const docJson: JSONContent = {
+					type: "doc",
+					content: nodes.length > 0 ? nodes : [{ type: "paragraph" }],
+				};
+				rightEditor.commands.setContent(docJson, {
+					emitUpdate: false,
+				});
+				setRightWordCount(normalizedText.length);
+
+				// Auto-scroll inside requestAnimationFrame to prevent forced synchronous layout thrashing
+				if (isRightAtBottomRef.current) {
+					requestAnimationFrame(() => {
+						const scrollEl = rightScrollRef.current;
+						if (scrollEl && isRightAtBottomRef.current) {
+							scrollEl.scrollTop = scrollEl.scrollHeight;
+						}
+					});
+				}
+				return { normalizedText, docJson };
+			} catch (e) {
+				console.warn("[SplitCompareView] renderStreamContent error:", e);
+				return null;
+			}
+		},
+		[rightEditor, rightScrollRef, isRightAtBottomRef, setRightWordCount],
+	);
+
+	// Stop AI generation and flush any buffered text
 	const handleStopGenerate = useCallback(() => {
 		if (abortControllerRef.current) {
 			abortControllerRef.current.abort();
 			abortControllerRef.current = null;
 		}
+		if (renderTimerRef.current) {
+			clearTimeout(renderTimerRef.current);
+			renderTimerRef.current = null;
+		}
+		if (pendingTextRef.current !== null && rightEditor) {
+			const result = renderStreamContent(
+				pendingTextRef.current,
+				effectivePromptRef.current,
+			);
+			if (result) {
+				setDraftContent(result.normalizedText);
+				setDraftContentJson(result.docJson);
+			}
+			pendingTextRef.current = null;
+		}
 		setIsStreaming(false);
-	}, []);
+	}, [
+		rightEditor,
+		renderStreamContent,
+		setDraftContent,
+		setDraftContentJson,
+	]);
 
 	// Start AI generation into right rich text editor
 	const handleStartGenerate = useCallback(
@@ -125,13 +187,19 @@ export function useSplitAiStream({
 			const right = rightScrollRef.current;
 			if (right) {
 				isRightAtBottomRef.current =
-					right.scrollHeight - right.scrollTop - right.clientHeight <= 80;
+					right.scrollHeight - right.scrollTop - right.clientHeight <= 40;
 			}
 
 			const controller = new AbortController();
 			abortControllerRef.current = controller;
 
 			const effectivePrompt = baseContent || promptExtra.trim();
+			effectivePromptRef.current = effectivePrompt;
+			pendingTextRef.current = null;
+			if (renderTimerRef.current) {
+				clearTimeout(renderTimerRef.current);
+				renderTimerRef.current = null;
+			}
 
 			let fullHint = "";
 			if (!baseContent) {
@@ -156,32 +224,26 @@ export function useSplitAiStream({
 					},
 					{
 						onChunk: (_delta, fullText) => {
-							try {
-								const normalizedText = normalizeAiGeneratedDocument(
-									fullText,
-									effectivePrompt,
-								);
-								const { nodes } = markdownToTiptapDoc(normalizedText);
-								const docJson: JSONContent = {
-									type: "doc",
-									content: nodes.length > 0 ? nodes : [{ type: "paragraph" }],
-								};
-								rightEditor.commands.setContent(docJson, {
-									emitUpdate: false,
-								});
-								setRightWordCount(normalizedText.length);
-								setDraftContent(normalizedText);
-								setDraftContentJson(docJson);
+							pendingTextRef.current = fullText;
 
-								const scrollEl = rightScrollRef.current;
-								if (scrollEl && isRightAtBottomRef.current) {
-									scrollEl.scrollTop = scrollEl.scrollHeight;
-								}
-							} catch (e) {
-								console.warn("[SplitCompareView] setContent chunk error:", e);
+							// Throttle streaming renders to ~11fps (every 90ms)
+							// Drastically reduces AST parsing and DOM rebuild CPU usage on long texts
+							if (!renderTimerRef.current) {
+								renderTimerRef.current = setTimeout(() => {
+									renderTimerRef.current = null;
+									if (pendingTextRef.current !== null) {
+										renderStreamContent(pendingTextRef.current, effectivePrompt);
+									}
+								}, 90);
 							}
 						},
 						onDone: async (fullText) => {
+							if (renderTimerRef.current) {
+								clearTimeout(renderTimerRef.current);
+								renderTimerRef.current = null;
+							}
+							pendingTextRef.current = null;
+
 							try {
 								const normalizedText = normalizeAiGeneratedDocument(
 									fullText,
@@ -244,6 +306,16 @@ export function useSplitAiStream({
 								setDraftContent(normalizedText);
 								setDraftContentJson(finalDocJson);
 
+								// Auto-scroll to bottom safely via RAF
+								if (isRightAtBottomRef.current) {
+									requestAnimationFrame(() => {
+										const scrollEl = rightScrollRef.current;
+										if (scrollEl && isRightAtBottomRef.current) {
+											scrollEl.scrollTop = scrollEl.scrollHeight;
+										}
+									});
+								}
+
 								// Record split AI interaction to persistent chat history
 								void recordSplitPracticeSession({
 									docId,
@@ -258,6 +330,10 @@ export function useSplitAiStream({
 							setIsStreaming(false);
 						},
 						onError: (err) => {
+							if (renderTimerRef.current) {
+								clearTimeout(renderTimerRef.current);
+								renderTimerRef.current = null;
+							}
 							console.warn("[SplitCompareView] Stream error:", err);
 							toast.danger(`生成出错: ${err}`);
 							setIsStreaming(false);
@@ -266,6 +342,10 @@ export function useSplitAiStream({
 					controller.signal,
 				);
 			} catch (err) {
+				if (renderTimerRef.current) {
+					clearTimeout(renderTimerRef.current);
+					renderTimerRef.current = null;
+				}
 				if (!controller.signal.aborted) {
 					console.error("[SplitCompareView] Generation error:", err);
 					toast.danger(
@@ -279,6 +359,7 @@ export function useSplitAiStream({
 			docId,
 			rightEditor,
 			handleStopGenerate,
+			renderStreamContent,
 			selectedMode,
 			customPrompt,
 			activeLeftVersion,
@@ -315,9 +396,13 @@ export function useSplitAiStream({
 		void handleStartGenerate(targetMode, instruction);
 	}, [instruction, modeLabel, rightEditor]);
 
-	// Clean up streaming on unmount
+	// Clean up streaming and timers on unmount
 	useEffect(() => {
 		return () => {
+			if (renderTimerRef.current) {
+				clearTimeout(renderTimerRef.current);
+				renderTimerRef.current = null;
+			}
 			if (abortControllerRef.current) {
 				abortControllerRef.current.abort();
 			}

@@ -6,6 +6,8 @@ import {
 	Columns2,
 	FilePlus,
 	GitCompare,
+	Link2,
+	Link2Off,
 	Save,
 	Sparkles,
 	X,
@@ -19,6 +21,8 @@ export interface SplitCompareHeaderProps {
 	isStreaming: boolean;
 	diffViewMode?: ViewMode;
 	onChangeDiffViewMode?: (mode: ViewMode) => void;
+	isSyncScroll?: boolean;
+	onToggleSyncScroll?: () => void;
 	onSaveVersionToDb?: () => void;
 	isSavingVersion?: boolean;
 	canAccept?: boolean;
@@ -39,6 +43,8 @@ export function SplitCompareHeader({
 	isStreaming,
 	diffViewMode = "clean",
 	onChangeDiffViewMode,
+	isSyncScroll = false,
+	onToggleSyncScroll,
 	onSaveVersionToDb,
 	isSavingVersion = false,
 	canAccept = true,
@@ -91,37 +97,65 @@ export function SplitCompareHeader({
 					</div>
 				</div>
 
-				{/* Center: Diff vs Clean Mode Toggle */}
-				{onChangeDiffViewMode && (
-					<div className="flex items-center bg-surface-secondary/80 p-0.5 rounded-lg border border-border/80 text-xs">
+				{/* Center: Diff vs Clean Mode Toggle & Follow Scroll Switch */}
+				<div className="flex items-center gap-2">
+					{onChangeDiffViewMode && (
+						<div className="flex items-center bg-surface-secondary/80 p-0.5 rounded-lg border border-border/80 text-xs">
+							<button
+								type="button"
+								onClick={() => onChangeDiffViewMode("clean")}
+								className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-colors cursor-pointer text-xs ${
+									diffViewMode === "clean"
+										? "bg-surface shadow-xs text-foreground font-medium"
+										: "text-muted hover:text-foreground"
+								}`}
+								title="纯净并排视图，无高亮标记，支持打字编辑"
+							>
+								<Columns2 className="w-3.5 h-3.5" />
+								<span>纯净并排</span>
+							</button>
+							<button
+								type="button"
+								onClick={() => onChangeDiffViewMode("diff")}
+								className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-colors cursor-pointer text-xs ${
+									diffViewMode === "diff"
+										? "bg-accent text-accent-foreground font-medium shadow-xs"
+										: "text-muted hover:text-foreground"
+								}`}
+								title="差异高亮视图，红删绿增实时比对"
+							>
+								<GitCompare className="w-3.5 h-3.5" />
+								<span>差异高亮</span>
+							</button>
+						</div>
+					)}
+
+					{onToggleSyncScroll && (
 						<button
 							type="button"
-							onClick={() => onChangeDiffViewMode("clean")}
-							className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-colors cursor-pointer text-xs ${
-								diffViewMode === "clean"
-									? "bg-surface shadow-xs text-foreground font-medium"
-									: "text-muted hover:text-foreground"
+							onClick={onToggleSyncScroll}
+							className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-colors cursor-pointer text-xs ${
+								isSyncScroll
+									? "bg-accent/15 border-accent/40 text-accent font-medium shadow-xs"
+									: "bg-surface-secondary/60 border-border/80 text-muted hover:text-foreground"
 							}`}
-							title="纯净并排视图，无高亮标记，支持打字编辑"
+							title={
+								isStreaming
+									? "AI 正在生成中，跟随滚动已暂时挂起（避免卡顿）"
+									: isSyncScroll
+										? "双栏跟随滚动已开启（点击切换为独立滚动）"
+										: "独立滚动模式（点击开启双栏跟随滚动）"
+							}
 						>
-							<Columns2 className="w-3.5 h-3.5" />
-							<span>纯净并排</span>
+							{isSyncScroll ? (
+								<Link2 className="w-3.5 h-3.5 text-accent" />
+							) : (
+								<Link2Off className="w-3.5 h-3.5 opacity-60" />
+							)}
+							<span>跟随滚动</span>
 						</button>
-						<button
-							type="button"
-							onClick={() => onChangeDiffViewMode("diff")}
-							className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-colors cursor-pointer text-xs ${
-								diffViewMode === "diff"
-									? "bg-accent text-accent-foreground font-medium shadow-xs"
-									: "text-muted hover:text-foreground"
-							}`}
-							title="差异高亮视图，红删绿增实时比对"
-						>
-							<GitCompare className="w-3.5 h-3.5" />
-							<span>差异高亮</span>
-						</button>
-					</div>
-				)}
+					)}
+				</div>
 
 				{/* Right: Save to DB, Save as new, Exit, Accept to main */}
 				<div className="flex items-center gap-2 shrink-0">

@@ -48,7 +48,8 @@ export function SplitOriginalColumn({
 			<div
 				ref={scrollRef}
 				onScroll={onScroll}
-				className="flex-1 overflow-y-auto px-8 py-6 pb-48 select-text"
+				className="flex-1 overflow-y-auto px-8 py-6 pb-48 select-text overscroll-contain"
+				style={{ willChange: "scroll-position" }}
 			>
 				<div className="max-w-2xl mx-auto">
 					<EditorContent
