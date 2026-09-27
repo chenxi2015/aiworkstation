@@ -69,6 +69,7 @@ export function DeleteEntryDialog({
 				isSelected={skipFuture}
 				onChange={setSkipFuture}
 				className="mt-3"
+				variant="secondary"
 			>
 				<Checkbox.Content>
 					<Checkbox.Control>

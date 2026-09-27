@@ -20,6 +20,16 @@ import { openInOs } from "../systemOpener.ts";
 import { invalidateVaultTreeCache } from "./tree.ts";
 import { resolveObsidianVaultDir, toPosixRelPath } from "./vault.ts";
 
+/** 可视化 JSON 文件（.canvas/.excalidraw）合法体积可达数 MB，读取上限单独放宽 */
+const LARGE_TEXT_FILE_READ_BYTES = 8 * 1024 * 1024;
+const LARGE_TEXT_FILE_EXTS = new Set([".canvas", ".excalidraw"]);
+
+function noteReadCap(absPath: string): number {
+	return LARGE_TEXT_FILE_EXTS.has(path.extname(absPath).toLowerCase())
+		? LARGE_TEXT_FILE_READ_BYTES
+		: MAX_READ_BYTES;
+}
+
 function vaultRoot(): string {
 	const { path: root, configured } = resolveObsidianVaultDir();
 	if (!existsSync(root)) {
@@ -53,14 +63,14 @@ function errMessage(err: unknown, fallback: string): string {
 	return err instanceof Error ? err.message : fallback;
 }
 
-/** 读取单篇笔记全文（512KB 上限截断） */
+/** 读取单篇笔记全文（md 512KB / canvas、excalidraw 8MB 上限截断） */
 export async function readVaultNote(
 	relPath: string,
 ): Promise<ObsidianNoteContent> {
 	const abs = entryAbsPath(relPath);
 	const stat = await fs.stat(abs);
 	if (!stat.isFile()) throw new Error("目标不是笔记文件");
-	const { rawBuffer, truncated } = await readFileCapped(abs, MAX_READ_BYTES);
+	const { rawBuffer, truncated } = await readFileCapped(abs, noteReadCap(abs));
 	return {
 		relPath,
 		name: path.basename(abs).replace(/\.md$/i, ""),
@@ -94,7 +104,7 @@ export async function saveVaultNote(
 		}
 		if (!force && typeof baseMtime === "number" && stat.mtimeMs !== baseMtime) {
 			if (typeof baseContent === "string") {
-				const { rawBuffer } = await readFileCapped(abs, MAX_READ_BYTES);
+				const { rawBuffer } = await readFileCapped(abs, noteReadCap(abs));
 				const theirs = rawBuffer.toString("utf8");
 				const merged = tryThreeWayMerge(baseContent, content, theirs);
 				if (merged !== null) {

@@ -28,6 +28,8 @@ export interface NoteToolbarProps {
 	onRename: (newName: string) => Promise<void>;
 	isTruncated?: boolean;
 	isCanvas: boolean;
+	/** 可视化视图的展示名（画布视图 / 画板视图），用于切换按钮提示 */
+	visualLabel?: string;
 	canvasMode: "visual" | "source";
 	onToggleCanvasMode: () => void;
 	isSplitOpen: boolean;
@@ -54,6 +56,7 @@ export function NoteToolbar({
 	onRename,
 	isTruncated,
 	isCanvas,
+	visualLabel = "画布视图",
 	canvasMode,
 	onToggleCanvasMode,
 	isSplitOpen,
@@ -186,7 +189,9 @@ export function NoteToolbar({
 							aria-label="重命名笔记"
 							onClick={() => {
 								if (!canDelete) return;
-								setTitleDraft(activeName.replace(/\.(md|canvas)$/i, ""));
+								setTitleDraft(
+									activeName.replace(/\.(md|canvas|excalidraw)$/i, ""),
+								);
 								setEditingTitle(true);
 							}}
 							className="min-w-0 truncate px-1 py-0.5 rounded text-foreground font-medium hover:bg-surface-secondary/60 transition-colors"
@@ -209,7 +214,9 @@ export function NoteToolbar({
 						<button
 							type="button"
 							aria-label={
-								canvasMode === "visual" ? "切换到源码模式" : "切换到画布视图"
+								canvasMode === "visual"
+									? "切换到源码模式"
+									: `切换到${visualLabel}`
 							}
 							onClick={onToggleCanvasMode}
 							className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/60 transition-colors shrink-0"
@@ -222,7 +229,7 @@ export function NoteToolbar({
 						</button>
 					</Tooltip.Trigger>
 					<Tooltip.Content placement="bottom">
-						{canvasMode === "visual" ? "源码模式" : "画布视图"}
+						{canvasMode === "visual" ? "源码模式" : visualLabel}
 					</Tooltip.Content>
 				</Tooltip>
 			)}

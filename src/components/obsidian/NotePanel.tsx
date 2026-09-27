@@ -1,7 +1,7 @@
-import type { ObsidianNoteApi } from "./types";
 import { MediaPanel } from "./panels/MediaPanel";
-import { UnsupportedFilePanel } from "./panels/UnsupportedFilePanel";
 import { TextNotePanel } from "./panels/note/TextNotePanel";
+import { UnsupportedFilePanel } from "./panels/UnsupportedFilePanel";
+import type { ObsidianNoteApi } from "./types";
 import { getVaultFileCategory } from "./utils/vaultFileUtils";
 
 export interface NotePanelProps {
@@ -62,7 +62,11 @@ export function NotePanel({
 		);
 	}
 
-	if (category !== "markdown" && category !== "canvas") {
+	if (
+		category !== "markdown" &&
+		category !== "canvas" &&
+		category !== "excalidraw"
+	) {
 		return (
 			<UnsupportedFilePanel
 				relPath={relPath}

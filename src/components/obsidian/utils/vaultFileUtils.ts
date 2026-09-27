@@ -60,6 +60,7 @@ export function getExtension(pathOrTarget: string): string {
 export type VaultFileCategory =
 	| "markdown"
 	| "canvas"
+	| "excalidraw"
 	| "book"
 	| "pdf"
 	| "image"
@@ -72,6 +73,7 @@ export function getVaultFileCategory(pathOrTarget: string): VaultFileCategory {
 	if (isMarkdownFile(pathOrTarget)) return "markdown";
 	const ext = getExtension(pathOrTarget);
 	if (ext === "canvas") return "canvas";
+	if (ext === "excalidraw") return "excalidraw";
 	if (BOOK_EXTS.has(ext)) return "book";
 	if (ext === "pdf") return "pdf";
 	if (IMAGE_EXTS.has(ext)) return "image";
@@ -85,6 +87,7 @@ export function isViewableInApp(category: VaultFileCategory): boolean {
 	return (
 		category === "markdown" ||
 		category === "canvas" ||
+		category === "excalidraw" ||
 		category === "image" ||
 		category === "audio" ||
 		category === "video" ||

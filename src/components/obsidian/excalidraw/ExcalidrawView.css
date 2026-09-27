@@ -1,0 +1,25 @@
+/**
+ * Excalidraw 主菜单宽度修正：
+ * 上游 .dropdown-menu-item__text 是 width:100%，在 flex 行里吃满整行，
+ * 把快捷键（margin-inline-start:auto）挤压到换行（"Cmd+S/hift+E"）。
+ * 注意必须保持与上游同等或更高的优先级，且本文件在包样式之后引入。
+ */
+
+/* 菜单整体加宽，避免快捷键竖排、画布背景色板挤压 */
+.excalidraw-host .dropdown-menu {
+	min-width: 14rem;
+}
+
+.excalidraw-host .dropdown-menu .dropdown-menu-item-base {
+	flex-wrap: nowrap;
+}
+
+/* 撤销 __text 的 width:100%，让快捷键回归自然宽度 */
+.excalidraw-host .dropdown-menu .dropdown-menu-item__text {
+	width: auto;
+}
+
+.excalidraw-host .dropdown-menu .dropdown-menu-item__shortcut {
+	flex-shrink: 0;
+	white-space: nowrap;
+}

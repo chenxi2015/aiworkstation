@@ -2,7 +2,14 @@ import { redo, undo } from "@codemirror/commands";
 import type { EditorView } from "@codemirror/view";
 import { toast } from "@heroui/react";
 import { AlertTriangle } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+	lazy,
+	Suspense,
+	useCallback,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import { generateAiBarTextRpc } from "../../../../services/api/editorClient";
 import {
 	createVaultNoteRpc,
@@ -28,6 +35,9 @@ import { NoteStatusBar } from "./NoteStatusBar";
 import { NoteToolbar } from "./NoteToolbar";
 import { useNoteSync } from "./useNoteSync";
 
+// Lazy-load the heavy Excalidraw bundle only when a .excalidraw file is opened
+const ExcalidrawView = lazy(() => import("../../excalidraw/ExcalidrawView"));
+
 /**
  * Text and Canvas note editor panel: Live Preview Markdown editing, Canvas node flow,
  * Split note AI rewrite comparison, inline rename, and conflict resolution.
@@ -47,6 +57,7 @@ export function TextNotePanel({
 	onSelectFolder,
 }: NotePanelProps) {
 	const isCanvas = relPath.toLowerCase().endsWith(".canvas");
+	const isExcalidraw = relPath.toLowerCase().endsWith(".excalidraw");
 	const [editorView, setEditorView] = useState<EditorView | null>(null);
 	const [deleteOpen, setDeleteOpen] = useState(false);
 	const [canUndo, setCanUndo] = useState(false);
@@ -102,20 +113,20 @@ export function TextNotePanel({
 	} | null>(null);
 
 	const toggleSplitCompare = useCallback(() => {
-		if (isCanvas) return;
+		if (isCanvas || isExcalidraw) return;
 		setSplitSession((prev) => (prev?.isOpen ? null : { isOpen: true }));
-	}, [isCanvas]);
+	}, [isCanvas, isExcalidraw]);
 
 	const startRewritePipeline = useCallback(
 		async (instruction?: string, modeLabel?: string) => {
-			if (isCanvas) return;
+			if (isCanvas || isExcalidraw) return;
 			setSplitSession({
 				isOpen: true,
 				instruction,
 				modeLabel,
 			});
 		},
-		[isCanvas],
+		[isCanvas, isExcalidraw],
 	);
 
 	const handleUndoRef = useRef<() => boolean>(() => false);
@@ -145,7 +156,8 @@ export function TextNotePanel({
 	} = useNoteSync({
 		relPath,
 		onMutated,
-		onRegisterNoteApi,
+		// Excalidraw scenes are JSON: skip the markdown-oriented AI sidebar bridge
+		onRegisterNoteApi: isExcalidraw ? undefined : onRegisterNoteApi,
 		onStartRewritePipeline: startRewritePipeline,
 		toggleSplitCompare,
 		onUndo: () => handleUndoRef.current(),
@@ -155,8 +167,7 @@ export function TextNotePanel({
 		canvasApiRef,
 	});
 
-
-	const isEditableDoc = !isCanvas || canvasMode === "source";
+	const isEditableDoc = !(isCanvas || isExcalidraw) || canvasMode === "source";
 	const effectiveCanUndo = canUndo && !note?.truncated && isEditableDoc;
 	const effectiveCanRedo = canRedo && !note?.truncated && isEditableDoc;
 
@@ -185,7 +196,7 @@ export function TextNotePanel({
 
 	// Keyboard shortcuts for Undo/Redo in reading mode or when editorView lacks direct focus
 	useEffect(() => {
-		if (isCanvas) return;
+		if (isCanvas || isExcalidraw) return;
 		const handleKeyDown = (e: KeyboardEvent) => {
 			const isMod = e.metaKey || e.ctrlKey;
 			if (!isMod) return;
@@ -226,7 +237,14 @@ export function TextNotePanel({
 
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [isCanvas, effectiveCanUndo, effectiveCanRedo, handleUndo, handleRedo]);
+	}, [
+		isCanvas,
+		isExcalidraw,
+		effectiveCanUndo,
+		effectiveCanRedo,
+		handleUndo,
+		handleRedo,
+	]);
 
 	const handleAcceptSplit = useCallback(
 		(newContent: string) => {
@@ -305,7 +323,7 @@ export function TextNotePanel({
 		async (newName: string) => {
 			if (!note) return;
 			const trimmed = newName.trim();
-			const currentBase = note.name.replace(/\.(md|canvas)$/i, "");
+			const currentBase = note.name.replace(/\.(md|canvas|excalidraw)$/i, "");
 			if (!trimmed || trimmed === currentBase) return;
 			const isMd = note.relPath.toLowerCase().endsWith(".md");
 			const res = await renameVaultEntryRpc(note.relPath, trimmed, isMd);
@@ -373,7 +391,8 @@ export function TextNotePanel({
 					onSelectFolder={onSelectFolder}
 					onRename={handleRename}
 					isTruncated={Boolean(note?.truncated)}
-					isCanvas={isCanvas}
+					isCanvas={isCanvas || isExcalidraw}
+					visualLabel={isExcalidraw ? "画板视图" : "画布视图"}
 					canvasMode={canvasMode}
 					onToggleCanvasMode={toggleCanvasMode}
 					isSplitOpen={isSplitOpen}
@@ -402,7 +421,28 @@ export function TextNotePanel({
 
 			<div className="flex-1 min-h-0 overflow-hidden relative">
 				{note ? (
-					isCanvas ? (
+					isExcalidraw ? (
+						canvasMode === "visual" ? (
+							<Suspense fallback={<ObsidianNoteBodySkeleton />}>
+								<ExcalidrawView
+									key={note.relPath}
+									content={draft}
+									onChange={handleDraftChange}
+									readOnly={Boolean(note.truncated)}
+								/>
+							</Suspense>
+						) : (
+							<JsonEditor
+								key={note.relPath}
+								value={draft}
+								onChange={handleDraftChange}
+								onReady={setEditorView}
+								onHistoryChange={handleHistoryChange}
+								readOnly={Boolean(note.truncated)}
+								onSaveShortcut={() => void flushSave()}
+							/>
+						)
+					) : isCanvas ? (
 						canvasMode === "visual" ? (
 							<CanvasView
 								key={note.relPath}
@@ -413,7 +453,6 @@ export function TextNotePanel({
 								onCreateNoteFile={handleCanvasCreateNote}
 								onRegisterCanvasApi={handleRegisterCanvasApi}
 							/>
-
 						) : (
 							<JsonEditor
 								key={note.relPath}
@@ -470,14 +509,14 @@ export function TextNotePanel({
 			/>
 
 			<MarkdownAiBubbleMenu
-				view={isCanvas || note?.truncated ? null : editorView}
+				view={isCanvas || isExcalidraw || note?.truncated ? null : editorView}
 				onGenerate={(prompt: string) => generateAiBarTextRpc(prompt)}
 			/>
 
 			<DeleteEntryDialog
 				target={
 					deleteOpen && note
-						? isCanvas
+						? isCanvas || isExcalidraw
 							? { name: note.name, kind: "file" }
 							: { name: `${note.name}.md`, kind: "note" }
 						: null
