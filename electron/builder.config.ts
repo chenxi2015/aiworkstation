@@ -121,12 +121,14 @@ const config: Configuration = {
   },
 
   // ── Auto Update ───────────────────────────────────────────────────────────
-  // Uncomment and configure when publishing to GitHub Releases:
-  // publish: {
-  //   provider: "github",
-  //   owner: "your-org",
-  //   repo: "aiworkstation",
-  // },
+  // electron-updater reads the generated app-update.yml and checks GitHub Releases.
+  // Publishing requires a GH_TOKEN env var with repo access.
+  publish: {
+    provider: "github",
+    owner: "chenxi2015",
+    repo: "aiworkstation",
+    releaseType: "release",
+  },
 };
 
 export default config;

@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, screen, shell } from "electron";
+import { autoUpdater } from "electron-updater";
 import { spawn, type ChildProcess } from "node:child_process";
 import { createServer, Socket } from "node:net";
 import path from "node:path";
@@ -118,6 +119,40 @@ async function startServer(): Promise<void> {
   console.log(`[electron] Nitro server ready on port ${serverPort}`);
 }
 
+// ── Auto update (electron-updater, GitHub Releases) ──────────────────────────
+// Note: macOS auto-update requires a properly signed (Developer ID) build;
+// unsigned macOS builds will fail signature verification. Windows NSIS works unsigned.
+function setupAutoUpdater(): void {
+  if (isDev) return;
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on("update-downloaded", async () => {
+    if (!mainWindow) return;
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: "info",
+      title: "更新已就绪",
+      message: "新版本已下载完成",
+      detail: "重启应用即可完成更新。",
+      buttons: ["立即重启", "稍后"],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (response === 0) {
+      autoUpdater.quitAndInstall();
+    }
+  });
+
+  autoUpdater.on("error", (err) => {
+    // Never nag the user about update failures (offline, no release yet, etc.)
+    console.warn("[electron] auto-update error:", err?.message ?? err);
+  });
+
+  autoUpdater.checkForUpdates().catch((err: unknown) => {
+    console.warn("[electron] update check failed:", err instanceof Error ? err.message : err);
+  });
+}
+
 // ── Create the main BrowserWindow ─────────────────────────────────────────────
 async function createWindow(): Promise<void> {
   const primaryDisplay = screen.getPrimaryDisplay();
@@ -214,6 +249,7 @@ if (!gotLock) {
     try {
       await startServer();
       await createWindow();
+      setupAutoUpdater();
     } catch (err) {
       console.error("[electron] Startup failed:", err);
       dialog.showErrorBox(
