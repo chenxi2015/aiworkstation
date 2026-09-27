@@ -48,7 +48,7 @@ export const appTheme = EditorView.theme({
 	".cm-content": {
 		fontFamily: "inherit",
 		lineHeight: "1.75",
-		padding: "20px 0px",
+		padding: "0",
 		caretColor: "var(--accent)",
 		// Obsidian-like reading width: centered focus
 		maxWidth: "760px",
@@ -57,6 +57,7 @@ export const appTheme = EditorView.theme({
 	".cm-scroller": {
 		fontFamily: "inherit",
 		overflow: "auto",
+		padding: "20px 0",
 	},
 	".cm-gutters": {
 		backgroundColor: "var(--surface-secondary)",
@@ -101,9 +102,9 @@ export const appTheme = EditorView.theme({
 		fontWeight: "700",
 		lineHeight: "1.4",
 	},
-	".cm-live-h3": { fontSize: "1.25em", fontWeight: "600" },
-	".cm-live-h4": { fontSize: "1.12em", fontWeight: "600" },
-	".cm-live-h5, .cm-live-h6": { fontSize: "1.05em", fontWeight: "600" },
+	".cm-live-h3": { fontSize: "1.25em", fontWeight: "600", lineHeight: "1.4" },
+	".cm-live-h4": { fontSize: "1.12em", fontWeight: "600", lineHeight: "1.4" },
+	".cm-live-h5, .cm-live-h6": { fontSize: "1.05em", fontWeight: "600", lineHeight: "1.4" },
 	".cm-live-strong": { fontWeight: "700" },
 	".cm-live-em": { fontStyle: "italic" },
 	".cm-live-strike": { textDecoration: "line-through" },
@@ -198,7 +199,7 @@ export const appTheme = EditorView.theme({
 	},
 	// ── Table & Media widgets ─────────────────────────────
 	".cm-live-table": {
-		margin: "8px 0",
+		padding: "8px 0",
 	},
 	".cm-live-table table": {
 		borderCollapse: "collapse",
@@ -216,7 +217,7 @@ export const appTheme = EditorView.theme({
 	},
 	".cm-live-media": {
 		display: "block",
-		margin: "8px 0",
+		padding: "8px 0",
 		position: "relative",
 	},
 	".cm-live-media-toolbar": {
@@ -268,7 +269,7 @@ export const appTheme = EditorView.theme({
 	},
 	".cm-live-media-audio": {
 		display: "block",
-		margin: "8px 0",
+		padding: "8px 0",
 	},
 	".cm-live-media-error": {
 		color: "var(--muted)",
@@ -398,7 +399,6 @@ export const appTheme = EditorView.theme({
 		opacity: "0.6",
 	},
 	".cm-live-math-block": {
-		margin: "8px 0",
 		padding: "8px 0",
 		overflowX: "auto",
 	},
@@ -414,11 +414,13 @@ export const appTheme = EditorView.theme({
 		transition: "opacity 0.2s ease, color 0.2s ease",
 	},
 	// ── Frontmatter properties panel ──────────────────────
+	".cm-live-props-wrap": {
+		padding: "4px 0 16px",
+	},
 	".cm-live-props": {
 		border: "1px solid var(--border)",
 		borderRadius: "10px",
 		padding: "6px 14px",
-		margin: "4px 0 16px",
 		fontSize: "0.92em",
 		backgroundColor: "var(--surface)",
 	},
@@ -463,7 +465,7 @@ export const appTheme = EditorView.theme({
 	},
 	// ── Dataview query results ────────────────────────────
 	".cm-live-dataview": {
-		margin: "8px 0",
+		padding: "8px 0",
 		fontSize: "0.92em",
 	},
 	".cm-live-dataview-status": {
@@ -516,8 +518,10 @@ export const appTheme = EditorView.theme({
 			"ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
 		fontSize: "0.92em",
 	},
+	".cm-live-mermaid-wrap": {
+		padding: "8px 0",
+	},
 	".cm-live-mermaid": {
-		margin: "8px 0",
 		backgroundColor: "var(--surface)",
 		border: "1px solid var(--border)",
 		borderRadius: "10px",

@@ -81,6 +81,11 @@ export class MermaidWidget extends WidgetType {
 		return other.code === this.code;
 	}
 	toDOM(view: EditorView) {
+		// Outer wrapper uses padding for spacing — padding is included in
+		// offsetHeight so CodeMirror's height tree stays in sync with the DOM.
+		const outer = document.createElement("div");
+		outer.className = "cm-live-mermaid-wrap";
+
 		const container = document.createElement("div");
 		container.className = "cm-live-mermaid";
 		this.root = createRoot(container);
@@ -89,13 +94,14 @@ export class MermaidWidget extends WidgetType {
 				code={this.code}
 				onSwitchToCode={() => {
 					// 光标移入 fence 内 → 装饰重建还原源码（位置经 posAtDOM 实时换算，不怕漂移）
-					const pos = view.posAtDOM(container);
+					const pos = view.posAtDOM(outer);
 					view.dispatch({ selection: { anchor: pos } });
 					view.focus();
 				}}
 			/>,
 		);
-		return container;
+		outer.appendChild(container);
+		return outer;
 	}
 	override destroy() {
 		// CM 更新周期内同步 unmount 会触发 React 告警，延后到微任务

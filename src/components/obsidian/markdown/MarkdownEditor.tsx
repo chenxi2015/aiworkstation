@@ -287,7 +287,30 @@ export function MarkdownEditor({
 		onReadyRef.current?.(view);
 		emitHistoryChange(view);
 
+		// Synchronize CodeMirror heightMap after DOM layout stabilizes
+		requestAnimationFrame(() => {
+			view.requestMeasure();
+		});
+
+		// Re-measure after asynchronous web fonts (e.g. Google Fonts Inter) finish loading
+		if (typeof document !== "undefined" && document.fonts) {
+			document.fonts.ready.then(() => {
+				if (viewRef.current === view) {
+					view.requestMeasure();
+				}
+			});
+		}
+
+		// Keep heightMap accurate across panel resize, tab split, or flexbox container layout shifts
+		const resizeObserver = new ResizeObserver(() => {
+			if (viewRef.current === view) {
+				view.requestMeasure();
+			}
+		});
+		resizeObserver.observe(containerRef.current);
+
 		return () => {
+			resizeObserver.disconnect();
 			onReadyRef.current?.(null);
 			emitHistoryChange(null);
 			if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
@@ -339,6 +362,11 @@ export function MarkdownEditor({
 		view.setState(nextState);
 		view.scrollDOM.scrollTop = 0;
 		emitHistoryChange(view);
+		requestAnimationFrame(() => {
+			if (viewRef.current === view) {
+				view.requestMeasure();
+			}
+		});
 	}, [noteRelPath, value, getExtensions, emitHistoryChange]);
 
 	// External value sync within the same note: skip when the change originated from editor itself

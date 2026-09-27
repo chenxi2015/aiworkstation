@@ -23,6 +23,11 @@ export class TableWidget extends WidgetType {
 		return other.source === this.source;
 	}
 
+	override get estimatedHeight(): number {
+		const lineCount = this.source.trim().split("\n").filter((l) => l.trim().length > 0).length;
+		return Math.max(72, lineCount * 36);
+	}
+
 	override toDOM() {
 		const div = document.createElement("div");
 		div.className = "cm-live-table";
@@ -124,7 +129,17 @@ export class FrontmatterWidget extends WidgetType {
 		);
 	}
 
+	override get estimatedHeight(): number {
+		const lineCount = this.yamlText.trim().split("\n").filter((l) => l.trim().length > 0).length;
+		return Math.max(48, lineCount * 28 + 20);
+	}
+
 	override toDOM(view: EditorView) {
+		// Outer wrapper uses padding for spacing — padding is included in
+		// offsetHeight so CodeMirror's height tree stays in sync with the DOM.
+		const outer = document.createElement("div");
+		outer.className = "cm-live-props-wrap";
+
 		const wrap = document.createElement("div");
 		wrap.className = "cm-live-props";
 		const entries = parseYamlProps(this.yamlText);
@@ -189,7 +204,8 @@ export class FrontmatterWidget extends WidgetType {
 			view.dispatch({ selection: { anchor: 0 } });
 			view.focus();
 		});
-		return wrap;
+		outer.appendChild(wrap);
+		return outer;
 	}
 
 	override ignoreEvent() {
