@@ -9,4 +9,15 @@
   "vars": {
     "NODE_ENV": "production"
   }
+  // Hyperdrive keeps a warm, globally-pooled connection to the Supabase
+  // transaction pooler. Create it once with:
+  //   pnpm wrangler hyperdrive create aiworkstation-db \
+  //     --connection-string="postgresql://postgres.cyaacwlohhngbwhbexka:[PASSWORD]@aws-0-ap-south-1.pooler.supabase.com:6543/postgres"
+  // then paste the returned id below and uncomment the block.
+  // "hyperdrive": [
+  //   {
+  //     "binding": "HYPERDRIVE",
+  //     "id": "<HYPERDRIVE_CONFIG_ID>"
+  //   }
+  // ]
 }

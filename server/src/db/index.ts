@@ -12,9 +12,14 @@ let dbInstance: ReturnType<typeof drizzle<typeof schema>> | null = null;
 export function getDb() {
   if (!dbInstance) {
     queryClient = postgres(env.DATABASE_URL, {
-      max: 10,
+      // Each Worker isolate keeps its own pool; keep it small so many isolates
+      // don't exhaust the upstream (Hyperdrive / Supavisor) connection budget.
+      max: 5,
       idle_timeout: 20,
       connect_timeout: 10,
+      // Supabase transaction pooler (port 6543) and Hyperdrive both require
+      // prepared statements to be disabled.
+      prepare: false,
       onnotice: () => {}, // Suppress notice logs
     });
     dbInstance = drizzle(queryClient, { schema });
