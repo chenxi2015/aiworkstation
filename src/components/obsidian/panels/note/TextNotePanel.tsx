@@ -35,8 +35,12 @@ import { NoteStatusBar } from "./NoteStatusBar";
 import { NoteToolbar } from "./NoteToolbar";
 import { useNoteSync } from "./useNoteSync";
 
-// Lazy-load the heavy Excalidraw bundle only when a .excalidraw file is opened
-const ExcalidrawView = lazy(() => import("../../excalidraw/ExcalidrawView"));
+// Lazy-load the heavy Excalidraw bundle only in browser environment when a .excalidraw file is opened
+const ExcalidrawView = lazy(() =>
+	typeof window !== "undefined"
+		? import("../../excalidraw/ExcalidrawView")
+		: Promise.resolve({ default: () => <></> }),
+);
 
 /**
  * Text and Canvas note editor panel: Live Preview Markdown editing, Canvas node flow,

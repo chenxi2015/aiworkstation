@@ -1,10 +1,3 @@
-import {
-	Excalidraw,
-	MainMenu,
-	restore,
-	serializeAsJSON,
-} from "@excalidraw/excalidraw";
-import "@excalidraw/excalidraw/index.css";
 import "./ExcalidrawView.css";
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { AppState, BinaryFiles } from "@excalidraw/excalidraw/types";
@@ -43,8 +36,10 @@ const APP_STATE_ALLOWLIST = [
 ] as const;
 
 type ThemeMode = "light" | "dark";
+type ExcalidrawModule = typeof import("@excalidraw/excalidraw");
 
 function getThemeMode(): ThemeMode {
+	if (typeof document === "undefined") return "light";
 	return document.documentElement.classList.contains("dark") ? "dark" : "light";
 }
 
@@ -53,6 +48,7 @@ function useThemeMode(): ThemeMode {
 	const [mode, setMode] = useState<ThemeMode>(getThemeMode);
 
 	useEffect(() => {
+		if (typeof document === "undefined") return;
 		const update = () => setMode(getThemeMode());
 		const observer = new MutationObserver(update);
 		observer.observe(document.documentElement, {
@@ -73,9 +69,7 @@ interface PendingScene {
 
 /**
  * Visual .excalidraw editor wrapping the official @excalidraw/excalidraw package.
- * The scene JSON is parsed once per mount (parent remounts via key=relPath);
- * edits are debounce-serialized back as canonical Excalidraw JSON text.
- * Lazy-loaded by the caller to keep the heavy bundle out of the main chunk.
+ * Dynamically loads @excalidraw/excalidraw in the browser to avoid SSR evaluation crashes.
  */
 export default function ExcalidrawView({
 	content,
@@ -83,15 +77,35 @@ export default function ExcalidrawView({
 	readOnly = false,
 }: ExcalidrawViewProps) {
 	const theme = useThemeMode();
+	const [mod, setMod] = useState<ExcalidrawModule | null>(null);
 
-	// Parse + normalize once per mount; later content updates are our own echo.
-	// appState goes through the allowlist above before restore() fills defaults.
-	const [initialScene] = useState<{
+	// Load heavy Excalidraw assets strictly on client mount
+	useEffect(() => {
+		let mounted = true;
+		Promise.all([
+			import("@excalidraw/excalidraw"),
+			import("@excalidraw/excalidraw/index.css"),
+		]).then(([excalidrawModule]) => {
+			if (mounted) {
+				setMod(excalidrawModule);
+			}
+		});
+		return () => {
+			mounted = false;
+		};
+	}, []);
+
+	// Parse + normalize once per mount when library is loaded
+	const [scene, setScene] = useState<{
 		data: Record<string, unknown> | null;
 		error: boolean;
-	}>(() => {
+	} | null>(null);
+
+	useEffect(() => {
+		if (!mod || scene !== null) return;
 		if (!content.trim()) {
-			return { data: { scrollToContent: true }, error: false };
+			setScene({ data: { scrollToContent: true }, error: false });
+			return;
 		}
 		try {
 			const raw = JSON.parse(content);
@@ -101,7 +115,7 @@ export default function ExcalidrawView({
 				if (rawAppState[key] !== undefined)
 					safeAppState[key] = rawAppState[key];
 			}
-			const restored = restore(
+			const restored = mod.restore(
 				{
 					elements: raw?.elements,
 					appState: safeAppState,
@@ -112,17 +126,17 @@ export default function ExcalidrawView({
 			);
 			const hasSavedViewport =
 				safeAppState.scrollX !== undefined || safeAppState.zoom !== undefined;
-			return {
+			setScene({
 				data: {
 					...restored,
 					...(hasSavedViewport ? {} : { scrollToContent: true }),
 				},
 				error: false,
-			};
+			});
 		} catch {
-			return { data: null, error: true };
+			setScene({ data: null, error: true });
 		}
-	});
+	}, [mod, content, scene]);
 
 	const onChangeRef = useRef(onChange);
 	onChangeRef.current = onChange;
@@ -136,9 +150,9 @@ export default function ExcalidrawView({
 			timerRef.current = null;
 		}
 		const pending = pendingRef.current;
-		if (!pending) return;
+		if (!pending || !mod) return;
 		pendingRef.current = null;
-		const json = serializeAsJSON(
+		const json = mod.serializeAsJSON(
 			pending.elements,
 			pending.appState,
 			pending.files,
@@ -147,7 +161,7 @@ export default function ExcalidrawView({
 		if (json === lastEmittedRef.current) return;
 		lastEmittedRef.current = json;
 		onChangeRef.current?.(json);
-	}, []);
+	}, [mod]);
 
 	const handleChange = useCallback(
 		(
@@ -166,7 +180,15 @@ export default function ExcalidrawView({
 	// Flush any pending scene on unmount so switching files never loses strokes
 	useEffect(() => flushPending, [flushPending]);
 
-	if (initialScene.error) {
+	if (!mod || !scene) {
+		return (
+			<div className="h-full w-full flex items-center justify-center bg-background text-muted text-xs">
+				加载绘图组件...
+			</div>
+		);
+	}
+
+	if (scene.error) {
 		return (
 			<div className="h-full flex flex-col items-center justify-center text-center px-8 gap-2">
 				<AlertTriangle className="w-6 h-6 text-warning" />
@@ -177,11 +199,13 @@ export default function ExcalidrawView({
 		);
 	}
 
+	const { Excalidraw, MainMenu } = mod;
+
 	return (
 		// 主菜单宽度/快捷键换行修正见 ExcalidrawView.css
 		<div className="excalidraw-host h-full w-full [&_.excalidraw]:h-full">
 			<Excalidraw
-				initialData={initialScene.data ?? undefined}
+				initialData={scene.data ?? undefined}
 				onChange={handleChange}
 				theme={theme}
 				langCode="zh-CN"

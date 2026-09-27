@@ -13,6 +13,56 @@ process.env.VITE_CONFIG_NATIVE_IGNORE_WARNING = "true";
 // local/Docker; `vite build --mode cloudflare` targets Cloudflare Workers.
 // A Vite mode is used instead of an env var so the scripts work on Windows.
 
+import type { Plugin } from "vite";
+
+/** Stub client-only @excalidraw packages during SSR bundling so Node.js runtime never evaluates browser globals (window, document) */
+function excalidrawSsrStubPlugin(): Plugin {
+	const STUB_ID = "\0virtual:excalidraw-ssr-stub";
+	const CSS_STUB_ID = "\0virtual:excalidraw-empty-css";
+	return {
+		name: "excalidraw-ssr-stub",
+		enforce: "pre",
+		resolveId(source, _importer, options) {
+			if (options?.ssr) {
+				if (source.startsWith("@excalidraw/") && source.endsWith(".css")) {
+					return CSS_STUB_ID;
+				}
+				if (
+					source === "@excalidraw/excalidraw" ||
+					source.startsWith("@excalidraw/")
+				) {
+					return STUB_ID;
+				}
+			}
+			return null;
+		},
+		load(id) {
+			if (id === CSS_STUB_ID) {
+				return "";
+			}
+			if (id === STUB_ID) {
+				return `
+export const Excalidraw = () => null;
+export const MainMenu = Object.assign(() => null, {
+	DefaultItems: {
+		SaveAsImage: () => null,
+		Export: () => null,
+		Help: () => null,
+		ClearCanvas: () => null,
+		ChangeCanvasBackground: () => null,
+	},
+	Separator: () => null,
+});
+export const restore = () => ({ elements: [], appState: {}, files: {} });
+export const serializeAsJSON = () => "{}";
+export default Excalidraw;
+`;
+			}
+			return null;
+		},
+	};
+}
+
 const config = defineConfig(({ command, mode }) => {
 	const isCloudflareTarget = mode === "cloudflare";
 	return {
@@ -24,6 +74,7 @@ const config = defineConfig(({ command, mode }) => {
 			exclude: ["better-sqlite3"],
 		},
 		plugins: [
+			excalidrawSsrStubPlugin(),
 			extensionApiPlugin(),
 			devtools(),
 			// Only enable Cloudflare worker runner for the cloudflare build to
