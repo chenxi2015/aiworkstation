@@ -1,6 +1,7 @@
 import { ExecutionContext } from 'hono';
 import { createApp } from './app.js';
-import { syncEnv } from './config/env.js';
+import { env, syncEnv } from './config/env.js';
+import { dbContext, type DbRequestContext } from './db/index.js';
 
 const app = createApp();
 
@@ -27,6 +28,16 @@ export default {
     // Inject Cloudflare Worker environment variables and bindings into config
     syncEnv(envBindings);
 
-    return app.fetch(request, envBindings, ctx);
+    // Workers cannot share sockets across requests, so each request runs with
+    // its own lazily-created database client (see db/index.ts). The client is
+    // closed after the response via waitUntil.
+    const dbRequestContext: DbRequestContext = { connectionString: env.DATABASE_URL };
+    try {
+      return await dbContext.run(dbRequestContext, () => app.fetch(request, envBindings, ctx));
+    } finally {
+      if (dbRequestContext.client) {
+        ctx.waitUntil(dbRequestContext.client.end());
+      }
+    }
   },
 };
