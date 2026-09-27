@@ -4,6 +4,7 @@
   "description": "本地优先的个人知识 Agent 工作台",
   "author": "AI Workstation",
   "private": true,
+  "packageManager": "pnpm@9.15.5",
   "type": "module",
   "main": "dist-electron/main.js",
   "imports": {
