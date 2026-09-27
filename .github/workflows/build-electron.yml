@@ -23,8 +23,10 @@ jobs:
   build-release:
     name: Build & Release (macOS + Windows)
     # Single job: both targets build on macOS (NSIS cross-build works), and the
-    # two electron-builder publishes run sequentially so they land on ONE GitHub
-    # Release. Parallel per-platform jobs race and each create their own release.
+    # release upload runs as ONE final step. Do NOT let electron-builder publish
+    # itself (--publish always): its GitHub publisher creates a duplicate release
+    # per invocation instead of reliably reusing the existing one, which splits
+    # assets across two same-tag releases and breaks electron-updater.
     runs-on: macos-latest
 
     steps:
@@ -50,22 +52,32 @@ jobs:
         shell: bash
         run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
 
-      # Tag builds publish artifacts + latest.yml/latest-mac.yml + blockmaps
-      # straight to the GitHub Release. Manual runs build only and ship via
-      # workflow artifacts below.
-      - name: Build & publish macOS
+      # Builds only (--publish never). latest.yml/latest-mac.yml + blockmaps are
+      # still generated into dist/ because the publish provider is configured.
+      - name: Build macOS
         if: github.event_name == 'push' || inputs.target == 'all' || inputs.target == 'macos'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
-        run: pnpm run electron:dist:mac --publish ${{ startsWith(github.ref, 'refs/tags/v') && 'always' || 'never' }}
+        run: pnpm run electron:dist:mac --publish never
 
-      - name: Build & publish Windows
+      - name: Build Windows
         if: github.event_name == 'push' || inputs.target == 'all' || inputs.target == 'windows'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
-        run: pnpm run electron:dist:win --publish ${{ startsWith(github.ref, 'refs/tags/v') && 'always' || 'never' }}
+        run: pnpm run electron:dist:win --publish never
+
+      # Single upload point: find-or-create the release for this tag and attach
+      # every artifact atomically (overwrites same-name assets on re-runs).
+      - name: Release to GitHub Releases
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.dmg
+            dist/*.exe
+            dist/*.blockmap
+            dist/latest.yml
+            dist/latest-mac.yml
 
       - name: Upload installers
         uses: actions/upload-artifact@v4

@@ -26,7 +26,7 @@ tag 推送后 GitHub Actions 自动构建 macOS + Windows 并发布到同一个 
 
 ## 本地 `electron:release` vs GitHub Actions
 
-两者**底层是同一个机制**（electron-builder 的 `--publish always`，把产物传到 GitHub Releases），区别在运行环境和适用场景：
+两者上传机制不同：本地 `electron:release` 用 electron-builder 自带的 `--publish always` 直传；CI 则是 electron-builder 只负责构建（`--publish never`），由最后的 `softprops/action-gh-release` 步骤统一上传（electron-builder 的 GitHub 发布器多次调用会创建重复同名 Release，不可靠）。两者区别在运行环境和适用场景：
 
 | | 本地 `pnpm electron:release` | GitHub Actions（tag 触发） |
 |---|---|---|
