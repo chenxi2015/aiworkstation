@@ -94,6 +94,10 @@ const config: Configuration = {
   },
   dmg: {
     title: "AI Workstation",
+    // Space-free artifact names: electron-updater resolves downloads via the
+    // names recorded in latest.yml — any uploader-side renaming (e.g. spaces
+    // turned into dots by action-gh-release) would break auto-update with 404s.
+    artifactName: "AI-Workstation-${version}-${arch}.${ext}",
     contents: [
       { x: 410, y: 150, type: "link", path: "/Applications" },
       { x: 130, y: 150, type: "file" },
@@ -112,6 +116,7 @@ const config: Configuration = {
     allowToChangeInstallationDirectory: true,
     createDesktopShortcut: true,
     createStartMenuShortcut: true,
+    artifactName: "AI-Workstation-Setup-${version}.${ext}",
   },
 
   // ── Linux ─────────────────────────────────────────────────────────────────

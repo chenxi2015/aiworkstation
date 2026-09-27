@@ -12,8 +12,12 @@ const TOKEN_KEY = "aiworkstation_cloud_token";
 const USER_KEY = "aiworkstation_cloud_user";
 const API_BASE_KEY = "aiworkstation_cloud_api_base";
 
-// Default to local cloud server
-const DEFAULT_API_BASE = "http://localhost:4000";
+// Cloud server base URL resolution order:
+//   1. localStorage override (setApiBase, e.g. from a settings UI)
+//   2. VITE_CLOUD_API_BASE env var at build/dev time (see .env.example)
+//   3. Local dev server fallback
+const ENV_API_BASE = import.meta.env.VITE_CLOUD_API_BASE?.trim();
+const DEFAULT_API_BASE = ENV_API_BASE || "http://localhost:4000";
 
 type AuthListener = (user: UserProfile | null) => void;
 
