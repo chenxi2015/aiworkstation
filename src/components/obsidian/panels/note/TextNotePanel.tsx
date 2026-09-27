@@ -432,9 +432,12 @@ export function TextNotePanel({
 							docTitle={activeName}
 							instruction={splitSession.instruction}
 							modeLabel={splitSession.modeLabel}
+							noteRelPath={note.relPath}
 							onAccept={handleAcceptSplit}
 							onCancel={() => setSplitSession(null)}
 							onSaveAsNewNote={handleSaveAsNewNote}
+							onNavigateNote={onNavigateNote}
+							onCreateNote={onCreateNote}
 						/>
 					) : (
 						<ImagePreviewProvider>
