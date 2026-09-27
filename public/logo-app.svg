@@ -10,14 +10,18 @@
       <feGaussianBlur stdDeviation="5" result="blur" />
       <feComposite in="SourceGraphic" in2="blur" operator="over" />
     </filter>
+    <clipPath id="squircleClip">
+      <rect width="512" height="512" rx="112" />
+    </clipPath>
   </defs>
 
   <!-- Clean Pure White Rounded Squircle Background (App Icon Style) -->
-  <rect width="512" height="512" rx="112" fill="#FFFFFF"/>
-  <rect x="1" y="1" width="510" height="510" rx="111" stroke="#E2E8F0" stroke-width="2"/>
+  <g clip-path="url(#squircleClip)">
+    <rect width="512" height="512" rx="112" fill="#FFFFFF"/>
+    <rect x="1" y="1" width="510" height="510" rx="111" stroke="#E2E8F0" stroke-width="2"/>
 
-  <!-- Centered Hero Illustration Group: enlarged subject for better visual weight -->
-  <g transform="translate(-74, 5) scale(5.5)">
+    <!-- Centered Hero Illustration Group: enlarged subject for better visual weight -->
+    <g transform="translate(-74, 5) scale(5.5)">
     <!-- Ambient glow / right-side shadow behind cloud -->
     <ellipse cx="62" cy="42" rx="34" ry="22" fill="url(#cloudGradApp)" opacity="0.25" filter="url(#softGlowApp)" />
 
@@ -39,5 +43,6 @@
       <!-- Logo dot on display -->
       <circle cx="30" cy="23.5" r="2.5" fill="white" opacity="0.9" />
     </g>
+  </g>
   </g>
 </svg>

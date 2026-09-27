@@ -109,7 +109,7 @@ const config: Configuration = {
     target: [
       { target: "nsis", arch: ["x64"] },
     ],
-    icon: "build/icon.png",
+    icon: "build/icon.ico",
   },
   nsis: {
     oneClick: false,

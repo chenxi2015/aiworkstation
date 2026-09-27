@@ -39,6 +39,7 @@
     "electron:dist": "pnpm run build && pnpm run electron:build:main && electron-builder --config electron/builder.config.ts",
     "electron:dist:mac": "pnpm run build && pnpm run electron:build:main && electron-builder --config electron/builder.config.ts --mac",
     "electron:dist:win": "pnpm run build && pnpm run electron:build:main && electron-builder --config electron/builder.config.ts --win",
+    "electron:generate-icons": "electron scripts/generate-icons.cjs",
     "electron:release": "pnpm run build && pnpm run electron:build:main && electron-builder --config electron/builder.config.ts -mw --publish always"
   },
   "dependencies": {
