@@ -126,16 +126,16 @@ export const appTheme = EditorView.theme({
 		paddingLeft: "12px",
 		color: "var(--muted)",
 	},
-	".cm-live-link": {
+	".cm-live-link, .cm-live-link *": {
 		color: "var(--accent)",
 		textUnderlineOffset: "2px",
 		cursor: "pointer",
 	},
-	".cm-live-link-active, .cm-live-link-active.cm-live-external-link": {
+	".cm-live-link-active, .cm-live-link-active *, .cm-live-link-active.cm-live-external-link, .cm-live-link-active.cm-live-external-link *": {
 		cursor: "text",
 	},
 	// 外链：Obsidian 风格 ↗ 角标 + 指针光标（点击直接打开）
-	".cm-live-external-link": {
+	".cm-live-external-link, .cm-live-external-link *": {
 		cursor: "pointer",
 	},
 	".cm-live-external-link::after": {
@@ -146,6 +146,7 @@ export const appTheme = EditorView.theme({
 		marginLeft: "1px",
 		verticalAlign: "baseline",
 		backgroundColor: "currentColor",
+		cursor: "pointer",
 		WebkitMaskImage:
 			"url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 17L17 7'/%3E%3Cpath d='M7 7h10v10'/%3E%3C/svg%3E\")",
 		maskImage:

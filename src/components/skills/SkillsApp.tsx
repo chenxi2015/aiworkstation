@@ -33,6 +33,15 @@ const ALL_FILTER = "__all__";
  * Skills Module Main View:
  * Matches modern UI card & list design, supports install/uninstall, and integrates virtualized scrolling.
  */
+/**
+ * Calculate column count based on container width.
+ */
+function getGridColumnCount(width: number): number {
+	if (width < 640) return 1;
+	if (width < 1024) return 2;
+	return 3;
+}
+
 export function SkillsApp({
 	unclassifiedCount,
 	navLayout,
@@ -62,8 +71,38 @@ export function SkillsApp({
 		null,
 	);
 
+	// Responsive column count for grid view
+	const [columnCount, setColumnCount] = useState<number>(() => {
+		if (typeof window !== "undefined") {
+			return getGridColumnCount(window.innerWidth);
+		}
+		return 3;
+	});
+
 	// Scroll container ref for @tanstack/react-virtual
 	const scrollContainerRef = useRef<HTMLElement>(null);
+
+	useEffect(() => {
+		const container = scrollContainerRef.current;
+		if (!container) return;
+
+		const updateColumns = (width: number) => {
+			const nextCols = getGridColumnCount(width);
+			setColumnCount((prev) => (prev !== nextCols ? nextCols : prev));
+		};
+
+		updateColumns(container.clientWidth);
+
+		// Observe container width changes for responsive columns
+		const observer = new ResizeObserver((entries) => {
+			for (const entry of entries) {
+				updateColumns(entry.contentRect.width);
+			}
+		});
+
+		observer.observe(container);
+		return () => observer.disconnect();
+	}, []);
 
 	const load = useCallback(async (force: boolean) => {
 		const data = await fetchSkillsOverview(force);
@@ -144,14 +183,15 @@ export function SkillsApp({
 		return result;
 	}, [overview, activeTab, query, sourceFilter, categoryFilter, apiKeyFilter]);
 
-	// Chunk skills into rows of 3 for virtualized grid
+	// Chunk skills into rows of dynamic columnCount for virtualized grid
 	const chunkedGridRows = useMemo(() => {
 		const rows: SkillInfo[][] = [];
-		for (let i = 0; i < filteredSkills.length; i += 3) {
-			rows.push(filteredSkills.slice(i, i + 3));
+		const step = Math.max(1, columnCount);
+		for (let i = 0; i < filteredSkills.length; i += step) {
+			rows.push(filteredSkills.slice(i, i + step));
 		}
 		return rows;
-	}, [filteredSkills]);
+	}, [filteredSkills, columnCount]);
 
 	// Virtualizer for Grid View (row-based)
 	const gridVirtualizer = useVirtualizer({
@@ -176,7 +216,6 @@ export function SkillsApp({
 
 	return (
 		<div className="h-full bg-[#fcfcfd] dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col overflow-hidden">
-
 			{/* Main Scroll Container */}
 			<main ref={scrollContainerRef} className="flex-1 overflow-y-auto">
 				<div className="max-w-6xl mx-auto px-6 py-4">
@@ -241,11 +280,14 @@ export function SkillsApp({
 								const rowSkills = chunkedGridRows[virtualRow.index] || [];
 								return (
 									<div
-										key={virtualRow.key}
+										key={`${columnCount}-${virtualRow.key}`}
 										data-index={virtualRow.index}
 										ref={gridVirtualizer.measureElement}
-										className="absolute top-0 left-0 w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-4"
-										style={{ transform: `translateY(${virtualRow.start}px)` }}
+										className="absolute top-0 left-0 w-full grid gap-4 pb-4"
+										style={{
+											transform: `translateY(${virtualRow.start}px)`,
+											gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
+										}}
 									>
 										{rowSkills.map((skill) => (
 											<SkillGridCard

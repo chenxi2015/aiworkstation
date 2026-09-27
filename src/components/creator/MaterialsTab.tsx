@@ -157,6 +157,7 @@ export function MaterialsTab({
 									importingId={state.importingId}
 									openingDirId={state.openingDirId}
 									onToggleSelect={state.toggleSelect}
+									onToggleSelectAll={state.toggleSelectAll}
 									onToggleStar={(m) => void state.handleToggleStar(m)}
 									onImportToStudio={(m) => void state.handleImportToStudio(m)}
 									onOpenDir={(m) => void state.handleOpenDir(m)}

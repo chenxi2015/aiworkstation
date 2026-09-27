@@ -1,7 +1,7 @@
 import { syntaxTree } from "@codemirror/language";
 import { Decoration } from "@codemirror/view";
 import { DataviewWidget, extractDataviewQuery } from "./DataviewWidget";
-import { parseExternalUrl } from "./externalLink";
+import { parseLinkInfo } from "./externalLink";
 import type { LivePreviewContext } from "./livePreviewContext";
 import { MermaidWidget } from "./MermaidWidget";
 import { MediaWidget, mediaKindOf, resolveAssetUrl } from "./mediaWidget";
@@ -471,8 +471,8 @@ function handleLinksAndMedia(
 	} = ctx;
 
 	if (name === "Link" || name === "Autolink") {
-		const isExternal =
-			parseExternalUrl(state.doc.sliceString(from, to), name) != null;
+		const rawText = state.doc.sliceString(from, to);
+		const linkInfo = parseLinkInfo(rawText, name);
 		const active = lineTouches(from, to);
 		inlineItems.push({
 			from,
@@ -480,11 +480,17 @@ function handleLinksAndMedia(
 			deco: Decoration.mark({
 				class: [
 					"cm-live-link",
-					isExternal ? "cm-live-external-link" : "",
+					linkInfo?.isExternal ? "cm-live-external-link" : "",
 					active ? "cm-live-link-active" : "",
 				]
 					.filter(Boolean)
 					.join(" "),
+				attributes: linkInfo?.url
+					? {
+							"data-url": linkInfo.url,
+							"data-external": linkInfo.isExternal ? "true" : "false",
+						}
+					: undefined,
 			}),
 		});
 		return true;
@@ -506,11 +512,19 @@ function handleLinksAndMedia(
 			}
 			return true;
 		}
+		const rawText = state.doc.sliceString(from, to);
+		const linkInfo = parseLinkInfo(rawText, "URL");
 		inlineItems.push({
 			from,
 			to,
 			deco: Decoration.mark({
 				class: "cm-live-link cm-live-external-link",
+				attributes: linkInfo?.url
+					? {
+							"data-url": linkInfo.url,
+							"data-external": "true",
+						}
+					: undefined,
 			}),
 		});
 		return true;

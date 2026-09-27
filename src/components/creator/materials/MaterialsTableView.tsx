@@ -1,4 +1,4 @@
-import { Button, Dropdown, Table } from "@heroui/react";
+import { Button, Checkbox, Dropdown, Table } from "@heroui/react";
 import {
 	Archive,
 	Ellipsis,
@@ -22,6 +22,7 @@ interface MaterialsTableViewProps {
 	importingId: number | null;
 	openingDirId: number | null;
 	onToggleSelect: (id: number) => void;
+	onToggleSelectAll?: () => void;
 	onToggleStar: (material: Material) => void;
 	onImportToStudio: (material: Material) => void;
 	onOpenDir: (material: Material) => void;
@@ -41,6 +42,7 @@ export function MaterialsTableView({
 	importingId,
 	openingDirId,
 	onToggleSelect,
+	onToggleSelectAll,
 	onToggleStar,
 	onImportToStudio,
 	onOpenDir,
@@ -49,6 +51,24 @@ export function MaterialsTableView({
 	onPlayVideo,
 	onPreviewImage,
 }: MaterialsTableViewProps) {
+	const isAllSelected =
+		materials.length > 0 && materials.every((m) => selectedIds.has(m.id));
+	const isIndeterminate =
+		!isAllSelected && materials.some((m) => selectedIds.has(m.id));
+
+	const handleToggleAll = () => {
+		if (onToggleSelectAll) {
+			onToggleSelectAll();
+			return;
+		}
+		// Fallback when onToggleSelectAll prop is not supplied
+		for (const m of materials) {
+			if (isAllSelected ? selectedIds.has(m.id) : !selectedIds.has(m.id)) {
+				onToggleSelect(m.id);
+			}
+		}
+	};
+
 	return (
 		<Table className="w-full text-xs rounded-none">
 			<Table.ScrollContainer className="overflow-x-auto">
@@ -58,7 +78,21 @@ export function MaterialsTableView({
 				>
 					<Table.Header>
 						{selectMode && (
-							<Table.Column id="select" className="pl-4 py-2 w-8" />
+							<Table.Column id="select" className="pl-4 py-2 w-10">
+								<Checkbox
+									slot={null}
+									isSelected={isAllSelected}
+									isIndeterminate={isIndeterminate}
+									onChange={handleToggleAll}
+									aria-label="全选所有素材"
+								>
+									<Checkbox.Content>
+										<Checkbox.Control>
+											<Checkbox.Indicator />
+										</Checkbox.Control>
+									</Checkbox.Content>
+								</Checkbox>
+							</Table.Column>
 						)}
 						<Table.Column
 							id="id"
@@ -121,14 +155,20 @@ export function MaterialsTableView({
 									className="border-b border-border/50 hover:bg-accent/4 transition-colors"
 								>
 									{selectMode && (
-										<Table.Cell className="pl-4 py-2.5">
-											<input
-												type="checkbox"
-												checked={selectedIds.has(material.id)}
+										<Table.Cell className="pl-4 py-2.5 w-10">
+											<Checkbox
+												slot={null}
+												isSelected={selectedIds.has(material.id)}
 												onChange={() => onToggleSelect(material.id)}
-												className="w-3.5 h-3.5 accent-accent cursor-pointer"
 												aria-label={`选择素材 ${material.title}`}
-											/>
+												variant="secondary"
+											>
+												<Checkbox.Content>
+													<Checkbox.Control>
+														<Checkbox.Indicator />
+													</Checkbox.Control>
+												</Checkbox.Content>
+											</Checkbox>
 										</Table.Cell>
 									)}
 									<Table.Cell className="px-3 py-2.5 whitespace-nowrap">

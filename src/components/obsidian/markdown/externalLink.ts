@@ -81,35 +81,67 @@ function findLinkAt(view: EditorView, pos: number): LinkTarget | null {
 }
 
 class ExternalLinkInteractionPlugin {
+	private lastFollowUrl = "";
+	private lastFollowTime = 0;
+
 	constructor(
 		private readonly view: EditorView,
 		private readonly options: LivePreviewOptions,
 	) {}
 
-	handleMouseDown = (event: MouseEvent): boolean => {
-		if (event.button !== 0 || event.detail > 1) return false;
+	private getLinkFromEvent(event: MouseEvent): {
+		url: string;
+		isExternal: boolean;
+		isActive: boolean;
+	} | null {
+		// Prefer direct DOM hit: works reliably whether user clicks text or the ::after arrow icon
+		const targetEl = (event.target as HTMLElement | null)?.closest?.(
+			".cm-live-link",
+		);
+		if (targetEl) {
+			const url = targetEl.getAttribute("data-url");
+			if (url) {
+				const isExternal = targetEl.getAttribute("data-external") === "true";
+				const isActive = targetEl.classList.contains("cm-live-link-active");
+				return { url, isExternal, isActive };
+			}
+		}
+
+		// Fallback via coordinates and syntax tree
 		const pos = this.view.posAtCoords({
 			x: event.clientX,
 			y: event.clientY,
 		});
-		if (pos == null) return false;
-		const link = findLinkAt(this.view, pos);
+		if (pos != null) {
+			const link = findLinkAt(this.view, pos);
+			if (link) {
+				const isLineActive =
+					!this.options.readingMode &&
+					lineTouchesSelection(
+						this.view.state,
+						link.nodeRange.from,
+						link.nodeRange.to,
+					);
+				return {
+					url: link.url,
+					isExternal: link.isExternal,
+					isActive: isLineActive,
+				};
+			}
+		}
+		return null;
+	}
+
+	handleMouseDown = (event: MouseEvent): boolean => {
+		if (event.button !== 0 || event.detail > 1) return false;
+		const link = this.getLinkFromEvent(event);
 		if (!link) return false;
 
-		// Check whether the link line is currently active in editing mode
-		const isLineActive =
-			!this.options.readingMode &&
-			lineTouchesSelection(
-				this.view.state,
-				link.nodeRange.from,
-				link.nodeRange.to,
-			);
-
-		if (isLineActive) {
+		if (link.isActive) {
 			// When source code is revealed, regular click lets editor place caret; Cmd/Ctrl+click follows link
 			if (event.metaKey || event.ctrlKey) {
 				event.preventDefault();
-				this.follow(link);
+				this.follow(link.url, link.isExternal);
 				return true;
 			}
 			return false;
@@ -117,15 +149,35 @@ class ExternalLinkInteractionPlugin {
 
 		// When rendered (not active), clicking follows link immediately
 		event.preventDefault();
-		this.follow(link);
+		this.follow(link.url, link.isExternal);
 		return true;
 	};
 
-	private follow(link: LinkTarget) {
-		if (link.isExternal) {
-			window.open(link.url, "_blank", "noopener,noreferrer");
+	handleClick = (event: MouseEvent): boolean => {
+		if (event.button !== 0 || event.detail > 1) return false;
+		const link = this.getLinkFromEvent(event);
+		if (!link) return false;
+
+		if (link.isActive && !(event.metaKey || event.ctrlKey)) {
+			return false;
+		}
+
+		event.preventDefault();
+		this.follow(link.url, link.isExternal);
+		return true;
+	};
+
+	private follow(url: string, isExternal: boolean) {
+		const now = Date.now();
+		if (this.lastFollowUrl === url && now - this.lastFollowTime < 400) {
+			return;
+		}
+		this.lastFollowUrl = url;
+		this.lastFollowTime = now;
+		if (isExternal) {
+			window.open(url, "_blank", "noopener,noreferrer");
 		} else {
-			void followWikilinkTarget(link.url, this.options);
+			void followWikilinkTarget(url, this.options);
 		}
 	}
 }
@@ -139,6 +191,9 @@ export function externalLinkInteractions(
 			eventHandlers: {
 				mousedown(event) {
 					return this.handleMouseDown(event);
+				},
+				click(event) {
+					return this.handleClick(event);
 				},
 			},
 		},
