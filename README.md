@@ -17,7 +17,7 @@
   <img src="https://img.shields.io/badge/CodeMirror-v6-red?style=flat-square" alt="CodeMirror 6" />
   <img src="https://img.shields.io/badge/TipTap-v3-black?style=flat-square" alt="TipTap" />
   <img src="https://img.shields.io/badge/Local--First-SQLite-green?style=flat-square" alt="Local-First" />
-  <img src="https://img.shields.io/badge/License-MIT-gray?style=flat-square" alt="License" />
+  <img src="https://img.shields.io/badge/License-GNU_GPL_v3-blue?style=flat-square" alt="License" />
 </p>
 
 ---
@@ -298,4 +298,4 @@ pnpm --filter ./extensions/aicollector dev
 
 ## 📄 开源协议
 
-本项目采用 [MIT License](./LICENSE) 协议。
+本项目采用 [GNU General Public License v3.0 (GNU GPL 3)](./LICENSE) 协议。
