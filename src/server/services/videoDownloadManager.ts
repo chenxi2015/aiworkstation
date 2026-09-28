@@ -109,6 +109,7 @@ export class VideoDownloadManager {
 		url: string;
 		kind?: "hls" | "file" | "dash";
 		audioUrl?: string;
+		audioMimeType?: string;
 		pageTitle: string;
 		pageUrl?: string;
 		force?: boolean;
@@ -143,6 +144,7 @@ export class VideoDownloadManager {
 			url: params.url,
 			kind: params.kind,
 			audioUrl: params.audioUrl,
+			audioMimeType: params.audioMimeType,
 			pageTitle: params.pageTitle,
 			pageUrl: params.pageUrl,
 			status: "pending",
@@ -219,8 +221,9 @@ export class VideoDownloadManager {
 
 	/**
 	 * Downloads a DASH split-track stream (kind: 'dash'): fetches video-only
-	 * and audio-only m4s tracks, then muxes both into a single MP4 with
-	 * ffmpeg (-c copy, no re-encode).
+	 * and audio-only m4s tracks, then muxes both into a single file with
+	 * ffmpeg (-c copy, no re-encode). Output container follows the audio
+	 * codec: AAC audio goes into MP4, Opus/WebM audio into MKV.
 	 */
 	private async downloadDash(
 		task: ServerVideoTask,
@@ -290,20 +293,26 @@ export class VideoDownloadManager {
 		const userDownloadsDir = getVideoDownloadsDir();
 		mkdirSync(userDownloadsDir, { recursive: true });
 		const filenameBase = sanitizeFilename(task.pageTitle);
-		const outputMp4Path = join(userDownloadsDir, `${filenameBase}.mp4`);
-		task.filename = `${filenameBase}.mp4`;
+		// Opus/WebM audio does not belong in an MP4 container (many players
+		// render it silent), so YouTube-style tracks land in MKV instead
+		const audioMime = (task.audioMimeType ?? "").toLowerCase();
+		const useMkv =
+			audioMime.includes("webm") || audioMime.includes("opus");
+		const extension = useMkv ? "mkv" : "mp4";
+		const outputPath = join(userDownloadsDir, `${filenameBase}.${extension}`);
+		task.filename = `${filenameBase}.${extension}`;
 
 		const muxRes = await muxDualTracksToMp4(
 			videoPath,
 			audioPath,
-			outputMp4Path,
+			outputPath,
 		);
 		if (!muxRes.success)
 			throw new Error(muxRes.error || "FFmpeg 音视频轨道合成失败");
 
 		task.status = "done";
 		task.phase = undefined;
-		task.outputPath = outputMp4Path;
+		task.outputPath = outputPath;
 		task.completedAt = Date.now();
 	}
 

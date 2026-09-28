@@ -153,6 +153,7 @@ export const SniffedStreamsCard: React.FC<SniffedStreamsCardProps> = ({
         pageUrl: stream.pageUrl,
         kind: stream.kind,
         audioUrl: stream.audioUrl,
+        audioMimeType: stream.audioMimeType,
         force,
       });
       if (res.success && res.task) {

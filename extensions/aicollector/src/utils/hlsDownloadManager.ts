@@ -463,12 +463,18 @@ export class HlsDownloadTask {
     this.onUpdate();
 
     const { muxToMp4 } = await import('./ffmpegMuxer');
-    const mp4 = await muxToMp4(videoBytes, audioBytes);
+    // Opus/WebM audio does not belong in MP4 — use MKV so players keep sound
+    const audioMime = (this.stream.audioMimeType ?? '').toLowerCase();
+    const useMkv = audioMime.includes('webm') || audioMime.includes('opus');
+    const muxed = await muxToMp4(videoBytes, audioBytes, useMkv ? 'mkv' : 'mp4');
     const filenameBase = sanitizeFilename(
       this.stream.pageTitle || describeStreamLabel(this.url),
     );
-    const blob = new Blob([mp4 as unknown as BlobPart], { type: 'video/mp4' });
-    const filename = `${filenameBase}.mp4`;
+    const extension = useMkv ? 'mkv' : 'mp4';
+    const blob = new Blob([muxed as unknown as BlobPart], {
+      type: useMkv ? 'video/x-matroska' : 'video/mp4',
+    });
+    const filename = `${filenameBase}.${extension}`;
     await saveBlob(blob, filename);
 
     this.status = 'done';

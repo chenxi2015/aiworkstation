@@ -3,6 +3,7 @@ export interface ServerVideoTask {
 	url: string;
 	kind?: "hls" | "file" | "dash";
 	audioUrl?: string;
+	audioMimeType?: string;
 	pageTitle: string;
 	pageUrl?: string;
 	status: "pending" | "downloading" | "muxing" | "done" | "error" | "cancelled";

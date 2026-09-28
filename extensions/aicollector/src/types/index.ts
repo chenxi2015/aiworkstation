@@ -46,6 +46,9 @@ export interface SniffedStream {
   detectedAt: number;
   /** Separate audio track URL for DASH-style split streams (e.g. Bilibili) */
   audioUrl?: string;
+  /** Audio track MIME type for split streams (e.g. "audio/webm"; drives
+   *  the output container choice: aac→mp4, opus→mkv) */
+  audioMimeType?: string;
   /** Total bytes reported by response headers (file streams) */
   contentLength?: number;
   /** True when contentLength is the authoritative full size (Content-Range

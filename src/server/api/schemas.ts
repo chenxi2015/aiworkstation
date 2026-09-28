@@ -7,6 +7,7 @@ export const CreateVideoTaskSchema = z.object({
   url: z.string().min(1, '流地址不能为空'),
   kind: z.enum(['hls', 'file', 'dash']).optional(),
   audioUrl: z.string().optional(),
+  audioMimeType: z.string().optional(),
   pageTitle: z.string().optional().default('video'),
   pageUrl: z.string().optional(),
   force: z.boolean().optional().default(false),

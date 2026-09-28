@@ -4,6 +4,7 @@ import {
 	resolveBilibiliVideo,
 } from "./bilibiliResolver";
 import { broadcastHlsStreams, dropTabStreams } from "./streamStore";
+import { clearYoutubeTab } from "./youtubeTracks";
 
 /**
  * Sniffed HLS stream housekeeping: reset a tab's stream list when it
@@ -14,6 +15,7 @@ export function registerTabLifecycleListeners(): void {
 	chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
 		if (changeInfo.status === "loading" && changeInfo.url) {
 			dropTabStreams(tabId);
+			clearYoutubeTab(tabId);
 			broadcastHlsStreams(tabId, []);
 		}
 		// Resolve Bilibili DASH streams for video pages (also fires on the
@@ -36,5 +38,6 @@ export function registerTabLifecycleListeners(): void {
 	chrome.tabs.onRemoved.addListener((tabId) => {
 		dropTabStreams(tabId);
 		clearBilibiliTab(tabId);
+		clearYoutubeTab(tabId);
 	});
 }

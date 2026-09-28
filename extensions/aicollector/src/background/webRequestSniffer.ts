@@ -6,6 +6,11 @@ import {
 	registerHlsStream,
 	registerVideoFileStream,
 } from "./streamRegistry";
+import {
+	handleGoogleVideoResponse,
+	isGoogleVideoPlaybackUrl,
+	parseGoogleVideoHeaders,
+} from "./youtubeTracks";
 
 /**
  * Passive network sniffer for video streams across all frames and workers
@@ -61,14 +66,42 @@ export function registerWebRequestSniffer(): void {
 						) {
 							return undefined;
 						}
+
+						// YouTube: googlevideo DASH tracks (video + audio) are
+						// classified, paired and registered by a dedicated router
+						if (isGoogleVideoPlaybackUrl(url)) {
+							const meta = parseGoogleVideoHeaders(
+								details.responseHeaders,
+								details.statusCode,
+							);
+							if (meta) {
+								handleGoogleVideoResponse(tabId, {
+									url,
+									pageUrl: details.initiator || "",
+									contentType: meta.mimeType,
+									contentLength: meta.contentLength,
+									sizeIsTotal: meta.sizeIsTotal,
+								}).catch(() => {});
+							}
+							return undefined;
+						}
+
 						if (/\.m3u8(\?|#|$)/i.test(url)) return undefined;
 						if (details.type !== "media" && !isKnownVideoCdn(url))
 							return undefined;
 
-						const meta = parseVideoResponseHeaders(details.responseHeaders);
+						const meta = parseVideoResponseHeaders(
+							details.responseHeaders,
+							details.statusCode,
+						);
 						if (!meta) return undefined;
-						// Skip tiny clips: ad preloads, poster animations, preview loops
-						if (isBelowMinVideoSize(meta.contentLength)) {
+						// Skip tiny clips: ad preloads, poster animations, preview
+						// loops. Partial 206 chunk sizes are lower bounds, not the
+						// real total, so they never trigger the filter
+						if (
+							meta.sizeIsTotal !== false &&
+							isBelowMinVideoSize(meta.contentLength)
+						) {
 							return undefined;
 						}
 
@@ -77,6 +110,7 @@ export function registerWebRequestSniffer(): void {
 							via: "network-headers",
 							pageUrl: details.initiator || "",
 							contentLength: meta.contentLength,
+							sizeIsTotal: meta.sizeIsTotal,
 							mimeType: meta.mimeType,
 						});
 					} catch {

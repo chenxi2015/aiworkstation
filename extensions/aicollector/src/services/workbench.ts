@@ -157,6 +157,7 @@ export class WorkbenchService {
     pageUrl?: string;
     kind?: 'hls' | 'file' | 'dash';
     audioUrl?: string;
+    audioMimeType?: string;
     force?: boolean;
   }): Promise<{ success: boolean; task?: ServerVideoTaskState; error?: string }> {
     const baseUrl = await this.getWorkbenchUrl();
@@ -170,6 +171,7 @@ export class WorkbenchService {
           pageUrl: stream.pageUrl,
           kind: stream.kind,
           audioUrl: stream.audioUrl,
+          audioMimeType: stream.audioMimeType,
           force: Boolean(stream.force),
         }),
       });
@@ -241,6 +243,7 @@ export interface ServerVideoTaskState {
   url: string;
   kind?: 'hls' | 'file' | 'dash';
   audioUrl?: string;
+  audioMimeType?: string;
   pageTitle: string;
   pageUrl?: string;
   status: 'pending' | 'downloading' | 'muxing' | 'done' | 'error' | 'cancelled';

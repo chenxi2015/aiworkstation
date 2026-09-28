@@ -46,6 +46,7 @@ function cleanPageTitle(title?: string): string | undefined {
 		.replace(/_哔哩哔哩_bilibili$/i, "")
 		.replace(/\s*-\s*哔哩哔哩.*$/i, "")
 		.replace(/\s*-\s*小红书$/, "")
+		.replace(/\s*-\s*YouTube$/i, "")
 		.trim();
 	return cleaned || undefined;
 }
@@ -224,6 +225,26 @@ interface VideoFileStreamPayload {
 }
 
 /**
+ * Dedupe key for a file stream. googlevideo.com serves every track of
+ * every video from the same /videoplayback path, so tracks are told apart
+ * by the `id` and `itag` query params instead.
+ */
+function videoFileDedupeKey(url: string): string {
+	try {
+		const u = new URL(url);
+		if (/(^|\.)googlevideo\.com$/i.test(u.hostname)) {
+			const id = u.searchParams.get("id");
+			if (id) {
+				return `${u.origin}${u.pathname}#id=${id}&itag=${u.searchParams.get("itag") ?? ""}`;
+			}
+		}
+		return `${u.origin}${u.pathname}`;
+	} catch {
+		return url;
+	}
+}
+
+/**
  * Learns a video file's total size via a Range: bytes=0-0 probe and stores
  * it on the matching stream entry. The response body is cancelled right
  * after the headers arrive, so no real download happens.
@@ -286,24 +307,13 @@ export async function registerVideoFileStream(
 
 	const streams = await readHlsStreams(tabId);
 
-	let pathnameKey = payload.url;
-	try {
-		const u = new URL(payload.url);
-		pathnameKey = `${u.origin}${u.pathname}`;
-	} catch {
-		// Keep the raw URL as the dedupe key
-	}
+	const pathnameKey = videoFileDedupeKey(payload.url);
 
 	const existing = streams.find((s) => {
 		if (s.kind === "hls" || (!s.kind && /\.m3u8(\?|#|$)/i.test(s.url)))
 			return false;
 		if (s.url === payload.url) return true;
-		try {
-			const u = new URL(s.url);
-			return `${u.origin}${u.pathname}` === pathnameKey;
-		} catch {
-			return false;
-		}
+		return videoFileDedupeKey(s.url) === pathnameKey;
 	});
 
 	if (existing) {
@@ -316,14 +326,29 @@ export async function registerVideoFileStream(
 				broadcastHlsStreams(tabId, streams);
 			}
 		}
-		const lengthChanged =
-			typeof payload.contentLength === "number" &&
-			payload.contentLength !== existing.contentLength;
+		// Size updates: authoritative totals always win; partial 206 chunk
+		// sizes only ever raise the lower bound, never lower it
+		let lengthChanged = false;
+		if (typeof payload.contentLength === "number") {
+			if (
+				payload.sizeIsTotal &&
+				payload.contentLength !== existing.contentLength
+			) {
+				existing.contentLength = payload.contentLength;
+				existing.sizeIsTotal = true;
+				lengthChanged = true;
+			} else if (
+				!payload.sizeIsTotal &&
+				existing.sizeIsTotal !== true &&
+				payload.contentLength > (existing.contentLength ?? 0)
+			) {
+				existing.contentLength = payload.contentLength;
+				lengthChanged = true;
+			}
+		}
 		const mimeChanged =
 			Boolean(payload.mimeType) && payload.mimeType !== existing.mimeType;
 		if (lengthChanged || mimeChanged) {
-			if (typeof payload.contentLength === "number")
-				existing.contentLength = payload.contentLength;
 			if (payload.mimeType) existing.mimeType = payload.mimeType;
 			await writeHlsStreams(tabId, streams);
 			broadcastHlsStreams(tabId, streams);
@@ -339,6 +364,7 @@ export async function registerVideoFileStream(
 		pageTitle:
 			cleanPageTitle(payload.pageTitle) || (await resolveTabTitle(tabId)),
 		contentLength: payload.contentLength,
+		sizeIsTotal: payload.sizeIsTotal,
 		mimeType: payload.mimeType,
 		detectedAt: Date.now(),
 	};
@@ -346,6 +372,12 @@ export async function registerVideoFileStream(
 	const next = [stream, ...streams].slice(0, MAX_STREAMS_PER_TAB);
 	await writeHlsStreams(tabId, next);
 	broadcastHlsStreams(tabId, next);
+
+	// Without an authoritative size, probe the CDN with a 1-byte range
+	// request to learn the total (body is cancelled before any real download)
+	if (payload.sizeIsTotal !== true) {
+		probeVideoFileSize(tabId, payload.url).catch(() => {});
+	}
 }
 
 /**
@@ -354,9 +386,11 @@ export async function registerVideoFileStream(
  */
 export function parseVideoResponseHeaders(
 	headers: Array<{ name: string; value?: string }> | undefined,
-): { mimeType: string; contentLength?: number } | null {
+	statusCode?: number,
+): { mimeType: string; contentLength?: number; sizeIsTotal?: boolean } | null {
 	let contentType = "";
 	let contentLength: number | undefined;
+	let rangeTotal: number | undefined;
 
 	for (const h of headers ?? []) {
 		const name = h.name.toLowerCase();
@@ -370,15 +404,24 @@ export function parseVideoResponseHeaders(
 			const m = /\/(\d+)\s*$/.exec(h.value ?? "");
 			if (m) {
 				const n = Number(m[1]);
-				if (Number.isFinite(n)) contentLength = n;
+				if (Number.isFinite(n)) rangeTotal = n;
 			}
 		}
 	}
 
 	if (!contentType.startsWith("video/")) return null;
+	if (typeof rangeTotal === "number") {
+		return {
+			mimeType: contentType.split(";")[0]?.trim() ?? "video/mp4",
+			contentLength: rangeTotal,
+			sizeIsTotal: true,
+		};
+	}
 	return {
 		mimeType: contentType.split(";")[0]?.trim() ?? "video/mp4",
 		contentLength,
+		// A Content-Length on a 206 is only the chunk size, not the total
+		sizeIsTotal: typeof contentLength === "number" ? statusCode === 200 : undefined,
 	};
 }
 
@@ -395,23 +438,70 @@ export async function registerDashStream(
 		pageUrl: string;
 		pageTitle?: string;
 		via?: string;
+		contentLength?: number;
+		sizeIsTotal?: boolean;
+		mimeType?: string;
+		audioMimeType?: string;
 	},
 ): Promise<void> {
 	const streams = await readHlsStreams(tabId);
-	if (streams.some((s) => s.url === payload.url)) return;
+	const existing = streams.find((s) => s.url === payload.url);
+	if (existing) {
+		// Enrich sizes as range responses reveal track totals
+		let changed = false;
+		if (
+			typeof payload.contentLength === "number" &&
+			payload.contentLength > 0 &&
+			payload.contentLength !== existing.contentLength &&
+			(payload.sizeIsTotal || existing.sizeIsTotal !== true)
+		) {
+			existing.contentLength = payload.contentLength;
+			if (payload.sizeIsTotal) existing.sizeIsTotal = true;
+			changed = true;
+		}
+		if (payload.mimeType && payload.mimeType !== existing.mimeType) {
+			existing.mimeType = payload.mimeType;
+			changed = true;
+		}
+		if (payload.audioMimeType && payload.audioMimeType !== existing.audioMimeType) {
+			existing.audioMimeType = payload.audioMimeType;
+			changed = true;
+		}
+		if (changed) {
+			await writeHlsStreams(tabId, streams);
+			broadcastHlsStreams(tabId, streams);
+		}
+		return;
+	}
 
 	const stream: SniffedStream = {
 		url: payload.url,
 		kind: "dash",
 		audioUrl: payload.audioUrl,
+		audioMimeType: payload.audioMimeType,
 		via: payload.via,
 		pageUrl: payload.pageUrl,
 		pageTitle:
 			cleanPageTitle(payload.pageTitle) || (await resolveTabTitle(tabId)),
+		contentLength: payload.contentLength,
+		sizeIsTotal: payload.sizeIsTotal,
+		mimeType: payload.mimeType,
 		detectedAt: Date.now(),
 	};
 
 	const next = [stream, ...streams].slice(0, MAX_STREAMS_PER_TAB);
+	await writeHlsStreams(tabId, next);
+	broadcastHlsStreams(tabId, next);
+}
+
+/**
+ * Removes a registered stream by URL. Used to replace a provisional
+ * single-track entry once its full audio+video pair arrives.
+ */
+export async function removeStreamByUrl(tabId: number, url: string): Promise<void> {
+	const streams = await readHlsStreams(tabId);
+	const next = streams.filter((s) => s.url !== url);
+	if (next.length === streams.length) return;
 	await writeHlsStreams(tabId, next);
 	broadcastHlsStreams(tabId, next);
 }

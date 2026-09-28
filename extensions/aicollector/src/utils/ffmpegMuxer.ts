@@ -35,17 +35,20 @@ function toUint8Array(data: ArrayBuffer | Uint8Array): Uint8Array {
 
 /**
  * Muxes a video track (merged TS/fMP4 bytes) and an optional separate audio
- * track into a single MP4 without re-encoding (-c copy).
+ * track into a single container without re-encoding (-c copy). Use the
+ * 'mkv' container for Opus/WebM audio, which MP4 players often render
+ * silent.
  */
 export async function muxToMp4(
   videoData: ArrayBuffer | Uint8Array,
   audioData?: ArrayBuffer | Uint8Array,
+  container: 'mp4' | 'mkv' = 'mp4',
 ): Promise<Uint8Array> {
   const ffmpeg = await getFFmpeg();
 
   const videoName = 'input_video.ts';
   const audioName = 'input_audio.ts';
-  const outName = 'output.mp4';
+  const outName = container === 'mkv' ? 'output.mkv' : 'output.mp4';
 
   try {
     ffmpeg.FS('writeFile', videoName, toUint8Array(videoData));
@@ -53,9 +56,10 @@ export async function muxToMp4(
       ffmpeg.FS('writeFile', audioName, toUint8Array(audioData));
     }
 
+    const faststartFlags = container === 'mp4' ? ['-movflags', '+faststart'] : [];
     const args = audioData
-      ? ['-i', videoName, '-i', audioName, '-c', 'copy', '-shortest', '-movflags', '+faststart', outName]
-      : ['-i', videoName, '-c', 'copy', '-movflags', '+faststart', outName];
+      ? ['-i', videoName, '-i', audioName, '-c', 'copy', '-shortest', ...faststartFlags, outName]
+      : ['-i', videoName, '-c', 'copy', ...faststartFlags, outName];
 
     await ffmpeg.run(...args);
     return ffmpeg.FS('readFile', outName);
