@@ -140,23 +140,71 @@ export function useSniffedStreams() {
 
   const [isRescanning, setIsRescanning] = useState(false);
 
+  /**
+   * Reload the tab and resolve once it finishes loading (or the safety
+   * timeout elapses). Reloading forces the player to re-issue its media
+   * requests and re-triggers the background lifecycle reset + API
+   * resolvers, which is the only reliable recovery when sniffing state
+   * went stale.
+   */
+  const reloadTabAndWait = useCallback((targetTabId: number) => {
+    return new Promise<void>((resolve) => {
+      let settled = false;
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        chrome.tabs.onUpdated.removeListener(listener);
+        resolve();
+      };
+      const listener = (
+        updatedTabId: number,
+        changeInfo: { status?: string },
+      ) => {
+        if (updatedTabId === targetTabId && changeInfo.status === 'complete') {
+          done();
+        }
+      };
+      const timer = setTimeout(done, 15000);
+      chrome.tabs.onUpdated.addListener(listener);
+      chrome.tabs.reload(targetTabId).catch(() => done());
+    });
+  }, []);
+
   const rescanStreams = useCallback(async () => {
     setIsRescanning(true);
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (tab && typeof tab.id === 'number') {
-        await Promise.allSettled([
-          chrome.tabs.sendMessage(tab.id, { type: 'RESCAN_PAGE_VIDEO' }).catch(() => {}),
-          chrome.runtime.sendMessage({ type: 'RESCAN_ALL_FRAMES', tabId: tab.id }).catch(() => {}),
-        ]);
+      if (!tab || typeof tab.id !== 'number') return;
+      const targetTabId = tab.id;
+
+      // Phase 1: non-intrusive rescan of the live page (DOM scan, main-world
+      // performance buffer, MSE nudge, API resolvers) — no reload needed
+      await Promise.allSettled([
+        chrome.tabs.sendMessage(targetTabId, { type: 'RESCAN_PAGE_VIDEO' }).catch(() => {}),
+        chrome.runtime.sendMessage({ type: 'RESCAN_ALL_FRAMES', tabId: targetTabId }).catch(() => {}),
+      ]);
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await refresh();
+
+      // Phase 2: still nothing — reload the page so the player re-issues
+      // its media requests and the background lifecycle reset + resolvers
+      // rebuild the stream list from scratch
+      if (tabStreamsRef.current.length === 0) {
+        await reloadTabAndWait(targetTabId);
+        await refresh();
+        // Media playback (and API resolution) often starts after 'complete';
+        // poll a few times so late streams still surface in the list
+        for (const delay of [1500, 3500, 6000]) {
+          setTimeout(() => {
+            void refresh();
+          }, delay);
+        }
       }
     } finally {
-      setTimeout(() => {
-        refresh();
-        setIsRescanning(false);
-      }, 500);
+      setIsRescanning(false);
     }
-  }, [refresh]);
+  }, [refresh, reloadTabAndWait]);
 
   return {
     streams,

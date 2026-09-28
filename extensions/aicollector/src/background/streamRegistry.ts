@@ -174,7 +174,18 @@ export async function registerHlsStream(
 	payload: { url: string; pageUrl: string; pageTitle?: string; via?: string },
 ): Promise<void> {
 	const streams = await readHlsStreams(tabId);
-	if (streams.some((s) => s.url === payload.url)) return;
+	const existing = streams.find((s) => s.url === payload.url);
+	if (existing) {
+		// Tab title settles after navigation completes; refresh once known
+		const title =
+			cleanPageTitle(payload.pageTitle) || (await resolveTabTitle(tabId));
+		if (title && title !== existing.pageTitle) {
+			existing.pageTitle = title;
+			await writeHlsStreams(tabId, streams);
+			broadcastHlsStreams(tabId, streams);
+		}
+		return;
+	}
 
 	const stream: SniffedStream = {
 		url: payload.url,
@@ -502,6 +513,33 @@ export async function removeStreamByUrl(tabId: number, url: string): Promise<voi
 	const streams = await readHlsStreams(tabId);
 	const next = streams.filter((s) => s.url !== url);
 	if (next.length === streams.length) return;
+	await writeHlsStreams(tabId, next);
+	broadcastHlsStreams(tabId, next);
+}
+
+/**
+ * Registers a YouTube video page as a downloadable entry. The URL is the
+ * canonical watch URL; actual stream resolution is delegated to the
+ * workbench's yt-dlp engine at download time.
+ */
+export async function registerYoutubePageStream(
+	tabId: number,
+	payload: { url: string; pageUrl: string; pageTitle?: string },
+): Promise<void> {
+	const streams = await readHlsStreams(tabId);
+	if (streams.some((s) => s.url === payload.url)) return;
+
+	const stream: SniffedStream = {
+		url: payload.url,
+		kind: "youtube",
+		via: "youtube-page",
+		pageUrl: payload.pageUrl,
+		pageTitle:
+			cleanPageTitle(payload.pageTitle) || (await resolveTabTitle(tabId)),
+		detectedAt: Date.now(),
+	};
+
+	const next = [stream, ...streams].slice(0, MAX_STREAMS_PER_TAB);
 	await writeHlsStreams(tabId, next);
 	broadcastHlsStreams(tabId, next);
 }

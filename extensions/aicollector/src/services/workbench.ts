@@ -155,7 +155,7 @@ export class WorkbenchService {
     url: string;
     pageTitle?: string;
     pageUrl?: string;
-    kind?: 'hls' | 'file' | 'dash';
+    kind?: 'hls' | 'file' | 'dash' | 'youtube';
     audioUrl?: string;
     audioMimeType?: string;
     force?: boolean;
@@ -241,7 +241,7 @@ export class WorkbenchService {
 export interface ServerVideoTaskState {
   id: string;
   url: string;
-  kind?: 'hls' | 'file' | 'dash';
+  kind?: 'hls' | 'file' | 'dash' | 'youtube';
   audioUrl?: string;
   audioMimeType?: string;
   pageTitle: string;

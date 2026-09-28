@@ -75,6 +75,7 @@ function formatBytes(bytes: number): string {
 
 /** Short type badge label for a sniffed stream */
 function streamKindLabel(stream: SniffedStream): string {
+  if (stream.kind === 'youtube') return 'YT';
   if (stream.kind === 'dash') return 'DASH';
   if (stream.kind !== 'file') return 'HLS';
   const ext = /\.([a-z0-9]{2,4})(?:\?|#|$)/i.exec(stream.url)?.[1]?.toUpperCase();
@@ -160,6 +161,15 @@ export const SniffedStreamsCard: React.FC<SniffedStreamsCardProps> = ({
         setServerTasks((prev) => ({ ...prev, [stream.url]: res.task! }));
         return;
       }
+    }
+    // YouTube downloads are delegated to the workbench's yt-dlp engine;
+    // there is no browser-side fallback for page URLs
+    if (stream.kind === 'youtube') {
+      hlsDownloadManager.failImmediately(
+        stream,
+        'YouTube 下载需要启动本地工作台（yt-dlp 引擎），请先在 3888 端口启动',
+      );
+      return;
     }
     hlsDownloadManager.start(stream);
   };

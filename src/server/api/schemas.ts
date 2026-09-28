@@ -5,7 +5,7 @@ import { z } from 'zod';
  */
 export const CreateVideoTaskSchema = z.object({
   url: z.string().min(1, '流地址不能为空'),
-  kind: z.enum(['hls', 'file', 'dash']).optional(),
+  kind: z.enum(['hls', 'file', 'dash', 'youtube']).optional(),
   audioUrl: z.string().optional(),
   audioMimeType: z.string().optional(),
   pageTitle: z.string().optional().default('video'),

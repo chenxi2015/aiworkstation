@@ -1,7 +1,7 @@
 export interface ServerVideoTask {
 	id: string;
 	url: string;
-	kind?: "hls" | "file" | "dash";
+	kind?: "hls" | "file" | "dash" | "youtube";
 	audioUrl?: string;
 	audioMimeType?: string;
 	pageTitle: string;

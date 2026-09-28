@@ -501,6 +501,19 @@ export class HlsDownloadTask {
     this.resetTask();
   }
 
+  /** Marks the task as failed without starting any download (e.g. the
+   *  stream kind requires the local workbench, which is offline) */
+  public fail(message: string): void {
+    if (this.doneTimer) {
+      clearTimeout(this.doneTimer);
+      this.doneTimer = null;
+    }
+    this.status = 'error';
+    this.phase = undefined;
+    this.error = message;
+    this.onUpdate();
+  }
+
   private resetTask(): void {
     if (this.doneTimer) {
       clearTimeout(this.doneTimer);
@@ -576,6 +589,13 @@ class HlsDownloadManager {
   public start(stream: SniffedStream): void {
     const task = this.getOrCreateTask(stream);
     task.start();
+  }
+
+  /** Puts a task into the error state without downloading (unsupported
+   *  stream kind while the workbench is offline) */
+  public failImmediately(stream: SniffedStream, message: string): void {
+    const task = this.getOrCreateTask(stream);
+    task.fail(message);
   }
 
   public pause(url: string): void {

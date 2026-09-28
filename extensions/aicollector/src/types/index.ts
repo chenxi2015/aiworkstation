@@ -37,8 +37,9 @@ export interface GrabbedVideo {
 export interface SniffedStream {
   /** Playlist URL, also used as the dedupe key */
   url: string;
-  /** Stream kind. Undefined means HLS (backwards compatible) */
-  kind?: 'hls' | 'file' | 'dash';
+  /** Stream kind. Undefined means HLS (backwards compatible). 'youtube'
+   *  entries are page URLs delegated to the workbench's yt-dlp engine */
+  kind?: 'hls' | 'file' | 'dash' | 'youtube';
   pageUrl: string;
   pageTitle?: string;
   /** Detection channel: fetch / xhr / performance / network-* */

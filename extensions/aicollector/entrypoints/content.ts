@@ -108,6 +108,76 @@ export default defineContentScript({
     window.addEventListener('message', snifferMessageListener);
 
     // Listen for messages from background / sidepanel
+    /**
+     * Re-scan the live page for video streams: reset the main-world
+     * sniffer's seen cache, scan <video>/<source> elements and nudge
+     * MSE-backed videos so they issue fresh segment requests.
+     */
+    const rescanPageVideo = () => {
+      // 1. Notify main-world sniffer to reset seen cache and rescan performance buffer
+      window.postMessage({ source: 'aic-content', type: 'RESCAN_HLS_STREAMS' }, '*');
+
+      // 2. Scan active <video> and <source> elements in the page
+      try {
+        const mediaElements = document.querySelectorAll('video, source');
+        mediaElements.forEach((el) => {
+          const src = (el as HTMLVideoElement | HTMLSourceElement).src || (el as any).currentSrc;
+          if (!src) return;
+          const kind = /\.m3u8(\?|#|$)/i.test(src)
+            ? 'hls'
+            : /\.(mp4|webm|mov|m4v|flv)(\?|#|$)/i.test(src)
+              ? 'file'
+              : null;
+          if (kind) {
+            chrome.runtime
+              .sendMessage({
+                type: 'HLS_STREAM_DETECTED',
+                payload: {
+                  url: src,
+                  via: 'dom-element',
+                  kind,
+                  pageUrl: window.location.href,
+                  pageTitle: document.title,
+                },
+              })
+              ?.catch?.(() => {});
+          }
+        });
+      } catch {
+        // DOM query warning
+      }
+
+      // 3. Nudge MSE-backed videos (blob: src) slightly forward to force
+      // the player to issue fresh segment requests, which the network
+      // sniffer (webRequest + fetch hook) can then observe. 0.1s is
+      // imperceptible during playback.
+      try {
+        document.querySelectorAll('video').forEach((v) => {
+          try {
+            const src = v.currentSrc || v.src;
+            if (!src || !src.startsWith('blob:')) return;
+            const duration = v.duration;
+            if (!Number.isFinite(duration) || duration <= 0) return;
+            const t = v.currentTime;
+            const next = t + 0.1 <= duration - 0.1 ? t + 0.1 : Math.max(0, t - 0.1);
+            if (next !== t) v.currentTime = next;
+          } catch {
+            // Per-video seek may fail; ignore
+          }
+        });
+      } catch {
+        // DOM query warning
+      }
+    };
+
+    // bfcache restore (back/forward navigation): the page returns without
+    // re-running content scripts or replaying media network requests, so
+    // rebuild the stream list from whatever the live page still knows.
+    const pageShowListener = (event: PageTransitionEvent) => {
+      if (event.persisted) rescanPageVideo();
+    };
+    window.addEventListener('pageshow', pageShowListener);
+
     const messageListener = (
       message: ExtensionMessage,
       _sender: chrome.runtime.MessageSender,
@@ -287,39 +357,7 @@ export default defineContentScript({
         }
 
         case 'RESCAN_PAGE_VIDEO': {
-          // 1. Notify main-world sniffer to reset seen cache and rescan performance buffer
-          window.postMessage({ source: 'aic-content', type: 'RESCAN_HLS_STREAMS' }, '*');
-
-          // 2. Scan active <video> and <source> elements in the page
-          try {
-            const mediaElements = document.querySelectorAll('video, source');
-            mediaElements.forEach((el) => {
-              const src = (el as HTMLVideoElement | HTMLSourceElement).src || (el as any).currentSrc;
-              if (!src) return;
-              const kind = /\.m3u8(\?|#|$)/i.test(src)
-                ? 'hls'
-                : /\.(mp4|webm|mov|m4v|flv)(\?|#|$)/i.test(src)
-                  ? 'file'
-                  : null;
-              if (kind) {
-                chrome.runtime
-                  .sendMessage({
-                    type: 'HLS_STREAM_DETECTED',
-                    payload: {
-                      url: src,
-                      via: 'dom-element',
-                      kind,
-                      pageUrl: window.location.href,
-                      pageTitle: document.title,
-                    },
-                  })
-                  ?.catch?.(() => {});
-              }
-            });
-          } catch {
-            // DOM query warning
-          }
-
+          rescanPageVideo();
           sendResponse({ success: true });
           return true;
         }
@@ -338,6 +376,7 @@ export default defineContentScript({
       } catch {}
       window.removeEventListener('message', snifferMessageListener);
       window.removeEventListener('message', pageMessageListener);
+      window.removeEventListener('pageshow', pageShowListener);
       grabber?.stop();
     });
   },

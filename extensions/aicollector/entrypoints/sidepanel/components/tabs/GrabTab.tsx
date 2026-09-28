@@ -211,7 +211,7 @@ export const GrabTab: React.FC<GrabTabProps> = ({
             type="button"
             onClick={onRescanSniffedStreams}
             disabled={isRescanningStreams}
-            title="重新扫描当前页正在播放或已加载的视频（无需刷新网页）"
+            title="重新扫描当前页正在播放或已加载的视频；若仍未找到，将自动刷新网页重新嗅探"
             className="shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-violet-500/10 text-violet-600 dark:text-violet-400 hover:bg-violet-500/20 border border-violet-500/20 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
           >
             <RotateCw className={`w-3 h-3 ${isRescanningStreams ? 'animate-spin text-violet-500' : ''}`} />

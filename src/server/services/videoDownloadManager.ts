@@ -5,9 +5,10 @@ import {
 	mkdirSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { getVideoDownloadsDir } from "./filesRoot.ts";
 import { muxDualTracksToMp4, remuxTsToMp4 } from "./nativeFfmpeg.ts";
+import { downloadWithYtDlp } from "./ytDlpRunner.ts";
 import { openInOs } from "./systemOpener.ts";
 import {
 	concatFilesOnDisk,
@@ -107,7 +108,7 @@ export class VideoDownloadManager {
 
 	public createTask(params: {
 		url: string;
-		kind?: "hls" | "file" | "dash";
+		kind?: "hls" | "file" | "dash" | "youtube";
 		audioUrl?: string;
 		audioMimeType?: string;
 		pageTitle: string;
@@ -216,6 +217,51 @@ export class VideoDownloadManager {
 		task.status = "done";
 		task.phase = undefined;
 		task.outputPath = outputPath;
+		task.completedAt = Date.now();
+	}
+
+	/**
+	 * Downloads a video page URL (kind: 'youtube') via the local yt-dlp
+	 * binary. yt-dlp handles stream resolution, signature deciphering,
+	 * cookie-based bot-wall bypass and muxing; we track its stdout progress.
+	 */
+	private async downloadViaYtDlp(
+		task: ServerVideoTask,
+		signal: AbortSignal,
+	): Promise<void> {
+		const userDownloadsDir = getVideoDownloadsDir();
+		mkdirSync(userDownloadsDir, { recursive: true });
+		const filenameBase = sanitizeFilename(task.pageTitle);
+
+		const result = await downloadWithYtDlp({
+			url: task.url,
+			outputDir: userDownloadsDir,
+			filenameBase,
+			signal,
+			onProgress: (percent) => {
+				task.percent = Math.max(task.percent, Math.floor(percent));
+				task.doneSegments = task.percent;
+				task.totalSegments = 100;
+			},
+			onPhase: (phase) => {
+				if (phase === "muxing") {
+					task.status = "muxing";
+					task.phase = "muxing";
+					task.percent = 100;
+				}
+			},
+		});
+
+		if (!result.success) {
+			throw new Error(result.error || "yt-dlp 下载失败");
+		}
+
+		const outputPath =
+			result.filePath ?? join(userDownloadsDir, `${filenameBase}.mp4`);
+		task.status = "done";
+		task.phase = undefined;
+		task.outputPath = outputPath;
+		task.filename = basename(outputPath);
 		task.completedAt = Date.now();
 	}
 
@@ -338,6 +384,13 @@ export class VideoDownloadManager {
 		}
 
 		try {
+			// YouTube (and other yt-dlp supported sites): delegate resolution,
+			// signature deciphering and muxing to the yt-dlp binary
+			if (task.kind === "youtube") {
+				await this.downloadViaYtDlp(task, signal);
+				return;
+			}
+
 			// DASH split tracks (Bilibili): fetch video + audio, then mux
 			if (task.kind === "dash") {
 				await this.downloadDash(task, baseHeaders, signal, tempDir);

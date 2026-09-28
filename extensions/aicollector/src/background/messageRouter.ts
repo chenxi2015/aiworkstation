@@ -1,5 +1,10 @@
 import { smartFetchImageAsDataUrl } from "./imageFetch";
 import {
+	BILIBILI_VIDEO_URL_RE,
+	clearBilibiliTab,
+	resolveBilibiliVideo,
+} from "./bilibiliResolver";
+import {
 	isVideoFileUrl,
 	registerHlsStream,
 	registerVideoFileStream,
@@ -7,6 +12,11 @@ import {
 import { clearTabStreams, readHlsStreams } from "./streamStore";
 import { rateLimitedCaptureVisibleTab } from "./tabCapture";
 import { scanTabAllFrames } from "./tabScanner";
+import { canonicalYoutubeVideoUrl, resolveYoutubePage } from "./youtubePage";
+import {
+	handleGoogleVideoResponse,
+	isGoogleVideoPlaybackUrl,
+} from "./youtubeTracks";
 
 /**
  * Central runtime message router for commands from the sidepanel and
@@ -127,6 +137,15 @@ export function registerMessageHandlers(): void {
 				const pageTitle = message.payload.pageTitle || sender.tab?.title || "";
 
 				if (
+					message.payload.kind === "dash-track" ||
+					isGoogleVideoPlaybackUrl(url)
+				) {
+					// YouTube DASH track: classify and pair in the dedicated router
+					handleGoogleVideoResponse(tabId, {
+						url,
+						pageUrl,
+					}).catch(() => {});
+				} else if (
 					message.payload.kind === "file" ||
 					(!/\.m3u8(\?|#|$)/i.test(url) && isVideoFileUrl(url))
 				) {
@@ -174,6 +193,22 @@ export function registerMessageHandlers(): void {
 				scanTabAllFrames(message.tabId)
 					.then(() => sendResponse({ success: true }))
 					.catch(() => sendResponse({ success: false }));
+				// Re-run the API-based resolvers too: their streams are not
+				// visible to frame scanning, and a failed first attempt should
+				// be recoverable from the rescan button
+				chrome.tabs
+					.get(message.tabId)
+					.then((tab) => {
+						const url = tab?.url;
+						if (!url) return;
+						if (BILIBILI_VIDEO_URL_RE.test(url)) {
+							clearBilibiliTab(message.tabId);
+							resolveBilibiliVideo(message.tabId, url).catch(() => {});
+						} else if (canonicalYoutubeVideoUrl(url)) {
+							resolveYoutubePage(message.tabId, url).catch(() => {});
+						}
+					})
+					.catch(() => {});
 				return true; // Keep async response channel open
 			}
 
