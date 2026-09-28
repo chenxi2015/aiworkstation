@@ -49,10 +49,14 @@ jobs:
 
       # electron-builder derives the release version from package.json, not the
       # git tag — keep them in sync so auto-update metadata points at the tag.
+      # The extension package version is synced too so the WXT zip filenames
+      # (aiworkstation-collector-<version>-{chrome,firefox}.zip) match the tag.
       - name: Sync version from tag
         if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
-        run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
+        run: |
+          npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
+          npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version --prefix extensions/aicollector
 
       # Builds only (--publish never). latest.yml/latest-mac.yml + blockmaps are
       # still generated into dist/ because the publish provider is configured.
@@ -68,6 +72,14 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: false
         run: pnpm run electron:dist:win --publish never
 
+      # Browser extension zips (WXT): output lands in
+      # extensions/aicollector/.output/*.zip
+      - name: Zip Chrome extension
+        run: pnpm run zip:extension
+
+      - name: Zip Firefox extension
+        run: pnpm run zip:extension:firefox
+
       # Single upload point: find-or-create the release for this tag and attach
       # every artifact atomically (overwrites same-name assets on re-runs).
       - name: Release to GitHub Releases
@@ -80,6 +92,7 @@ jobs:
             dist/*.blockmap
             dist/latest.yml
             dist/latest-mac.yml
+            extensions/aicollector/.output/*.zip
 
       - name: Upload installers
         uses: actions/upload-artifact@v4
@@ -89,4 +102,5 @@ jobs:
             dist/*.dmg
             dist/*.exe
             dist/*.yml
+            extensions/aicollector/.output/*.zip
           if-no-files-found: warn
