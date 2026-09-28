@@ -1,9 +1,9 @@
 /**
- * AI Collector - HLS stream sniffer (MAIN world)
+ * AI Collector - video stream sniffer (MAIN world)
  *
  * Runs in the page's main world to hook fetch / XMLHttpRequest and detect
- * HLS playlist (.m3u8) requests. Detected URLs are relayed to the content
- * script via window.postMessage.
+ * HLS playlist (.m3u8) and progressive video file (.mp4/.webm/...) requests.
+ * Detected URLs are relayed to the content script via window.postMessage.
  */
 (function () {
   if (window.__aicHlsSnifferInstalled) return;
@@ -16,17 +16,36 @@
     return typeof url === 'string' && /\.m3u8(\?|#|$)/i.test(url);
   }
 
+  function isVideoFileUrl(url) {
+    return typeof url === 'string' && /\.(mp4|webm|mov|m4v|flv)(\?|#|$)/i.test(url);
+  }
+
+  // CDNs that serve progressive video over MSE / range fetches
+  var KNOWN_VIDEO_CDN_RE = /(^|\.)(douyinvod\.com|douyincdn\.com|xhscdn\.com)$/i;
+
+  function isKnownVideoCdn(url) {
+    try {
+      return KNOWN_VIDEO_CDN_RE.test(new URL(url).hostname);
+    } catch (err) {
+      return false;
+    }
+  }
+
   function report(rawUrl, via) {
     try {
       var abs = new URL(rawUrl, location.href).href;
-      if (!isHlsUrl(abs) || seen.has(abs)) return;
+      var kind = isHlsUrl(abs) ? 'hls' : isVideoFileUrl(abs) ? 'file' : null;
+      if (!kind || seen.has(abs)) return;
+      // fetch/xhr hits of video files are usually MSE fragments; only known
+      // video CDNs (Xiaohongshu/Douyin) serve whole files that way
+      if (kind === 'file' && (via === 'fetch' || via === 'xhr') && !isKnownVideoCdn(abs)) return;
       if (seen.size > MAX_SEEN) return;
       seen.add(abs);
       window.postMessage(
         {
           source: 'aic-hls-sniffer',
           type: 'HLS_DETECTED',
-          payload: { url: abs, via: via },
+          payload: { url: abs, via: via, kind: kind },
         },
         '*',
       );
@@ -70,7 +89,18 @@
     try {
       var entries = performance.getEntriesByType('resource') || [];
       for (var i = 0; i < entries.length; i++) {
-        if (entries[i].name) report(entries[i].name, 'performance');
+        var entry = entries[i];
+        if (!entry.name) continue;
+        // For progressive video files, only trust <video> element loads.
+        // fetch/xhr hits of .mp4 are typically MSE fragments of an HLS/DASH
+        // stream and would flood the list with per-segment entries.
+        if (
+          !isHlsUrl(entry.name) &&
+          entry.initiatorType !== 'video' &&
+          !isKnownVideoCdn(entry.name)
+        )
+          continue;
+        report(entry.name, 'performance');
       }
     } catch (err) {
       /* ignore */

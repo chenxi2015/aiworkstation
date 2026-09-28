@@ -30,6 +30,7 @@
     "check": "biome check",
     "lint": "biome lint",
     "format": "biome format",
+    "dev:extension": "pnpm -C extensions/aicollector dev",
     "zip:extension": "pnpm -C extensions/aicollector zip",
     "zip:extension:firefox": "pnpm -C extensions/aicollector zip:firefox",
     "electron:build:main": "node electron/build.mjs",

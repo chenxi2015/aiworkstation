@@ -55,6 +55,8 @@ export async function handleVideoTasksRequest(
 
       const task = videoDownloadManager.createTask({
         url: parsed.data.url,
+        kind: parsed.data.kind,
+        audioUrl: parsed.data.audioUrl,
         pageTitle: parsed.data.pageTitle,
         pageUrl: parsed.data.pageUrl,
         force: parsed.data.force,

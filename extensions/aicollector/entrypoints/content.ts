@@ -98,6 +98,7 @@ export default defineContentScript({
           payload: {
             url,
             via: data.payload?.via,
+            kind: data.payload?.kind,
             pageUrl: window.location.href,
             pageTitle: document.title,
           },
@@ -294,13 +295,20 @@ export default defineContentScript({
             const mediaElements = document.querySelectorAll('video, source');
             mediaElements.forEach((el) => {
               const src = (el as HTMLVideoElement | HTMLSourceElement).src || (el as any).currentSrc;
-              if (src && /\.m3u8(\?|#|$)/i.test(src)) {
+              if (!src) return;
+              const kind = /\.m3u8(\?|#|$)/i.test(src)
+                ? 'hls'
+                : /\.(mp4|webm|mov|m4v|flv)(\?|#|$)/i.test(src)
+                  ? 'file'
+                  : null;
+              if (kind) {
                 chrome.runtime
                   .sendMessage({
                     type: 'HLS_STREAM_DETECTED',
                     payload: {
                       url: src,
                       via: 'dom-element',
+                      kind,
                       pageUrl: window.location.href,
                       pageTitle: document.title,
                     },

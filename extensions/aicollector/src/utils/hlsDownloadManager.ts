@@ -38,6 +38,17 @@ function describeStreamLabel(url: string): string {
   }
 }
 
+/** Picks a sensible file extension from the URL or the response MIME type */
+function extensionForVideoFile(mime: string | undefined, url: string): string {
+  const fromUrl = /\.([a-z0-9]{2,4})(?:\?|#|$)/i.exec(url)?.[1]?.toLowerCase();
+  if (fromUrl && ['mp4', 'webm', 'mov', 'm4v', 'flv'].includes(fromUrl)) {
+    return fromUrl === 'm4v' ? 'mp4' : fromUrl;
+  }
+  if (mime?.includes('webm')) return 'webm';
+  if (mime?.includes('quicktime')) return 'mov';
+  return 'mp4';
+}
+
 /**
  * Individual resumable HLS download task
  */
@@ -168,6 +179,18 @@ export class HlsDownloadTask {
     this.onUpdate();
 
     try {
+      // DASH split tracks (Bilibili): fetch video + audio, then mux
+      if (this.stream.kind === 'dash') {
+        await this.downloadDashStream(signal);
+        return;
+      }
+
+      // Progressive video files (Douyin / Xiaohongshu) download as-is
+      if (this.stream.kind === 'file') {
+        await this.downloadDirectFile(signal);
+        return;
+      }
+
       if (!this.isPrepared) {
         await this.prepare(signal);
       }
@@ -304,6 +327,157 @@ export class HlsDownloadTask {
       this.error = err instanceof Error ? err.message : String(err);
       this.onUpdate();
     }
+  }
+
+  /**
+   * Downloads a progressive video file (kind: 'file') as a single HTTP GET
+   * and saves it directly — no playlist parsing or muxing involved.
+   * Progress is reported on a 0-100 scale (done/total mirror percent).
+   */
+  private async downloadDirectFile(signal: AbortSignal): Promise<void> {
+    this.total = 100;
+    this.done = 0;
+    this.onUpdate();
+
+    const res = await fetch(this.url, { signal, credentials: 'omit' });
+    if (!res.ok || !res.body) {
+      throw new Error(`视频请求失败 (HTTP ${res.status})`);
+    }
+
+    const contentLength =
+      Number(res.headers.get('content-length')) || this.stream.contentLength || 0;
+    const mime = res.headers.get('content-type') || this.stream.mimeType || '';
+
+    const chunks: Uint8Array[] = [];
+    let received = 0;
+    const reader = res.body.getReader();
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      chunks.push(value);
+      received += value.length;
+      this.done =
+        contentLength > 0
+          ? Math.min(100, Math.round((received / contentLength) * 100))
+          : Math.min(99, this.done + 1);
+      this.percent = this.done;
+      this.onUpdate();
+    }
+
+    const filenameBase = sanitizeFilename(
+      this.stream.pageTitle || describeStreamLabel(this.url),
+    );
+    const extension = extensionForVideoFile(mime, this.url);
+    const blob = new Blob(chunks as BlobPart[], { type: mime || undefined });
+    const filename = `${filenameBase}.${extension}`;
+    await saveBlob(blob, filename);
+
+    this.status = 'done';
+    this.filename = filename;
+    this.phase = undefined;
+    this.percent = 100;
+    this.done = 100;
+    this.scheduleReset();
+    this.onUpdate();
+  }
+
+  /**
+   * Downloads a DASH split-track stream (kind: 'dash'): fetches the
+   * video-only and audio-only tracks concurrently, then muxes both into a
+   * single MP4 via ffmpeg.wasm (-c copy, no re-encode).
+   */
+  private async downloadDashStream(signal: AbortSignal): Promise<void> {
+    const audioUrl = this.stream.audioUrl;
+    if (!audioUrl) {
+      throw new Error('缺少音频流地址，无法合成完整视频');
+    }
+
+    this.total = 100;
+    this.done = 0;
+    this.onUpdate();
+
+    let totalVideo = 0;
+    let totalAudio = 0;
+    let gotVideo = 0;
+    let gotAudio = 0;
+
+    const reportProgress = () => {
+      const total = totalVideo + totalAudio;
+      const received = gotVideo + gotAudio;
+      this.done =
+        total > 0
+          ? Math.min(100, Math.round((received / total) * 100))
+          : Math.min(99, this.done + 1);
+      this.percent = this.done;
+      this.onUpdate();
+    };
+
+    const fetchTrack = async (
+      url: string,
+      onBytes: (chunkBytes: number, totalBytes: number) => void,
+    ): Promise<Uint8Array> => {
+      const res = await fetch(url, { signal, credentials: 'omit' });
+      if (!res.ok || !res.body) {
+        throw new Error(`分轨请求失败 (HTTP ${res.status})`);
+      }
+      const trackTotal = Number(res.headers.get('content-length')) || 0;
+      const chunks: Uint8Array[] = [];
+      let size = 0;
+      const reader = res.body.getReader();
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!value) continue;
+        chunks.push(value);
+        size += value.length;
+        onBytes(value.length, trackTotal);
+      }
+      const merged = new Uint8Array(size);
+      let offset = 0;
+      for (const chunk of chunks) {
+        merged.set(chunk, offset);
+        offset += chunk.length;
+      }
+      return merged;
+    };
+
+    const [videoBytes, audioBytes] = await Promise.all([
+      fetchTrack(this.url, (n, t) => {
+        gotVideo += n;
+        if (t > 0) totalVideo = t;
+        reportProgress();
+      }),
+      fetchTrack(audioUrl, (n, t) => {
+        gotAudio += n;
+        if (t > 0) totalAudio = t;
+        reportProgress();
+      }),
+    ]);
+
+    this.status = 'muxing';
+    this.phase = 'muxing';
+    this.percent = 100;
+    this.onUpdate();
+
+    const { muxToMp4 } = await import('./ffmpegMuxer');
+    const mp4 = await muxToMp4(videoBytes, audioBytes);
+    const filenameBase = sanitizeFilename(
+      this.stream.pageTitle || describeStreamLabel(this.url),
+    );
+    const blob = new Blob([mp4 as unknown as BlobPart], { type: 'video/mp4' });
+    const filename = `${filenameBase}.mp4`;
+    await saveBlob(blob, filename);
+
+    this.status = 'done';
+    this.filename = filename;
+    this.phase = undefined;
+    this.percent = 100;
+    this.done = 100;
+    this.scheduleReset();
+    this.onUpdate();
   }
 
   public pause(): void {

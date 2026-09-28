@@ -30,16 +30,29 @@ export interface GrabbedVideo {
 }
 
 /**
- * HLS stream sniffed from page network activity (m3u8 playlist URL)
+ * Video stream sniffed from page network activity.
+ * HLS streams point at an m3u8 playlist; file streams point at a directly
+ * downloadable progressive video file (Douyin / Xiaohongshu style).
  */
 export interface SniffedStream {
   /** Playlist URL, also used as the dedupe key */
   url: string;
+  /** Stream kind. Undefined means HLS (backwards compatible) */
+  kind?: 'hls' | 'file' | 'dash';
   pageUrl: string;
   pageTitle?: string;
-  /** Detection channel: fetch / xhr / performance */
+  /** Detection channel: fetch / xhr / performance / network-* */
   via?: string;
   detectedAt: number;
+  /** Separate audio track URL for DASH-style split streams (e.g. Bilibili) */
+  audioUrl?: string;
+  /** Total bytes reported by response headers (file streams) */
+  contentLength?: number;
+  /** True when contentLength is the authoritative full size (Content-Range
+   *  total or a 200 response), false for partial 206 chunk sizes */
+  sizeIsTotal?: boolean;
+  /** Response Content-Type (file streams) */
+  mimeType?: string;
   /** Playlist kind resolved by fetching/parsing the playlist content */
   role?: 'master' | 'media';
   /** Child playlists (variant / audio rendition URLs) of a master playlist */

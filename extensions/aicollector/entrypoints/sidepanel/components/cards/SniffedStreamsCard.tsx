@@ -67,6 +67,20 @@ function describeStream(
   return { title, host, rawFileName };
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes >= 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)}GB`;
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+  return `${Math.round(bytes / 1024)}KB`;
+}
+
+/** Short type badge label for a sniffed stream */
+function streamKindLabel(stream: SniffedStream): string {
+  if (stream.kind === 'dash') return 'DASH';
+  if (stream.kind !== 'file') return 'HLS';
+  const ext = /\.([a-z0-9]{2,4})(?:\?|#|$)/i.exec(stream.url)?.[1]?.toUpperCase();
+  return ext || 'MP4';
+}
+
 /**
  * Card listing HLS streams sniffed on the current page or persisting from
  * ongoing/paused downloads. Supports dual-engine: Native local Node+FFmpeg
@@ -137,6 +151,8 @@ export const SniffedStreamsCard: React.FC<SniffedStreamsCardProps> = ({
         url: stream.url,
         pageTitle: title || stream.pageTitle || rawFileName,
         pageUrl: stream.pageUrl,
+        kind: stream.kind,
+        audioUrl: stream.audioUrl,
         force,
       });
       if (res.success && res.task) {
@@ -246,7 +262,7 @@ export const SniffedStreamsCard: React.FC<SniffedStreamsCardProps> = ({
             <div key={stream.url} className="px-3 py-2 flex flex-col gap-1.5">
               <div className="flex items-center gap-2 min-w-0">
                 <span className="shrink-0 px-1 py-px rounded text-[9px] font-bold bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20">
-                  HLS
+                  {streamKindLabel(stream)}
                 </span>
                 <div className="flex flex-col min-w-0 flex-1">
                   <div className="flex items-center gap-1 min-w-0">
@@ -280,11 +296,17 @@ export const SniffedStreamsCard: React.FC<SniffedStreamsCardProps> = ({
                         <span className="shrink-0">{stream.bestResolution}</span>
                       </>
                     )}
+                    {typeof stream.contentLength === 'number' && stream.contentLength > 0 && (
+                      <>
+                        <span className="opacity-40">·</span>
+                        <span className="shrink-0">{formatBytes(stream.contentLength)}</span>
+                      </>
+                    )}
                   </div>
                 </div>
 
                 <div className="flex items-center gap-1.5 shrink-0">
-                  <CopyButton text={stream.url} title="复制 m3u8 地址" />
+                  <CopyButton text={stream.url} title={stream.kind === 'file' ? '复制视频地址' : '复制 m3u8 地址'} />
 
                   {/* Actions depending on state */}
                   {status === 'downloading' || status === 'pending' ? (

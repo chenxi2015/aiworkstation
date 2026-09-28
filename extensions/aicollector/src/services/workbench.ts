@@ -155,6 +155,8 @@ export class WorkbenchService {
     url: string;
     pageTitle?: string;
     pageUrl?: string;
+    kind?: 'hls' | 'file' | 'dash';
+    audioUrl?: string;
     force?: boolean;
   }): Promise<{ success: boolean; task?: ServerVideoTaskState; error?: string }> {
     const baseUrl = await this.getWorkbenchUrl();
@@ -166,6 +168,8 @@ export class WorkbenchService {
           url: stream.url,
           pageTitle: stream.pageTitle || 'video',
           pageUrl: stream.pageUrl,
+          kind: stream.kind,
+          audioUrl: stream.audioUrl,
           force: Boolean(stream.force),
         }),
       });
@@ -235,6 +239,8 @@ export class WorkbenchService {
 export interface ServerVideoTaskState {
   id: string;
   url: string;
+  kind?: 'hls' | 'file' | 'dash';
+  audioUrl?: string;
   pageTitle: string;
   pageUrl?: string;
   status: 'pending' | 'downloading' | 'muxing' | 'done' | 'error' | 'cancelled';
@@ -248,4 +254,3 @@ export interface ServerVideoTaskState {
   createdAt: number;
   completedAt?: number;
 }
-
