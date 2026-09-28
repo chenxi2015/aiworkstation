@@ -1,8 +1,8 @@
-import QRCode from 'qrcode';
 import { eq } from 'drizzle-orm';
 import type { CreateOrderResponse, OrderStatusResponse } from '@aiworkstation/shared-types';
 import { getDb, schema } from '../../db/index.js';
 import { generateRandomId } from '../../utils/crypto.js';
+import { generateQrCodeDataUrl } from '../../utils/qrcode.js';
 import { getPlanById, getPlanByIdFromDb } from '../plans/plans.data.js';
 import { type DecryptedTransaction, WeChatPayClient, type WeChatNotifyPayload } from './wechat-pay.client.js';
 
@@ -40,7 +40,7 @@ export class PaymentService {
     });
 
     // Generate Base64 QR code image for convenient frontend rendering
-    const qrDataUrl = await QRCode.toDataURL(codeUrl, {
+    const qrDataUrl = await generateQrCodeDataUrl(codeUrl, {
       margin: 2,
       width: 260,
     });

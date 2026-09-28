@@ -28,6 +28,8 @@ jobs:
     # per invocation instead of reliably reusing the existing one, which splits
     # assets across two same-tag releases and breaks electron-updater.
     runs-on: macos-latest
+    env:
+      VITE_CLOUD_API_BASE: ${{ vars.VITE_CLOUD_API_BASE || 'https://aiworkstation-server.bbxycx18.workers.dev' }}
 
     steps:
       - name: Checkout repository

@@ -4,6 +4,9 @@
 // startup with "Dynamic require of 'fs' is not supported". The createRequire
 // banner restores it.
 import { build } from "esbuild";
+import { loadEnv } from "vite";
+
+const env = loadEnv(process.env.NODE_ENV || "production", process.cwd(), "");
 
 const esmBanner = `
 import { createRequire as __cr } from "node:module";
@@ -17,6 +20,9 @@ await build({
   format: "esm",
   external: ["electron"],
   banner: { js: esmBanner },
+  define: {
+    "process.env.VITE_CLOUD_API_BASE": JSON.stringify(env.VITE_CLOUD_API_BASE || ""),
+  },
   outfile: "dist-electron/main.js",
 });
 

@@ -100,6 +100,9 @@ async function startServer(): Promise<void> {
       ELECTRON_RUN_AS_NODE: "1",
       // Data directory: ~/.aiworkstation
       AIWORKSTATION_DATA_DIR: dataDir,
+      ...(process.env.VITE_CLOUD_API_BASE
+        ? { VITE_CLOUD_API_BASE: process.env.VITE_CLOUD_API_BASE }
+        : {}),
     },
     // Pipe stdio so server errors can be logged even in production
     stdio: isDev ? "inherit" : ["ignore", "pipe", "pipe"],

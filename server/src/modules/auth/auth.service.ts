@@ -1,9 +1,9 @@
-import QRCode from 'qrcode';
 import { eq } from 'drizzle-orm';
 import type { QrCheckResponse, QrTicketResponse, UserProfile } from '@aiworkstation/shared-types';
 import { env } from '../../config/env.js';
 import { getDb, schema } from '../../db/index.js';
 import { generateRandomId, signJwtToken } from '../../utils/crypto.js';
+import { generateQrCodeDataUrl } from '../../utils/qrcode.js';
 
 // Fallback in-memory ticket store when database is not yet connected
 const inMemoryTickets = new Map<string, { status: string; userId?: string; token?: string; expiresAt: number }>();
@@ -27,14 +27,10 @@ export class AuthService {
       authUrl = `http://${env.HOST}:${env.PORT}/api/auth/wx/mock-scan?state=${ticket}`;
     }
 
-    // Generate Base64 QR code image
-    const qrCodeUrl = await QRCode.toDataURL(authUrl, {
+    // Generate Base64 QR code image (compatible with Node.js and Cloudflare Workers)
+    const qrCodeUrl = await generateQrCodeDataUrl(authUrl, {
       margin: 2,
       width: 260,
-      color: {
-        dark: '#000000',
-        light: '#ffffff',
-      },
     });
 
     try {
