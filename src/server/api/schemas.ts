@@ -8,6 +8,8 @@ export const CreateVideoTaskSchema = z.object({
   kind: z.enum(['hls', 'file', 'dash', 'youtube']).optional(),
   audioUrl: z.string().optional(),
   audioMimeType: z.string().optional(),
+  // Netscape-format cookie file content exported by the browser extension
+  cookies: z.string().max(256_000).optional(),
   pageTitle: z.string().optional().default('video'),
   pageUrl: z.string().optional(),
   force: z.boolean().optional().default(false),

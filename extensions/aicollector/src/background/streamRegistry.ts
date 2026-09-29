@@ -42,6 +42,7 @@ export function isBelowMinVideoSize(contentLength?: number): boolean {
 function cleanPageTitle(title?: string): string | undefined {
 	if (!title) return undefined;
 	const cleaned = title
+		.replace(/^\(\d+\)\s*/, "") // YouTube tab titles: "(875) 视频标题"
 		.replace(/\s*[-_]\s*抖音$/, "")
 		.replace(/_哔哩哔哩_bilibili$/i, "")
 		.replace(/\s*-\s*哔哩哔哩.*$/i, "")

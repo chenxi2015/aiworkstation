@@ -111,6 +111,7 @@ export class VideoDownloadManager {
 		kind?: "hls" | "file" | "dash" | "youtube";
 		audioUrl?: string;
 		audioMimeType?: string;
+		cookies?: string;
 		pageTitle: string;
 		pageUrl?: string;
 		force?: boolean;
@@ -146,6 +147,7 @@ export class VideoDownloadManager {
 			kind: params.kind,
 			audioUrl: params.audioUrl,
 			audioMimeType: params.audioMimeType,
+			cookies: params.cookies,
 			pageTitle: params.pageTitle,
 			pageUrl: params.pageUrl,
 			status: "pending",
@@ -228,16 +230,26 @@ export class VideoDownloadManager {
 	private async downloadViaYtDlp(
 		task: ServerVideoTask,
 		signal: AbortSignal,
+		tempDir: string,
 	): Promise<void> {
 		const userDownloadsDir = getVideoDownloadsDir();
 		mkdirSync(userDownloadsDir, { recursive: true });
 		const filenameBase = sanitizeFilename(task.pageTitle);
+
+		// Cookies exported by the browser extension: always fresh, no
+		// Keychain prompt. Written per-task so concurrent downloads differ.
+		let cookiesFile: string | undefined;
+		if (task.cookies) {
+			cookiesFile = join(tempDir, "cookies.txt");
+			await fs.writeFile(cookiesFile, task.cookies, "utf-8");
+		}
 
 		const result = await downloadWithYtDlp({
 			url: task.url,
 			outputDir: userDownloadsDir,
 			filenameBase,
 			signal,
+			cookiesFile,
 			onProgress: (percent) => {
 				task.percent = Math.max(task.percent, Math.floor(percent));
 				task.doneSegments = task.percent;
@@ -387,7 +399,7 @@ export class VideoDownloadManager {
 			// YouTube (and other yt-dlp supported sites): delegate resolution,
 			// signature deciphering and muxing to the yt-dlp binary
 			if (task.kind === "youtube") {
-				await this.downloadViaYtDlp(task, signal);
+				await this.downloadViaYtDlp(task, signal, tempDir);
 				return;
 			}
 

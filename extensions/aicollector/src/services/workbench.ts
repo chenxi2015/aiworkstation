@@ -10,6 +10,35 @@ export interface CollectPayload {
   meta?: Record<string, any>;
 }
 
+/** Domains whose cookies yt-dlp needs to pass YouTube's bot wall */
+const YOUTUBE_COOKIE_DOMAINS = ['.youtube.com', '.google.com', '.googlevideo.com'];
+
+/**
+ * Exports the user's YouTube/Google cookies in Netscape cookie-file format.
+ * The extension's `cookies` permission gives silent access — no macOS
+ * Keychain prompt, always fresh, unlike yt-dlp's --cookies-from-browser.
+ */
+async function collectYoutubeCookies(): Promise<string | undefined> {
+  try {
+    if (!chrome.cookies?.getAll) return undefined;
+    const lines: string[] = ['# Netscape HTTP Cookie File'];
+    for (const domain of YOUTUBE_COOKIE_DOMAINS) {
+      const cookies = await chrome.cookies.getAll({ domain });
+      for (const c of cookies) {
+        const includeSubdomains = c.hostOnly ? 'FALSE' : 'TRUE';
+        const secure = c.secure ? 'TRUE' : 'FALSE';
+        const expires = c.expirationDate ? Math.floor(c.expirationDate) : 0;
+        lines.push(
+          [c.domain, includeSubdomains, c.path, secure, String(expires), c.name, c.value].join('\t'),
+        );
+      }
+    }
+    return lines.length > 1 ? lines.join('\n') : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Service for communicating with local AI Workstation backend
  */
@@ -149,8 +178,8 @@ export class WorkbenchService {
   }
 
   /**
-   * Submit an HLS video download & remux task to local workstation
-   */
+  * Submit an HLS video download & remux task to local workstation
+  */
   static async submitVideoTask(stream: {
     url: string;
     pageTitle?: string;
@@ -162,6 +191,10 @@ export class WorkbenchService {
   }): Promise<{ success: boolean; task?: ServerVideoTaskState; error?: string }> {
     const baseUrl = await this.getWorkbenchUrl();
     try {
+      // Fresh YouTube cookies ride along with the task so the server's
+      // yt-dlp never needs a Keychain prompt to read the browser profile
+      const cookies =
+        stream.kind === 'youtube' ? await collectYoutubeCookies() : undefined;
       const response = await fetch(`${baseUrl}/api/video-tasks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -172,6 +205,7 @@ export class WorkbenchService {
           kind: stream.kind,
           audioUrl: stream.audioUrl,
           audioMimeType: stream.audioMimeType,
+          cookies,
           force: Boolean(stream.force),
         }),
       });

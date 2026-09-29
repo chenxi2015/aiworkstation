@@ -58,6 +58,7 @@ export async function handleVideoTasksRequest(
         kind: parsed.data.kind,
         audioUrl: parsed.data.audioUrl,
         audioMimeType: parsed.data.audioMimeType,
+        cookies: parsed.data.cookies,
         pageTitle: parsed.data.pageTitle,
         pageUrl: parsed.data.pageUrl,
         force: parsed.data.force,

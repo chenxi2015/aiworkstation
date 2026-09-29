@@ -27,6 +27,7 @@ export default defineConfig({
       'alarms',
       'downloads',
       'webRequest',
+      'cookies',
     ],
     host_permissions: ['<all_urls>'],
     // ffmpeg.wasm requires WebAssembly compilation inside extension pages

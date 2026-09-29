@@ -4,6 +4,8 @@ export interface ServerVideoTask {
 	kind?: "hls" | "file" | "dash" | "youtube";
 	audioUrl?: string;
 	audioMimeType?: string;
+	/** Netscape-format cookie file content (YouTube bot-wall bypass) */
+	cookies?: string;
 	pageTitle: string;
 	pageUrl?: string;
 	status: "pending" | "downloading" | "muxing" | "done" | "error" | "cancelled";
