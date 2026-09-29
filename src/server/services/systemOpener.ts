@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { DB_DIR } from "../db/connection.ts";
-import { getConfiguredFilesRoot } from "./filesRoot.ts";
+import { expandHome, getConfiguredFilesRoot } from "./filesRoot.ts";
 
 export interface OpenInOsOptions {
 	/** If true and target is a directory that does not exist, create it first */
@@ -86,7 +86,7 @@ export function openInOs(
 		if (!raw) {
 			return reject(new Error("路径不能为空"));
 		}
-		const resolved = path.resolve(raw);
+		const resolved = path.resolve(expandHome(raw));
 
 		if (!options.skipRootCheck) {
 			assertPathWithinAllowedRoots(resolved);

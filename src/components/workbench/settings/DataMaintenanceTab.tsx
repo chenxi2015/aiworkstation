@@ -23,6 +23,7 @@ import {
 	Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { detectHostOS, getFileManagerName } from "../../../lib/platform";
 import type {
 	BackupFileInfo,
 	StorageInfo,
@@ -62,6 +63,10 @@ export function DataMaintenanceTab({
 	filesRootDir,
 	onFilesRootDirChange,
 }: DataMaintenanceTabProps) {
+	const hostOS = detectHostOS();
+	const isWindows = hostOS === "windows";
+	const fileManagerName = getFileManagerName();
+
 	const [backups, setBackups] = useState<BackupFileInfo[]>([]);
 	const [isLoadingBackups, setIsLoadingBackups] = useState(false);
 	const [isCreatingBackup, setIsCreatingBackup] = useState(false);
@@ -140,7 +145,7 @@ export function DataMaintenanceTab({
 			if (!res.ok || !data.success) {
 				throw new Error(data.error || `HTTP ${res.status}`);
 			}
-			toast.success("已打开数据库所在文件夹");
+			toast.success(`已在${fileManagerName}中打开数据库所在文件夹`);
 		} catch (err) {
 			toast.danger(
 				`打开文件夹失败: ${err instanceof Error ? err.message : String(err)}`,
@@ -315,7 +320,11 @@ export function DataMaintenanceTab({
 							<InputGroup className="flex-1 bg-transparent border border-border/80 hover:border-foreground/40 focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/20 rounded-lg shadow-none">
 								<InputGroup.Input
 									type="text"
-									placeholder="留空则使用系统默认 ~/Downloads/ 目录，自定义请填写完整绝对路径"
+									placeholder={
+										isWindows
+											? "留空则使用默认下载目录，自定义请填写完整路径如 C:\\Downloads"
+											: "留空则使用系统默认 ~/Downloads/ 目录，自定义请填写完整绝对路径"
+									}
 									className="bg-transparent font-mono text-xs"
 								/>
 							</InputGroup>
@@ -338,7 +347,7 @@ export function DataMaintenanceTab({
 											if (!res.ok || !data.success) {
 												throw new Error(data.error || `HTTP ${res.status}`);
 											}
-											toast.success("已打开存储根目录");
+											toast.success(`已在${fileManagerName}中打开存储根目录`);
 										} catch (err) {
 											toast.danger(
 												`打开失败: ${err instanceof Error ? err.message : String(err)}`,
@@ -352,13 +361,21 @@ export function DataMaintenanceTab({
 							) : (
 								<Button
 									type="button"
-									variant="ghost"
+									variant="outline"
 									className="rounded-lg"
 									onPress={() => {
-										onFilesRootDirChange("~/Downloads");
-										toast.info("已填入常用 ~/Downloads 推荐路径");
+										if (isWindows) {
+											onFilesRootDirChange("C:\\Downloads");
+											toast.info(
+												"已填入 Windows 推荐路径 C:\\Downloads（也可填写实际下载目录）",
+											);
+										} else {
+											onFilesRootDirChange("~/Downloads");
+											toast.info("已填入常用 ~/Downloads 推荐路径");
+										}
 									}}
 								>
+									<FolderOpen className="w-3.5 h-3.5" />
 									<span>填入推荐</span>
 								</Button>
 							)}

@@ -16,7 +16,7 @@ import { workbenchDb } from "../db/sqlite.ts";
  */
 
 /** Expand ~ prefix to user home directory */
-function expandHome(pathStr: string): string {
+export function expandHome(pathStr: string): string {
 	if (pathStr === "~") return homedir();
 	if (pathStr.startsWith("~/") || pathStr.startsWith("~\\")) {
 		return join(homedir(), pathStr.slice(2));
