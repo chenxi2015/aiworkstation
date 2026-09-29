@@ -28,6 +28,7 @@ import {
 	WorkbenchStorageService,
 } from "../../../services/workbenchStorage";
 import { EmbeddingStatusWidget } from "../ai/shared/EmbeddingStatusWidget";
+import type { ProviderModelConfig } from "../types";
 import {
 	EMBEDDING_PROVIDERS,
 	FALLBACK_EMBEDDING_MODELS,
@@ -42,10 +43,12 @@ export interface ModelSettingsFormData {
 	model: string;
 	batchSize: string;
 	concurrency: string;
+	llmProvidersConfig?: Record<string, ProviderModelConfig>;
 	embeddingProvider: string;
 	embeddingApiKey: string;
 	embeddingBaseUrl: string;
 	embeddingModel: string;
+	embeddingProvidersConfig?: Record<string, ProviderModelConfig>;
 }
 
 interface ModelSettingsTabProps {

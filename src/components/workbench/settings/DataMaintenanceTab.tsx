@@ -1,4 +1,11 @@
-import { Button, Input, Label, TextField, toast } from "@heroui/react";
+import {
+	Button,
+	Description,
+	InputGroup,
+	Label,
+	TextField,
+	toast,
+} from "@heroui/react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import "dayjs/locale/zh-cn";
@@ -194,142 +201,199 @@ export function DataMaintenanceTab({
 	};
 
 	return (
-		<div className="flex flex-col gap-6 pt-3">
+		<div className="flex flex-col gap-6 pt-2">
 			{/* Section 0: Local Server & Connection */}
 			<div className="flex flex-col gap-3">
-				<div className="flex items-center gap-2 pb-1 border-b border-border">
-					<Server className="w-4 h-4 text-accent shrink-0" />
-					<span className="font-semibold text-foreground text-xs">
+				<div className="flex items-center gap-2">
+					<Server className="w-4 h-4 shrink-0" />
+					<span className="text-sm font-bold text-foreground">
 						本地服务与外部连接 (Local Server)
 					</span>
 				</div>
 
-				<div className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-surface/60 border border-border">
-					<div className="flex flex-col min-w-0">
-						<div className="flex items-center gap-2">
-							<span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-foreground">
-								<span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-								服务运行中
-							</span>
-							<span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-accent/10 text-accent font-medium">
-								Port: {serverPort}
+				<div className="flex flex-col gap-3 pt-1">
+					<div className="flex items-center justify-between gap-3 p-2.5 rounded-lg border border-border/70 bg-transparent">
+						<div className="flex flex-col min-w-0">
+							<div className="flex items-center gap-2">
+								<span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-foreground">
+									<span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+									服务运行中
+								</span>
+								{/* <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-accent/10 text-accent font-medium">
+									Port: {serverPort}
+								</span> */}
+							</div>
+							<code className="text-sm truncate font-mono mt-0.5">
+								{serverUrl}
+							</code>
+						</div>
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							className="rounded-lg"
+							onPress={handleCopyServerUrl}
+						>
+							{isCopied ? (
+								<Check className="w-3.5 h-3.5 text-emerald-500" />
+							) : (
+								<Copy className="w-3.5 h-3.5" />
+							)}
+							<span>{isCopied ? "已复制" : "复制地址"}</span>
+						</Button>
+					</div>
+
+					{serverPort && serverPort !== "3888" && (
+						<div className="flex items-start gap-2 p-2.5 rounded-lg bg-warning/10 border border-warning/20 text-warning text-[11px] leading-relaxed">
+							<AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+							<span>
+								默认端口 <strong>3888</strong> 被占用，当前服务运行在备用端口{" "}
+								<strong>{serverPort}</strong>。若使用 AI Collector
+								浏览器插件，请在插件「设置」中将服务地址同步更新为{" "}
+								<code>{serverUrl}</code>。
 							</span>
 						</div>
-						<code className="text-[10px] text-muted truncate font-mono mt-0.5">
-							{serverUrl}
-						</code>
-					</div>
-					<Button
-						type="button"
-						variant="secondary"
-						size="sm"
-						className="rounded-full flex items-center gap-1.5 cursor-pointer shrink-0 h-7 text-[11px]"
-						onPress={handleCopyServerUrl}
-					>
-						{isCopied ? (
-							<Check className="w-3 h-3 text-emerald-500" />
-						) : (
-							<Copy className="w-3 h-3 text-accent" />
-						)}
-						<span>{isCopied ? "已复制" : "复制地址"}</span>
-					</Button>
+					)}
+
+					<p className="text-xs text-muted leading-relaxed">
+						浏览器插件（AI
+						Collector）及外部数据通道通过此端口与工作台通信。若需自定义或修改，可通过插件侧边栏的「设置」配置此地址。
+					</p>
 				</div>
-
-				{serverPort && serverPort !== "3888" && (
-					<div className="flex items-start gap-2 p-2 rounded-lg bg-warning/10 border border-warning/20 text-warning text-[11px] leading-relaxed">
-						<AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-						<span>
-							默认端口 <strong>3888</strong> 被占用，当前服务运行在备用端口{" "}
-							<strong>{serverPort}</strong>。若使用 AI Collector
-							浏览器插件，请在插件「设置」中将服务地址同步更新为{" "}
-							<code>{serverUrl}</code>。
-						</span>
-					</div>
-				)}
-
-				<p className="text-[11px] text-muted leading-relaxed -mt-1.5">
-					浏览器插件（AI
-					Collector）及外部数据通道通过此端口与工作台通信。若需自定义或修改，可通过插件侧边栏的「设置」配置此地址。
-				</p>
 			</div>
 
 			{/* Section 1: Storage Location */}
 			<div className="flex flex-col gap-3">
-				<div className="flex items-center gap-2 pb-1 border-b border-border">
-					<Database className="w-4 h-4 text-accent shrink-0" />
-					<span className="font-semibold text-foreground text-xs">
+				<div className="flex items-center gap-2">
+					<Database className="w-4 h-4 shrink-0" />
+					<span className="text-sm font-bold text-foreground">
 						存储位置 (Storage)
 					</span>
 				</div>
 
-				{/* SQLite database directory */}
-				<div className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-surface/60 border border-border">
-					<div className="flex flex-col min-w-0">
-						<span className="text-[11px] font-medium text-foreground">
-							SQLite 数据库目录
-						</span>
-						<code className="text-[10px] text-muted truncate">
-							{storageInfo?.dbPath ?? "正在读取..."}
-						</code>
-					</div>
-					<Button
-						type="button"
-						variant="secondary"
-						size="sm"
-						className="rounded-full flex items-center gap-1.5 cursor-pointer shrink-0 h-7 text-[11px]"
-						isDisabled={!storageInfo?.dbDir || isOpeningFolder}
-						onPress={handleOpenDbFolder}
-					>
-						{isOpeningFolder ? (
-							<Loader2 className="w-3 h-3 animate-spin" />
-						) : (
-							<FolderOpen className="w-3 h-3 text-accent" />
-						)}
-						<span>打开文件夹</span>
-					</Button>
-				</div>
+				<div className="flex flex-col gap-3 pt-1">
+					{/* SQLite database directory */}
+					<TextField isReadOnly value={storageInfo?.dbPath ?? ""}>
+						<Label className="text-xs font-medium text-foreground">
+							SQLite 数据库路径
+						</Label>
+						<div className="flex items-center gap-2">
+							<InputGroup className="flex-1 bg-transparent border border-border/80 hover:border-foreground/40 focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/20 rounded-lg shadow-none">
+								<InputGroup.Input
+									type="text"
+									readOnly
+									placeholder="正在读取..."
+									className="bg-transparent font-mono text-xs"
+								/>
+							</InputGroup>
+							<Button
+								type="button"
+								variant="outline"
+								className="rounded-lg"
+								isDisabled={!storageInfo?.dbDir || isOpeningFolder}
+								onPress={handleOpenDbFolder}
+							>
+								{isOpeningFolder ? (
+									<Loader2 className="w-3.5 h-3.5 animate-spin" />
+								) : (
+									<FolderOpen className="w-3.5 h-3.5" />
+								)}
+								<span>打开目录</span>
+							</Button>
+						</div>
+					</TextField>
 
-				{/* Files root directory (stored in SQLite workbench_settings) */}
-				<TextField
-					value={filesRootDir}
-					onChange={onFilesRootDirChange}
-					className="w-full"
-				>
-					<Label>文件管理根目录 (filesRootDir)</Label>
-					<Input
-						placeholder="留空则使用系统默认下载目录，自定义请填写完整绝对路径"
-						variant="secondary"
-					/>
-				</TextField>
-				<p className="text-[11px] text-muted leading-relaxed -mt-1.5">
-					自定义请填写完整的本机绝对路径（例如 macOS/Linux:{" "}
-					<code className="text-foreground/80 font-mono">
-						/Users/用户名/Downloads
-					</code>
-					，Windows:{" "}
-					<code className="text-foreground/80 font-mono">
-						C:\Users\用户名\Downloads
-					</code>
-					）。留空则使用系统默认下载目录。视频将保存到
-					downloads/，自媒体素材保存到 creator/materials/，富文本媒体保存到
-					editor/documents/。
-				</p>
+					{/* Files root directory */}
+					<TextField
+						value={filesRootDir}
+						onChange={(val) => onFilesRootDirChange(val)}
+					>
+						<Label className="text-xs font-medium text-foreground">
+							文件管理根目录 (filesRootDir)
+						</Label>
+						<div className="flex items-center gap-2">
+							<InputGroup className="flex-1 bg-transparent border border-border/80 hover:border-foreground/40 focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/20 rounded-lg shadow-none">
+								<InputGroup.Input
+									type="text"
+									placeholder="留空则使用系统默认 ~/Downloads/ 目录，自定义请填写完整绝对路径"
+									className="bg-transparent font-mono text-xs"
+								/>
+							</InputGroup>
+							{filesRootDir.trim() ? (
+								<Button
+									type="button"
+									variant="outline"
+									className="rounded-lg"
+									onPress={async () => {
+										try {
+											const res = await fetch("/api/open-file", {
+												method: "POST",
+												headers: { "Content-Type": "application/json" },
+												body: JSON.stringify({ path: filesRootDir.trim() }),
+											});
+											const data = (await res.json()) as {
+												success?: boolean;
+												error?: string;
+											};
+											if (!res.ok || !data.success) {
+												throw new Error(data.error || `HTTP ${res.status}`);
+											}
+											toast.success("已打开存储根目录");
+										} catch (err) {
+											toast.danger(
+												`打开失败: ${err instanceof Error ? err.message : String(err)}`,
+											);
+										}
+									}}
+								>
+									<FolderOpen className="w-3.5 h-3.5" />
+									<span>打开目录</span>
+								</Button>
+							) : (
+								<Button
+									type="button"
+									variant="ghost"
+									className="rounded-lg"
+									onPress={() => {
+										onFilesRootDirChange("~/Downloads");
+										toast.info("已填入常用 ~/Downloads 推荐路径");
+									}}
+								>
+									<span>填入推荐</span>
+								</Button>
+							)}
+						</div>
+						<Description className="text-xs text-muted mt-2">
+							视频将保存到{" "}
+							<code className="text-foreground/80 font-mono">downloads/</code>
+							，自媒体素材保存到{" "}
+							<code className="text-foreground/80 font-mono">
+								creator/materials/
+							</code>
+							，富文本媒体保存到{" "}
+							<code className="text-foreground/80 font-mono">
+								editor/documents/
+							</code>
+							。留空则自动默认存放于系统 Downloads 目录。
+						</Description>
+					</TextField>
+				</div>
 			</div>
 
 			{/* Section 2: Backup & Restore */}
-			<div className="flex flex-col gap-3">
-				<div className="flex items-center justify-between pb-1 border-b border-border">
-					<div className="flex items-center gap-2">
-						<Database className="w-4 h-4 text-accent shrink-0" />
-						<span className="font-semibold text-foreground text-xs">
-							数据库备份与恢复 (Backups & Restore)
-						</span>
-					</div>
+				<div className="flex flex-col gap-3">
+					<div className="flex items-center justify-between">
+						<div className="flex items-center gap-2">
+							<Database className="w-4 h-4 shrink-0" />
+							<span className="text-sm font-bold text-foreground">
+								数据库备份与恢复 (Backups & Restore)
+							</span>
+						</div>
 					<Button
 						type="button"
-						variant="secondary"
+						variant="outline"
 						size="sm"
-						className="rounded-full flex items-center gap-1.5 cursor-pointer"
+						className="rounded-lg"
 						isDisabled={isCreatingBackup}
 						onPress={handleCreateBackup}
 					>
@@ -342,138 +406,143 @@ export function DataMaintenanceTab({
 					</Button>
 				</div>
 
-				<p className="text-[11px] text-muted leading-relaxed">
-					随时创建当前数据的快照备份。在执行任何「恢复」操作前，系统都会
-					<strong className="text-foreground">先自动为当前数据创建备份</strong>
-					，确保所有历史快照都在列表中，您可以随时在不同版本之间来回切换。
-				</p>
+				<div className="flex flex-col gap-3 pt-1">
+					<p className="text-xs text-muted leading-relaxed">
+						随时创建当前数据的快照备份。在执行任何「恢复」操作前，系统都会
+						<strong className="text-foreground">
+							先自动为当前数据创建备份
+						</strong>
+						，确保所有历史快照都在列表中，您可以随时在不同版本之间来回切换。
+					</p>
 
-				{/* Restore Confirmation Alert Box */}
-				{confirmRestoreItem && (
-					<div className="p-3.5 rounded-2xl bg-warning/10 border border-warning/20 flex flex-col gap-2.5">
-						<div className="flex items-start gap-2 text-xs text-warning-foreground dark:text-warning">
-							<AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-							<div className="flex-1 leading-relaxed">
-								确定恢复到快照{" "}
-								<strong className="font-medium underline">
-									{parseBackupLabel(confirmRestoreItem.filename)}
-								</strong>{" "}
-								吗？
-								<div className="text-[11px] opacity-90 mt-0.5">
-									系统在恢复前会
-									<strong>自动对当前实时数据库进行完整备份</strong>
-									，恢复后您可以随时再次切回当前状态。
+					{/* Restore Confirmation Alert Box */}
+					{confirmRestoreItem && (
+						<div className="p-3.5 rounded-lg bg-warning/10 border border-warning/20 flex flex-col gap-2.5">
+							<div className="flex items-start gap-2 text-xs text-warning-foreground dark:text-warning">
+								<AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+								<div className="flex-1 leading-relaxed">
+									确定恢复到快照{" "}
+									<strong className="font-medium underline">
+										{parseBackupLabel(confirmRestoreItem.filename)}
+									</strong>{" "}
+									吗？
+									<div className="text-xs opacity-90 mt-0.5">
+										系统在恢复前会
+										<strong>自动对当前实时数据库进行完整备份</strong>
+										，恢复后您可以随时再次切回当前状态	。
+									</div>
 								</div>
 							</div>
-						</div>
-						<div className="flex items-center justify-end gap-2 pt-1">
-							<Button
-								type="button"
-								variant="ghost"
-								size="sm"
-								className="rounded-full cursor-pointer h-7 text-xs"
-								isDisabled={restoringFilename !== null}
-								onPress={() => setConfirmRestoreItem(null)}
-							>
-								取消
-							</Button>
-							<Button
-								type="button"
-								variant="primary"
-								size="sm"
-								className="rounded-full flex items-center gap-1 cursor-pointer h-7 text-xs"
-								isDisabled={restoringFilename !== null}
-								onPress={() => handleRestore(confirmRestoreItem)}
-							>
-								{restoringFilename ? (
-									<Loader2 className="w-3 h-3 animate-spin" />
-								) : (
-									<RotateCcw className="w-3 h-3" />
-								)}
-								<span>{restoringFilename ? "恢复中..." : "确认恢复"}</span>
-							</Button>
-						</div>
-					</div>
-				)}
-
-				{/* Backups List */}
-				<div className="flex flex-col gap-2 max-h-56 overflow-y-auto pr-1">
-					{isLoadingBackups && backups.length === 0 ? (
-						<div className="py-6 flex items-center justify-center text-xs text-muted gap-2">
-							<Loader2 className="w-4 h-4 animate-spin" />
-							<span>正在读取备份列表...</span>
-						</div>
-					) : backups.length === 0 ? (
-						<div className="py-6 text-center text-xs text-muted bg-surface/50 border border-dashed border-border rounded-xl">
-							暂无备份快照，可点击上方「立即创建备份」生成首个快照
-						</div>
-					) : (
-						backups.map((item) => {
-							const formattedDate = parseBackupLabel(item.filename);
-							const relativeDate = dayjs(item.createdAt).fromNow();
-							const isRestoring = restoringFilename === item.filename;
-							const isDeleting = deletingFilename === item.filename;
-
-							return (
-								<div
-									key={item.filename}
-									className="flex items-center justify-between p-2.5 rounded-xl bg-surface/60 border border-border hover:border-accent/30 transition-colors text-xs gap-3"
+							<div className="flex items-center justify-end gap-2 pt-1">
+								<Button
+									type="button"
+									variant="ghost"
+									size="sm"
+									className="rounded-lg"
+									isDisabled={restoringFilename !== null}
+									onPress={() => setConfirmRestoreItem(null)}
 								>
-									<div className="flex items-center gap-2.5 min-w-0">
-										<div className="w-7 h-7 rounded-lg bg-accent/10 text-accent flex items-center justify-center shrink-0">
-											<History className="w-3.5 h-3.5" />
-										</div>
-										<div className="flex flex-col min-w-0">
-											<div className="font-medium text-foreground truncate">
-												{formattedDate}
-											</div>
-											<div className="text-[10px] text-muted flex items-center gap-2">
-												<span>{relativeDate}</span>
-												<span>•</span>
-												<span>{formatBytes(item.size)}</span>
-											</div>
-										</div>
-									</div>
-
-									<div className="flex items-center gap-1.5 shrink-0">
-										<Button
-											type="button"
-											variant="secondary"
-											size="sm"
-											className="rounded-full flex items-center gap-1 h-7 text-[11px] cursor-pointer"
-											isDisabled={
-												isRestoring ||
-												isDeleting ||
-												confirmRestoreItem?.filename === item.filename
-											}
-											onPress={() => setConfirmRestoreItem(item)}
-										>
-											{isRestoring ? (
-												<Loader2 className="w-3 h-3 animate-spin" />
-											) : (
-												<RotateCcw className="w-3 h-3 text-accent" />
-											)}
-											<span>恢复</span>
-										</Button>
-										<Button
-											type="button"
-											variant="ghost"
-											size="sm"
-											className="rounded-full w-7 h-7 p-0 flex items-center justify-center text-muted hover:text-danger cursor-pointer"
-											isDisabled={isRestoring || isDeleting}
-											onPress={() => setConfirmDeleteItem(item)}
-										>
-											{isDeleting ? (
-												<Loader2 className="w-3 h-3 animate-spin" />
-											) : (
-												<Trash2 className="w-3 h-3" />
-											)}
-										</Button>
-									</div>
-								</div>
-							);
-						})
+									取消
+								</Button>
+								<Button
+									type="button"
+									variant="primary"
+									size="sm"
+									className="rounded-lg"
+									isDisabled={restoringFilename !== null}
+									onPress={() => handleRestore(confirmRestoreItem)}
+								>
+									{restoringFilename ? (
+										<Loader2 className="w-3.5 h-3.5 animate-spin" />
+									) : (
+										<RotateCcw className="w-3.5 h-3.5" />
+									)}
+									<span>{restoringFilename ? "恢复中..." : "确认恢复"}</span>
+								</Button>
+							</div>
+						</div>	
 					)}
+
+					{/* Backups List */}
+					<div className="flex flex-col gap-2 max-h-56 overflow-y-auto pr-1">
+						{isLoadingBackups && backups.length === 0 ? (
+							<div className="py-6 flex items-center justify-center text-xs text-muted gap-2">
+								<Loader2 className="w-4 h-4 animate-spin" />
+								<span>正在读取备份列表...</span>
+							</div>
+						) : backups.length === 0 ? (
+							<div className="py-6 text-center text-xs text-muted border border-dashed border-border rounded-lg">
+								暂无备份快照，可点击上方「立即创建备份」生成首个快照
+							</div>
+						) : (
+							backups.map((item) => {
+								const formattedDate = parseBackupLabel(item.filename);
+								const relativeDate = dayjs(item.createdAt).fromNow();
+								const isRestoring = restoringFilename === item.filename;
+								const isDeleting = deletingFilename === item.filename;
+
+								return (
+									<div
+										key={item.filename}
+										className="flex items-center justify-between p-2.5 rounded-lg border border-border/70 hover:border-foreground/30 bg-transparent transition-colors text-xs gap-3"
+									>
+										<div className="flex items-center gap-2.5 min-w-0">
+											<div className="w-7 h-7 rounded-lg border border-border/60 text-foreground flex items-center justify-center shrink-0">
+												<History className="w-3.5 h-3.5" />
+											</div>
+											<div className="flex flex-col min-w-0">
+												<div className="font-medium text-foreground truncate">
+													{formattedDate}
+												</div>
+												<div className="text-[10px] text-muted flex items-center gap-2">
+													<span>{relativeDate}</span>
+													<span>•</span>
+													<span>{formatBytes(item.size)}</span>
+												</div>
+											</div>
+										</div>
+
+										<div className="flex items-center gap-1.5 shrink-0">
+											<Button
+												type="button"
+												variant="outline"
+												size="sm"
+												className="rounded-lg"
+												isDisabled={
+													isRestoring ||
+													isDeleting ||
+													confirmRestoreItem?.filename === item.filename
+												}
+												onPress={() => setConfirmRestoreItem(item)}
+											>
+												{isRestoring ? (
+													<Loader2 className="w-3.5 h-3.5 animate-spin" />
+												) : (
+													<RotateCcw className="w-3.5 h-3.5" />
+												)}
+												<span>恢复</span>
+											</Button>
+											<Button
+												type="button"
+												variant="ghost"
+												size="sm"
+												isIconOnly
+												className="text-muted hover:text-danger rounded-lg"
+												isDisabled={isRestoring || isDeleting}
+												onPress={() => setConfirmDeleteItem(item)}
+											>
+												{isDeleting ? (
+													<Loader2 className="w-3.5 h-3.5 animate-spin" />
+												) : (
+													<Trash2 className="w-3.5 h-3.5" />
+												)}
+											</Button>
+										</div>
+									</div>
+								);
+							})
+						)}
+					</div>
 				</div>
 			</div>
 

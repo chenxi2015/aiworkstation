@@ -22,10 +22,12 @@ export const DEFAULT_SETTINGS: WorkbenchSettings = {
 	batchSize: 15,
 	concurrency: 2,
 	llmProvider: "deepseek",
+	llmProvidersConfig: {},
 	embeddingApiKey: "",
 	embeddingBaseUrl: DEFAULT_EMBEDDING_BASE_URL,
 	embeddingModel: DEFAULT_EMBEDDING_MODEL,
 	embeddingProvider: "siliconflow",
+	embeddingProvidersConfig: {},
 };
 
 export interface EffectiveLLMConfig {
@@ -83,6 +85,8 @@ export function getSettings(): WorkbenchSettings {
 				apiKey: parsed.apiKey || DEFAULT_SETTINGS.apiKey,
 				baseUrl: parsed.baseUrl || DEFAULT_SETTINGS.baseUrl,
 				model: parsed.model || DEFAULT_SETTINGS.model,
+				llmProvidersConfig: parsed.llmProvidersConfig || {},
+				embeddingProvidersConfig: parsed.embeddingProvidersConfig || {},
 			});
 		}
 	} catch (err) {
@@ -104,6 +108,8 @@ export async function fetchSettingsFromDb(): Promise<WorkbenchSettings> {
 				apiKey: String(dbSettings.apiKey || "").trim(),
 				baseUrl: String(dbSettings.baseUrl || DEFAULT_LLM_BASE_URL).trim(),
 				model: String(dbSettings.model || DEFAULT_LLM_MODEL).trim(),
+				llmProvidersConfig: dbSettings.llmProvidersConfig || {},
+				embeddingProvidersConfig: dbSettings.embeddingProvidersConfig || {},
 			});
 
 			if (typeof window !== "undefined") {
@@ -133,6 +139,8 @@ export async function saveSettingsAsync(
 		apiKey: (settings.apiKey || "").trim(),
 		baseUrl: (settings.baseUrl || DEFAULT_LLM_BASE_URL).trim(),
 		model: (settings.model || DEFAULT_LLM_MODEL).trim(),
+		llmProvidersConfig: settings.llmProvidersConfig || {},
+		embeddingProvidersConfig: settings.embeddingProvidersConfig || {},
 	});
 
 	try {

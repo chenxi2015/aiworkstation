@@ -111,6 +111,12 @@ export interface ObsidianVaultEntry {
 	path: string;
 }
 
+export interface ProviderModelConfig {
+	apiKey: string;
+	baseUrl: string;
+	model: string;
+}
+
 export interface WorkbenchSettings {
 	// Universal LLM Configuration (supports DeepSeek, Kimi, GLM, OpenAI, Claude, Ollama, Custom)
 	apiKey: string;
@@ -121,12 +127,16 @@ export interface WorkbenchSettings {
 	concurrency: number;
 	// LLM provider preset id (deepseek / kimi / glm / openai / claude / custom)
 	llmProvider?: string;
+	// Multi-model configuration mapping across providers (persisted in SQLite)
+	llmProvidersConfig?: Record<string, ProviderModelConfig>;
 	// Embedding API Settings for RAG & Semantic Search
 	embeddingApiKey?: string;
 	embeddingBaseUrl?: string;
 	embeddingModel?: string;
 	// Embedding provider preset id (siliconflow / openai / custom)
 	embeddingProvider?: string;
+	// Multi-model configuration mapping across embedding providers (persisted in SQLite)
+	embeddingProvidersConfig?: Record<string, ProviderModelConfig>;
 	// 文件管理根目录：视频下载、creator 素材文件等统一落在此目录下
 	filesRootDir?: string;
 	// Obsidian Vault 根目录（笔记模块直接读写该目录，未配置时回退 ~/Documents/Obsidian）

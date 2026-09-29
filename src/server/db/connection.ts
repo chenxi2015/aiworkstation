@@ -95,6 +95,19 @@ export const DB_PATH = path.join(DB_DIR, "workbench.db");
 let dbInstance: SqliteDatabase | null = null;
 
 /**
+ * Flush any pending transactions in WAL to the database file
+ */
+export function checkpointDb(): void {
+	if (dbInstance) {
+		try {
+			dbInstance.pragma("wal_checkpoint(PASSIVE)");
+		} catch (error) {
+			console.error("[SQLite] Failed to checkpoint WAL:", error);
+		}
+	}
+}
+
+/**
  * Get or initialize SQLite Database connection singleton
  */
 export function getDb(): SqliteDatabase {

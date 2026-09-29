@@ -7,7 +7,7 @@ import type {
 	NotePayload,
 	WorkbenchItem,
 } from "../../components/workbench/types.ts";
-import { getDb } from "./connection.ts";
+import { closeDb, getDb } from "./connection.ts";
 import { BookmarkRepository } from "./repositories/bookmark.repo.ts";
 import {
 	type ChatSessionRecord,
@@ -65,6 +65,7 @@ export class WorkbenchDatabase {
 	 * Rebind domain repositories with the active SQLite database connection
 	 */
 	reloadConnection(): void {
+		closeDb();
 		this.initRepositories();
 	}
 

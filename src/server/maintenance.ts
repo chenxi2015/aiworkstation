@@ -1,7 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
+import Database from "better-sqlite3";
 import dayjs from "dayjs";
-import { DB_DIR, DB_PATH, closeDb } from "./db/connection.ts";
+import {
+	checkpointDb,
+	closeDb,
+	DB_DIR,
+	DB_PATH,
+	getDb,
+} from "./db/connection.ts";
 import { workbenchDb } from "./db/sqlite.ts";
 
 // ================= Database Backup & Restore =================
@@ -24,10 +31,18 @@ export function backupDatabase(): string | null {
 	if (!fs.existsSync(BACKUP_DIR)) {
 		fs.mkdirSync(BACKUP_DIR, { recursive: true });
 	}
-	// Use local system timestamp for backup filename
+
+	// 1. Flush any pending transactions from WAL to ensure clean snapshot
+	checkpointDb();
+
+	// 2. Use local system timestamp for backup filename
 	const stamp = dayjs().format("YYYY-MM-DD_HH-mm-ss");
 	const backupPath = path.join(BACKUP_DIR, `workbench-${stamp}.db`);
-	fs.copyFileSync(DB_PATH, backupPath);
+	const tempBackupPath = `${backupPath}.tmp`;
+
+	// 3. Copy via temp file to avoid leaving incomplete file on crash
+	fs.copyFileSync(DB_PATH, tempBackupPath);
+	fs.renameSync(tempBackupPath, backupPath);
 
 	// Rotate: keep only the newest MAX_BACKUPS files
 	rotateBackups();
@@ -80,8 +95,7 @@ export function getBackupsList(): BackupFileInfo[] {
 
 	// Sort newest first
 	return result.sort(
-		(a, b) =>
-			new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+		(a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
 	);
 }
 
@@ -103,13 +117,41 @@ export function restoreDatabase(backupFileName: string): {
 		throw new Error("备份文件不存在");
 	}
 
-	// 1. Snapshot the current database first so user can always switch back
-	const currentBackupPath = backupDatabase();
+	// 1. Pre-validate backup file integrity before modifying existing database
+	try {
+		const testDb = new Database(targetBackupPath, {
+			readonly: true,
+			fileMustExist: true,
+		});
+		const check = testDb.pragma("quick_check") as Array<{
+			quick_check: string;
+		}>;
+		testDb.close();
+		if (!check || check[0]?.quick_check !== "ok") {
+			throw new Error("备份文件损坏或校验未通过");
+		}
+	} catch (err) {
+		throw new Error(
+			`备份文件无效: ${err instanceof Error ? err.message : String(err)}`,
+		);
+	}
+
+	let currentBackupPath: string | null = null;
 
 	// 2. Close active SQLite connection and flush WAL
 	closeDb();
 
-	// 3. Remove temporary WAL and SHM files if present
+	// 3. Snapshot the current database first so user can always switch back
+	if (fs.existsSync(DB_PATH)) {
+		const stamp = dayjs().format("YYYY-MM-DD_HH-mm-ss");
+		currentBackupPath = path.join(BACKUP_DIR, `workbench-${stamp}.db`);
+		const tempSnapPath = `${currentBackupPath}.tmp`;
+		fs.copyFileSync(DB_PATH, tempSnapPath);
+		fs.renameSync(tempSnapPath, currentBackupPath);
+		rotateBackups();
+	}
+
+	// 4. Remove temporary WAL and SHM files to prevent state mismatch
 	const walPath = `${DB_PATH}-wal`;
 	const shmPath = `${DB_PATH}-shm`;
 	if (fs.existsSync(walPath)) {
@@ -127,11 +169,22 @@ export function restoreDatabase(backupFileName: string): {
 		}
 	}
 
-	// 4. Overwrite workbench.db with chosen backup
-	fs.copyFileSync(targetBackupPath, DB_PATH);
+	// 5. Overwrite workbench.db atomically using a temporary file and renameSync
+	const tempRestorePath = `${DB_PATH}.restore.tmp`;
+	fs.copyFileSync(targetBackupPath, tempRestorePath);
+	fs.renameSync(tempRestorePath, DB_PATH);
 
-	// 5. Re-open connection, run migrations, and rebind all repositories
+	// 6. Re-open connection, run migrations, and rebind all repositories
 	workbenchDb.reloadConnection();
+
+	// 7. Verify the newly restored database connection
+	const restoredDb = getDb();
+	const checkResult = restoredDb.pragma("quick_check") as Array<{
+		quick_check: string;
+	}>;
+	if (!checkResult || checkResult[0]?.quick_check !== "ok") {
+		throw new Error("恢复后数据库完整性校验未通过");
+	}
 
 	return {
 		success: true,
@@ -154,7 +207,6 @@ export function deleteBackup(backupFileName: string): { success: boolean } {
 	}
 	return { success: true };
 }
-
 
 // ================= Dead Link Scanning (async background job) =================
 

@@ -30,7 +30,7 @@ export const EmbeddingStatusWidget = memo(function EmbeddingStatusWidget({
 
 	return (
 		<div
-			className={`flex items-center gap-2 bg-surface-secondary/60 rounded-xl px-2.5 py-1.5 border border-border/60 ${className}`}
+			className={`flex items-center ${className}`}
 		>
 			<div className="flex items-center gap-1.5 text-[11px] text-muted flex-1 min-w-0">
 				<Database className="w-3.5 h-3.5 text-accent shrink-0" />
