@@ -1,7 +1,6 @@
 import {
 	Button,
 	Description,
-	Input,
 	InputGroup,
 	Label,
 	ListBox,
@@ -22,7 +21,6 @@ import {
 	Globe,
 	KeyRound,
 	Loader2,
-	PenLine,
 	Play,
 	RefreshCw,
 } from "lucide-react";
@@ -35,11 +33,7 @@ import {
 } from "../../../services/workbenchStorage";
 import { EmbeddingStatusWidget } from "../ai/shared/EmbeddingStatusWidget";
 import type { ProviderModelConfig } from "../types";
-import {
-	EMBEDDING_PROVIDERS,
-	FALLBACK_EMBEDDING_MODELS,
-	type ProviderPreset,
-} from "./constants";
+import { EMBEDDING_PROVIDERS, type ProviderPreset } from "./constants";
 import type { ModelSettingsFormData } from "./ModelSettingsTab";
 
 interface EmbeddingSettingsTabProps {
@@ -48,19 +42,24 @@ interface EmbeddingSettingsTabProps {
 		key: K,
 		value: ModelSettingsFormData[K],
 	) => void;
-	embeddingModelList: string[];
+	embeddingModelList?: string[];
 	setEmbeddingModelList: React.Dispatch<React.SetStateAction<string[]>>;
 }
+
+// Module-level cache to preserve fetched models across dialog open/close
+const fetchedEmbeddingModelsCache: Record<string, string[]> = {};
 
 export function EmbeddingSettingsTab({
 	data,
 	onChange,
-	embeddingModelList,
 	setEmbeddingModelList,
 }: EmbeddingSettingsTabProps) {
 	const { stats, isIndexing, buildIndex } = useEmbeddingStats();
 	const [loadingEmbeddingModels, setLoadingEmbeddingModels] = useState(false);
 	const [showEmbeddingApiKey, setShowEmbeddingApiKey] = useState(false);
+	const [fetchedModelsMap, setFetchedModelsMap] = useState<
+		Record<string, string[]>
+	>(() => ({ ...fetchedEmbeddingModelsCache }));
 
 	// Provider currently being viewed/edited (switching this does NOT change in-use active model)
 	const [editingProviderId, setEditingProviderId] = useState<string>(
@@ -97,6 +96,19 @@ export function EmbeddingSettingsTab({
 	};
 
 	const isEditingActive = editingProviderId === data.embeddingProvider;
+
+	// Models available for current provider: prefer complete API-fetched list, fallback to preset or current model
+	const fetchedForCurrent = fetchedModelsMap[editingProviderId];
+	const baseModels =
+		fetchedForCurrent && fetchedForCurrent.length > 0
+			? fetchedForCurrent
+			: currentEditingProvider.models.length > 0
+				? currentEditingProvider.models
+				: [];
+	const availableModels =
+		currentConfig.model && !baseModels.includes(currentConfig.model)
+			? [currentConfig.model, ...baseModels]
+			: baseModels;
 
 	const updateCurrentProviderField = (
 		field: keyof ProviderModelConfig,
@@ -135,15 +147,7 @@ export function EmbeddingSettingsTab({
 			currentConfig.model || currentEditingProvider.models[0] || "",
 		);
 
-		const presetModels =
-			currentEditingProvider.models.length > 0
-				? currentEditingProvider.models
-				: FALLBACK_EMBEDDING_MODELS;
-		setEmbeddingModelList(
-			Array.from(
-				new Set([currentConfig.model, ...presetModels].filter(Boolean)),
-			),
-		);
+		setEmbeddingModelList(availableModels);
 
 		toast.success(`已将 ${currentEditingProvider.name} 设为当前生效向量模型`);
 	};
@@ -180,14 +184,14 @@ export function EmbeddingSettingsTab({
 				apiKey: currentConfig.apiKey.trim(),
 			});
 			if (fetched.length > 0) {
-				const combined = Array.from(
-					new Set([
-						...(currentConfig.model ? [currentConfig.model] : []),
-						...fetched,
-					]),
-				);
-				setEmbeddingModelList(combined);
-				if (!currentConfig.model || !combined.includes(currentConfig.model)) {
+				// Save fetched models to both memory cache and state
+				fetchedEmbeddingModelsCache[editingProviderId] = fetched;
+				setFetchedModelsMap((prev) => ({
+					...prev,
+					[editingProviderId]: fetched,
+				}));
+				setEmbeddingModelList(fetched);
+				if (!currentConfig.model || !fetched.includes(currentConfig.model)) {
 					updateCurrentProviderField("model", fetched[0]);
 				}
 				toast.success(`成功从服务商获取 ${fetched.length} 个向量模型`);
@@ -383,10 +387,7 @@ export function EmbeddingSettingsTab({
 									</SelectTrigger>
 									<SelectPopover className="rounded-xl border border-border bg-surface p-1 shadow-lg max-h-60 overflow-y-auto min-w-[240px]">
 										<ListBox>
-											{(currentEditingProvider.models.length > 0
-												? currentEditingProvider.models
-												: embeddingModelList
-											).map((m) => (
+											{availableModels.map((m) => (
 												<ListBoxItem key={m} id={m} textValue={m}>
 													<div className="flex items-center justify-between w-full font-mono text-xs">
 														<span>{m}</span>

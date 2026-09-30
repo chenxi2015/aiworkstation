@@ -33,11 +33,7 @@ import {
 	WorkbenchStorageService,
 } from "../../../services/workbenchStorage";
 import type { ProviderModelConfig } from "../types";
-import {
-	FALLBACK_LLM_MODELS,
-	LLM_PROVIDERS,
-	type ProviderPreset,
-} from "./constants";
+import { LLM_PROVIDERS, type ProviderPreset } from "./constants";
 import type { ModelSettingsFormData } from "./ModelSettingsTab";
 
 interface LlmSettingsTabProps {
@@ -46,18 +42,23 @@ interface LlmSettingsTabProps {
 		key: K,
 		value: ModelSettingsFormData[K],
 	) => void;
-	llmModelList: string[];
+	llmModelList?: string[];
 	setLlmModelList: React.Dispatch<React.SetStateAction<string[]>>;
 }
+
+// Module-level cache to preserve fetched models across dialog open/close
+const fetchedLlmModelsCache: Record<string, string[]> = {};
 
 export function LlmSettingsTab({
 	data,
 	onChange,
-	llmModelList,
 	setLlmModelList,
 }: LlmSettingsTabProps) {
 	const [loadingLlmModels, setLoadingLlmModels] = useState(false);
 	const [showApiKey, setShowApiKey] = useState(false);
+	const [fetchedModelsMap, setFetchedModelsMap] = useState<
+		Record<string, string[]>
+	>(() => ({ ...fetchedLlmModelsCache }));
 
 	// The provider currently being viewed/edited in the UI.
 	// Switching this does NOT modify the currently active model!
@@ -92,6 +93,19 @@ export function LlmSettingsTab({
 	};
 
 	const isEditingActive = editingProviderId === data.llmProvider;
+
+	// Models available for current provider: prefer complete API-fetched list, fallback to preset or current model
+	const fetchedForCurrent = fetchedModelsMap[editingProviderId];
+	const baseModels =
+		fetchedForCurrent && fetchedForCurrent.length > 0
+			? fetchedForCurrent
+			: currentEditingProvider.models.length > 0
+				? currentEditingProvider.models
+				: [];
+	const availableModels =
+		currentConfig.model && !baseModels.includes(currentConfig.model)
+			? [currentConfig.model, ...baseModels]
+			: baseModels;
 
 	// Update a field for the currently inspected provider without changing active provider unless it is active
 	const updateCurrentProviderField = (
@@ -131,15 +145,7 @@ export function LlmSettingsTab({
 			currentConfig.model || currentEditingProvider.models[0] || "",
 		);
 
-		const presetModels =
-			currentEditingProvider.models.length > 0
-				? currentEditingProvider.models
-				: FALLBACK_LLM_MODELS;
-		setLlmModelList(
-			Array.from(
-				new Set([currentConfig.model, ...presetModels].filter(Boolean)),
-			),
-		);
+		setLlmModelList(availableModels);
 
 		toast.success(`已将 ${currentEditingProvider.name} 设为当前生效模型`);
 	};
@@ -167,14 +173,14 @@ export function LlmSettingsTab({
 				apiKey: currentConfig.apiKey.trim(),
 			});
 			if (fetched.length > 0) {
-				const combined = Array.from(
-					new Set([
-						...(currentConfig.model ? [currentConfig.model] : []),
-						...fetched,
-					]),
-				);
-				setLlmModelList(combined);
-				if (!currentConfig.model || !combined.includes(currentConfig.model)) {
+				// Save fetched models to both memory cache and state
+				fetchedLlmModelsCache[editingProviderId] = fetched;
+				setFetchedModelsMap((prev) => ({
+					...prev,
+					[editingProviderId]: fetched,
+				}));
+				setLlmModelList(fetched);
+				if (!currentConfig.model || !fetched.includes(currentConfig.model)) {
 					updateCurrentProviderField("model", fetched[0]);
 				}
 				toast.success(`成功从服务商获取 ${fetched.length} 个可用模型`);
@@ -364,12 +370,9 @@ export function LlmSettingsTab({
 									<SelectTrigger className="w-full shadow-none bg-transparent border border-border/80 hover:border-foreground/40 rounded-lg font-mono text-xs">
 										<SelectValue />
 									</SelectTrigger>
-									<SelectPopover className="rounded-xl border border-border bg-surface p-1 shadow-lg">
+									<SelectPopover className="rounded-xl border border-border bg-surface p-1 shadow-lg max-h-60 overflow-y-auto min-w-[240px]">
 										<ListBox>
-											{(currentEditingProvider.models.length > 0
-												? currentEditingProvider.models
-												: llmModelList
-											).map((m) => (
+											{availableModels.map((m) => (
 												<ListBoxItem key={m} id={m} textValue={m}>
 													<div className="flex items-center justify-between w-full font-mono text-xs">
 														<span>{m}</span>

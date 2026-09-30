@@ -13,6 +13,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ObsidianCanvasApi } from "../types";
 import {
 	CanvasActionContext,
 	type CanvasActionContextValue,
@@ -31,7 +32,6 @@ import {
 } from "./CanvasToolbar";
 import { resolveColor } from "./canvasUtils";
 import { markCanvasMoving } from "./cards/useSmartNodeScroll";
-import type { ObsidianCanvasApi } from "../types";
 import { useCanvasConnections } from "./useCanvasConnections";
 import { useCanvasGraph } from "./useCanvasGraph";
 
@@ -52,7 +52,6 @@ export interface CanvasViewProps {
 	/** Expose canvas API for AI assistants or external tools */
 	onRegisterCanvasApi?: (api: ObsidianCanvasApi | null) => void;
 }
-
 
 const nodeTypes = {
 	canvasCard: CanvasCardNode,
@@ -93,7 +92,7 @@ function CanvasFlow({
 	onRegisterCanvasApi,
 }: CanvasViewProps) {
 	const colorMode = useColorMode();
-	const { screenToFlowPosition, fitView } = useReactFlow();
+	const { screenToFlowPosition, fitView, getNodes } = useReactFlow();
 	const wrapperRef = useRef<HTMLDivElement>(null);
 	const [searchCategory, setSearchCategory] = useState<
 		"all" | "note" | "media"
@@ -179,6 +178,21 @@ function CanvasFlow({
 				}
 				return ok;
 			},
+			centerView: (targetNodeIds) => {
+				const currentNodes = getNodes();
+				const targetNodes = targetNodeIds
+					? currentNodes.filter((node) => targetNodeIds.includes(node.id))
+					: currentNodes;
+				if (targetNodes.length === 0) return false;
+				fitView({
+					nodes: targetNodeIds
+						? targetNodes.map(({ id }) => ({ id }))
+						: undefined,
+					duration: 500,
+					padding: 0.2,
+				});
+				return true;
+			},
 		});
 		return () => onRegisterCanvasApi(null);
 	}, [
@@ -188,8 +202,8 @@ function CanvasFlow({
 		updateAiNode,
 		tidyCanvasLayout,
 		fitView,
+		getNodes,
 	]);
-
 
 	// Space key and V/H mode shortcuts
 	useEffect(() => {
@@ -414,7 +428,6 @@ function CanvasFlow({
 			startEditEdge,
 			commitEdgeLabel,
 		],
-
 	);
 
 	useEffect(() => {

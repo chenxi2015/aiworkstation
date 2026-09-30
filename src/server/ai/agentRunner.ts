@@ -13,6 +13,7 @@ import {
 } from "./editorTools.ts";
 import { createFsServerTools } from "./fs/index.ts";
 import { prepareRagAgentContext, resolveLlmConfig } from "./ragContext.ts";
+import { resolveRequiredToolIntent } from "./toolIntentRouter.ts";
 import { createCanvasServerTools } from "./tools/canvasTools.ts";
 import type { BookmarkToolHooks } from "./tools/types.ts";
 
@@ -48,49 +49,11 @@ export async function runAgentStream(
 	const runId = `run_${Date.now()}`;
 	emit({ type: "run_start", runId });
 
-	// 1. Prepare RAG Context & System Prompt
-	const prepared = await prepareRagAgentContext({
-		question: q,
-		folderId,
-		folderName,
-		embeddingConfig,
-		contextItems: params.contextItems,
-		module,
-		activeDocumentId,
-		activeMaterialId,
-		activeNotePath,
-	});
-
-	if (prepared.emptyFallbackMessage) {
-		emit({
-			type: "run_end",
-			answer: prepared.emptyFallbackMessage,
-			dbMutated: false,
-			timestamp: new Date().toLocaleTimeString(),
-		});
-		return;
-	}
-
-	const { apiKey, baseUrl, model } = resolveLlmConfig(llmConfig);
-	if (!apiKey) {
-		if (prepared.contextReferences.length > 0) {
-			emit({ type: "references", references: prepared.contextReferences });
-		}
-		emit({
-			type: "run_end",
-			answer: `已为你检索到 ${prepared.contextReferences.length} 个相关收藏。\n\n提示：如需启用 AI 智能总结与多步 Agent，请在右上角「设置」中填入 LLM API Key。`,
-			dbMutated: false,
-			timestamp: new Date().toLocaleTimeString(),
-		});
-		return;
-	}
-
 	let hasDbMutated = false;
 	let stepCounter = 0;
 	const activeSteps = new Map<string, AgentStep>();
 	const completedStepSummaries: string[] = [];
-
-	// 2. Instantiate tools with execution hooks emitting real-time steps
+	let failedToolSummary = "";
 	const toolHooks: BookmarkToolHooks = {
 		onMutated: () => {
 			hasDbMutated = true;
@@ -115,6 +78,8 @@ export async function runAgentStream(
 			const existing = activeSteps.get(toolName);
 			if (ok && summary) {
 				completedStepSummaries.push(`【${toolName}】\n${summary}`);
+			} else if (!ok) {
+				failedToolSummary = summary;
 			}
 			const step: AgentStep = {
 				id: existing?.id || `step_${Date.now()}_${toolName}`,
@@ -129,13 +94,13 @@ export async function runAgentStream(
 			emit({ type: "step_end", step });
 		},
 	};
-	// Only inject filesystem tools if module is NOT editor, or if explicit file attachments are present
+
+	// 1. Instantiate module tools before retrieval so explicit actions still work
+	// when the bookmark database is empty.
 	const hasFileAttachment = (params.contextItems || []).some(
 		(item) => item.type === "file",
 	);
 	const shouldIncludeFsTools = module !== "editor" || hasFileAttachment;
-
-	// Resolve active skill if present in context items
 	const activeSkillItem = (params.contextItems || []).find(
 		(item) =>
 			(item.type as string) === "skill" ||
@@ -151,40 +116,92 @@ export async function runAgentStream(
 	const allTools = [
 		...createBookmarkServerTools(toolHooks, activeSkillDir),
 		...(shouldIncludeFsTools ? createFsServerTools(toolHooks) : []),
-		// Inject editor-specific tools when user is in the editor module or editing an active document
 		...(module === "editor" || Boolean(activeDocumentId)
 			? createEditorServerTools(toolHooks, activeDocumentId)
 			: []),
-		// Inject rewrite pipeline tool when in obsidian module with an active note
 		...(module === "obsidian" || Boolean(activeNotePath)
 			? [createRewritePipelineTool(toolHooks)]
 			: []),
-		// Inject canvas tools when in obsidian module or viewing a canvas file
 		...(module === "obsidian" || activeNotePath?.endsWith(".canvas")
 			? createCanvasServerTools(toolHooks)
 			: []),
 	];
-	// Deduplicate tools by name to ensure uniqueness for TanStack AI chat()
 	const tools = Array.from(
-		new Map(allTools.map((t) => [(t as any).name, t])).values(),
+		new Map(allTools.map((tool) => [(tool as any).name, tool])).values(),
 	);
-
-	// Enforce the per-module tool whitelist declared in modules/ai-contributions.ts.
-	// Without this, every module gets the full bookmark + fs tool surface, and weaker
-	// models wander through fs_search_files / fs_get_file_info chains even though the
-	// active note/document content is already injected into the system prompt.
 	const declaredTools = module ? getAiContribution(module).tools : undefined;
 	const effectiveTools = declaredTools?.length
-		? tools.filter((t) => {
-				const name = (t as { name?: string }).name ?? "";
+		? tools.filter((tool) => {
+				const name = (tool as { name?: string }).name ?? "";
+				if (name === "read_skill_resource" && !activeSkillDir) return false;
 				if (declaredTools.includes(name)) return true;
-				// File attachments still need fs access (e.g. editor module)
 				if (hasFileAttachment && name.startsWith("fs_")) return true;
-				// An attached skill must always remain readable
 				if (activeSkillDir && name === "read_skill_resource") return true;
 				return false;
 			})
 		: tools;
+	const availableToolNames = new Set(
+		effectiveTools.map((tool) => (tool as { name?: string }).name ?? ""),
+	);
+	const requiredToolIntent = resolveRequiredToolIntent({
+		question: q,
+		module,
+		activeNotePath,
+		availableToolNames,
+	});
+	const requiredTool = requiredToolIntent
+		? effectiveTools.find(
+				(tool) =>
+					(tool as { name?: string }).name === requiredToolIntent.toolName,
+			)
+		: undefined;
+	if (requiredToolIntent && !requiredTool) {
+		emit({
+			type: "run_end",
+			answer: `当前模块未开放完成该操作所需的工具（${requiredToolIntent.toolName}），没有执行任何修改。`,
+			dbMutated: false,
+			timestamp: new Date().toLocaleTimeString(),
+		});
+		return;
+	}
+
+	// 1. Prepare RAG Context & System Prompt
+	const prepared = await prepareRagAgentContext({
+		question: q,
+		folderId,
+		folderName,
+		embeddingConfig,
+		contextItems: params.contextItems,
+		module,
+		activeDocumentId,
+		activeMaterialId,
+		activeNotePath,
+		allowEmptyBookmarkContext: Boolean(requiredToolIntent),
+	});
+
+	if (prepared.emptyFallbackMessage && !requiredToolIntent) {
+		emit({
+			type: "run_end",
+			answer: prepared.emptyFallbackMessage,
+			dbMutated: false,
+			timestamp: new Date().toLocaleTimeString(),
+		});
+		return;
+	}
+
+	const { apiKey, baseUrl, model } = resolveLlmConfig(llmConfig);
+	if (!apiKey) {
+		if (prepared.contextReferences.length > 0) {
+			emit({ type: "references", references: prepared.contextReferences });
+		}
+		emit({
+			type: "run_end",
+			answer: `已为你检索到 ${prepared.contextReferences.length} 个相关收藏。\n\n提示：如需启用 AI 智能总结与多步 Agent，请在右上角「设置」中填入 LLM API Key。`,
+			dbMutated: false,
+			timestamp: new Date().toLocaleTimeString(),
+		});
+		return;
+	}
 
 	// 3. Create adapter
 	const adapter = openaiCompatibleText(model, {
@@ -241,11 +258,72 @@ export async function runAgentStream(
 	// 5. Execute Agent Stream
 	let accumulatedAnswer = "";
 	try {
+		let continuationMessages = messages;
+		if (requiredTool && requiredToolIntent) {
+			const requiredToolStream = await chat({
+				adapter,
+				systemPrompts: [prepared.systemPrompt],
+				messages,
+				tools: [requiredTool],
+				modelOptions: {
+					tool_choice: "required",
+					parallel_tool_calls: false,
+				},
+				stream: true,
+				agentLoopStrategy: maxIterations(1),
+			});
+			for await (const chunk of requiredToolStream as AsyncIterable<
+				Record<string, unknown>
+			>) {
+				if (signal?.aborted) break;
+				if (chunk.type === "RUN_ERROR") {
+					const errMsg = (chunk.error as any)?.message || JSON.stringify(chunk);
+					throw new Error(errMsg);
+				}
+			}
+
+			if (signal?.aborted) {
+				emit({
+					type: "run_end",
+					answer: "（已停止本次回答）",
+					dbMutated: hasDbMutated,
+					timestamp: new Date().toLocaleTimeString(),
+				});
+				return;
+			}
+
+			if (stepCounter === 0 || failedToolSummary) {
+				emit({
+					type: "run_end",
+					answer: failedToolSummary
+						? `工具 ${requiredToolIntent.toolName} 执行失败：${failedToolSummary}`
+						: `模型未发起必需的工具调用（${requiredToolIntent.toolName}），没有执行任何修改。请确认当前模型/API 支持 function calling。`,
+					dbMutated: hasDbMutated,
+					timestamp: new Date().toLocaleTimeString(),
+				});
+				return;
+			}
+
+			continuationMessages = [
+				...messages,
+				{
+					role: "user",
+					content: `【工具执行回执】已按本轮意图调用 ${requiredToolIntent.toolName}。\n${completedStepSummaries.join("\n\n")}\n\n请基于真实执行结果继续完成用户请求；不要重复已经成功的操作。如还需其他工具，可继续调用。`,
+				},
+			];
+		}
+		const continuationTools = requiredTool
+			? effectiveTools.filter((tool) => {
+					const name = (tool as { name?: string }).name;
+					return name !== requiredToolIntent?.toolName;
+				})
+			: effectiveTools;
+
 		const stream = await chat({
 			adapter,
 			systemPrompts: [prepared.systemPrompt],
-			messages,
-			tools: effectiveTools,
+			messages: continuationMessages,
+			tools: continuationTools,
 			stream: true,
 			// Default is maxIterations(5): multi-step scraping (骨架分析 + 分段
 			// 提取) easily burns 5 turns before the model gets to answer, leaving
@@ -295,7 +373,7 @@ export async function runAgentStream(
 				adapter,
 				systemPrompts: [prepared.systemPrompt],
 				messages: [
-					...messages,
+					...continuationMessages,
 					{
 						role: "user",
 						content: `（系统接续）你之前已通过工具调用收集到以下资料：\n\n${completedStepSummaries.join("\n\n")}\n\n请直接基于以上资料回答用户最初的问题。如果资料不完整，先给出已有部分，并简要说明缺什么。不要重复调用工具，不要回复"无法获取"。`,

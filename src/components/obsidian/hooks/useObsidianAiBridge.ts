@@ -387,6 +387,29 @@ export function useObsidianAiBridge({
 						}
 					},
 				},
+				{
+					id: "canvas_center_view",
+					label: "居中白板内容",
+					onAction: async (payload?: string | Record<string, unknown>) => {
+						try {
+							const data = payload
+								? typeof payload === "string"
+									? JSON.parse(payload)
+									: payload
+								: undefined;
+							const canvasApi = await waitForCanvasApi(noteApiRef);
+							if (!canvasApi) {
+								toast.info("当前未处于 Canvas 可视编辑模式");
+								return;
+							}
+							const ok = canvasApi.centerView(data?.targetNodeIds);
+							if (ok) toast.success("已将白板内容居中显示");
+							else toast.info("白板中没有可聚焦的节点");
+						} catch (err) {
+							console.error("[canvas_center_view] error:", err);
+						}
+					},
+				},
 				// Canvas message-level action
 				{
 					id: "canvas_add_as_card",

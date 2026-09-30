@@ -31,6 +31,8 @@ export interface RagAgentParams {
 	activeMaterialId?: number;
 	/** Relative path of the obsidian note currently active in the page */
 	activeNotePath?: string;
+	/** Continue building the agent prompt when an explicit tool action needs no RAG results. */
+	allowEmptyBookmarkContext?: boolean;
 }
 
 /**
@@ -48,6 +50,7 @@ export async function prepareRagAgentContext(
 		activeDocumentId,
 		activeMaterialId,
 		activeNotePath,
+		allowEmptyBookmarkContext,
 	} = params;
 
 	// 1. Semantic bookmark RAG retrieval (pure data + early-exit fallback)
@@ -56,7 +59,7 @@ export async function prepareRagAgentContext(
 		contextItems,
 	});
 
-	if (retrieval.emptyFallbackMessage) {
+	if (retrieval.emptyFallbackMessage && !allowEmptyBookmarkContext) {
 		return {
 			systemPrompt: "",
 			contextReferences: [],

@@ -33,7 +33,8 @@ export interface UseAiChatOptions {
 			| "canvas_create_elements"
 			| "canvas_create_group"
 			| "canvas_update_node"
-			| "canvas_tidy_layout",
+			| "canvas_tidy_layout"
+			| "canvas_center_view",
 		args: any,
 	) => void;
 }

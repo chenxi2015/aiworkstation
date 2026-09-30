@@ -147,6 +147,6 @@ export interface ObsidianCanvasApi {
 		alignHandles?: boolean;
 		targetNodeIds?: string[];
 	}) => boolean;
+	/** 将整张白板或指定节点平滑聚焦到视野中央 */
+	centerView: (targetNodeIds?: string[]) => boolean;
 }
-
-

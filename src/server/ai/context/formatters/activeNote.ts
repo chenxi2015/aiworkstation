@@ -79,7 +79,7 @@ function formatCanvasContext(
 ${nodeLines.length > 0 ? nodeLines.join("\n") : "    (当前白板为空，暂无节点)"}
   - 现有连线关系:
 ${edgeLines.length > 0 ? edgeLines.join("\n") : "    (暂无连线)"}
-  💡 提示：用户希望在白板中整理逻辑、绘制架构图、生成思维导图或增加节点时，请调用 canvas_create_elements 工具批量创建节点与连线，或调用 canvas_update_node 修改节点。前端将实时完成自动排版布局并在白板上动态呈现。`;
+	💡 工具路由：新增节点/连线调用 canvas_create_elements；修改卡片调用 canvas_update_node；分组调用 canvas_create_group；规整、对齐、消除重叠或切换水平/垂直/网格/紧凑布局调用 canvas_tidy_layout。布局意图必须产生对应工具调用，不可只用文字承诺执行。`;
 	} catch {
 		return `\n- 【当前活跃文件为 Obsidian Canvas 白板】: ${relPath} (白板结构读取异常)`;
 	}

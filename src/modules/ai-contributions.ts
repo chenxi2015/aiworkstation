@@ -35,6 +35,15 @@ export const GLOBAL_AI_CONTRIBUTION: AiModuleContribution = {
 	code: "global",
 	systemPromptHint:
 		"用户未聚焦于特定模块。以全局知识库视角工作：检索、治理与问答均面向全库资产。",
+	tools: [
+		"query_bookmarks",
+		"get_stats",
+		"create_folder",
+		"move_bookmarks_to_folder",
+		"merge_folders",
+		"web_search",
+		"read_webpage_content",
+	],
 	promptSuggestions: [
 		"检索我收藏的所有关于 AI、自动化与大模型相关的开源项目与工具",
 		"盘点我最近收藏的前端开发框架、组件库与实用资源",
@@ -49,6 +58,12 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 		code: "workbench",
 		systemPromptHint:
 			"用户正在「工作台」首页。偏向宏观视角：资产盘点、趋势洞察、待整理建议与快捷入口推荐。",
+		tools: [
+			"query_bookmarks",
+			"get_stats",
+			"web_search",
+			"read_webpage_content",
+		],
 		promptSuggestions: [
 			"给我一份当前知识库资产的宏观盘点与健康度报告",
 			"未分类缓冲池里有哪些值得优先整理的内容？",
@@ -60,6 +75,25 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 		code: "bookmarks",
 		systemPromptHint:
 			"用户正在「书签」模块。偏向检索与治理：混合检索、文件夹归类、去重合并、死链清理与批量整理。",
+		tools: [
+			"query_bookmarks",
+			"create_folder",
+			"update_folder",
+			"move_bookmarks_to_folder",
+			"move_folder",
+			"reorder_folders",
+			"remove_bookmarks_from_folder",
+			"delete_folder",
+			"merge_folders",
+			"get_stats",
+			"read_webpage_content",
+			"crawl_webpage_via_extension",
+			"create_tags",
+			"add_tags_to_bookmarks",
+			"remove_tags",
+			"rename_or_merge_tags",
+			"web_search",
+		],
 		promptSuggestions: [
 			"检索我收藏的所有关于 AI、自动化与大模型相关的开源项目与工具",
 			"盘点我最近收藏的前端开发框架、组件库与实用资源",
@@ -72,6 +106,12 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 		code: "creator",
 		systemPromptHint:
 			"用户正在「自媒体」板块（素材库/创作台/归档/工具箱/热点雷达）。偏向内容生产：管理素材、从收藏库检索选题、提炼观点、生成二创草稿（推文/小红书/脚本），并提醒人工确认后再发布。创作台编辑态下由 editor 写作人格接管（页面桥接）。",
+		tools: [
+			"query_bookmarks",
+			"read_webpage_content",
+			"crawl_webpage_via_extension",
+			"web_search",
+		],
 		promptSuggestions: [
 			"从我的收藏里挖掘 3 个值得二创的选题并给出切入角度",
 			"基于我收藏的 AI 工具资料，起草一条小红书风格的推荐帖",
@@ -91,6 +131,12 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 		code: "learn",
 		systemPromptHint:
 			"用户正在「学习」模块。偏向学习辅助：聚合学习资源、梳理知识脉络、对比概念、规划学习路径。",
+		tools: [
+			"query_bookmarks",
+			"read_webpage_content",
+			"crawl_webpage_via_extension",
+			"web_search",
+		],
 		promptSuggestions: [
 			"梳理我收藏的学习资源，按主题规划一条学习路径",
 			"我收藏的某个领域资料里有哪些核心概念需要优先掌握？",
@@ -157,6 +203,7 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 		promptSuggestions: [
 			"帮我新建一个名为「系统架构」的白板并梳理核心模块",
 			"帮我规整一下当前白板的排版，对齐节点并优化连线",
+			"将当前白板内容居中显示",
 			"帮我在当前白板中梳理思维导图，向右延伸层级结构",
 			"根据这篇笔记的内容在白板中绘制系统架构与模块流向图",
 			"基于当前笔记事实进行二创改写与重新表述，生成全新的内容稿件",
@@ -170,6 +217,7 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 			"canvas_create_group",
 			"canvas_update_node",
 			"canvas_tidy_layout",
+			"canvas_center_view",
 			"read_webpage_content",
 			"query_bookmarks",
 			"web_search",
@@ -181,6 +229,12 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 		code: "ecommerce",
 		systemPromptHint:
 			"用户正在「电商」模块。偏向选品与运营：聚合选品素材、竞品信息、运营工具，辅助生成选品对比与文案。",
+		tools: [
+			"query_bookmarks",
+			"read_webpage_content",
+			"crawl_webpage_via_extension",
+			"web_search",
+		],
 		promptSuggestions: [
 			"整理我收藏的电商运营工具，按用途分类并推荐组合",
 			"基于收藏素材做一份选品对比矩阵",
@@ -191,6 +245,14 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 		code: "skills",
 		systemPromptHint:
 			"用户正在「Skills」模块。偏向技能资产管理：检索本地 skills、解释用途、建议组合与落库整理。",
+		tools: [
+			"fs_list_directory",
+			"fs_read_file",
+			"fs_search_content",
+			"fs_search_files",
+			"fs_get_file_info",
+			"read_skill_resource",
+		],
 		promptSuggestions: [
 			"盘点我本地的 skills，按能力域分组并说明各自用途",
 			"哪些 skills 适合组合成一条内容生产流水线？",

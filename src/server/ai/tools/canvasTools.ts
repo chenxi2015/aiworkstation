@@ -193,6 +193,37 @@ export const canvasTidyLayoutToolDef = toolDefinition({
 	inputSchema: canvasTidyLayoutInputSchema,
 });
 
+export const canvasCenterViewInputSchema = z.object({
+	targetNodeIds: z
+		.array(z.string())
+		.optional()
+		.describe("仅将指定节点移动到视野中央；省略时聚焦整张白板内容"),
+});
+
+export type CanvasCenterViewInput = z.input<typeof canvasCenterViewInputSchema>;
+
+export function executeCanvasCenterView(
+	args: CanvasCenterViewInput,
+): ToolExecutionResult {
+	const targetText = args.targetNodeIds?.length
+		? `指定的 ${args.targetNodeIds.length} 个节点`
+		: "整张白板内容";
+	return {
+		toolName: "canvas_center_view",
+		summary: `已将${targetText}平滑居中到白板视野。`,
+		items: [],
+		references: [],
+		isMutation: true,
+	};
+}
+
+export const canvasCenterViewToolDef = toolDefinition({
+	name: "canvas_center_view",
+	description:
+		"将当前 Obsidian Canvas 白板视野平移并缩放到整张白板内容中央；可传 targetNodeIds 仅聚焦指定节点。不修改节点坐标或白板文件内容。",
+	inputSchema: canvasCenterViewInputSchema,
+});
+
 export const canvasCreateGroupInputSchema = z.object({
 	label: z
 		.string()
@@ -307,6 +338,14 @@ export function createCanvasServerTools(hooks?: BookmarkToolHooks) {
 				"canvas_tidy_layout",
 				args,
 				() => executeCanvasTidyLayout(args),
+				hooks,
+			),
+		),
+		canvasCenterViewToolDef.server((args) =>
+			wrapExecution(
+				"canvas_center_view",
+				args,
+				() => executeCanvasCenterView(args),
 				hooks,
 			),
 		),

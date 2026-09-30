@@ -25,3 +25,4 @@ index.mts
 # Electron build outputs
 dist-electron/
 electron-dist/
+.history/
