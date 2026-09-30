@@ -6,6 +6,7 @@ import {
 	RotateCcw,
 	Save,
 	ShieldAlert,
+	SlidersHorizontal,
 } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import {
@@ -22,11 +23,12 @@ import {
 import { DangerZoneTab } from "./settings/DangerZoneTab";
 import { DataMaintenanceTab } from "./settings/DataMaintenanceTab";
 import { EmbeddingSettingsTab } from "./settings/EmbeddingSettingsTab";
+import { GeneralSettingsTab } from "./settings/GeneralSettingsTab";
 import { LlmSettingsTab } from "./settings/LlmSettingsTab";
 import type { ModelSettingsFormData } from "./settings/ModelSettingsTab";
 import type { WorkbenchSettings } from "./types";
 
-export type SettingTabId = "llm" | "embedding" | "data" | "danger";
+export type SettingTabId = "general" | "llm" | "embedding" | "data" | "danger";
 
 interface SettingTabItem {
 	id: SettingTabId;
@@ -36,6 +38,12 @@ interface SettingTabItem {
 }
 
 const SETTING_TABS: SettingTabItem[] = [
+	{
+		id: "general",
+		label: "通用设置",
+		description: "管理界面外观模式、语言偏好、版本检测及联系支持",
+		icon: SlidersHorizontal,
+	},
 	{
 		id: "llm",
 		label: "AI 对话模型",
@@ -93,7 +101,7 @@ export function SettingsModal({
 	onOpenDeadLinks,
 	onDataCleared,
 }: SettingsModalProps) {
-	const [activeTab, setActiveTab] = useState<SettingTabId>("llm");
+	const [activeTab, setActiveTab] = useState<SettingTabId>("general");
 	const [formData, setFormData] =
 		useState<ModelSettingsFormData>(INITIAL_FORM_DATA);
 	const [filesRootDir, setFilesRootDir] = useState("");
@@ -182,7 +190,7 @@ export function SettingsModal({
 
 	useEffect(() => {
 		if (isOpen) {
-			setActiveTab("llm");
+			setActiveTab("general");
 			const localSettings = WorkbenchStorageService.getSettings();
 			applySettingsToForm(localSettings);
 
@@ -306,6 +314,10 @@ export function SettingsModal({
 
 								{/* Scrollable Tab Content Body */}
 								<div className="flex-1 min-h-0 overflow-y-auto p-4 text-xs">
+									<Tabs.Panel id="general" className="outline-none">
+										<GeneralSettingsTab />
+									</Tabs.Panel>
+
 									<Tabs.Panel id="llm" className="outline-none">
 										<LlmSettingsTab
 											data={formData}
