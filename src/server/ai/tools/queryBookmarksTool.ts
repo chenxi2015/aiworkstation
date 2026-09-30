@@ -5,71 +5,69 @@ import { type BookmarkQueryParams, workbenchDb } from "../../db/sqlite.ts";
 import { resolveTimeRange } from "./timeResolver.ts";
 import type { ToolExecutionResult } from "./types.ts";
 
-export const queryBookmarksInputSchema = z
-	.object({
-		timeRange: z
-			.enum([
-				"today",
-				"yesterday",
-				"this_week",
-				"last_week",
-				"this_month",
-				"recent_7_days",
-				"recent_30_days",
-			])
-			.nullable()
-			.optional()
-			.describe(
-				"时间范围预设（如 today, this_week, recent_7_days）。如无需按时间过滤请勿包含此字段",
-			),
-		startDate: z
-			.string()
-			.nullable()
-			.optional()
-			.describe("起始日期 (格式 YYYY-MM-DD)，无需过滤请勿包含此字段"),
-		endDate: z
-			.string()
-			.nullable()
-			.optional()
-			.describe("截止日期 (格式 YYYY-MM-DD)，无需过滤请勿包含此字段"),
-		folderName: z
-			.string()
-			.nullable()
-			.optional()
-			.describe("所属文件夹或主题名称（模糊匹配），无需过滤请勿包含此字段"),
-		category: z
-			.string()
-			.nullable()
-			.optional()
-			.describe(
-				"所属工作台大类（如：工作台、自媒体、技能、电商、收藏等），无需过滤请勿包含此字段",
-			),
-		tag: z
-			.string()
-			.nullable()
-			.optional()
-			.describe("标签名称过滤，无需过滤请勿包含此字段"),
-		keyword: z
-			.string()
-			.nullable()
-			.optional()
-			.describe(
-				"关键词过滤（匹配标题、摘要、描述或关键字），无需过滤请勿包含此字段",
-			),
-		limit: z
-			.number()
-			.nullable()
-			.optional()
-			.describe("返回数量上限，默认 20，最多 50"),
-		purpose: z
-			.enum(["display_to_user", "internal_inspection"])
-			.nullable()
-			.optional()
-			.describe(
-				"查询意图：默认为 'display_to_user'（用户明确需要查阅/推荐书签列表，会在前端展示书签参考卡片）；若当前是在进行架构规划、分类重组、方案诊断或内部盘点，请传入 'internal_inspection'（仅供 Agent 内部思考分析，不在前端展示嘈杂的网址卡片）",
-			),
-	})
-	.passthrough();
+export const queryBookmarksInputSchema = z.object({
+	timeRange: z
+		.enum([
+			"today",
+			"yesterday",
+			"this_week",
+			"last_week",
+			"this_month",
+			"recent_7_days",
+			"recent_30_days",
+		])
+		.nullable()
+		.optional()
+		.describe(
+			"时间范围预设（如 today, this_week, recent_7_days）。如无需按时间过滤请勿包含此字段",
+		),
+	startDate: z
+		.string()
+		.nullable()
+		.optional()
+		.describe("起始日期 (格式 YYYY-MM-DD)，无需过滤请勿包含此字段"),
+	endDate: z
+		.string()
+		.nullable()
+		.optional()
+		.describe("截止日期 (格式 YYYY-MM-DD)，无需过滤请勿包含此字段"),
+	folderName: z
+		.string()
+		.nullable()
+		.optional()
+		.describe("所属文件夹或主题名称（模糊匹配），无需过滤请勿包含此字段"),
+	category: z
+		.string()
+		.nullable()
+		.optional()
+		.describe(
+			"所属工作台大类（如：工作台、自媒体、技能、电商、收藏等），无需过滤请勿包含此字段",
+		),
+	tag: z
+		.string()
+		.nullable()
+		.optional()
+		.describe("标签名称过滤，无需过滤请勿包含此字段"),
+	keyword: z
+		.string()
+		.nullable()
+		.optional()
+		.describe(
+			"关键词过滤（匹配标题、摘要、描述或关键字），无需过滤请勿包含此字段",
+		),
+	limit: z
+		.number()
+		.nullable()
+		.optional()
+		.describe("返回数量上限，默认 20，最多 50"),
+	purpose: z
+		.enum(["display_to_user", "internal_inspection"])
+		.nullable()
+		.optional()
+		.describe(
+			"查询意图：默认为 'display_to_user'（用户明确需要查阅/推荐书签列表，会在前端展示书签参考卡片）；若当前是在进行架构规划、分类重组、方案诊断或内部盘点，请传入 'internal_inspection'（仅供 Agent 内部思考分析，不在前端展示嘈杂的网址卡片）",
+		),
+});
 
 export type QueryBookmarksInput = z.infer<typeof queryBookmarksInputSchema>;
 

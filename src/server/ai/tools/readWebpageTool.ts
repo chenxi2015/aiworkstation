@@ -2,16 +2,14 @@ import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 import type { ToolExecutionResult } from "./types.ts";
 
-export const readWebpageInputSchema = z
-	.object({
-		url: z.string().describe("需要抓取和分析正文的完整网页 URL 地址"),
-		targetHint: z
-			.string()
-			.nullable()
-			.optional()
-			.describe("抓取意图提示（例如：核心介绍、项目定位、技术文档等）"),
-	})
-	.passthrough();
+export const readWebpageInputSchema = z.object({
+	url: z.string().describe("需要抓取和分析正文的完整网页 URL 地址"),
+	targetHint: z
+		.string()
+		.nullable()
+		.optional()
+		.describe("抓取意图提示（例如：核心介绍、项目定位、技术文档等）"),
+});
 
 export type ReadWebpageInput = z.infer<typeof readWebpageInputSchema>;
 
