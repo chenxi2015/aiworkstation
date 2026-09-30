@@ -27,8 +27,8 @@ type ThemeMode = "light" | "dark" | "auto";
 type LanguageOption = "zh-CN" | "zh-TW" | "en-US";
 
 const APP_VERSION = "0.1.0";
-const SUPPORT_EMAIL = "support@aiworkstation.dev";
-const GITHUB_REPO_URL = "https://github.com/aiworkstation/aiworkstation";
+const SUPPORT_EMAIL = "bbxycx18@gmail.com";
+const GITHUB_REPO_URL = "https://github.com/chenxi2025/aiworkstation";
 
 const LANGUAGE_OPTIONS: { id: LanguageOption; label: string }[] = [
 	{ id: "zh-CN", label: "简体中文" },
