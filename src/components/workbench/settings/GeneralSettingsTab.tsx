@@ -24,7 +24,7 @@ type LanguageOption = "zh-CN" | "zh-TW" | "en-US";
 
 const APP_VERSION = "0.1.0";
 const SUPPORT_EMAIL = "bbxycx18@gmail.com";
-const GITHUB_REPO_URL = "https://github.com/chenxi2025/aiworkstation";
+const GITHUB_REPO_URL = "https://github.com/chenxi2015/aiworkstation";
 const GITHUB_REPO_NAME = "chenxi2015/aiworkstation";
 
 const LANGUAGE_OPTIONS: { id: LanguageOption; label: string }[] = [
