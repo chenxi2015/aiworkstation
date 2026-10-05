@@ -5,19 +5,28 @@
 
 ## TL;DR
 
-**正式发布只需要两步：**
+**正式发布只需一条命令（推荐）：**
 
 ```bash
-git tag v0.2.0        # 版本号
-git push origin v0.2.0
+pnpm run release:patch   # 小版本（0.1.0 -> 0.1.1）
+# 或 pnpm run release:minor（次版本）/ pnpm run release:major（主版本）
 ```
 
-tag 推送后 GitHub Actions 自动构建 macOS + Windows 并发布到同一个 Release，老用户启动 app 时自动收到更新提示。**本地不需要跑任何打包命令。**
+该命令会自动：
+1. 校验 Git 工作区干净度
+2. 递增根目录及 `extensions/aicollector` 的 `package.json` 版本号
+3. 生成 `chore(release): vX.Y.Z` 提交并打 Git Tag
+4. 自动推送到 GitHub (`git push origin main --tags`)
+
+Tag 推送后 GitHub Actions 会自动构建 macOS + Windows 双平台安装包并发布到同一个 GitHub Release。**本地不需要跑任何打包命令。**
 
 ## 命令速查
 
 | 命令 | 产物 | 用途 |
 |---|---|---|
+| `pnpm run release:patch` | 自动提交 + Tag + Push | **一键标准发版**（小版本，如 0.1.0 -> 0.1.1），自动触发 CI |
+| `pnpm run release:minor` | 自动提交 + Tag + Push | **一键标准发版**（次版本，如 0.1.0 -> 0.2.0），自动触发 CI |
+| `pnpm run release:major` | 自动提交 + Tag + Push | **一键标准发版**（主版本，如 0.1.0 -> 1.0.0），自动触发 CI |
 | `pnpm electron:dev` | 无 | 本地开发调试（Vite + Electron 联调） |
 | `pnpm electron:pack` | `dist/mac-arm64/*.app`（未压缩目录） | 快速验证打包配置，不出安装包，最快 |
 | `pnpm electron:dist:mac` | `dist/*.dmg` | 本地出 Mac 安装包（自己装着测） |
@@ -40,20 +49,34 @@ tag 推送后 GitHub Actions 自动构建 macOS + Windows 并发布到同一个 
 
 ## 标准发布流程（GitHub Actions）
 
+### 方式一：一键发版（推荐）
+
 ```bash
-# 1. 确认 main 分支代码已就绪并推送
-git push origin main
+# 1. 确保本地改动已提交或清理，工作区保持干净（否则脚本会安全退出）
+git status
 
-# 2. 打 tag（版本号即发布版本，CI 会自动写进 package.json）
-git tag v0.2.0
-git push origin v0.2.0
+# 2. 执行对应级别的发版命令（自动更新 package.json、提交、打 tag 并 push）
+pnpm run release:patch    # 补丁更新（如 0.1.0 -> 0.1.1）
+# 或 pnpm run release:minor（特性更新，如 0.1.0 -> 0.2.0）
+# 或 pnpm run release:major（重大版本，如 0.1.0 -> 1.0.0）
+# 亦可指定具体版本：node scripts/release.mjs 0.2.5 && git push origin main --tags
 
-# 3. 等 15-25 分钟，到 Actions 页面确认 Build & Release 成功
+# 3. 等 15-25 分钟，到 GitHub Actions 页面确认 Build & Release 成功
 # 4. 检查 Release 页面资产是否齐全（共 6 个文件）：
 #    AI-Workstation-x.y.z-arm64.dmg          Mac 安装包
 #    AI-Workstation-Setup-x.y.z.exe          Windows 安装包
 #    latest-mac.yml / latest.yml             自动更新元数据（electron-updater 读取）
 #    *.blockmap × 2                          差量更新用
+```
+
+### 方式二：手动打 Tag（备用）
+
+如果不希望自动更新项目内 `package.json`，仅快速打 tag 触发 CI：
+
+```bash
+git push origin main
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
 也可以去 Actions 页面手动触发 `Build Electron Apps`（可选只构建某个平台）——手动触发**不会发布**，产物在 workflow 的 Artifacts 里，用于发布前验证。
