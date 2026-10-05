@@ -265,18 +265,19 @@ export function GeneralSettingsTab() {
 							if (key) handleSelectLanguage(String(key) as LanguageOption);
 						}}
 						variant="secondary"
-						className="w-36 shrink-0"
+						className="w-28 text-xs"
 					>
-						<SelectTrigger className="w-full">
-							<SelectValue />
+						<SelectTrigger className="h-7 min-h-0 w-full px-3 py-0 text-xs rounded-full border border-border/60 bg-surface-secondary/40 text-foreground">
+							<SelectValue className="text-xs" />
 						</SelectTrigger>
-						<SelectPopover className="max-h-60 overflow-y-auto min-w-[160px]">
+						<SelectPopover>
 							<ListBox>
 								{LANGUAGE_OPTIONS.map((item) => (
 									<ListBoxItem
 										key={item.id}
 										id={item.id}
 										textValue={item.label}
+										className="text-xs"
 									>
 										{item.label}
 									</ListBoxItem>

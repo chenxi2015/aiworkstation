@@ -1,4 +1,3 @@
-
 /**
  * Skeleton for materials table view layout
  */
@@ -99,14 +98,14 @@ export function MaterialsGridSkeleton({ count = 12 }: { count?: number }) {
 			{items.map((i) => (
 				<div
 					key={`grid-card-skel-${i}`}
-					className="rounded-xl border border-border/60 bg-surface/50 overflow-hidden flex flex-col"
+					className="w-full min-w-0 rounded-xl border border-border/60 bg-surface/50 overflow-hidden flex flex-col"
 				>
-					{/* Thumbnail preview */}
-					<div className="aspect-video w-full bg-surface-secondary/60 flex items-center justify-center">
+					{/* Thumbnail preview with 4:3 aspect ratio */}
+					<div className="relative w-full aspect-[4/3] bg-surface-secondary/60 flex items-center justify-center">
 						<div className="w-6 h-6 rounded-lg bg-surface-secondary/90" />
 					</div>
 					{/* Body info */}
-					<div className="p-2.5 flex-1 flex flex-col justify-between gap-2">
+					<div className="px-3 py-2 flex-1 flex flex-col justify-between gap-2">
 						<div className="space-y-1.5">
 							<div
 								className="h-3 rounded bg-surface-secondary/80"
@@ -115,8 +114,8 @@ export function MaterialsGridSkeleton({ count = 12 }: { count?: number }) {
 							<div className="w-1/2 h-2.5 rounded bg-surface-secondary/50" />
 						</div>
 						<div className="flex items-center justify-between pt-1 border-t border-border/40">
-							<div className="w-10 h-3.5 rounded-full bg-surface-secondary/50" />
-							<div className="w-12 h-2.5 rounded bg-surface-secondary/40" />
+							<div className="w-14 h-5 rounded-lg bg-surface-secondary/50" />
+							<div className="w-5 h-5 rounded-md bg-surface-secondary/40" />
 						</div>
 					</div>
 				</div>

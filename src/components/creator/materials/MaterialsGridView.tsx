@@ -1,5 +1,4 @@
 import { Button, Dropdown } from "@heroui/react";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import {
 	Archive,
 	Ellipsis,
@@ -12,8 +11,8 @@ import {
 	Star,
 	Trash2,
 } from "lucide-react";
-import { memo, useEffect, useMemo, useRef, useState } from "react";
-import type { Material } from "../types";
+import { memo, useState } from "react";
+import type { Material, MaterialAsset } from "../types";
 import { KIND_CONFIG, KIND_ICONS } from "./types";
 import {
 	getAssetMediaUrl,
@@ -54,6 +53,72 @@ interface MaterialCardProps {
 	onPreviewImage?: (material: Material, assetId?: number) => void;
 }
 
+interface MaterialCoverProps {
+	cover?: MaterialAsset;
+	video?: MaterialAsset;
+	materialTitle: string;
+	kindConfig: (typeof KIND_CONFIG)[keyof typeof KIND_CONFIG];
+	KindIcon: React.ComponentType<{ className?: string }>;
+}
+
+/**
+ * Constrained media cover with image loading skeleton and smooth fade-in
+ */
+function MaterialCover({
+	cover,
+	video,
+	materialTitle,
+	kindConfig,
+	KindIcon,
+}: MaterialCoverProps) {
+	const [imageLoaded, setImageLoaded] = useState(false);
+	const [imageError, setImageError] = useState(false);
+
+	if (cover && !imageError) {
+		return (
+			<>
+				{/* Skeleton while image is loading */}
+				{!imageLoaded && (
+					<div className="absolute inset-0 bg-muted/15 animate-pulse flex items-center justify-center pointer-events-none">
+						<KindIcon
+							className={`w-8 h-8 ${kindConfig.iconClass} opacity-30`}
+						/>
+					</div>
+				)}
+				<img
+					src={getAssetMediaUrl(cover)}
+					alt={materialTitle}
+					loading="lazy"
+					decoding="async"
+					onLoad={() => setImageLoaded(true)}
+					onError={() => setImageError(true)}
+					className={`absolute inset-0 w-full h-full max-w-full max-h-full object-cover select-none transition-all duration-300 group-hover/cover:scale-105 ${
+						imageLoaded ? "opacity-100" : "opacity-0"
+					}`}
+				/>
+			</>
+		);
+	}
+
+	if (video) {
+		return (
+			<video
+				src={`${getAssetMediaUrl(video)}#t=0.001`}
+				preload="metadata"
+				className="absolute inset-0 w-full h-full max-w-full max-h-full object-cover pointer-events-none select-none"
+			>
+				<track kind="captions" />
+			</video>
+		);
+	}
+
+	return (
+		<div className="flex items-center justify-center w-full h-full">
+			<KindIcon className={`w-8 h-8 ${kindConfig.iconClass} opacity-60`} />
+		</div>
+	);
+}
+
 /**
  * Single material card. Memoized so virtualized scrolling does not re-render
  * every visible card on each scroll frame.
@@ -84,7 +149,7 @@ const MaterialCard = memo(function MaterialCard({
 	const hasVideo = videos.length > 0;
 
 	return (
-		<li className="group relative rounded-xl border border-border/60 bg-surface/50 overflow-hidden hover:border-accent/50 transition-colors">
+		<li className="group relative rounded-xl border border-border/60 bg-surface/50 overflow-hidden hover:border-accent/50 transition-colors w-full min-w-0 flex flex-col">
 			{selectMode && (
 				<input
 					type="checkbox"
@@ -110,7 +175,7 @@ const MaterialCard = memo(function MaterialCard({
 			</button>
 			{/* biome-ignore lint/a11y/useKeyWithClickEvents lint/a11y/noStaticElementInteractions: Quick media preview trigger */}
 			<div
-				className={`relative aspect-[4/3] flex items-center justify-center bg-muted/5 border-b border-border/40 overflow-hidden ${
+				className={`relative w-full aspect-[4/3] shrink-0 flex items-center justify-center bg-muted/5 border-b border-border/40 overflow-hidden ${
 					hasVideo || hasImage ? "cursor-pointer group/cover" : ""
 				}`}
 				onClick={() => {
@@ -121,24 +186,13 @@ const MaterialCard = memo(function MaterialCard({
 					}
 				}}
 			>
-				{cover ? (
-					<img
-						src={getAssetMediaUrl(cover)}
-						alt={material.title}
-						className="w-full h-full object-cover transition-transform duration-300 group-hover/cover:scale-105"
-						loading="lazy"
-					/>
-				) : hasVideo ? (
-					<video
-						src={`${getAssetMediaUrl(videos[0])}#t=0.001`}
-						preload="metadata"
-						className="w-full h-full object-cover pointer-events-none"
-					>
-						<track kind="captions" />
-					</video>
-				) : (
-					<KindIcon className={`w-8 h-8 ${kindConfig.iconClass} opacity-60`} />
-				)}
+				<MaterialCover
+					cover={cover}
+					video={videos[0]}
+					materialTitle={material.title}
+					kindConfig={kindConfig}
+					KindIcon={KindIcon}
+				/>
 
 				{/* Multi-image count badge */}
 				{hasImage && images.length > 1 && (
@@ -320,12 +374,8 @@ const MaterialCard = memo(function MaterialCard({
 	);
 });
 
-// Mirrors the tailwind sm breakpoint used by the previous grid classes
-const SM_BREAKPOINT = "(min-width: 640px)";
-
 /**
- * Grid layout view for materials, virtualized by rows so that hundreds of
- * loaded cards do not all stay mounted in the DOM.
+ * Grid layout view for materials with responsive CSS Grid.
  */
 export function MaterialsGridView({
 	materials,
@@ -342,157 +392,28 @@ export function MaterialsGridView({
 	onPlayVideo,
 	onPreviewImage,
 }: MaterialsGridViewProps) {
-	const wrapperRef = useRef<HTMLDivElement | null>(null);
-	const [containerWidth, setContainerWidth] = useState(0);
-	const [isSm, setIsSm] = useState(
-		() =>
-			typeof window !== "undefined" && window.matchMedia(SM_BREAKPOINT).matches,
-	);
-
-	useEffect(() => {
-		const mql = window.matchMedia(SM_BREAKPOINT);
-		const update = () => setIsSm(mql.matches);
-		update();
-		mql.addEventListener("change", update);
-		return () => mql.removeEventListener("change", update);
-	}, []);
-
-	useEffect(() => {
-		const el = wrapperRef.current;
-		if (!el) return;
-		const observer = new ResizeObserver((entries) => {
-			setContainerWidth(entries[0]?.contentRect.width ?? 0);
-		});
-		observer.observe(el);
-		return () => observer.disconnect();
-	}, []);
-
-	// Keep card callbacks referentially stable so memoized cards do not
-	// re-render on every virtualizer scroll update.
-	const handlersRef = useRef({
-		onToggleSelect,
-		onToggleStar,
-		onImportToStudio,
-		onOpenDir,
-		onArchive,
-		onDelete,
-		onPlayVideo,
-		onPreviewImage,
-	});
-	handlersRef.current = {
-		onToggleSelect,
-		onToggleStar,
-		onImportToStudio,
-		onOpenDir,
-		onArchive,
-		onDelete,
-		onPlayVideo,
-		onPreviewImage,
-	};
-	const stableHandlers = useMemo<MaterialCardHandlers>(
-		() => ({
-			onToggleSelect: (id) => handlersRef.current.onToggleSelect(id),
-			onToggleStar: (m) => handlersRef.current.onToggleStar(m),
-			onImportToStudio: (m) => handlersRef.current.onImportToStudio(m),
-			onOpenDir: (m) => handlersRef.current.onOpenDir(m),
-			onArchive: (m) => handlersRef.current.onArchive(m),
-			onDelete: (m) => handlersRef.current.onDelete(m),
-			onPlayVideo: (m, assetId) =>
-				handlersRef.current.onPlayVideo?.(m, assetId),
-			onPreviewImage: (m, assetId) =>
-				handlersRef.current.onPreviewImage?.(m, assetId),
-		}),
-		[],
-	);
-
-	// Replicates grid-cols-[repeat(auto-fill,minmax(Npx,1fr))] lane math
-	const gap = isSm ? 16 : 12;
-	const minItemWidth = isSm ? 190 : 180;
-	const lanes = Math.max(
-		1,
-		Math.floor((containerWidth + gap) / (minItemWidth + gap)),
-	);
-
-	const rows = useMemo(() => {
-		const result: Material[][] = [];
-		for (let i = 0; i < materials.length; i += lanes) {
-			result.push(materials.slice(i, i + lanes));
-		}
-		return result;
-	}, [materials, lanes]);
-
-	const cardWidth =
-		containerWidth > 0
-			? (containerWidth - gap * (lanes - 1)) / lanes
-			: minItemWidth;
-	// cover (4:3) + text/footer block (~82px) + inter-row gap
-	const estimatedRowHeight = Math.round(cardWidth * 0.75) + 82 + gap;
-
-	const virtualizer = useVirtualizer({
-		count: rows.length,
-		getScrollElement: () => wrapperRef.current?.parentElement ?? null,
-		estimateSize: () => estimatedRowHeight,
-		overscan: 4,
-	});
-
-	// Lane count changes alter card widths and therefore row heights
-	// biome-ignore lint/correctness/useExhaustiveDependencies: re-measure when lane count changes card widths
-	useEffect(() => {
-		virtualizer.measure();
-	}, [lanes, virtualizer]);
-
 	return (
-		<div ref={wrapperRef} className="p-4 sm:p-5">
-			<ul className="relative" style={{ height: virtualizer.getTotalSize() }}>
-				{virtualizer.getVirtualItems().map((virtualRow) => {
-					const row = rows[virtualRow.index];
-					if (!row) return null;
-					return (
-						<li
-							key={row[0]?.id ?? virtualRow.index}
-							data-index={virtualRow.index}
-							ref={virtualizer.measureElement}
-							className="absolute top-0 left-0 w-full"
-							style={{
-								transform: `translateY(${virtualRow.start}px)`,
-								paddingBottom: gap,
-							}}
-						>
-							<ul
-								className="grid"
-								style={{
-									gridTemplateColumns: `repeat(${lanes}, minmax(0, 1fr))`,
-									gap,
-								}}
-							>
-								{row.map((material) => (
-									<MaterialCard
-										key={material.id}
-										material={material}
-										selectMode={selectMode}
-										selected={selectedIds.has(material.id)}
-										importing={importingId === material.id}
-										openingDir={openingDirId === material.id}
-										{...stableHandlers}
-									/>
-								))}
-							</ul>
-						</li>
-					);
-				})}
+		<div className="p-4 sm:p-5">
+			<ul className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-3 sm:gap-4">
+				{materials.map((material) => (
+					<MaterialCard
+						key={material.id}
+						material={material}
+						selectMode={selectMode}
+						selected={selectedIds.has(material.id)}
+						importing={importingId === material.id}
+						openingDir={openingDirId === material.id}
+						onToggleSelect={onToggleSelect}
+						onToggleStar={onToggleStar}
+						onImportToStudio={onImportToStudio}
+						onOpenDir={onOpenDir}
+						onArchive={onArchive}
+						onDelete={onDelete}
+						onPlayVideo={onPlayVideo}
+						onPreviewImage={onPreviewImage}
+					/>
+				))}
 			</ul>
 		</div>
 	);
 }
-
-type MaterialCardHandlers = Pick<
-	MaterialCardProps,
-	| "onToggleSelect"
-	| "onToggleStar"
-	| "onImportToStudio"
-	| "onOpenDir"
-	| "onArchive"
-	| "onDelete"
-	| "onPlayVideo"
-	| "onPreviewImage"
->;

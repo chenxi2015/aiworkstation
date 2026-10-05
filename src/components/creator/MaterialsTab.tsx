@@ -22,10 +22,7 @@ interface MaterialsTabProps {
 	loading: boolean;
 	onChanged: () => Promise<void>;
 	/** 素材一键导入创作台后跳转打开新文档 */
-	onImportToStudio: (
-		docId: number,
-		mode?: "doc" | "audio" | "video",
-	) => void;
+	onImportToStudio: (docId: number, mode?: "doc" | "audio" | "video") => void;
 }
 
 /**
@@ -117,7 +114,7 @@ export function MaterialsTab({
 				/>
 
 				<div className="flex-1 overflow-y-auto min-h-0">
-					{loading ? (
+					{loading || state.refreshing ? (
 						state.viewMode === "grid" ? (
 							<MaterialsGridSkeleton count={12} />
 						) : (
