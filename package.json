@@ -1,6 +1,6 @@
 {
   "name": "aiworkstation",
-  "version": "0.1.3",
+  "version": "0.1.2",
   "description": "本地优先的个人知识 Agent 工作台",
   "author": "AI Workstation",
   "private": true,
