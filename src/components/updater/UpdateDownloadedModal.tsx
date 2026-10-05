@@ -5,6 +5,7 @@ import {
 	CheckCircle2,
 	ExternalLink,
 	FileText,
+	FolderOpen,
 	Sparkles,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -49,6 +50,7 @@ export function UpdateDownloadedModal({
 	);
 	const [downloadPercent, setDownloadPercent] = useState<number>(0);
 	const [isInstalling, setIsInstalling] = useState(false);
+	const [showManualFallback, setShowManualFallback] = useState(false);
 
 	const isControlled = controlledIsOpen !== undefined;
 	const isVisible = isControlled ? controlledIsOpen : internalOpen;
@@ -155,16 +157,41 @@ export function UpdateDownloadedModal({
 	};
 
 	// Execute install and restart
-	const handleInstall = () => {
+	const handleInstall = async () => {
 		setIsInstalling(true);
-		if (window.electronAPI?.installUpdate) {
-			window.electronAPI.installUpdate();
-		} else {
-			// Fallback for browser preview
-			setTimeout(() => {
-				setIsInstalling(false);
-				handleClose();
-			}, 1200);
+		try {
+			if (window.electronAPI?.installUpdate) {
+				const res = await window.electronAPI.installUpdate();
+				if (res?.openedFile) {
+					setIsInstalling(false);
+					handleClose();
+					return;
+				}
+			} else {
+				// Fallback for browser preview
+				setTimeout(() => {
+					setIsInstalling(false);
+					handleClose();
+				}, 1200);
+				return;
+			}
+		} catch (err) {
+			console.error("Install update failed:", err);
+		}
+
+		// On macOS unsigned packages, ShipIt blocks automatic in-place restart.
+		// If application hasn't terminated after 2.5 seconds, reset state and show manual install option.
+		setTimeout(() => {
+			setIsInstalling(false);
+			setShowManualFallback(true);
+		}, 2500);
+	};
+
+	// Manually open downloaded DMG / installer package
+	const handleOpenDownloadedFile = async () => {
+		if (window.electronAPI?.openDownloadedFile) {
+			await window.electronAPI.openDownloadedFile();
+			handleClose();
 		}
 	};
 
@@ -280,9 +307,26 @@ export function UpdateDownloadedModal({
 									<FileText className="w-3.5 h-3.5" />
 									<span>更新日志</span>
 								</div>
-								<div className="max-h-28 overflow-y-auto rounded-lg border border-border/60 bg-surface-secondary/30 p-2.5 text-xs text-foreground/80 leading-relaxed font-mono whitespace-pre-wrap select-text">
-									{notesText}
+								<div
+									className="max-h-36 overflow-y-auto rounded-lg border border-border/60 bg-surface-secondary/30 p-2.5 text-xs text-foreground/90 leading-relaxed select-text [&>p]:mb-1.5 [&>p:last-child]:mb-0 [&>ul]:list-disc [&>ul]:pl-4 [&>ol]:list-decimal [&>ol]:pl-4 [&>li]:my-0.5 [&_a]:text-accent [&_a]:underline"
+									dangerouslySetInnerHTML={{
+										__html: !/<[a-z][\s\S]*>/i.test(notesText)
+											? notesText.replace(/\n/g, "<br />")
+											: notesText,
+									}}
+								/>
+							</div>
+						)}
+						{/* Fallback advice card when macOS ShipIt does not auto-restart */}
+						{showManualFallback && step === "downloaded" && (
+							<div className="rounded-xl border border-border/80 bg-surface-secondary/50 p-3 flex flex-col gap-1.5 text-xs animate-in fade-in">
+								<div className="flex items-center gap-1.5 font-medium text-foreground">
+									<FolderOpen className="w-3.5 h-3.5 text-accent" />
+									<span>若未自动重启，请手动完成安装</span>
 								</div>
+								<p className="text-[11px] text-muted leading-relaxed">
+									受 macOS 签名限制未自动替换。安装包已在本地就绪，点击下方按钮直接打开，拖入 Applications 目录替换即可完成更新。
+								</p>
 							</div>
 						)}
 					</Modal.Body>
@@ -300,16 +344,29 @@ export function UpdateDownloadedModal({
 								>
 									稍后
 								</Button>
-								<Button
-									type="button"
-									variant="primary"
-									size="sm"
-									className="rounded-full px-5 text-xs font-medium cursor-pointer shadow-sm"
-									isPending={isInstalling}
-									onPress={handleInstall}
-								>
-									{isInstalling ? "正在重启..." : "立即重启"}
-								</Button>
+								{showManualFallback ? (
+									<Button
+										type="button"
+										variant="primary"
+										size="sm"
+										className="rounded-full px-5 text-xs font-medium cursor-pointer shadow-sm flex items-center gap-1.5"
+										onPress={handleOpenDownloadedFile}
+									>
+										<FolderOpen className="w-3.5 h-3.5" />
+										<span>打开安装包 (DMG)</span>
+									</Button>
+								) : (
+									<Button
+										type="button"
+										variant="primary"
+										size="sm"
+										className="rounded-full px-5 text-xs font-medium cursor-pointer shadow-sm"
+										isPending={isInstalling}
+										onPress={handleInstall}
+									>
+										{isInstalling ? "正在重启..." : "立即重启"}
+									</Button>
+								)}
 							</>
 						)}
 

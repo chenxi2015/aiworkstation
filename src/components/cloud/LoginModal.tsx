@@ -124,7 +124,7 @@ export function LoginModal({
 			/>
 
 			{/* HeroUI Card Container (clean, flat border, no heavy shadows) */}
-			<Card className="relative w-full max-w-xs rounded-2xl border border-border/80 bg-surface/95 backdrop-blur-xl">
+			<Card className="relative w-full max-w-xs rounded-2xl border border-border/80 bg-surface/95 backdrop-blur-xl window-no-drag">
 				{/* Optional Close Button */}
 				{!mandatory && onClose && (
 					<button

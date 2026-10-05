@@ -30,12 +30,22 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   /** Ask main process to quit and install update */
   installUpdate: () => {
-    ipcRenderer.invoke("updater:install");
+    return ipcRenderer.invoke("updater:install");
+  },
+
+  /** Ask main process to open the downloaded update file in OS file explorer / Finder */
+  openDownloadedFile: () => {
+    return ipcRenderer.invoke("updater:open-downloaded-file");
   },
 
   /** Ask main process to check for updates manually */
   checkForUpdates: () => {
     return ipcRenderer.invoke("updater:check-for-updates");
+  },
+
+  /** Switch between compact login window and primary dashboard window */
+  setWindowMode: (mode: "login" | "main") => {
+    return ipcRenderer.invoke("window:set-mode", mode);
   },
 });
 

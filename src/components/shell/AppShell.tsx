@@ -212,6 +212,16 @@ export function AppShell({
 		}
 	}, [isEditorSurface]);
 
+	// Synchronize Electron window size mode with user authentication status
+	useEffect(() => {
+		if (isInitializing) return;
+		if (isLoggedIn) {
+			window.electronAPI?.setWindowMode?.("main");
+		} else {
+			window.electronAPI?.setWindowMode?.("login");
+		}
+	}, [isLoggedIn, isInitializing]);
+
 	const toggleCollapsed = useCallback(() => {
 		setIsCollapsed((prev) => !prev);
 	}, []);
@@ -352,7 +362,7 @@ export function AppShell({
 	// 2. Unauthenticated state: display global WeChat QR login gate
 	if (!isLoggedIn) {
 		return (
-			<div className="h-screen w-screen flex flex-col items-center justify-center bg-background relative overflow-hidden select-none">
+			<div className="h-screen w-screen flex flex-col items-center justify-center bg-background relative overflow-hidden select-none window-drag-region">
 				{/* Decorative background glow */}
 				<div className="absolute inset-0 bg-radial from-accent/5 to-transparent pointer-events-none" />
 

@@ -41,8 +41,14 @@ export interface ElectronAPI {
 		callback: (progress: ElectronDownloadProgress) => void,
 	) => () => void;
 	startDownload?: () => Promise<{ status: string; message?: string }>;
-	installUpdate?: () => void;
+	installUpdate?: () => Promise<{
+		status: string;
+		message?: string;
+		openedFile?: boolean;
+	}>;
+	openDownloadedFile?: () => Promise<{ status: string; message?: string }>;
 	checkForUpdates?: () => Promise<ElectronCheckUpdateResult>;
+	setWindowMode?: (mode: "login" | "main") => Promise<{ success: boolean }>;
 }
 
 declare global {
