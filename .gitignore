@@ -26,3 +26,4 @@ index.mts
 dist-electron/
 electron-dist/
 .history/
+.agents/
