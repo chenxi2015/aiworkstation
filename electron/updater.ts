@@ -1,12 +1,59 @@
+import fs from "node:fs";
+import path from "node:path";
 import { app, ipcMain, shell, type BrowserWindow } from "electron";
 import { autoUpdater } from "electron-updater";
 import { isDev, REPO_CONFIG } from "./config.js";
+
+/**
+ * Locate existing local DMG installer in updater cache or system downloads folder
+ */
+function resolveLocalInstallerFile(targetVersion?: string): string | null {
+	if (process.platform !== "darwin") {
+		return null;
+	}
+
+	const candidatesDirs = [
+		path.join(app.getPath("home"), "Library", "Caches", "aiworkstation-updater", "pending"),
+		path.join(app.getPath("home"), "Library", "Caches", "aiworkstation-updater"),
+		app.getPath("downloads"),
+	];
+
+	for (const dir of candidatesDirs) {
+		try {
+			if (!fs.existsSync(dir)) continue;
+			const files = fs.readdirSync(dir);
+			const dmgFiles = files
+				.filter((f) => f.toLowerCase().endsWith(".dmg") && f.toLowerCase().includes("workstation"))
+				.map((f) => {
+					const fullPath = path.join(dir, f);
+					const stat = fs.statSync(fullPath);
+					return { fullPath, name: f, mtime: stat.mtimeMs };
+				})
+				.sort((a, b) => b.mtime - a.mtime);
+
+			if (dmgFiles.length === 0) continue;
+
+			if (targetVersion) {
+				const matched = dmgFiles.find((f) => f.name.includes(targetVersion));
+				if (matched) return matched.fullPath;
+			}
+
+			return dmgFiles[0].fullPath;
+		} catch {
+			// Skip directories that cannot be accessed
+		}
+	}
+
+	return null;
+}
 
 /**
  * Setup and initialize application auto update services and IPC handlers
  */
 export function setupAutoUpdater(getMainWindow: () => BrowserWindow | null): void {
 	let downloadedFilePath: string | null = null;
+	let latestTargetVersion: string | null = null;
+	let latestDownloadUrl: string | null = null;
 
 	// ── IPC Handlers ────────────────────────────────────────────────────────────
 
@@ -28,6 +75,9 @@ export function setupAutoUpdater(getMainWindow: () => BrowserWindow | null): voi
 		try {
 			const res = await autoUpdater.checkForUpdates();
 			const latestVersion = res?.updateInfo?.version;
+			if (latestVersion) {
+				latestTargetVersion = latestVersion;
+			}
 			const hasUpdate = Boolean(latestVersion && latestVersion !== currentVersion);
 			return {
 				status: "success",
@@ -66,14 +116,15 @@ export function setupAutoUpdater(getMainWindow: () => BrowserWindow | null): voi
 
 			// On macOS, unsigned builds fail Apple's Code Signature Verification in ShipIt.
 			// Fallback to opening DMG directly if quitAndInstall does not terminate the app.
-			if (process.platform === "darwin" && downloadedFilePath) {
+			if (process.platform === "darwin") {
 				setTimeout(async () => {
-					console.warn(
-						"[electron] Fallback: opening downloaded DMG directly:",
-						downloadedFilePath,
-					);
-					if (downloadedFilePath) {
-						await shell.openPath(downloadedFilePath);
+					const targetDmg =
+						(downloadedFilePath && fs.existsSync(downloadedFilePath) ? downloadedFilePath : null) ||
+						resolveLocalInstallerFile(latestTargetVersion || undefined);
+					if (targetDmg) {
+						console.warn("[electron] Fallback: opening downloaded DMG directly:", targetDmg);
+						downloadedFilePath = targetDmg;
+						await shell.openPath(targetDmg);
 					}
 				}, 2000);
 			}
@@ -82,13 +133,18 @@ export function setupAutoUpdater(getMainWindow: () => BrowserWindow | null): voi
 			return { status: "success" };
 		} catch (err) {
 			console.error("[electron] quitAndInstall failed:", err);
-			if (process.platform === "darwin" && downloadedFilePath) {
-				await shell.openPath(downloadedFilePath);
-				return {
-					status: "opened_file",
-					message: "macOS 签名限制，已为您直接打开安装包",
-					openedFile: true,
-				};
+			if (process.platform === "darwin") {
+				const targetDmg =
+					(downloadedFilePath && fs.existsSync(downloadedFilePath) ? downloadedFilePath : null) ||
+					resolveLocalInstallerFile(latestTargetVersion || undefined);
+				if (targetDmg) {
+					await shell.openPath(targetDmg);
+					return {
+						status: "opened_file",
+						message: "macOS 签名限制，已为您直接打开安装包",
+						openedFile: true,
+					};
+				}
 			}
 			return {
 				status: "error",
@@ -97,14 +153,30 @@ export function setupAutoUpdater(getMainWindow: () => BrowserWindow | null): voi
 		}
 	});
 
-	// Manually open downloaded update file in system file manager
+	// Manually open downloaded update file in system file manager or mount DMG
 	ipcMain.handle("updater:open-downloaded-file", async () => {
-		if (downloadedFilePath) {
-			await shell.openPath(downloadedFilePath);
-			return { status: "success" };
+		let targetPath =
+			downloadedFilePath && fs.existsSync(downloadedFilePath) ? downloadedFilePath : null;
+
+		if (!targetPath) {
+			targetPath = resolveLocalInstallerFile(latestTargetVersion || undefined);
 		}
-		shell.openExternal(REPO_CONFIG.RELEASES_URL);
-		return { status: "opened_url" };
+
+		if (targetPath) {
+			downloadedFilePath = targetPath;
+			const openErr = await shell.openPath(targetPath);
+			if (!openErr) {
+				return { status: "success", isLocal: true, path: targetPath };
+			}
+			console.warn("[electron] shell.openPath failed, falling back to showItemInFolder:", openErr);
+			shell.showItemInFolder(targetPath);
+			return { status: "success", isLocal: true, path: targetPath };
+		}
+
+		// Fallback: If no local dmg installer file is found on disk, open web release page
+		const targetUrl = latestDownloadUrl || REPO_CONFIG.RELEASES_URL;
+		shell.openExternal(targetUrl);
+		return { status: "opened_url", isLocal: false, url: targetUrl };
 	});
 
 	// ── autoUpdater Event Subscriptions ─────────────────────────────────────────
@@ -127,6 +199,9 @@ export function setupAutoUpdater(getMainWindow: () => BrowserWindow | null): voi
 
 	autoUpdater.on("update-downloaded", (info) => {
 		downloadedFilePath = (info as { downloadedFile?: string })?.downloadedFile || null;
+		if (info?.version) {
+			latestTargetVersion = info.version;
+		}
 		const mainWindow = getMainWindow();
 		if (!mainWindow || mainWindow.isDestroyed()) return;
 		mainWindow.webContents.send("updater:update-downloaded", {

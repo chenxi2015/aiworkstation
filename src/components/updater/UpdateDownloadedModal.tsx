@@ -1,4 +1,4 @@
-import { Button, Modal } from "@heroui/react";
+import { Button, Modal, toast } from "@heroui/react";
 import {
 	ArrowDownToLine,
 	ArrowUpCircle,
@@ -190,8 +190,28 @@ export function UpdateDownloadedModal({
 	// Manually open downloaded DMG / installer package
 	const handleOpenDownloadedFile = async () => {
 		if (window.electronAPI?.openDownloadedFile) {
-			await window.electronAPI.openDownloadedFile();
-			handleClose();
+			try {
+				const res = (await window.electronAPI.openDownloadedFile()) as
+					| { status?: string; isLocal?: boolean; path?: string }
+					| undefined;
+
+				if (res?.status === "success") {
+					toast.success("已打开本地安装包，拖入 Applications 即可完成更新", {
+						timeout: 3500,
+					});
+					handleClose();
+				} else if (res?.status === "opened_url") {
+					toast.info("本地未检索到安装包文件，已在浏览器中打开下载页", {
+						timeout: 3500,
+					});
+					handleClose();
+				} else {
+					handleClose();
+				}
+			} catch (err) {
+				console.error("[updater] Failed to open installer:", err);
+				toast.warning("打开安装包失败，请前往官网下载最新版本");
+			}
 		}
 	};
 
@@ -325,7 +345,9 @@ export function UpdateDownloadedModal({
 									<span>若未自动重启，请手动完成安装</span>
 								</div>
 								<p className="text-[11px] text-muted leading-relaxed">
-									受 macOS 签名限制未自动替换。安装包已在本地就绪，点击下方按钮直接打开，拖入 Applications 目录替换即可完成更新。
+									受 macOS
+									签名限制未自动替换。安装包已在本地就绪，点击下方按钮直接打开，拖入
+									Applications 目录替换即可完成更新。
 								</p>
 							</div>
 						)}

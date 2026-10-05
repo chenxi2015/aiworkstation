@@ -85,6 +85,7 @@ const config: Configuration = {
     target: [
       // arm64 only on Apple Silicon; add x64 via CI for universal builds
       { target: "dmg", arch: ["arm64"] },
+      { target: "zip", arch: ["arm64"] },
     ],
     icon: "build/icon.icns",
     category: APP_CONFIG.CATEGORY,

@@ -88,6 +88,7 @@ jobs:
         with:
           files: |
             dist/*.dmg
+            dist/*.zip
             dist/*.exe
             dist/*.blockmap
             dist/latest.yml
