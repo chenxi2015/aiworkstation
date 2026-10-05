@@ -5,9 +5,23 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
- * Runtime environment flag
+ * Application metadata and branding configurations
  */
-export const isDev = !app.isPackaged;
+export const APP_CONFIG = {
+	ID: "com.aiworkstation.app",
+	NAME: "AI Workstation",
+	SLUG: "AI-Workstation",
+	COPYRIGHT: "Copyright © 2024",
+	CATEGORY: "public.app-category.productivity",
+} as const;
+
+/**
+ * Runtime environment flag (safe across Electron and Node.js environments)
+ */
+export const isDev =
+	typeof app !== "undefined" && app !== null
+		? !app.isPackaged
+		: process.env.NODE_ENV !== "production";
 
 /**
  * Network and local server configurations
@@ -51,7 +65,7 @@ export const DATA_CONFIG = {
  * Resolve absolute path from project root or resources directory
  */
 export function resolveFromRoot(...parts: string[]): string {
-	if (app.isPackaged) {
+	if (typeof app !== "undefined" && app?.isPackaged) {
 		return path.join(process.resourcesPath, ...parts);
 	}
 	return path.resolve(__dirname, "..", ...parts);
@@ -61,8 +75,12 @@ export function resolveFromRoot(...parts: string[]): string {
  * Resolve local user data directory
  */
 export function resolveDataDir(): string {
+	const homeDir =
+		(typeof app !== "undefined" && app?.getPath ? app.getPath("home") : "") ||
+		process.env.HOME ||
+		"";
 	const defaultDataDir = path.join(
-		app.getPath("home"),
+		homeDir,
 		DATA_CONFIG.DEFAULT_DIR_NAME,
 	);
 	return process.env.AIWORKSTATION_DATA_DIR?.trim() || defaultDataDir;

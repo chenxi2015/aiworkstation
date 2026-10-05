@@ -1,4 +1,5 @@
 import type { Configuration } from "electron-builder";
+import { APP_CONFIG, REPO_CONFIG } from "./config.js";
 
 // Prune better-sqlite3 prebuilds for non-target platforms inside extraResources.
 // (.output is copied verbatim, so electron-builder's per-arch handling never sees it.)
@@ -41,9 +42,9 @@ function prebuildExcludes(): string[] {
 }
 
 const config: Configuration = {
-  appId: "com.aiworkstation.app",
-  productName: "AI Workstation",
-  copyright: "Copyright © 2024",
+  appId: APP_CONFIG.ID,
+  productName: APP_CONFIG.NAME,
+  copyright: APP_CONFIG.COPYRIGHT,
   compression: "maximum",
   // better-sqlite3 ships N-API prebuilds (v12+), so no per-arch native rebuild is
   // needed — this also unblocks cross-building Windows packages on macOS, where
@@ -86,18 +87,18 @@ const config: Configuration = {
       { target: "dmg", arch: ["arm64"] },
     ],
     icon: "build/icon.icns",
-    category: "public.app-category.productivity",
+    category: APP_CONFIG.CATEGORY,
     hardenedRuntime: true,
     gatekeeperAssess: false,
     // Sign with your Apple Developer ID when distributing publicly:
     // identity: "Developer ID Application: Your Name (XXXXXXXXXX)",
   },
   dmg: {
-    title: "AI Workstation",
+    title: APP_CONFIG.NAME,
     // Space-free artifact names: electron-updater resolves downloads via the
     // names recorded in latest.yml — any uploader-side renaming (e.g. spaces
     // turned into dots by action-gh-release) would break auto-update with 404s.
-    artifactName: "AI-Workstation-${version}-${arch}.${ext}",
+    artifactName: `${APP_CONFIG.SLUG}-\${version}-\${arch}.\${ext}`,
     contents: [
       { x: 410, y: 150, type: "link", path: "/Applications" },
       { x: 130, y: 150, type: "file" },
@@ -116,7 +117,7 @@ const config: Configuration = {
     allowToChangeInstallationDirectory: true,
     createDesktopShortcut: true,
     createStartMenuShortcut: true,
-    artifactName: "AI-Workstation-Setup-${version}.${ext}",
+    artifactName: `${APP_CONFIG.SLUG}-Setup-\${version}.\${ext}`,
   },
 
   // ── Linux ─────────────────────────────────────────────────────────────────
@@ -130,8 +131,8 @@ const config: Configuration = {
   // Publishing requires a GH_TOKEN env var with repo access.
   publish: {
     provider: "github",
-    owner: "chenxi2015",
-    repo: "aiworkstation",
+    owner: REPO_CONFIG.OWNER,
+    repo: REPO_CONFIG.NAME,
     releaseType: "release",
   },
 };
