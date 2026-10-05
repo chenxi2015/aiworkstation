@@ -1,6 +1,8 @@
 import { execSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { stdin as input, stdout as output } from "node:process";
+import readline from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -14,8 +16,22 @@ function runOutput(command) {
 	return execSync(command, { cwd: rootDir, encoding: "utf-8" }).trim();
 }
 
+async function askConfirmation(question) {
+	if (!process.stdin.isTTY) {
+		return false;
+	}
+	const rl = readline.createInterface({ input, output });
+	try {
+		const answer = await rl.question(question);
+		return /^(y|yes)$/i.test(answer.trim());
+	} finally {
+		rl.close();
+	}
+}
+
 // 1. Get version bump type or target version from argv (patch | minor | major | x.y.z)
-const bumpType = process.argv[2] || "patch";
+const bumpType = process.argv.find((arg) => !arg.startsWith("-") && arg !== process.argv[0] && arg !== process.argv[1]) || "patch";
+const isForceYes = process.argv.includes("-y") || process.argv.includes("--yes");
 
 // 2. Ensure git working directory has no uncommitted changes
 try {
@@ -64,6 +80,23 @@ run(`git commit -m "chore(release): v${newVersion}"`);
 run(`git tag -a "v${newVersion}" -m "Release v${newVersion}"`);
 
 console.log(`\n🎉 Successfully bumped and tagged to v${newVersion}!`);
-console.log(
-	"🚀 Run 'git push origin main --tags' to push and trigger GitHub Actions build.",
-);
+
+// 6. Secondary confirmation to push and trigger release
+const shouldPush =
+	isForceYes ||
+	(await askConfirmation(
+		`🚀 Push commit and tag v${newVersion} to origin main now? (y/N) `,
+	));
+
+if (shouldPush) {
+	console.log("⬆️ Pushing changes and tags to origin main...");
+	run("git push origin main --tags");
+	console.log(
+		`\n✨ Release v${newVersion} triggered successfully on GitHub Actions!`,
+	);
+} else {
+	console.log("\n⏸️ Push skipped. When you're ready, manually run:");
+	console.log("   git push origin main --tags");
+	console.log("\nIf you want to undo this version bump locally, run:");
+	console.log(`   git tag -d v${newVersion} && git reset --hard HEAD~1`);
+}

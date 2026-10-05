@@ -55,11 +55,11 @@ Tag 推送后 GitHub Actions 会自动构建 macOS + Windows 双平台安装包�
 # 1. 确保本地改动已提交或清理，工作区保持干净（否则脚本会安全退出）
 git status
 
-# 2. 执行对应级别的发版命令（自动更新 package.json、提交、打 tag 并 push）
+# 2. 执行对应级别的发版命令（自动更新 package.json、提交、打 tag，并在最后提示二次确认是否 push）
 pnpm run release:patch    # 补丁更新（如 0.1.0 -> 0.1.1）
 # 或 pnpm run release:minor（特性更新，如 0.1.0 -> 0.2.0）
 # 或 pnpm run release:major（重大版本，如 0.1.0 -> 1.0.0）
-# 亦可指定具体版本：node scripts/release.mjs 0.2.5 && git push origin main --tags
+# 亦可指定具体版本：node scripts/release.mjs 0.2.5 (加 -y 可跳过确认直接推送)
 
 # 3. 等 15-25 分钟，到 GitHub Actions 页面确认 Build & Release 成功
 # 4. 检查 Release 页面资产是否齐全（共 6 个文件）：

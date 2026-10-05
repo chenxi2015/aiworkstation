@@ -42,9 +42,9 @@
     "electron:dist:win": "pnpm run build && pnpm run electron:build:main && electron-builder --config electron/builder.config.ts --win",
     "electron:generate-icons": "electron scripts/generate-icons.cjs",
     "electron:release": "pnpm run build && pnpm run electron:build:main && electron-builder --config electron/builder.config.ts -mw --publish always",
-    "release:patch": "node scripts/release.mjs patch && git push origin main --tags",
-    "release:minor": "node scripts/release.mjs minor && git push origin main --tags",
-    "release:major": "node scripts/release.mjs major && git push origin main --tags"
+    "release:patch": "node scripts/release.mjs patch",
+    "release:minor": "node scripts/release.mjs minor",
+    "release:major": "node scripts/release.mjs major"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",
