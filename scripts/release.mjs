@@ -79,15 +79,41 @@ try {
 	process.exit(1);
 }
 
+// Retrieve the latest semver version from git tags, falling back to package.json
+function getLatestBaseVersion(fallbackVersion) {
+	try {
+		const tagsOutput = runOutput('git tag -l "v*" --sort=-v:refname');
+		const tags = tagsOutput
+			.split("\n")
+			.map((tag) => tag.trim())
+			.filter(Boolean);
+
+		for (const tag of tags) {
+			const cleanTag = tag.replace(/^v/, "");
+			if (/^\d+\.\d+\.\d+/.test(cleanTag)) {
+				return cleanTag;
+			}
+		}
+	} catch {
+		// Fallback if git fails or tags are unavailable
+	}
+	return fallbackVersion;
+}
+
 // 3. Read current version and calculate target version
 const rootPkgPath = path.join(rootDir, "package.json");
 const rootPkg = JSON.parse(readFileSync(rootPkgPath, "utf-8"));
-const currentVersion = rootPkg.version;
-const newVersion = computeNextVersion(currentVersion, bumpType);
+const pkgVersion = rootPkg.version;
+const baseVersion = getLatestBaseVersion(pkgVersion);
+const newVersion = computeNextVersion(baseVersion, bumpType);
 
 // 4. Secondary confirmation BEFORE making any changes
 console.log(`\n📋 Release Confirmation:`);
-console.log(`   • Current version: v${currentVersion}`);
+if (baseVersion !== pkgVersion) {
+	console.log(`   • Base version:    v${baseVersion} (Git tag; package.json was v${pkgVersion})`);
+} else {
+	console.log(`   • Current version: v${baseVersion}`);
+}
 console.log(`   • Target version:  v${newVersion} (${bumpType})`);
 console.log(`   • Target branch:   main -> origin/main`);
 console.log(
