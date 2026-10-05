@@ -63,6 +63,14 @@ export default Excalidraw;
 	};
 }
 
+import { readFileSync } from "node:fs";
+
+const pkg = JSON.parse(
+	readFileSync(new URL("./package.json", import.meta.url), "utf-8"),
+);
+const appVersion =
+	process.env.GITHUB_REF_NAME?.replace(/^v/, "") || pkg.version || "0.1.0";
+
 const config = defineConfig(({ command, mode }) => {
 	const env = loadEnv(mode, process.cwd(), "");
 	const isCloudflareTarget = mode === "cloudflare";
@@ -71,6 +79,7 @@ const config = defineConfig(({ command, mode }) => {
 			"import.meta.env.VITE_CLOUD_API_BASE": JSON.stringify(
 				env.VITE_CLOUD_API_BASE || "",
 			),
+			"import.meta.env.VITE_APP_VERSION": JSON.stringify(appVersion),
 		},
 		server: {
 			port: 3888,

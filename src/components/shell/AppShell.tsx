@@ -60,6 +60,11 @@ const AIClassifyModal = lazy(() =>
 		default: m.AIClassifyModal,
 	})),
 );
+const UpdateDownloadedModal = lazy(() =>
+	import("../updater/UpdateDownloadedModal").then((m) => ({
+		default: m.UpdateDownloadedModal,
+	})),
+);
 
 /** 面板浏览上下文：由当前页面声明（如书签页选中的文件夹），其他页面回落到全局模式 */
 export interface AiPanelScope {
@@ -472,6 +477,7 @@ export function AppShell({
 							}}
 						/>
 					)}
+					<UpdateDownloadedModal />
 				</Suspense>
 			</WorkbenchDndProvider>
 		</AiPanelContext.Provider>

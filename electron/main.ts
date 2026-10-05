@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, screen, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, screen, shell } from "electron";
 import { autoUpdater } from "electron-updater";
 import { spawn, type ChildProcess } from "node:child_process";
 import { createServer, Socket } from "node:net";
@@ -126,24 +126,87 @@ async function startServer(): Promise<void> {
 // Note: macOS auto-update requires a properly signed (Developer ID) build;
 // unsigned macOS builds will fail signature verification. Windows NSIS works unsigned.
 function setupAutoUpdater(): void {
+  // Listen for renderer install request
+  ipcMain.handle("updater:install", () => {
+    try {
+      autoUpdater.quitAndInstall();
+    } catch (err) {
+      console.error("[electron] quitAndInstall failed:", err);
+    }
+  });
+
+  // Return current application version
+  ipcMain.handle("app:get-version", () => {
+    return app.getVersion();
+  });
+
+  // Listen for renderer manual check update request
+  ipcMain.handle("updater:check-for-updates", async () => {
+    const currentVersion = app.getVersion();
+    if (isDev) {
+      return {
+        status: "dev",
+        message: "开发模式下不执行实际版本检查",
+        currentVersion,
+      };
+    }
+    try {
+      const res = await autoUpdater.checkForUpdates();
+      const latestVersion = res?.updateInfo?.version;
+      const hasUpdate = Boolean(latestVersion && latestVersion !== currentVersion);
+      return {
+        status: "success",
+        hasUpdate,
+        currentVersion,
+        latestVersion,
+        updateInfo: res?.updateInfo,
+      };
+    } catch (err) {
+      return {
+        status: "error",
+        message: err instanceof Error ? err.message : String(err),
+        currentVersion,
+      };
+    }
+  });
+
+  // Listen for renderer manual download request
+  ipcMain.handle("updater:start-download", () => {
+    try {
+      autoUpdater.downloadUpdate();
+      return { status: "success" };
+    } catch (err) {
+      console.error("[electron] downloadUpdate failed:", err);
+      return {
+        status: "error",
+        message: err instanceof Error ? err.message : String(err),
+      };
+    }
+  });
+
   if (isDev) return;
-  autoUpdater.autoDownload = true;
+  // Do not download automatically on check; let user confirm via prompt dialog first
+  autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
 
-  autoUpdater.on("update-downloaded", async () => {
-    if (!mainWindow) return;
-    const { response } = await dialog.showMessageBox(mainWindow, {
-      type: "info",
-      title: "更新已就绪",
-      message: "新版本已下载完成",
-      detail: "重启应用即可完成更新。",
-      buttons: ["立即重启", "稍后"],
-      defaultId: 0,
-      cancelId: 1,
+  autoUpdater.on("download-progress", (progress) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.webContents.send("updater:download-progress", {
+      percent: Math.round(progress.percent),
+      bytesPerSecond: progress.bytesPerSecond,
+      transferred: progress.transferred,
+      total: progress.total,
     });
-    if (response === 0) {
-      autoUpdater.quitAndInstall();
-    }
+  });
+
+  autoUpdater.on("update-downloaded", (info) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    // Dispatch to renderer so the application can render a custom modal dialog
+    mainWindow.webContents.send("updater:update-downloaded", {
+      version: info.version,
+      releaseNotes: typeof info.releaseNotes === "string" ? info.releaseNotes : undefined,
+      releaseDate: info.releaseDate,
+    });
   });
 
   autoUpdater.on("error", (err) => {

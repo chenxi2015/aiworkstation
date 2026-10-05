@@ -26,7 +26,7 @@ export const AgentStepItem = memo(function AgentStepItem({
 			<button
 				type="button"
 				onClick={(e) => onToggleExpand(step.id, e)}
-				className="w-full flex items-center justify-between text-left py-1 px-1.5 -mx-1.5 rounded-md hover:bg-neutral-100/70 dark:hover:bg-neutral-800/40 transition-colors cursor-pointer select-none"
+				className="w-full flex items-center justify-between text-left py-1 px-1.5 -ml-1.5 rounded-md hover:bg-neutral-100/70 dark:hover:bg-neutral-800/40 transition-colors cursor-pointer select-none"
 			>
 				<div className="flex items-center gap-2 min-w-0 flex-1">
 					{/* Icon in calm, neutral tone */}

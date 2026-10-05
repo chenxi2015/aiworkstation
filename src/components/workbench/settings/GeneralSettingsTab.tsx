@@ -22,7 +22,7 @@ import { useEffect, useState } from "react";
 type ThemeMode = "light" | "dark" | "auto";
 type LanguageOption = "zh-CN" | "zh-TW" | "en-US";
 
-const APP_VERSION = "0.1.0";
+const DEFAULT_VERSION = import.meta.env.VITE_APP_VERSION || "0.1.0";
 const SUPPORT_EMAIL = "bbxycx18@gmail.com";
 const GITHUB_REPO_URL = "https://github.com/chenxi2015/aiworkstation";
 const GITHUB_REPO_NAME = "chenxi2015/aiworkstation";
@@ -141,6 +141,18 @@ export function GeneralSettingsTab() {
 		return "zh-CN";
 	});
 
+	// Application version state (supports dynamic fetch from Electron host)
+	const [appVersion, setAppVersion] = useState<string>(DEFAULT_VERSION);
+
+	// Fetch dynamic version from Electron host if available
+	useEffect(() => {
+		if (window.electronAPI?.getVersion) {
+			window.electronAPI.getVersion().then((ver) => {
+				if (ver) setAppVersion(ver);
+			});
+		}
+	}, []);
+
 	// Update check state
 	const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
 	const [lastCheckedTime, setLastCheckedTime] = useState<string | null>(null);
@@ -199,13 +211,88 @@ export function GeneralSettingsTab() {
 	};
 
 	// Handle check update action
-	const handleCheckUpdate = () => {
+	const handleCheckUpdate = async () => {
 		setIsCheckingUpdate(true);
-		setTimeout(() => {
+		try {
+			if (window.electronAPI?.checkForUpdates) {
+				const res = await window.electronAPI.checkForUpdates();
+				setLastCheckedTime(new Date().toLocaleTimeString());
+				if (res?.currentVersion) {
+					setAppVersion(res.currentVersion);
+				}
+
+				if (res?.status === "dev") {
+					toast.info("当前处于开发模式，已是最新代码", { timeout: 2500 });
+				} else if (res?.status === "error") {
+					toast.warning(`检查更新失败: ${res.message || "网络异常"}`, {
+						timeout: 3000,
+					});
+				} else if (res?.hasUpdate) {
+					// Open update modal dialog with new release details
+					window.dispatchEvent(
+						new CustomEvent("open-update-modal", {
+							detail: {
+								step: "available",
+								updateInfo: {
+									version: res.latestVersion,
+									releaseNotes:
+										typeof res.updateInfo === "object" &&
+										res.updateInfo &&
+										"releaseNotes" in res.updateInfo
+											? (res.updateInfo as { releaseNotes?: string })
+													.releaseNotes
+											: undefined,
+								},
+							},
+						}),
+					);
+				} else {
+					toast.success(
+						`当前已是最新版本 (v${res?.currentVersion || appVersion})`,
+						{ timeout: 2500 },
+					);
+				}
+			} else {
+				// Web platform: check latest release from GitHub API
+				const response = await fetch(
+					`https://api.github.com/repos/${GITHUB_REPO_NAME}/releases/latest`,
+				);
+				setLastCheckedTime(new Date().toLocaleTimeString());
+
+				if (response.ok) {
+					const data = (await response.json()) as {
+						tag_name?: string;
+						body?: string;
+						html_url?: string;
+					};
+					const latestTag = (data?.tag_name || "").replace(/^v/, "");
+					if (latestTag && latestTag !== appVersion) {
+						window.dispatchEvent(
+							new CustomEvent("open-update-modal", {
+								detail: {
+									step: "available",
+									updateInfo: {
+										version: latestTag,
+										releaseNotes: data.body,
+										downloadUrl: data.html_url || GITHUB_REPO_URL,
+									},
+								},
+							}),
+						);
+					} else {
+						toast.success(`当前已是最新版本 (v${appVersion})`, {
+							timeout: 2500,
+						});
+					}
+				} else {
+					toast.success(`当前已是最新版本 (v${appVersion})`, { timeout: 2500 });
+				}
+			}
+		} catch {
+			toast.danger("检查更新失败，请稍后重试");
+		} finally {
 			setIsCheckingUpdate(false);
-			setLastCheckedTime(new Date().toLocaleTimeString());
-			toast.success(`当前已是最新版本 (v${APP_VERSION})`, { timeout: 2500 });
-		}, 750);
+		}
 	};
 
 	// Handle copy support email
@@ -229,7 +316,7 @@ export function GeneralSettingsTab() {
 							{isElectron ? "桌面版" : "Web 平台"}
 						</span>
 						<span className="text-xs font-mono text-foreground">
-							v{APP_VERSION}
+							v{appVersion}
 						</span>
 					</div>
 				</SettingsRow>
@@ -267,8 +354,8 @@ export function GeneralSettingsTab() {
 						variant="secondary"
 						className="w-28 text-xs"
 					>
-						<SelectTrigger className="h-7 min-h-0 w-full px-3 py-0 text-xs rounded-full border border-border/60 bg-surface-secondary/40 text-foreground">
-							<SelectValue className="text-xs" />
+						<SelectTrigger className="h-7 min-h-0 w-full px-3 py-0 !text-xs rounded-full border border-border/60 bg-surface-secondary/40 text-foreground flex items-center justify-center">
+							<SelectValue className="flex items-center justify-center text-center !text-xs leading-none" />
 						</SelectTrigger>
 						<SelectPopover>
 							<ListBox>
