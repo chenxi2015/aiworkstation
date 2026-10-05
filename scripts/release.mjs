@@ -16,6 +16,7 @@ function runOutput(command) {
 	return execSync(command, { cwd: rootDir, encoding: "utf-8" }).trim();
 }
 
+// Ask user confirmation via terminal
 async function askConfirmation(question) {
 	if (!process.stdin.isTTY) {
 		return false;
@@ -29,8 +30,39 @@ async function askConfirmation(question) {
 	}
 }
 
-// 1. Get version bump type or target version from argv (patch | minor | major | x.y.z)
-const bumpType = process.argv.find((arg) => !arg.startsWith("-") && arg !== process.argv[0] && arg !== process.argv[1]) || "patch";
+// Compute target version without modifying any files
+function computeNextVersion(currentVersion, bumpType) {
+	const match = currentVersion.match(/^(\d+)\.(\d+)\.(\d+)(.*)$/);
+	if (!match) {
+		throw new Error(`Current version "${currentVersion}" is not valid semver.`);
+	}
+	const [, major, minor, patch] = match.map((v, i) =>
+		i >= 1 && i <= 3 ? parseInt(v, 10) : v,
+	);
+
+	switch (bumpType) {
+		case "patch":
+			return `${major}.${minor}.${patch + 1}`;
+		case "minor":
+			return `${major}.${minor + 1}.0`;
+		case "major":
+			return `${major + 1}.0.0`;
+		default:
+			if (/^v?\d+\.\d+\.\d+/.test(bumpType)) {
+				return bumpType.replace(/^v/, "");
+			}
+			throw new Error(`Unknown bump type or invalid version: ${bumpType}`);
+	}
+}
+
+// 1. Parse arguments (patch | minor | major | x.y.z, and optional -y/--yes)
+const bumpType =
+	process.argv.find(
+		(arg) =>
+			!arg.startsWith("-") &&
+			arg !== process.argv[0] &&
+			arg !== process.argv[1],
+	) || "patch";
 const isForceYes = process.argv.includes("-y") || process.argv.includes("--yes");
 
 // 2. Ensure git working directory has no uncommitted changes
@@ -47,12 +79,38 @@ try {
 	process.exit(1);
 }
 
-// 3. Bump version using npm version (updates root package.json)
-console.log(`📦 Bumping root package.json (${bumpType})...`);
-const newVersionTag = runOutput(`npm version ${bumpType} --no-git-tag-version`);
-const newVersion = newVersionTag.replace(/^v/, "");
+// 3. Read current version and calculate target version
+const rootPkgPath = path.join(rootDir, "package.json");
+const rootPkg = JSON.parse(readFileSync(rootPkgPath, "utf-8"));
+const currentVersion = rootPkg.version;
+const newVersion = computeNextVersion(currentVersion, bumpType);
 
-// 4. Sync version to extensions/aicollector/package.json
+// 4. Secondary confirmation BEFORE making any changes
+console.log(`\n📋 Release Confirmation:`);
+console.log(`   • Current version: v${currentVersion}`);
+console.log(`   • Target version:  v${newVersion} (${bumpType})`);
+console.log(`   • Target branch:   main -> origin/main`);
+console.log(
+	`   • Actions:         Update package.json -> Git Commit & Tag -> Push to remote\n`,
+);
+
+const confirmed =
+	isForceYes ||
+	(await askConfirmation(
+		`❓ Are you sure you want to release v${newVersion} and push to remote? (y/N) `,
+	));
+
+if (!confirmed) {
+	console.log("\n⏸️ Release cancelled. No files were changed.");
+	process.exit(0);
+}
+
+// 5. Update root package.json
+console.log(`\n📦 Updating root package.json to v${newVersion}...`);
+rootPkg.version = newVersion;
+writeFileSync(rootPkgPath, `${JSON.stringify(rootPkg, null, 2)}\n`, "utf-8");
+
+// 6. Sync version to extensions/aicollector/package.json
 const extPkgPath = path.join(
 	rootDir,
 	"extensions",
@@ -64,7 +122,7 @@ try {
 	extPkg.version = newVersion;
 	writeFileSync(extPkgPath, `${JSON.stringify(extPkg, null, 2)}\n`, "utf-8");
 	console.log(
-		`📦 Synced version ${newVersion} to extensions/aicollector/package.json`,
+		`📦 Synced version v${newVersion} to extensions/aicollector/package.json`,
 	);
 } catch (err) {
 	console.warn(
@@ -73,30 +131,17 @@ try {
 	);
 }
 
-// 5. Git commit and tag
+// 7. Git commit and tag
 console.log(`🏷️ Creating commit and tag v${newVersion}...`);
 run("git add package.json extensions/aicollector/package.json");
 run(`git commit -m "chore(release): v${newVersion}"`);
 run(`git tag -a "v${newVersion}" -m "Release v${newVersion}"`);
 
-console.log(`\n🎉 Successfully bumped and tagged to v${newVersion}!`);
+// 8. Push commit and tag to remote
+console.log("⬆️ Pushing changes and tags to origin main...");
+run("git push origin main --tags");
 
-// 6. Secondary confirmation to push and trigger release
-const shouldPush =
-	isForceYes ||
-	(await askConfirmation(
-		`🚀 Push commit and tag v${newVersion} to origin main now? (y/N) `,
-	));
-
-if (shouldPush) {
-	console.log("⬆️ Pushing changes and tags to origin main...");
-	run("git push origin main --tags");
-	console.log(
-		`\n✨ Release v${newVersion} triggered successfully on GitHub Actions!`,
-	);
-} else {
-	console.log("\n⏸️ Push skipped. When you're ready, manually run:");
-	console.log("   git push origin main --tags");
-	console.log("\nIf you want to undo this version bump locally, run:");
-	console.log(`   git tag -d v${newVersion} && git reset --hard HEAD~1`);
-}
+console.log(
+	`\n🎉 Successfully released v${newVersion} and pushed to origin main!`,
+);
+console.log("🚀 GitHub Actions build has been triggered.");
