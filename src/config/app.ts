@@ -5,8 +5,10 @@ const DEFAULT_REPO = "chenxi2015/aiworkstation";
 
 // Safely resolve environment variables across Vite, Node.js, and Electron environments
 function resolveEnv(key: string): string | undefined {
-	if (typeof import.meta !== "undefined" && import.meta.env?.[key]) {
-		return import.meta.env[key];
+	const metaEnv = (import.meta as unknown as { env?: Record<string, string> })
+		?.env;
+	if (metaEnv?.[key]) {
+		return metaEnv[key];
 	}
 	if (typeof process !== "undefined" && process.env?.[key]) {
 		return process.env[key];

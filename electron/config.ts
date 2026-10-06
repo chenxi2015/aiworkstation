@@ -32,6 +32,8 @@ export const SERVER_CONFIG = {
 	STARTUP_TIMEOUT_MS: 15_000,
 } as const;
 
+export { REPO_CONFIG } from "../src/config/app.ts";
+
 /**
  * Main window dimensional constraints
  */
