@@ -1,12 +1,15 @@
 import { Button, toast } from "@heroui/react";
-import { Chrome, Copy, RefreshCw } from "lucide-react";
+import { Chrome, Copy, Download, Loader2, RefreshCw } from "lucide-react";
+import { useState } from "react";
+import {
+	CHROME_EXTENSIONS_URL,
+	downloadExtensionFromGithub,
+} from "../../../services/extensionDownload";
 
 interface ExtensionGuideCardProps {
 	onCheckAgain: () => void;
 	isChecking: boolean;
 }
-
-const EXTENSION_PATH = "extensions/aicollector/.output/chrome-mv3";
 
 /**
  * Guide card displayed when AI Collector extension is not detected
@@ -15,9 +18,20 @@ export function ExtensionGuideCard({
 	onCheckAgain,
 	isChecking,
 }: ExtensionGuideCardProps) {
-	const handleCopyPath = () => {
-		navigator.clipboard.writeText(EXTENSION_PATH);
-		toast.success("已复制扩展相对路径到剪贴板");
+	const [isDownloading, setIsDownloading] = useState(false);
+
+	const handleCopyUrl = () => {
+		navigator.clipboard.writeText(CHROME_EXTENSIONS_URL);
+		toast.success("已复制 Chrome 扩展页面地址到剪贴板");
+	};
+
+	const handleDownload = async () => {
+		setIsDownloading(true);
+		try {
+			await downloadExtensionFromGithub();
+		} finally {
+			setIsDownloading(false);
+		}
 	};
 
 	return (
@@ -31,41 +45,55 @@ export function ExtensionGuideCard({
 						未检测到 AI Collector 浏览器插件
 					</h4>
 					<p className="text-muted text-xs leading-relaxed mt-1">
-						由于浏览器安全机制，网页端无法直接访问您的 Chrome 本地书签。需要配合安装内置的 AI Collector 扩展，即可实现一键实时读取。
+						由于浏览器安全机制，网页端无法直接访问您的 Chrome
+						本地书签。需要配合安装 AI Collector 扩展，即可实现一键实时读取。
 					</p>
 				</div>
 			</div>
 
+			{/* Download Button */}
+			<Button
+				variant="primary"
+				size="sm"
+				className="w-full rounded-full shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+				onPress={handleDownload}
+				isDisabled={isDownloading}
+			>
+				{isDownloading ? (
+					<Loader2 className="w-3.5 h-3.5 animate-spin" />
+				) : (
+					<Download className="w-3.5 h-3.5" />
+				)}
+				<span>下载插件安装包（Chrome）</span>
+			</Button>
+
 			{/* Installation Steps */}
 			<div className="bg-surface/80 rounded-lg p-3 border border-border flex flex-col gap-2">
 				<div className="font-semibold text-foreground text-[11px]">
-					本地插件安装指引（仅需 1 分钟）：
+					插件安装指引（仅需 1 分钟）：
 				</div>
 				<ol className="list-decimal list-inside space-y-1.5 text-muted text-[11px] leading-relaxed">
+					<li>下载上方插件安装包（.zip）后解压到本地任意文件夹。</li>
 					<li>
 						在 Chrome 浏览器地址栏打开{" "}
-						<code className="bg-surface-secondary px-1.5 py-0.5 rounded border border-border text-foreground">
-							chrome://extensions
-						</code>
-						，开启右上角【开发者模式】。
-					</li>
-					<li>点击左上角【加载已解压的扩展程序】。</li>
-					<li>
-						选择项目目录中的：
-						<div className="flex items-center gap-1.5 mt-1">
-							<code className="bg-surface-secondary px-2 py-1 rounded border border-border text-foreground font-mono text-[10px] break-all select-all flex-1">
-								{EXTENSION_PATH}
+						<span className="inline-flex items-center gap-1">
+							<code className="bg-surface-secondary px-1.5 py-0.5 rounded border border-border text-foreground">
+								{CHROME_EXTENSIONS_URL}
 							</code>
 							<Button
 								variant="ghost"
 								size="sm"
-								className="h-7 px-2 text-[10px] cursor-pointer"
-								onPress={handleCopyPath}
+								className="h-5 px-1.5 text-[10px] cursor-pointer"
+								onPress={handleCopyUrl}
 							>
-								<Copy className="w-3 h-3" />
+								<Copy className="w-2.5 h-2.5" />
 								<span>复制</span>
 							</Button>
-						</div>
+						</span>
+						，开启右上角【开发者模式】。
+					</li>
+					<li>
+						点击左上角【加载已解压的扩展程序】，选择步骤 1 解压后的文件夹即可。
 					</li>
 				</ol>
 			</div>
@@ -73,7 +101,7 @@ export function ExtensionGuideCard({
 			{/* Action Button */}
 			<div className="pt-1 flex items-center gap-2">
 				<Button
-					variant="primary"
+					variant="secondary"
 					size="sm"
 					className="flex-1 rounded-full shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
 					onPress={onCheckAgain}

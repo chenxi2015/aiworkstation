@@ -18,14 +18,12 @@ import {
 	Sun,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { REPO_CONFIG, SUPPORT_EMAIL } from "../../../config/app.ts";
 
 type ThemeMode = "light" | "dark" | "auto";
 type LanguageOption = "zh-CN" | "zh-TW" | "en-US";
 
 const DEFAULT_VERSION = import.meta.env.VITE_APP_VERSION || "0.1.0";
-const SUPPORT_EMAIL = "bbxycx18@gmail.com";
-const GITHUB_REPO_URL = "https://github.com/chenxi2015/aiworkstation";
-const GITHUB_REPO_NAME = "chenxi2015/aiworkstation";
 
 const LANGUAGE_OPTIONS: { id: LanguageOption; label: string }[] = [
 	{ id: "zh-CN", label: "简体中文" },
@@ -254,9 +252,7 @@ export function GeneralSettingsTab() {
 				}
 			} else {
 				// Web platform: check latest release from GitHub API
-				const response = await fetch(
-					`https://api.github.com/repos/${GITHUB_REPO_NAME}/releases/latest`,
-				);
+				const response = await fetch(REPO_CONFIG.RELEASES_API_URL);
 				setLastCheckedTime(new Date().toLocaleTimeString());
 
 				if (response.ok) {
@@ -274,7 +270,7 @@ export function GeneralSettingsTab() {
 									updateInfo: {
 										version: latestTag,
 										releaseNotes: data.body,
-										downloadUrl: data.html_url || GITHUB_REPO_URL,
+										downloadUrl: data.html_url || REPO_CONFIG.URL,
 									},
 								},
 							}),
@@ -428,10 +424,10 @@ export function GeneralSettingsTab() {
 				<SettingsRow title="GitHub" description="查看项目仓库，了解最新进展。">
 					<button
 						type="button"
-						onClick={() => openLink(GITHUB_REPO_URL)}
+						onClick={() => openLink(REPO_CONFIG.URL)}
 						className="flex items-center gap-1 text-xs text-foreground hover:text-accent transition-colors cursor-pointer"
 					>
-						<span className="font-mono">{GITHUB_REPO_NAME}</span>
+						<span className="font-mono">{REPO_CONFIG.REPO}</span>
 						<ExternalLink className="w-3 h-3 text-muted" />
 					</button>
 				</SettingsRow>
@@ -442,7 +438,7 @@ export function GeneralSettingsTab() {
 				>
 					<button
 						type="button"
-						onClick={() => openLink(`${GITHUB_REPO_URL}/issues`)}
+						onClick={() => openLink(REPO_CONFIG.ISSUES_URL)}
 						className="flex items-center gap-1 text-xs text-foreground hover:text-accent transition-colors cursor-pointer"
 					>
 						<span>GitHub Issues</span>

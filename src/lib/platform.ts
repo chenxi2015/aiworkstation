@@ -41,3 +41,15 @@ export const FILE_MANAGER_NAMES: Record<HostOS, string> = {
 export function getFileManagerName(): string {
 	return FILE_MANAGER_NAMES[detectHostOS()];
 }
+
+/**
+ * Determine whether the current runtime environment is the Electron desktop client.
+ */
+export function isElectronApp(): boolean {
+	if (typeof window === "undefined") return false;
+	return Boolean(
+		window.electronAPI ||
+			(typeof navigator !== "undefined" &&
+				navigator.userAgent.includes("Electron")),
+	);
+}

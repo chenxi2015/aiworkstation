@@ -1,14 +1,11 @@
+import { toast } from "@heroui/react";
 import { useCallback, useEffect } from "react";
 import { useGlobalShortcuts } from "../../../hooks/useGlobalShortcuts";
+import { isElectronApp } from "../../../lib/platform";
 import { ExtensionBridgeService } from "../../../services/extensionBridge";
-import { toast } from "@heroui/react";
 import { useAiPanel } from "../../shell/AppShell";
 import type { WorkbenchDragData } from "../dnd/WorkbenchDnd";
-import type {
-	Folder,
-	WorkbenchItem,
-	WorkbenchSettings,
-} from "../types";
+import type { Folder, WorkbenchItem, WorkbenchSettings } from "../types";
 
 export interface UseWorkbenchAiBridgeOptions {
 	folders: Folder[];
@@ -30,7 +27,10 @@ export interface UseWorkbenchAiBridgeOptions {
 		targetFolderId: number,
 	) => void;
 	handleMoveFolder: (folderId: number, targetParentId: number | null) => void;
-	handleMoveFolderToCategory: (folderId: number, targetCategory: string) => void;
+	handleMoveFolderToCategory: (
+		folderId: number,
+		targetCategory: string,
+	) => void;
 	handleReorderFolders: (orderedIds: number[]) => void;
 	setIsIntroModalOpen: (open: boolean) => void;
 }
@@ -125,6 +125,10 @@ export function useWorkbenchAiBridge({
 
 	// Open AI Collector extension side panel directly from top header
 	const handleOpenExtension = useCallback(async () => {
+		if (isElectronApp()) {
+			setIsIntroModalOpen(true);
+			return;
+		}
 		const installed = await ExtensionBridgeService.checkInstalled();
 		if (installed) {
 			const res = await ExtensionBridgeService.openBookmarksPanel();

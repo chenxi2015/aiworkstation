@@ -1,6 +1,7 @@
 import { toast } from "@heroui/react";
 import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 import type { SaveFolderPayload } from "../../../hooks/workbench/useWorkbenchFolderActions";
+import { isElectronApp } from "../../../lib/platform";
 import { ExtensionBridgeService } from "../../../services/extensionBridge";
 import { WorkbenchStorageService } from "../../../services/workbenchStorage";
 import type { Folder } from "../types";
@@ -40,6 +41,10 @@ export function useWorkbenchQuickActions({ folders }: { folders: Folder[] }) {
 	}, [folders]);
 
 	const openExtension = useCallback(async () => {
+		if (isElectronApp()) {
+			setIsIntroModalOpen(true);
+			return;
+		}
 		const installed = await ExtensionBridgeService.checkInstalled();
 		if (installed) {
 			const res = await ExtensionBridgeService.openBookmarksPanel();

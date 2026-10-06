@@ -2,6 +2,7 @@ import { createReadStream } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
+import { REPO_CONFIG } from "../../../config/app.ts";
 import { sendJson } from "../utils.ts";
 
 const EXTENSION_OUTPUT_DIR = path.join(
@@ -12,7 +13,8 @@ const EXTENSION_OUTPUT_DIR = path.join(
 /**
  * Handles GET /api/extension/download
  * Serves the latest packaged AI Collector Chrome extension zip
- * from extensions/aicollector/.output as an attachment download.
+ * from extensions/aicollector/.output as an attachment download,
+ * or redirects to GitHub Releases if local package is missing.
  */
 export async function handleExtensionDownloadRequest(
 	req: IncomingMessage,
@@ -29,14 +31,9 @@ export async function handleExtensionDownloadRequest(
 			(name) => name.endsWith(".zip") && name.includes("chrome"),
 		);
 		if (zipFiles.length === 0) {
-			sendJson(
-				res,
-				{
-					success: false,
-					error: "暂未找到已打包的插件安装包，请先执行插件构建",
-				},
-				404,
-			);
+			res.setHeader("Location", REPO_CONFIG.RELEASES_URL);
+			res.statusCode = 302;
+			res.end();
 			return;
 		}
 
@@ -59,11 +56,13 @@ export async function handleExtensionDownloadRequest(
 		);
 		res.statusCode = 200;
 		createReadStream(filePath).pipe(res);
-	} catch (err: any) {
-		sendJson(
-			res,
-			{ success: false, error: err?.message || "读取插件安装包失败" },
-			500,
+	} catch (err: unknown) {
+		console.warn(
+			"Local extension package not found, redirecting to GitHub Releases:",
+			err,
 		);
+		res.setHeader("Location", REPO_CONFIG.RELEASES_URL);
+		res.statusCode = 302;
+		res.end();
 	}
 }

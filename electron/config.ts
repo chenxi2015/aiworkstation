@@ -11,7 +11,7 @@ export const APP_CONFIG = {
 	ID: "com.aiworkstation.app",
 	NAME: "AI Workstation",
 	SLUG: "AI-Workstation",
-	COPYRIGHT: "Copyright © 2024",
+	COPYRIGHT: "Copyright © 2026",
 	CATEGORY: "public.app-category.productivity",
 } as const;
 
@@ -30,16 +30,6 @@ export const SERVER_CONFIG = {
 	HOST: "127.0.0.1",
 	DEFAULT_PORT: 3888,
 	STARTUP_TIMEOUT_MS: 15_000,
-} as const;
-
-/**
- * Project and repository links
- */
-export const REPO_CONFIG = {
-	OWNER: "chenxi2015",
-	NAME: "aiworkstation",
-	URL: "https://github.com/chenxi2015/aiworkstation",
-	RELEASES_URL: "https://github.com/chenxi2015/aiworkstation/releases/latest",
 } as const;
 
 /**

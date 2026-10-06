@@ -16,6 +16,7 @@ import {
 import { useAiPanelResize } from "../../hooks/ai/useAiPanelResize";
 import type { SaveFolderPayload } from "../../hooks/workbench/useWorkbenchFolderActions";
 import { useCloudAuth } from "../../lib/cloud/useCloudAuth";
+import { isElectronApp } from "../../lib/platform";
 import type { NavLayoutEntry } from "../../modules/registry";
 import { getModuleByRoute } from "../../modules/registry";
 import { ExtensionBridgeService } from "../../services/extensionBridge";
@@ -291,6 +292,10 @@ export function AppShell({
 	}, [router]);
 
 	const handleOpenExtension = useCallback(async () => {
+		if (isElectronApp()) {
+			setIsIntroModalOpen(true);
+			return;
+		}
 		const installed = await ExtensionBridgeService.checkInstalled();
 		if (installed) {
 			const res = await ExtensionBridgeService.openBookmarksPanel();

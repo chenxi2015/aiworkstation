@@ -5,34 +5,49 @@ import {
 	Copy,
 	Download,
 	Globe,
+	Info,
 	Loader2,
 	RefreshCw,
 	Sparkles,
 } from "lucide-react";
 import { useCallback, useState } from "react";
+import { isElectronApp } from "../../lib/platform";
 import { ExtensionBridgeService } from "../../services/extensionBridge";
+import {
+	CHROME_EXTENSIONS_URL,
+	downloadExtensionFromGithub,
+} from "../../services/extensionDownload";
 
 interface ExtensionIntroModalProps {
 	isOpen: boolean;
 	onClose: () => void;
 }
 
-const EXTENSION_PATH = "extensions/aicollector/.output/chrome-mv3";
-
 /**
- * Intro / download modal shown when the AI Collector extension
- * is not installed: feature highlights, zip download and
- * local installation guide.
+ * Intro / download modal shown for AI Collector extension:
+ * feature highlights, GitHub release package download,
+ * and clean browser installation guide.
  */
 export function ExtensionIntroModal({
 	isOpen,
 	onClose,
 }: ExtensionIntroModalProps) {
 	const [isChecking, setIsChecking] = useState(false);
+	const [isDownloading, setIsDownloading] = useState(false);
+	const isElectron = isElectronApp();
 
-	const handleCopyPath = () => {
-		navigator.clipboard.writeText(EXTENSION_PATH);
-		toast.success("已复制扩展相对路径到剪贴板");
+	const handleCopyUrl = () => {
+		navigator.clipboard.writeText(CHROME_EXTENSIONS_URL);
+		toast.success("已复制 Chrome 扩展页面地址到剪贴板");
+	};
+
+	const handleDownload = async () => {
+		setIsDownloading(true);
+		try {
+			await downloadExtensionFromGithub();
+		} finally {
+			setIsDownloading(false);
+		}
 	};
 
 	const handleCheckAndOpen = useCallback(async () => {
@@ -107,67 +122,84 @@ export function ExtensionIntroModal({
 						</div>
 
 						{/* Download */}
-						<Button
-							variant="primary"
-							size="sm"
-							className="w-full rounded-full shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
-							onPress={() => {
-								window.open("/api/extension/download", "_blank");
-							}}
-						>
-							<Download className="w-3.5 h-3.5" />
-							<span>下载插件安装包（Chrome）</span>
-						</Button>
+						<div className="flex flex-col gap-1.5">
+							<Button
+								variant="primary"
+								size="sm"
+								className="w-full rounded-full shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+								onPress={handleDownload}
+								isDisabled={isDownloading}
+							>
+								{isDownloading ? (
+									<Loader2 className="w-3.5 h-3.5 animate-spin" />
+								) : (
+									<Download className="w-3.5 h-3.5" />
+								)}
+								<span>下载插件安装包（Chrome）</span>
+							</Button>
+							<p className="text-[10px] text-muted text-center">
+								安装包托管于 GitHub Releases，点击自动获取最新发布包
+							</p>
+						</div>
 
 						{/* Installation Steps */}
 						<div className="bg-surface/80 rounded-lg p-3 border border-border flex flex-col gap-2">
 							<div className="font-semibold text-foreground text-[11px]">
-								本地插件安装指引（仅需 1 分钟）：
+								插件安装指引（仅需 1 分钟）：
 							</div>
 							<ol className="list-decimal list-inside space-y-1.5 text-muted text-[11px] leading-relaxed">
+								<li>下载上方插件安装包（.zip）后解压到本地任意文件夹。</li>
 								<li>
 									在 Chrome 浏览器地址栏打开{" "}
-									<code className="bg-surface-secondary px-1.5 py-0.5 rounded border border-border text-foreground">
-										chrome://extensions
-									</code>
-									，开启右上角【开发者模式】。
-								</li>
-								<li>点击左上角【加载已解压的扩展程序】。</li>
-								<li>
-									选择项目目录中的：
-									<div className="flex items-center gap-1.5 mt-1">
-										<code className="bg-surface-secondary px-2 py-1 rounded border border-border text-foreground font-mono text-[10px] break-all select-all flex-1">
-											{EXTENSION_PATH}
+									<span className="inline-flex items-center gap-1">
+										<code className="bg-surface-secondary px-1.5 py-0.5 rounded border border-border text-foreground">
+											{CHROME_EXTENSIONS_URL}
 										</code>
 										<Button
 											variant="ghost"
 											size="sm"
-											className="h-7 px-2 text-[10px] cursor-pointer"
-											onPress={handleCopyPath}
+											className="h-5 px-1.5 text-[10px] cursor-pointer"
+											onPress={handleCopyUrl}
 										>
-											<Copy className="w-3 h-3" />
+											<Copy className="w-2.5 h-2.5" />
 											<span>复制</span>
 										</Button>
-									</div>
+									</span>
+									，开启右上角【开发者模式】。
+								</li>
+								<li>
+									点击左上角【加载已解压的扩展程序】，选择步骤 1
+									解压后的文件夹即可完成安装。
 								</li>
 							</ol>
 						</div>
 
-						{/* Re-check */}
-						<Button
-							variant="secondary"
-							size="sm"
-							className="w-full rounded-full flex items-center justify-center gap-1.5 cursor-pointer"
-							onPress={handleCheckAndOpen}
-							isDisabled={isChecking}
-						>
-							{isChecking ? (
-								<Loader2 className="w-3.5 h-3.5 animate-spin" />
-							) : (
-								<RefreshCw className="w-3.5 h-3.5" />
-							)}
-							<span>我已安装，重新检测并打开插件</span>
-						</Button>
+						{/* Bottom action: usage notice for electron, re-check button for web */}
+						{isElectron ? (
+							<div className="rounded-lg bg-surface-secondary/70 border border-border p-2.5 text-[11px] text-muted leading-relaxed flex items-start gap-2">
+								<Info className="w-3.5 h-3.5 text-accent shrink-0 mt-0.5" />
+								<span>
+									提示：安装完成后，请在 Chrome 浏览器中点击{" "}
+									<strong>AI Collector</strong>{" "}
+									图标开启侧边栏，即可与工作台实时联动。
+								</span>
+							</div>
+						) : (
+							<Button
+								variant="secondary"
+								size="sm"
+								className="w-full rounded-full flex items-center justify-center gap-1.5 cursor-pointer"
+								onPress={handleCheckAndOpen}
+								isDisabled={isChecking}
+							>
+								{isChecking ? (
+									<Loader2 className="w-3.5 h-3.5 animate-spin" />
+								) : (
+									<RefreshCw className="w-3.5 h-3.5" />
+								)}
+								<span>我已安装，重新检测并打开插件</span>
+							</Button>
+						)}
 					</Modal.Body>
 
 					<Modal.Footer className="flex items-center justify-end">

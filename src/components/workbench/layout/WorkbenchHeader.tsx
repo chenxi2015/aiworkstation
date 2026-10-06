@@ -2,11 +2,13 @@ import { Button } from "@heroui/react";
 import {
 	Chrome,
 	CircleAlert,
+	Download,
 	FolderCheck,
 	Loader2,
 	Settings,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { isElectronApp } from "../../../lib/platform";
 import type { NavLayoutEntry } from "../../../modules/registry";
 import { useAIClassifyTask } from "../../../services/aiClassifyTaskStore";
 import { UserAuthButton } from "../../cloud/UserAuthButton";
@@ -47,6 +49,7 @@ export function WorkbenchHeader({
 	onOpenAIClassifyTask,
 }: WorkbenchHeaderProps) {
 	const aiClassifyTask = useAIClassifyTask();
+	const isElectron = isElectronApp();
 
 	// Custom tooltip bubble: hover-triggered, and auto-flashed when the
 	// classify modal sends the task to background (store bgHintNonce)
@@ -170,16 +173,24 @@ export function WorkbenchHeader({
 
 				{/* Tools Group: Extension, Settings, Theme */}
 				<div className="flex items-center gap-1">
-					{/* Open AI Collector Extension */}
+					{/* Open / Download AI Collector Extension */}
 					{(onOpenExtension || onOpenSearch) && (
 						<button
 							type="button"
 							onClick={onOpenExtension || onOpenSearch}
 							className="h-8 px-2.5 rounded-lg flex items-center gap-1.5 text-xs font-medium text-foreground/80 hover:text-foreground hover:bg-surface-secondary transition-all cursor-pointer"
-							title="呼起 AI Collector 浏览器插件"
+							title={
+								isElectron
+									? "下载 AI Collector 浏览器插件"
+									: "呼起 AI Collector 浏览器插件"
+							}
 						>
-							<Chrome className="w-3.5 h-3.5 text-accent" />
-							<span>打开插件</span>
+							{isElectron ? (
+								<Download className="w-3.5 h-3.5 text-accent" />
+							) : (
+								<Chrome className="w-3.5 h-3.5 text-accent" />
+							)}
+							<span>{isElectron ? "下载插件" : "打开插件"}</span>
 						</button>
 					)}
 
