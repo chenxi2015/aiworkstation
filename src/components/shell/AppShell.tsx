@@ -414,7 +414,7 @@ export function AppShell({
 								onOpen: () => setIsCollapsed(false),
 							}}
 						>
-							<div className="flex-1 min-h-0 flex flex-col overflow-hidden relative">
+							<div className="flex-1 min-h-0 flex flex-col overflow-hidden relative isolate">
 								{children}
 							</div>
 						</FloatingDockProvider>

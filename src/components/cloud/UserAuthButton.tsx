@@ -20,7 +20,7 @@ export function UserAuthButton() {
 
 	return (
 		<>
-			<div className="relative">
+			<div className={`relative ${showDropdown ? "z-50" : ""}`}>
 				{!isLoggedIn ? (
 					<Button
 						size="sm"
@@ -79,7 +79,7 @@ export function UserAuthButton() {
 							type="button"
 							aria-label="关闭菜单"
 							tabIndex={-1}
-							className="fixed inset-0 z-40 cursor-default bg-transparent border-0"
+							className="fixed inset-0 z-50 cursor-default bg-transparent border-0"
 							onClick={() => setShowDropdown(false)}
 						/>
 						<Card className="absolute right-0 top-full mt-2 z-50 w-60 rounded-xl border border-border/80 bg-surface/95 p-3 shadow-md backdrop-blur-xl animate-in fade-in slide-in-from-top-1 duration-150">
