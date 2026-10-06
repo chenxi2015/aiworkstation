@@ -14,6 +14,7 @@ export const Route = createFileRoute("/obsidian")({
 			typeof search.note === "string" && search.note ? search.note : undefined,
 	}),
 	loader: workbenchLoader,
+	staleTime: Number.POSITIVE_INFINITY,
 	pendingComponent: ObsidianSkeleton,
 	pendingMs: 200,
 	component: ObsidianPage,

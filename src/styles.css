@@ -103,6 +103,8 @@
 /* Global Reset & Base Styles */
 html {
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  height: 100%;
+  overflow: hidden;
 }
 
 body {
@@ -110,10 +112,21 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
   background-color: var(--background);
-  min-height: 100vh;
-  overflow-x: hidden;
+  height: 100%;
+  overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Prevent Mermaid offscreen measurement containers from expanding document.body and causing scrollbar flash */
+body > [id^="dmermaid"],
+body > [id^="imermaid"] {
+  position: fixed !important;
+  top: -9999px !important;
+  left: -9999px !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  z-index: -9999 !important;
 }
 
 /* Modern clean scrollbar */

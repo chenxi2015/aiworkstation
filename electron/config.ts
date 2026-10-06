@@ -38,8 +38,8 @@ export { REPO_CONFIG } from "../src/config/app.ts";
  * Main window dimensional constraints
  */
 export const WINDOW_CONFIG = {
-	OPTIMAL_WIDTH: 1680,
-	OPTIMAL_HEIGHT: 960,
+	OPTIMAL_WIDTH: 1580,
+	OPTIMAL_HEIGHT: 860,
 	MIN_WIDTH: 1366,
 	MIN_HEIGHT: 800,
 	LOGIN_WIDTH: 420,

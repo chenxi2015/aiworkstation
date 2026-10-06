@@ -1,4 +1,4 @@
-import { startTransition, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const LAST_NOTE_STORAGE_KEY = "obsidian_last_selected_note";
 
@@ -54,12 +54,10 @@ export function useNoteHistory(options: UseNoteHistoryOptions = {}) {
 	}, [selectedNotePath, onNoteChange]);
 
 	const openNote = useCallback((path: string) => {
-		startTransition(() => {
-			setNoteHistory((prev) => {
-				if (prev.stack[prev.index] === path) return prev;
-				const stack = [...prev.stack.slice(0, prev.index + 1), path];
-				return { stack, index: stack.length - 1 };
-			});
+		setNoteHistory((prev) => {
+			if (prev.stack[prev.index] === path) return prev;
+			const stack = [...prev.stack.slice(0, prev.index + 1), path];
+			return { stack, index: stack.length - 1 };
 		});
 	}, []);
 
@@ -68,21 +66,17 @@ export function useNoteHistory(options: UseNoteHistoryOptions = {}) {
 	}, []);
 
 	const goBack = useCallback(() => {
-		startTransition(() => {
-			setNoteHistory((prev) =>
-				prev.index > 0 ? { ...prev, index: prev.index - 1 } : prev,
-			);
-		});
+		setNoteHistory((prev) =>
+			prev.index > 0 ? { ...prev, index: prev.index - 1 } : prev,
+		);
 	}, []);
 
 	const goForward = useCallback(() => {
-		startTransition(() => {
-			setNoteHistory((prev) =>
-				prev.index < prev.stack.length - 1
-					? { ...prev, index: prev.index + 1 }
-					: prev,
-			);
-		});
+		setNoteHistory((prev) =>
+			prev.index < prev.stack.length - 1
+				? { ...prev, index: prev.index + 1 }
+				: prev,
+		);
 	}, []);
 
 	/** In-place remap history entries when entries are renamed or moved */
@@ -95,12 +89,10 @@ export function useNoteHistory(options: UseNoteHistoryOptions = {}) {
 
 	/** Current note deleted: remove from history and navigate to adjacent item */
 	const removeCurrentNote = useCallback(() => {
-		startTransition(() => {
-			setNoteHistory((prev) => {
-				if (prev.index < 0) return prev;
-				const stack = prev.stack.filter((_, i) => i !== prev.index);
-				return { stack, index: Math.min(prev.index, stack.length - 1) };
-			});
+		setNoteHistory((prev) => {
+			if (prev.index < 0) return prev;
+			const stack = prev.stack.filter((_, i) => i !== prev.index);
+			return { stack, index: Math.min(prev.index, stack.length - 1) };
 		});
 	}, []);
 
