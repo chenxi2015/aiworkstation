@@ -28,6 +28,15 @@ export interface ToolParamConfig {
 	unit?: string;
 }
 
+/** Tool implementation readiness status */
+export type ToolStatus = "completed" | "developing";
+
+export interface CustomToolWorkspaceProps {
+	tool: ToolDefinition;
+	onSaveToMaterials?: (resultInfo: string) => void;
+	onSendToStudio?: () => void;
+}
+
 /** Definition for each creator tool */
 export interface ToolDefinition {
 	id: string;
@@ -37,10 +46,11 @@ export interface ToolDefinition {
 	description: string;
 	engine: ToolEngine;
 	engineLabel: string;
+	status: ToolStatus;
 	supportedFormats?: string[];
 	acceptTypes?: string;
 	badges?: string[];
 	features: string[];
 	params?: ToolParamConfig[];
-	customComponent?: ComponentType<{ tool: ToolDefinition }>;
+	customComponent?: ComponentType<CustomToolWorkspaceProps>;
 }

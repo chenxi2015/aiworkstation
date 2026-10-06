@@ -10,3 +10,4 @@
 export * from "./creatorBridge.ts";
 export * from "./creatorDrafts.ts";
 export * from "./creatorMaterials.ts";
+export * from "./creatorTools.ts";

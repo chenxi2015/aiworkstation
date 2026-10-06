@@ -149,19 +149,30 @@ export function ToolSidebar({
 										>
 											{tool.name}
 										</span>
-										{tool.engineLabel && (
+										<div className="flex items-center gap-1 shrink-0">
 											<span
-												className={`text-[9px] px-1.5 py-0.2 rounded-full font-medium shrink-0 leading-tight ${
-													isWasm
-														? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20"
-														: isAi
-															? "bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20"
-															: "bg-muted/15 text-muted border border-border"
+												className={`text-[9px] px-1.5 py-0.2 rounded-full font-medium leading-tight ${
+													tool.status === "completed"
+														? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+														: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
 												}`}
 											>
-												{tool.engineLabel}
+												{tool.status === "completed" ? "已就绪" : "待开发"}
 											</span>
-										)}
+											{tool.engineLabel && (
+												<span
+													className={`text-[9px] px-1.5 py-0.2 rounded-full font-medium leading-tight ${
+														isWasm
+															? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20"
+															: isAi
+																? "bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20"
+																: "bg-muted/15 text-muted border border-border"
+													}`}
+												>
+													{tool.engineLabel}
+												</span>
+											)}
+										</div>
 									</div>
 									<p className="text-[11px] text-muted line-clamp-1 leading-normal">
 										{tool.description}
