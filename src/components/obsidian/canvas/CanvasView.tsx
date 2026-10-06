@@ -622,3 +622,6 @@ export function CanvasView(props: CanvasViewProps) {
 		</ReactFlowProvider>
 	);
 }
+
+export default CanvasView;
+

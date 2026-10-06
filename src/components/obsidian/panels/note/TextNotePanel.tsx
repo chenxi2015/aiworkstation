@@ -19,7 +19,6 @@ import {
 } from "../../../../services/api/obsidianClient";
 import { ImagePreviewProvider } from "../../../workbench/ai/shared/ImagePreviewModal";
 import { ObsidianNoteBodySkeleton } from "../../../workbench/skeletons";
-import { CanvasView } from "../../canvas/CanvasView";
 import {
 	DeleteEntryDialog,
 	shouldSkipDeleteConfirm,
@@ -34,6 +33,13 @@ import { NoteConflictBanner } from "./NoteConflictBanner";
 import { NoteStatusBar } from "./NoteStatusBar";
 import { NoteToolbar } from "./NoteToolbar";
 import { useNoteSync } from "./useNoteSync";
+
+// Lazy-load the heavy Canvas Flow bundle only when a .canvas file is opened
+const CanvasView = lazy(() =>
+	typeof window !== "undefined"
+		? import("../../canvas/CanvasView")
+		: Promise.resolve({ default: () => <></> }),
+);
 
 // Lazy-load the heavy Excalidraw bundle only in browser environment when a .excalidraw file is opened
 const ExcalidrawView = lazy(() =>
@@ -448,15 +454,17 @@ export function TextNotePanel({
 						)
 					) : isCanvas ? (
 						canvasMode === "visual" ? (
-							<CanvasView
-								key={note.relPath}
-								content={draft}
-								onChange={handleDraftChange}
-								onNavigateNote={onNavigateNote}
-								readOnly={Boolean(note.truncated)}
-								onCreateNoteFile={handleCanvasCreateNote}
-								onRegisterCanvasApi={handleRegisterCanvasApi}
-							/>
+							<Suspense fallback={<ObsidianNoteBodySkeleton />}>
+								<CanvasView
+									key={note.relPath}
+									content={draft}
+									onChange={handleDraftChange}
+									onNavigateNote={onNavigateNote}
+									readOnly={Boolean(note.truncated)}
+									onCreateNoteFile={handleCanvasCreateNote}
+									onRegisterCanvasApi={handleRegisterCanvasApi}
+								/>
+							</Suspense>
 						) : (
 							<JsonEditor
 								key={note.relPath}

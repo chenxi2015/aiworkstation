@@ -1,5 +1,6 @@
 import { Button } from "@heroui/react";
 import { FolderOpen, NotebookPen } from "lucide-react";
+import { useDeferredValue } from "react";
 import type { WorkbenchSettings } from "../../workbench/types";
 import { NotePanel } from "../NotePanel";
 import type { ObsidianNoteApi, ObsidianTree } from "../types";
@@ -46,6 +47,7 @@ export function ObsidianContent({
 	onForward,
 	onSelectFolder,
 }: ObsidianContentProps) {
+	const activeNotePath = useDeferredValue(selectedNotePath);
 	return (
 		<section className="flex-1 overflow-hidden">
 			{vaultMissing ? (
@@ -85,9 +87,9 @@ export function ObsidianContent({
 						</Button>
 					</div>
 				</div>
-			) : selectedNotePath ? (
+			) : activeNotePath ? (
 				<NotePanel
-					relPath={selectedNotePath}
+					relPath={activeNotePath}
 					onMutated={onMutated}
 					onRenamed={onRenamed}
 					onDeleted={onDeleted}

@@ -1,6 +1,12 @@
 import { toast } from "@heroui/react";
 import type React from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+	startTransition,
+	useCallback,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import {
 	fetchVaultNote,
 	getCachedVaultNote,
@@ -96,11 +102,13 @@ export function useNoteSync({
 		const seq = ++loadSeqRef.current;
 		const cached = getCachedVaultNote(target);
 		if (cached) {
-			setNote(cached);
-			setDraft(cached.content);
-			setLoading(false);
-			setError(null);
-			setConflict(null);
+			startTransition(() => {
+				setNote(cached);
+				setDraft(cached.content);
+				setLoading(false);
+				setError(null);
+				setConflict(null);
+			});
 		} else {
 			setLoading(true);
 			setError(null);
@@ -109,11 +117,13 @@ export function useNoteSync({
 		const { note: data, error: err } = await fetchVaultNote(target);
 		if (seq !== loadSeqRef.current) return;
 		if (data) {
-			setNote(data);
-			setDraft((prev: string) =>
-				!cached || prev === cached.content ? data.content : prev,
-			);
-			setError(null);
+			startTransition(() => {
+				setNote(data);
+				setDraft((prev: string) =>
+					!cached || prev === cached.content ? data.content : prev,
+				);
+				setError(null);
+			});
 		} else if (!cached) {
 			setNote(null);
 			setError(err ?? "读取笔记失败");
