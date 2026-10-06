@@ -380,7 +380,12 @@ export function TextNotePanel({
 
 	const activeRelPath = note?.relPath ?? relPath;
 	const activeName =
-		note?.name ?? relPath.split("/").pop()?.replace(/\.md$/i, "") ?? "";
+		note?.name ??
+		relPath
+			.split("/")
+			.pop()
+			?.replace(/\.(md|canvas|excalidraw)$/i, "") ??
+		"";
 	const isSplitOpen = Boolean(splitSession?.isOpen);
 
 	return (
@@ -493,6 +498,7 @@ export function TextNotePanel({
 					) : (
 						<ImagePreviewProvider>
 							<MarkdownEditor
+								key={note.relPath}
 								value={draft}
 								onChange={handleDraftChange}
 								onReady={setEditorView}

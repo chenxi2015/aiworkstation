@@ -3,6 +3,7 @@ import type {
 	ObsidianNoteContent,
 	ObsidianSaveResult,
 	ObsidianTree,
+	ObsidianTreeNode,
 } from "../../components/obsidian/types";
 import { getFileManagerName } from "../../lib/platform";
 import {
@@ -24,10 +25,75 @@ import {
 } from "../../server/functions/obsidian";
 import type { DataviewResult } from "../../server/services/obsidian/dataview";
 
-/** 解析双链目标 → Vault 相对路径（未找到返回 null） */
+let lastObsidianTree: ObsidianTree | null = null;
+
+/** 客户端从内存目录树快速解析双链目标（0ms 纯内存匹配，省去网络 RPC 往返） */
+export function resolveWikilinkLocally(target: string): string | null {
+	const trimmed = target.trim();
+	if (!trimmed || !lastObsidianTree?.tree || lastObsidianTree.tree.length === 0) {
+		return null;
+	}
+
+	const allEntries: Array<{ name: string; relPath: string; bare: string }> = [];
+	const walk = (nodes: ObsidianTreeNode[]) => {
+		for (const node of nodes) {
+			if (node.kind === "note" || node.kind === "file") {
+				allEntries.push({
+					name: node.name,
+					relPath: node.relPath,
+					bare: node.name.replace(/\.md$/i, ""),
+				});
+			}
+			if (node.children) walk(node.children);
+		}
+	};
+	walk(lastObsidianTree.tree);
+
+	if (trimmed.includes("/")) {
+		const cleaned = trimmed.replace(/\.md$/i, "");
+		const match = allEntries.find(
+			(n) =>
+				n.relPath === trimmed ||
+				n.bare === trimmed ||
+				n.relPath === `${cleaned}.md` ||
+				n.bare === cleaned ||
+				n.relPath.endsWith(`/${trimmed}`) ||
+				n.bare.endsWith(`/${trimmed}`) ||
+				n.relPath.endsWith(`/${cleaned}.md`) ||
+				n.bare.endsWith(`/${cleaned}`),
+		);
+		return match?.relPath ?? null;
+	}
+
+	// 1. 完全匹配名称或无后缀文件名
+	const exactMatch = allEntries.find(
+		(n) => n.name === trimmed || n.bare === trimmed,
+	);
+	if (exactMatch) return exactMatch.relPath;
+
+	// 2. 带 .md 后缀匹配
+	const targetWithMd = trimmed.toLowerCase().endsWith(".md")
+		? trimmed
+		: `${trimmed}.md`;
+	const mdMatch = allEntries.find((n) => n.name === targetWithMd);
+	if (mdMatch) return mdMatch.relPath;
+
+	// 3. 大小写不敏感降级匹配（对齐 Obsidian 最短路径优先）
+	const lower = trimmed.toLowerCase();
+	const caseInsensitiveMatch = allEntries.find(
+		(n) => n.bare.toLowerCase() === lower || n.name.toLowerCase() === lower,
+	);
+	return caseInsensitiveMatch?.relPath ?? null;
+}
+
+/** 解析双链目标 → Vault 相对路径（优先纯内存快速解析，未命中回退服务端扫描） */
 export async function resolveWikilinkRpc(
 	target: string,
 ): Promise<string | null> {
+	// Fast-path: 0ms local in-memory lookup if tree data is already available
+	const localPath = resolveWikilinkLocally(target);
+	if (localPath) return localPath;
+
 	try {
 		const res = await resolveVaultWikilinkFn({ data: { target } });
 		return res.relPath;
@@ -125,8 +191,11 @@ export async function fetchObsidianTree(
 	try {
 		if (vaultDir) {
 			vaultNoteCache.clear();
+			lastObsidianTree = null;
 		}
-		return (await getObsidianTree({ data: { force, vaultDir } })) ?? EMPTY_TREE;
+		const tree = (await getObsidianTree({ data: { force, vaultDir } })) ?? EMPTY_TREE;
+		lastObsidianTree = tree;
+		return tree;
 	} catch (err) {
 		console.warn("[obsidianClient] getObsidianTree error:", err);
 		return EMPTY_TREE;

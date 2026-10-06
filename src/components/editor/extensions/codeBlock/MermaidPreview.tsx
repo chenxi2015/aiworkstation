@@ -374,7 +374,9 @@ export function MermaidPreview({
 	const [svgHtml, setSvgHtml] = useState<string>("");
 	const [error, setError] = useState<string | null>(null);
 	// Start rendering true if code exists to avoid initial 0px flash before useEffect
-	const [isRendering, setIsRendering] = useState<boolean>(() => Boolean(code?.trim()));
+	const [isRendering, setIsRendering] = useState<boolean>(() =>
+		Boolean(code?.trim()),
+	);
 	// Defensively decode HTML entities (e.g., &gt; -> >, &amp; -> &) to avoid lexical errors with arrows
 	const cleanCode = useMemo(() => {
 		let res = code || "";
@@ -488,10 +490,10 @@ export function MermaidPreview({
 
 	return (
 		<>
-			{/* Normal Inline View: maintain fixed min height to prevent layout shift */}
-			<div className="relative w-full min-h-[280px]">
+			{/* Normal Inline View: adaptive height for natural diagram layout */}
+			<div className="relative w-full min-h-[48px]">
 				{isRendering && !svgHtml && (
-					<div className="h-[280px] flex items-center justify-center text-zinc-500 gap-2 text-xs">
+					<div className="py-6 flex items-center justify-center text-zinc-500 gap-2 text-xs">
 						<Loader2 className="w-4 h-4 animate-spin" />
 						<span>渲染图表中…</span>
 					</div>

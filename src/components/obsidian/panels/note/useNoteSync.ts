@@ -1,11 +1,6 @@
 import { toast } from "@heroui/react";
 import type React from "react";
-import {
-	useCallback,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	fetchVaultNote,
 	getCachedVaultNote,
@@ -115,9 +110,13 @@ export function useNoteSync({
 		if (seq !== loadSeqRef.current) return;
 		if (data) {
 			setNote(data);
-			setDraft((prev: string) =>
-				!cached || prev === cached.content ? data.content : prev,
-			);
+			setDraft((prev: string) => {
+				if (!cached) return data.content;
+				if (prev === cached.content) return data.content;
+				// Never discard real note content if local draft is empty
+				if (!prev.trim() && data.content.trim()) return data.content;
+				return prev;
+			});
 			setError(null);
 		} else if (!cached) {
 			setNote(null);
@@ -278,7 +277,6 @@ export function useNoteSync({
 		canvasApiRef,
 		relPath,
 	]);
-
 
 	return {
 		note,

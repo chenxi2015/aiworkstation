@@ -23,11 +23,6 @@ export class TableWidget extends WidgetType {
 		return other.source === this.source;
 	}
 
-	override get estimatedHeight(): number {
-		const lineCount = this.source.trim().split("\n").filter((l) => l.trim().length > 0).length;
-		return Math.max(72, lineCount * 36);
-	}
-
 	override toDOM() {
 		const div = document.createElement("div");
 		div.className = "cm-live-table";
@@ -130,7 +125,10 @@ export class FrontmatterWidget extends WidgetType {
 	}
 
 	override get estimatedHeight(): number {
-		const lineCount = this.yamlText.trim().split("\n").filter((l) => l.trim().length > 0).length;
+		const lineCount = this.yamlText
+			.trim()
+			.split("\n")
+			.filter((l) => l.trim().length > 0).length;
 		return Math.max(48, lineCount * 28 + 20);
 	}
 

@@ -80,6 +80,7 @@ export function NotePanel({
 
 	return (
 		<TextNotePanel
+			key={relPath}
 			relPath={relPath}
 			onMutated={onMutated}
 			onDeleted={onDeleted}

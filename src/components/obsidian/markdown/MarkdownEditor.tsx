@@ -372,14 +372,17 @@ export function MarkdownEditor({
 	// External value sync within the same note: skip when the change originated from editor itself
 	useEffect(() => {
 		if (prevRelPathRef.current !== noteRelPath) return;
-		if (selfChangeRef.current) {
-			selfChangeRef.current = false;
-			return;
-		}
 		const view = viewRef.current;
 		if (!view) return;
 		const current = view.state.doc.toString();
 		if (value === current) return;
+		if (selfChangeRef.current) {
+			selfChangeRef.current = false;
+			// Never swallow incoming non-empty content if editor is currently blank
+			if (current.trim().length > 0 || !value.trim()) {
+				return;
+			}
+		}
 		view.dispatch({
 			changes: { from: 0, to: current.length, insert: value },
 		});

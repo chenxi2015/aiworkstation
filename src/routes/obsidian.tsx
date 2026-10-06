@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useCallback } from "react";
 import { ObsidianApp } from "../components/obsidian/ObsidianApp";
 import { ObsidianSkeleton } from "../components/workbench/skeletons";
 import { workbenchLoader } from "./-workbenchLoader";
@@ -23,20 +24,22 @@ export const Route = createFileRoute("/obsidian")({
 function ObsidianPage() {
 	const { unclassified, settings, folders } = Route.useLoaderData();
 	const search = Route.useSearch();
-	const navigate = Route.useNavigate();
 
-	const handleNoteChange = (path: string | null) => {
-		const targetNote = path ?? undefined;
-		if (search.note !== targetNote) {
-			navigate({
-				search: (prev) => ({
-					...prev,
-					note: targetNote,
-				}),
-				replace: true,
-			});
+	// Silently sync note query parameter without triggering full TanStack Router navigation transactions
+	const handleNoteChange = useCallback((path: string | null) => {
+		if (typeof window === "undefined") return;
+		try {
+			const url = new URL(window.location.href);
+			if (path) {
+				url.searchParams.set("note", path);
+			} else {
+				url.searchParams.delete("note");
+			}
+			window.history.replaceState(null, "", url.toString());
+		} catch {
+			// Ignore URL update error
 		}
-	};
+	}, []);
 
 	return (
 		<ObsidianApp

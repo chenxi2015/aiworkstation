@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from "react";
 
 const MIN_PANEL_WIDTH = 340;
 const MAX_PANEL_WIDTH = 900;
-const DEFAULT_PANEL_WIDTH = 420;
+const DEFAULT_PANEL_WIDTH = 400;
 const STORAGE_KEY = "workbench_ai_panel_width";
 
 /**

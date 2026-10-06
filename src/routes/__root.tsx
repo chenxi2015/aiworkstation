@@ -30,6 +30,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 	ssr: false,
 	// 根级加载文件夹/设置：喂给全局常驻 AI 面板（右侧边栏）
 	loader: workbenchLoader,
+	staleTime: Number.POSITIVE_INFINITY,
 	head: () => ({
 		meta: [
 			{
