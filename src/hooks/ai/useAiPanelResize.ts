@@ -10,8 +10,8 @@ const STORAGE_KEY = "workbench_ai_panel_width";
  */
 function getDefaultWidth(): number {
 	if (typeof window === "undefined") return DEFAULT_PANEL_WIDTH;
-	if (window.innerWidth >= 1536) return 480;
-	if (window.innerWidth >= 1280) return 440;
+	if (window.innerWidth >= 1536) return 440;
+	if (window.innerWidth >= 1280) return 420;
 	return 380;
 }
 
