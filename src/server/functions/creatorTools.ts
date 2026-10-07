@@ -235,7 +235,7 @@ async function processMediaPipeline(
 
 	workbenchDb.addAsset({
 		materialId,
-		relPath: outputFilename,
+		relPath: join("creator", "materials", String(materialId), outputFilename),
 		kind: assetKind,
 		filename: outputFilename,
 		sizeBytes: stat.size,

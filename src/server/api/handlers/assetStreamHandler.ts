@@ -154,6 +154,24 @@ export async function handleAssetStreamRequest(
 			// Managed storage
 			const filesRoot = getFilesRootDir();
 			absPath = path.resolve(filesRoot, asset.relPath);
+
+			// Fallback: Check if file exists under creator/materials/<materialId>/ for legacy tool assets
+			if (
+				(!fs.existsSync(absPath) || !fs.statSync(absPath).isFile()) &&
+				asset.materialId
+			) {
+				const fallbackPath = path.resolve(
+					filesRoot,
+					"creator",
+					"materials",
+					String(asset.materialId),
+					asset.relPath,
+				);
+				if (fs.existsSync(fallbackPath) && fs.statSync(fallbackPath).isFile()) {
+					absPath = fallbackPath;
+				}
+			}
+
 			assertPathWithinRoot(absPath, filesRoot);
 		}
 
