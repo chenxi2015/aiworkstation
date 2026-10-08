@@ -1,6 +1,7 @@
 import { redo, undo } from "@codemirror/commands";
 import type { EditorView } from "@codemirror/view";
 import { toast } from "@heroui/react";
+import { useNavigate } from "@tanstack/react-router";
 import { AlertTriangle } from "lucide-react";
 import {
 	lazy,
@@ -10,6 +11,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { importObsidianNoteToStudioRpc } from "../../../../services/api/creatorClient";
 import { generateAiBarTextRpc } from "../../../../services/api/editorClient";
 import {
 	createVaultNoteRpc,
@@ -66,10 +68,12 @@ export function TextNotePanel({
 	onForward,
 	onSelectFolder,
 }: NotePanelProps) {
+	const navigate = useNavigate();
 	const isCanvas = relPath.toLowerCase().endsWith(".canvas");
 	const isExcalidraw = relPath.toLowerCase().endsWith(".excalidraw");
 	const [editorView, setEditorView] = useState<EditorView | null>(null);
 	const [deleteOpen, setDeleteOpen] = useState(false);
+	const [isImportingToStudio, setIsImportingToStudio] = useState(false);
 	const [canUndo, setCanUndo] = useState(false);
 	const [canRedo, setCanRedo] = useState(false);
 
@@ -369,6 +373,46 @@ export function TextNotePanel({
 		setDeleteOpen(true);
 	}, [note, performDelete]);
 
+	const activeRelPath = note?.relPath ?? relPath;
+	const activeName =
+		note?.name ??
+		relPath
+			.split("/")
+			.pop()
+			?.replace(/\.(md|canvas|excalidraw)$/i, "") ??
+		"";
+
+	const handleImportToStudio = useCallback(async () => {
+		if (isImportingToStudio) return;
+		setIsImportingToStudio(true);
+		try {
+			// Flush unsaved draft to vault before importing
+			await flushSave();
+			const res = await importObsidianNoteToStudioRpc({
+				relPath: activeRelPath,
+				title: activeName,
+				content: draft,
+			});
+			toast.success(`《${res.title}》已导入自媒体创作台，正在进入…`);
+			void navigate({
+				to: "/creator/studio",
+				search: { doc: res.documentId, mode: "doc" },
+			});
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			toast.danger(`导入创作台失败: ${msg}`);
+		} finally {
+			setIsImportingToStudio(false);
+		}
+	}, [
+		isImportingToStudio,
+		flushSave,
+		activeRelPath,
+		activeName,
+		draft,
+		navigate,
+	]);
+
 	if (error && !note && !loading) {
 		return (
 			<div className="h-full flex flex-col items-center justify-center text-center px-8">
@@ -378,14 +422,6 @@ export function TextNotePanel({
 		);
 	}
 
-	const activeRelPath = note?.relPath ?? relPath;
-	const activeName =
-		note?.name ??
-		relPath
-			.split("/")
-			.pop()
-			?.replace(/\.(md|canvas|excalidraw)$/i, "") ??
-		"";
 	const isSplitOpen = Boolean(splitSession?.isOpen);
 
 	return (
@@ -416,6 +452,8 @@ export function TextNotePanel({
 					onToggleViewMode={toggleViewMode}
 					canDelete={Boolean(note)}
 					onDelete={handleDelete}
+					onImportToStudio={handleImportToStudio}
+					isImportingToStudio={isImportingToStudio}
 				/>
 			)}
 

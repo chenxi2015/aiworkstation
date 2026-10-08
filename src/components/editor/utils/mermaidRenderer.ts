@@ -17,6 +17,10 @@ const mermaidPlugin = createMermaidPlugin({
 		// 全局 htmlLabels），写在 flowchart 下会被忽略，含 <br/> 的流程图标签仍会
 		// 生成 foreignObject 导致导出图片失败。
 		htmlLabels: false,
+		// Ensure Gantt charts allocate adequate left padding for Chinese section titles
+		gantt: {
+			leftPadding: 140,
+		},
 		fontFamily:
 			"ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
 		themeVariables: {

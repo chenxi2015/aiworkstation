@@ -1,17 +1,24 @@
-import { Tooltip } from "@heroui/react";
+import { Dropdown, Tooltip, toast } from "@heroui/react";
 import {
 	BookOpen,
 	ChevronLeft,
 	ChevronRight,
 	Code2,
 	Columns2,
+	Copy,
+	Ellipsis,
+	FolderSearch,
+	Loader2,
 	PenLine,
+	PenTool,
 	Redo2,
 	Trash2,
 	Undo2,
 	Waypoints,
 } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
+import { getFileManagerName } from "../../../../lib/platform";
+import { revealVaultEntryRpc } from "../../../../services/api/obsidianClient";
 
 export interface NoteToolbarProps {
 	canGoBack?: boolean;
@@ -38,6 +45,9 @@ export interface NoteToolbarProps {
 	onToggleViewMode: () => void;
 	canDelete: boolean;
 	onDelete: () => void;
+	/** 导入自媒体创作台二次创作 */
+	onImportToStudio?: () => void;
+	isImportingToStudio?: boolean;
 }
 
 /** Top navigation and action toolbar for notes (Obsidian-styled breadcrumbs, view toggles, history navigation) */
@@ -65,6 +75,8 @@ export function NoteToolbar({
 	onToggleViewMode,
 	canDelete,
 	onDelete,
+	onImportToStudio,
+	isImportingToStudio,
 }: NoteToolbarProps) {
 	const [editingTitle, setEditingTitle] = useState(false);
 	const [titleDraft, setTitleDraft] = useState("");
@@ -277,20 +289,87 @@ export function NoteToolbar({
 					</Tooltip>
 				</>
 			)}
-			<Tooltip>
-				<Tooltip.Trigger>
-					<button
-						type="button"
-						aria-label="删除笔记"
-						onClick={onDelete}
-						disabled={!canDelete}
-						className="p-1.5 rounded-md text-danger/80 hover:text-danger hover:bg-danger/10 transition-colors shrink-0 disabled:opacity-30 disabled:pointer-events-none"
-					>
-						<Trash2 className="w-3.5 h-3.5" />
-					</button>
-				</Tooltip.Trigger>
-				<Tooltip.Content placement="bottom">删除</Tooltip.Content>
-			</Tooltip>
+			<Dropdown>
+				<Dropdown.Trigger
+					aria-label="更多操作"
+					className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/60 transition-colors cursor-pointer shrink-0 data-[pressed]:bg-surface-secondary/80"
+				>
+					<Ellipsis className="w-4 h-4" />
+				</Dropdown.Trigger>
+				<Dropdown.Popover
+					placement="bottom end"
+					className="min-w-[190px] p-1 shadow-lg border border-border/80 rounded-xl bg-surface"
+				>
+					<Dropdown.Menu aria-label="笔记更多操作">
+						{onImportToStudio && (
+							<Dropdown.Item
+								id="import-to-studio"
+								textValue="转到自媒体创作台二次创作"
+								onAction={onImportToStudio}
+							>
+								<div className="flex items-center gap-2 py-0.5">
+									{isImportingToStudio ? (
+										<Loader2 className="w-3.5 h-3.5 text-accent animate-spin shrink-0" />
+									) : (
+										<PenTool className="w-3.5 h-3.5 text-accent shrink-0" />
+									)}
+									<div className="flex flex-col min-w-0">
+										<span className="text-xs font-medium text-foreground">
+											转到自媒体创作台
+										</span>
+										<span className="text-[10px] text-muted">
+											一键导入并二次创作
+										</span>
+									</div>
+								</div>
+							</Dropdown.Item>
+						)}
+						<Dropdown.Item
+							id="copy-path"
+							textValue="复制相对路径"
+							onAction={() => {
+								void navigator.clipboard.writeText(activeRelPath);
+								toast.success("已复制相对路径");
+							}}
+						>
+							<div className="flex items-center gap-2 py-0.5">
+								<Copy className="w-3.5 h-3.5 text-muted shrink-0" />
+								<span className="text-xs">复制相对路径</span>
+							</div>
+						</Dropdown.Item>
+						<Dropdown.Item
+							id="reveal-in-finder"
+							textValue={`在${getFileManagerName()}中显示`}
+							onAction={async () => {
+								const res = await revealVaultEntryRpc(activeRelPath);
+								if (!res.success) {
+									toast.danger(res.error || "定位文件失败");
+								}
+							}}
+						>
+							<div className="flex items-center gap-2 py-0.5">
+								<FolderSearch className="w-3.5 h-3.5 text-muted shrink-0" />
+								<span className="text-xs">在{getFileManagerName()}中显示</span>
+							</div>
+						</Dropdown.Item>
+						{canDelete && (
+							<Dropdown.Item
+								id="delete-note"
+								textValue="删除笔记"
+								className="text-danger hover:!bg-danger/10 hover:!text-danger"
+								onAction={onDelete}
+							>
+								<div className="flex items-center gap-2 py-0.5">
+									<Trash2 className="w-3.5 h-3.5 text-danger shrink-0" />
+									<span className="text-xs text-danger font-medium">
+										删除笔记
+									</span>
+								</div>
+							</Dropdown.Item>
+						)}
+					</Dropdown.Menu>
+				</Dropdown.Popover>
+			</Dropdown>
 		</div>
 	);
 }

@@ -7,6 +7,7 @@ import { markdownToTiptapDoc } from "../../components/editor/markdown.ts";
 import { assertPathWithinRoot } from "../ai/fs/fsSafety.ts";
 import { workbenchDb } from "../db/sqlite.ts";
 import { getFilesRootDir } from "../services/filesRoot.ts";
+import { readVaultNote } from "../services/obsidian/index.ts";
 
 /**
  * Server Function: 素材一键导入创作台（docs/selfmedia-merge-plan.md 第三节）。
@@ -275,3 +276,96 @@ export const createDocumentFromMaterial = createServerFn({ method: "POST" })
 			};
 		},
 	);
+
+/**
+ * Helper to extract markdown representation from Obsidian canvas JSON content
+ */
+function extractCanvasMarkdown(rawJson: string, title: string): string {
+	try {
+		const canvasData = JSON.parse(rawJson);
+		if (!canvasData || !Array.isArray(canvasData.nodes)) {
+			return rawJson;
+		}
+		const parts: string[] = [`# ${title} (画布节点)`, ""];
+		for (const node of canvasData.nodes) {
+			if (
+				node.type === "text" &&
+				typeof node.text === "string" &&
+				node.text.trim()
+			) {
+				parts.push(node.text.trim(), "");
+			} else if (node.type === "file" && typeof node.file === "string") {
+				parts.push(`- 关联文件：${node.file}`);
+			}
+		}
+		return parts.join("\n");
+	} catch {
+		return rawJson;
+	}
+}
+
+/**
+ * Convert Obsidian wikilink image embed (![[image.png]]) to markdown image syntax
+ */
+function normalizeObsidianImages(markdown: string): string {
+	return markdown.replace(/!\[\[([^\]]+)\]\]/g, (_match, target) => {
+		const cleanPath = target.split("|")[0].trim();
+		return `![${cleanPath}](/api/obsidian/asset?path=${encodeURIComponent(cleanPath)})`;
+	});
+}
+
+/**
+ * Server Function: Import Obsidian note into Creator Studio for secondary creation.
+ * Creates an editable Document in database and returns the document ID.
+ */
+export const importObsidianNoteToStudio = createServerFn({ method: "POST" })
+	.validator(
+		(data: { relPath: string; title?: string; content?: string }) => data,
+	)
+	.handler(async ({ data }): Promise<{ documentId: number; title: string }> => {
+		const relPath = data.relPath?.trim();
+		if (!relPath) throw new Error("缺少笔记路径");
+
+		let content = data.content;
+		let title = data.title?.trim();
+
+		if (content == null) {
+			const note = await readVaultNote(relPath);
+			content = note.content;
+			if (!title) {
+				title = note.name;
+			}
+		}
+
+		if (!title) {
+			title =
+				relPath
+					.split("/")
+					.pop()
+					?.replace(/\.(md|canvas|excalidraw)$/i, "") || "未命名笔记";
+		}
+
+		let markdown = content || "";
+		if (relPath.toLowerCase().endsWith(".canvas")) {
+			markdown = extractCanvasMarkdown(markdown, title);
+		} else {
+			markdown = normalizeObsidianImages(markdown);
+		}
+
+		const sourceBadge = `\n\n> 来源：Obsidian 笔记 [${title}] (${relPath})\n`;
+		const fullMarkdown = `${markdown.trim()}${sourceBadge}`;
+
+		const { nodes, contentText } = markdownToTiptapDoc(fullMarkdown);
+		const jsonString = JSON.stringify({
+			type: "doc",
+			content: nodes.length > 0 ? nodes : [{ type: "paragraph" }],
+		});
+
+		const documentId = workbenchDb.createDocument({
+			title,
+			content: jsonString,
+			contentText: contentText || fullMarkdown,
+		});
+
+		return { documentId, title };
+	});

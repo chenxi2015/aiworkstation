@@ -8,7 +8,10 @@ import type {
 	MaterialFolder,
 } from "../../components/creator/types";
 import type { WorkbenchItem } from "../../components/workbench/types";
-import { createDocumentFromMaterial } from "../../server/functions/creatorBridge";
+import {
+	createDocumentFromMaterial,
+	importObsidianNoteToStudio,
+} from "../../server/functions/creatorBridge";
 import {
 	adoptDraft,
 	exportDraft,
@@ -165,6 +168,15 @@ export async function createDocumentFromMaterialRpc(
 	materialId: number,
 ): Promise<{ documentId: number; mode: "doc" | "audio" | "video" }> {
 	return await createDocumentFromMaterial({ data: { materialId } });
+}
+
+/** Obsidian 笔记一键导入自媒体创作台进行二次创作，返回文档 id 与标题 */
+export async function importObsidianNoteToStudioRpc(params: {
+	relPath: string;
+	title?: string;
+	content?: string;
+}): Promise<{ documentId: number; title: string }> {
+	return await importObsidianNoteToStudio({ data: params });
 }
 
 /** 本地文件上传导入素材（多文件，文件夹由前端展开），返回导入数量 */

@@ -137,11 +137,24 @@ function DiagramViewport({
 		[zoomAt],
 	);
 
+	// Calculate adaptive scale so diagram fits comfortably inside container
+	const getFitScale = useCallback(() => {
+		const container = containerRef.current;
+		const base = baseSizeRef.current;
+		if (!container || !base || base.width <= 0 || base.height <= 0) return 1;
+		const padX = 40;
+		const padY = 32;
+		const availW = Math.max(container.clientWidth - padX, 80);
+		const availH = Math.max(container.clientHeight - padY, 80);
+		const fit = Math.min(1, availW / base.width, availH / base.height);
+		return Math.max(MIN_ZOOM_SCALE, Number(fit.toFixed(2)));
+	}, []);
+
 	// Reset view
 	const handleReset = useCallback(() => {
-		viewRef.current = { scale: 1, x: 0, y: 0 };
+		viewRef.current = { scale: getFitScale(), x: 0, y: 0 };
 		applyTransform(true);
-	}, [applyTransform]);
+	}, [applyTransform, getFitScale]);
 
 	// Native non-passive wheel listener to strictly prevent browser page zoom.
 	// exp 衰减系数让触控板双指捏合/滚轮都平滑连续。
@@ -233,9 +246,9 @@ function DiagramViewport({
 				baseSizeRef.current = null;
 			}
 		}
-		viewRef.current = { scale: 1, x: 0, y: 0 };
+		viewRef.current = { scale: getFitScale(), x: 0, y: 0 };
 		applyTransform();
-	}, [svgHtml, applyTransform]);
+	}, [svgHtml, applyTransform, getFitScale]);
 
 	return (
 		// biome-ignore lint/a11y/noStaticElementInteractions: Diagram viewport interactive canvas
