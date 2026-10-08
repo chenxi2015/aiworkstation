@@ -1,9 +1,10 @@
-import { AlertDialog, Button } from "@heroui/react";
+import { AlertDialog, Button, Dropdown } from "@heroui/react";
 import {
 	ArrowLeft,
 	BookmarkCheck,
 	Check,
 	Columns2,
+	Ellipsis,
 	FilePlus,
 	GitCompare,
 	Link2,
@@ -36,6 +37,7 @@ export interface SplitCompareHeaderProps {
 /**
  * Top control header for dual-editor AI Creation Mode:
  * Includes Diff vs Clean view switcher, Save version to DB, Exit and Accept actions with confirmation.
+ * Adapts gracefully to small screens with a more-actions dropdown menu.
  */
 export function SplitCompareHeader({
 	docTitle,
@@ -59,7 +61,8 @@ export function SplitCompareHeader({
 
 	const hasRightContent = rightWordCount > 0;
 	const isAcceptDisabled = isStreaming || !canAccept || !hasRightContent;
-	const isSaveVersionDisabled = isStreaming || isSavingVersion || !hasRightContent;
+	const isSaveVersionDisabled =
+		isStreaming || isSavingVersion || !hasRightContent;
 	const isSaveAsNewDisabled = isStreaming || !canSaveAsNew || !hasRightContent;
 
 	const handleRequestExit = () => {
@@ -69,28 +72,28 @@ export function SplitCompareHeader({
 
 	return (
 		<>
-			<header className="h-11 border-b border-border bg-surface/95 dark:bg-surface-secondary/80 backdrop-blur-md px-4 flex items-center justify-between shrink-0 z-20 shadow-xs select-none">
+			<header className="h-11 border-b border-border bg-surface/95 dark:bg-surface-secondary/80 backdrop-blur-md px-2.5 sm:px-4 flex items-center justify-between shrink-0 z-20 shadow-xs select-none gap-2">
 				{/* Left: Return & Title */}
-				<div className="flex items-center gap-2.5 min-w-0">
+				<div className="flex items-center gap-2 sm:gap-2.5 min-w-0 shrink">
 					<Button
 						variant="ghost"
 						size="sm"
 						isIconOnly
-						className="h-7 w-7 text-muted hover:text-foreground cursor-pointer rounded-lg"
+						className="h-7 w-7 text-muted hover:text-foreground cursor-pointer rounded-lg shrink-0"
 						onPress={handleRequestExit}
 						aria-label="返回常规写作"
 					>
 						<ArrowLeft className="w-4 h-4" />
 					</Button>
-					<div className="flex items-center gap-2 min-w-0">
+					<div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
 						<div className="w-5 h-5 rounded bg-accent/15 text-accent flex items-center justify-center shrink-0">
 							<Sparkles className="w-3.5 h-3.5" />
 						</div>
-						<h2 className="font-semibold text-xs text-foreground truncate max-w-[140px] md:max-w-[200px]">
+						<h2 className="font-semibold text-xs text-foreground truncate max-w-[110px] sm:max-w-[160px] md:max-w-[200px]">
 							AI 创作模式{modeLabel ? ` · ${modeLabel}` : ""}
 						</h2>
 						{docTitle && (
-							<span className="hidden sm:inline text-[11px] text-muted truncate max-w-[120px] md:max-w-[180px]">
+							<span className="hidden md:inline text-[11px] text-muted truncate max-w-[100px] lg:max-w-[180px]">
 								《{docTitle}》
 							</span>
 						)}
@@ -98,13 +101,13 @@ export function SplitCompareHeader({
 				</div>
 
 				{/* Center: Diff vs Clean Mode Toggle & Follow Scroll Switch */}
-				<div className="flex items-center gap-2">
+				<div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
 					{onChangeDiffViewMode && (
 						<div className="flex items-center bg-surface-secondary/80 p-0.5 rounded-lg border border-border/80 text-xs">
 							<button
 								type="button"
 								onClick={() => onChangeDiffViewMode("clean")}
-								className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-colors cursor-pointer text-xs ${
+								className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-md transition-colors cursor-pointer text-xs ${
 									diffViewMode === "clean"
 										? "bg-surface shadow-xs text-foreground font-medium"
 										: "text-muted hover:text-foreground"
@@ -112,12 +115,12 @@ export function SplitCompareHeader({
 								title="纯净并排视图，无高亮标记，支持打字编辑"
 							>
 								<Columns2 className="w-3.5 h-3.5" />
-								<span>纯净并排</span>
+								<span className="hidden sm:inline">纯净并排</span>
 							</button>
 							<button
 								type="button"
 								onClick={() => onChangeDiffViewMode("diff")}
-								className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-colors cursor-pointer text-xs ${
+								className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-md transition-colors cursor-pointer text-xs ${
 									diffViewMode === "diff"
 										? "bg-accent text-accent-foreground font-medium shadow-xs"
 										: "text-muted hover:text-foreground"
@@ -125,7 +128,7 @@ export function SplitCompareHeader({
 								title="差异高亮视图，红删绿增实时比对"
 							>
 								<GitCompare className="w-3.5 h-3.5" />
-								<span>差异高亮</span>
+								<span className="hidden sm:inline">差异高亮</span>
 							</button>
 						</div>
 					)}
@@ -134,7 +137,7 @@ export function SplitCompareHeader({
 						<button
 							type="button"
 							onClick={onToggleSyncScroll}
-							className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-colors cursor-pointer text-xs ${
+							className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg border transition-colors cursor-pointer text-xs ${
 								isSyncScroll
 									? "bg-accent/15 border-accent/40 text-accent font-medium shadow-xs"
 									: "bg-surface-secondary/60 border-border/80 text-muted hover:text-foreground"
@@ -152,18 +155,19 @@ export function SplitCompareHeader({
 							) : (
 								<Link2Off className="w-3.5 h-3.5 opacity-60" />
 							)}
-							<span>跟随滚动</span>
+							<span className="hidden lg:inline">跟随滚动</span>
 						</button>
 					)}
 				</div>
 
-				{/* Right: Save to DB, Save as new, Exit, Accept to main */}
-				<div className="flex items-center gap-2 shrink-0">
+				{/* Right: Actions (Desktop full buttons + Small screen More Menu dropdown) */}
+				<div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+					{/* Desktop expanded auxiliary buttons (visible on xl and above) */}
 					{onSaveVersionToDb && (
 						<Button
 							variant="ghost"
 							size="sm"
-							className="h-7 text-xs text-muted hover:text-foreground cursor-pointer px-2.5 disabled:opacity-40 disabled:cursor-not-allowed"
+							className="hidden xl:inline-flex h-7 text-xs text-muted hover:text-foreground cursor-pointer px-2.5 disabled:opacity-40 disabled:cursor-not-allowed"
 							onPress={onSaveVersionToDb}
 							isDisabled={isSaveVersionDisabled}
 							aria-label={
@@ -185,7 +189,7 @@ export function SplitCompareHeader({
 						<Button
 							variant="ghost"
 							size="sm"
-							className="h-7 text-xs text-muted hover:text-foreground cursor-pointer px-2.5 disabled:opacity-40 disabled:cursor-not-allowed"
+							className="hidden xl:inline-flex h-7 text-xs text-muted hover:text-foreground cursor-pointer px-2.5 disabled:opacity-40 disabled:cursor-not-allowed"
 							onPress={onSaveAsNewDocument}
 							isDisabled={isSaveAsNewDisabled}
 							aria-label={
@@ -202,7 +206,7 @@ export function SplitCompareHeader({
 					<Button
 						variant="ghost"
 						size="sm"
-						className="h-7 text-xs text-muted hover:text-foreground cursor-pointer px-2.5"
+						className="hidden xl:inline-flex h-7 text-xs text-muted hover:text-foreground cursor-pointer px-2.5"
 						onPress={handleRequestExit}
 						aria-label="退出创作模式并返回常规写作"
 					>
@@ -210,10 +214,92 @@ export function SplitCompareHeader({
 						<span>退出创作</span>
 					</Button>
 
+					{/* Small/Medium screens: More Actions Dropdown Menu (visible below xl) */}
+					<div className="xl:hidden">
+						<Dropdown>
+							<Dropdown.Trigger
+								aria-label="更多操作"
+								className="h-7 w-7 flex items-center justify-center rounded-lg text-muted hover:text-foreground hover:bg-surface-secondary/80 border border-border/80 transition-colors cursor-pointer shrink-0"
+							>
+								<Ellipsis className="w-4 h-4" />
+							</Dropdown.Trigger>
+							<Dropdown.Popover
+								placement="bottom end"
+								className="min-w-[170px] p-1 shadow-lg border border-border/80 rounded-xl bg-surface"
+							>
+								<Dropdown.Menu aria-label="创作台更多操作">
+									{onSaveVersionToDb && (
+										<Dropdown.Item
+											id="save-version"
+											textValue="保存版本"
+											isDisabled={isSaveVersionDisabled}
+											onAction={onSaveVersionToDb}
+										>
+											<div className="flex items-center gap-2 py-0.5">
+												{isSavingVersion ? (
+													<BookmarkCheck className="w-3.5 h-3.5 text-emerald-500 animate-pulse shrink-0" />
+												) : (
+													<Save className="w-3.5 h-3.5 text-muted shrink-0" />
+												)}
+												<span className="text-xs">保存当前版本</span>
+											</div>
+										</Dropdown.Item>
+									)}
+
+									{onSaveAsNewDocument && (
+										<Dropdown.Item
+											id="save-as-new"
+											textValue="另存为新文档"
+											isDisabled={isSaveAsNewDisabled}
+											onAction={onSaveAsNewDocument}
+										>
+											<div className="flex items-center gap-2 py-0.5">
+												<FilePlus className="w-3.5 h-3.5 text-muted shrink-0" />
+												<span className="text-xs">另存为新文档</span>
+											</div>
+										</Dropdown.Item>
+									)}
+
+									{onToggleSyncScroll && (
+										<Dropdown.Item
+											id="toggle-sync-scroll"
+											textValue="切换跟随滚动"
+											onAction={onToggleSyncScroll}
+										>
+											<div className="flex items-center gap-2 py-0.5">
+												{isSyncScroll ? (
+													<Link2 className="w-3.5 h-3.5 text-accent shrink-0" />
+												) : (
+													<Link2Off className="w-3.5 h-3.5 text-muted shrink-0" />
+												)}
+												<span className="text-xs">
+													{isSyncScroll ? "关闭跟随滚动" : "开启跟随滚动"}
+												</span>
+											</div>
+										</Dropdown.Item>
+									)}
+
+									<Dropdown.Item
+										id="exit-creation"
+										textValue="退出创作"
+										className="text-danger hover:!bg-danger/10 hover:!text-danger"
+										onAction={handleRequestExit}
+									>
+										<div className="flex items-center gap-2 py-0.5">
+											<X className="w-3.5 h-3.5 text-danger shrink-0" />
+											<span className="text-xs">退出创作模式</span>
+										</div>
+									</Dropdown.Item>
+								</Dropdown.Menu>
+							</Dropdown.Popover>
+						</Dropdown>
+					</div>
+
+					{/* Primary Call to Action: Accept Right Content */}
 					<Button
 						variant="primary"
 						size="sm"
-						className={`h-7 text-xs font-medium text-white shadow-xs px-3.5 rounded-lg transition-all ${
+						className={`h-7 text-xs font-medium text-white shadow-xs px-2.5 sm:px-3.5 rounded-lg transition-all ${
 							isAcceptDisabled
 								? "bg-emerald-600/40 cursor-not-allowed opacity-50 shadow-none"
 								: "bg-emerald-600 hover:bg-emerald-700 cursor-pointer active:scale-95"
@@ -228,8 +314,9 @@ export function SplitCompareHeader({
 									: "采纳右侧内容覆盖正文"
 						}
 					>
-						<Check className="w-3.5 h-3.5 mr-1 stroke-[2.5]" />
-						<span>采纳右侧至正文</span>
+						<Check className="w-3.5 h-3.5 sm:mr-1 stroke-[2.5]" />
+						<span className="hidden sm:inline">采纳右侧至正文</span>
+						<span className="sm:hidden">采纳</span>
 					</Button>
 				</div>
 			</header>

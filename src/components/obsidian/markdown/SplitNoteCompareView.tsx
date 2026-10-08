@@ -68,7 +68,9 @@ export function SplitNoteCompareView({
 	const leftScrollRef = useRef<HTMLDivElement | null>(null);
 	const rightScrollRef = useRef<HTMLDivElement | null>(null);
 	const [leftEditorView, setLeftEditorView] = useState<EditorView | null>(null);
-	const [rightEditorView, setRightEditorView] = useState<EditorView | null>(null);
+	const [rightEditorView, setRightEditorView] = useState<EditorView | null>(
+		null,
+	);
 	const isSyncingScrollRef = useRef<boolean>(false);
 
 	// Right column draft mode: defaults to rendered reading view (clean, no line numbers/carets); toggleable to live preview editing
@@ -101,44 +103,50 @@ export function SplitNoteCompareView({
 	}, [diffViewMode, isStreaming, rightEditorView]);
 
 	// Sync scroll offset from right container to left container
-	const syncRightToLeft = useCallback((rightEl: HTMLElement | null) => {
-		if (isSyncingScrollRef.current || !rightEl) return;
-		const left = getLeftScrollElement();
-		if (!left) return;
+	const syncRightToLeft = useCallback(
+		(rightEl: HTMLElement | null) => {
+			if (isSyncingScrollRef.current || !rightEl) return;
+			const left = getLeftScrollElement();
+			if (!left) return;
 
-		const maxRight = rightEl.scrollHeight - rightEl.clientHeight;
-		if (maxRight <= 0) return;
-		const ratio = rightEl.scrollTop / maxRight;
+			const maxRight = rightEl.scrollHeight - rightEl.clientHeight;
+			if (maxRight <= 0) return;
+			const ratio = rightEl.scrollTop / maxRight;
 
-		const maxLeft = left.scrollHeight - left.clientHeight;
-		if (maxLeft > 0) {
-			isSyncingScrollRef.current = true;
-			left.scrollTop = ratio * maxLeft;
-			requestAnimationFrame(() => {
-				isSyncingScrollRef.current = false;
-			});
-		}
-	}, [getLeftScrollElement]);
+			const maxLeft = left.scrollHeight - left.clientHeight;
+			if (maxLeft > 0) {
+				isSyncingScrollRef.current = true;
+				left.scrollTop = ratio * maxLeft;
+				requestAnimationFrame(() => {
+					isSyncingScrollRef.current = false;
+				});
+			}
+		},
+		[getLeftScrollElement],
+	);
 
 	// Sync scroll offset from left container to right container
-	const syncLeftToRight = useCallback((leftEl: HTMLElement | null) => {
-		if (isSyncingScrollRef.current || !leftEl) return;
-		const right = getRightScrollElement();
-		if (!right) return;
+	const syncLeftToRight = useCallback(
+		(leftEl: HTMLElement | null) => {
+			if (isSyncingScrollRef.current || !leftEl) return;
+			const right = getRightScrollElement();
+			if (!right) return;
 
-		const maxLeft = leftEl.scrollHeight - leftEl.clientHeight;
-		if (maxLeft <= 0) return;
-		const ratio = leftEl.scrollTop / maxLeft;
+			const maxLeft = leftEl.scrollHeight - leftEl.clientHeight;
+			if (maxLeft <= 0) return;
+			const ratio = leftEl.scrollTop / maxLeft;
 
-		const maxRight = right.scrollHeight - right.clientHeight;
-		if (maxRight > 0) {
-			isSyncingScrollRef.current = true;
-			right.scrollTop = ratio * maxRight;
-			requestAnimationFrame(() => {
-				isSyncingScrollRef.current = false;
-			});
-		}
-	}, [getRightScrollElement]);
+			const maxRight = right.scrollHeight - right.clientHeight;
+			if (maxRight > 0) {
+				isSyncingScrollRef.current = true;
+				right.scrollTop = ratio * maxRight;
+				requestAnimationFrame(() => {
+					isSyncingScrollRef.current = false;
+				});
+			}
+		},
+		[getRightScrollElement],
+	);
 
 	// Handle left/right EditorView mount & restore scroll position
 	const handleLeftEditorReady = useCallback((view: EditorView | null) => {
@@ -265,7 +273,9 @@ export function SplitNoteCompareView({
 								<div
 									className="prose prose-neutral dark:prose-invert max-w-none text-sm leading-relaxed"
 									// biome-ignore lint/security/noDangerouslySetInnerHtml: Sanitized markdown with diff highlights
-									dangerouslySetInnerHTML={{ __html: leftDiffHtml || leftOriginalHtml }}
+									dangerouslySetInnerHTML={{
+										__html: leftDiffHtml || leftOriginalHtml,
+									}}
 								/>
 							</div>
 						</div>
@@ -396,14 +406,18 @@ export function SplitNoteCompareView({
 								/>
 							</ImagePreviewProvider>
 							{!draftContent.trim() && (
-								<div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 px-4 py-2.5 rounded-xl border border-dashed border-border/80 bg-surface/95 dark:bg-background/95 backdrop-blur-sm flex items-center gap-3 text-xs text-muted shadow-sm max-w-[90%] select-none">
-									<FileText className="w-4 h-4 text-accent/80 shrink-0" />
-									<span>草稿为空，支持直接输入 Markdown 或一键载入原文对照</span>
+								<div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 px-3.5 py-2.5 rounded-xl border border-dashed border-border/80 bg-surface/95 dark:bg-background/95 backdrop-blur-sm flex flex-col sm:flex-row items-center gap-2 sm:gap-3 text-xs text-muted shadow-sm max-w-[92%] select-none">
+									<div className="flex items-center gap-1.5 shrink-0 text-center sm:text-left">
+										<FileText className="w-4 h-4 text-accent/80 shrink-0" />
+										<span className="text-xs text-muted leading-tight whitespace-normal sm:whitespace-nowrap">
+											草稿为空，支持直接输入或载入原文
+										</span>
+									</div>
 									{originalContent.trim() && (
 										<button
 											type="button"
 											onClick={handleLoadOriginalToDraft}
-											className="px-2.5 py-1 rounded-lg bg-surface hover:bg-surface-secondary border border-border text-foreground text-xs font-medium transition-colors shadow-2xs cursor-pointer shrink-0"
+											className="px-2.5 py-1 rounded-lg bg-surface hover:bg-surface-secondary border border-border text-foreground text-xs font-medium transition-colors shadow-2xs cursor-pointer shrink-0 whitespace-nowrap"
 										>
 											载入原文为草稿
 										</button>
