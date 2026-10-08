@@ -4,10 +4,11 @@ import {
 	ExternalLink,
 	Folder,
 	FolderSearch,
-	LayoutGrid,
 	Pencil,
+	PenTool,
 	SquarePen,
 	Trash2,
+	Waypoints,
 } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { getFileManagerName } from "../../lib/platform";
@@ -27,6 +28,7 @@ export interface TreeContextMenuProps {
 	onCreateNote: (dir: string) => void;
 	onCreateFolder: (dir: string) => void;
 	onCreateCanvas: (dir: string) => void;
+	onCreateExcalidraw?: (dir: string) => void;
 	onRename: (node: ObsidianTreeNode) => void;
 	onDelete: (node: ObsidianTreeNode) => void;
 	onCopyPath: (node: ObsidianTreeNode) => void;
@@ -64,7 +66,7 @@ function MenuItem({
 
 /**
  * 目录树右键/「...」操作菜单（自定义定位，样式对齐 HeroUI Dropdown.Popover）。
- * 支持空白区域右键（新建笔记/文件夹/白板）及条目右键。
+ * 支持空白区域右键（新建笔记/文件夹/白板/画板）及条目右键。
  */
 export function TreeContextMenu({
 	target,
@@ -72,6 +74,7 @@ export function TreeContextMenu({
 	onCreateNote,
 	onCreateFolder,
 	onCreateCanvas,
+	onCreateExcalidraw,
 	onRename,
 	onDelete,
 	onCopyPath,
@@ -103,8 +106,16 @@ export function TreeContextMenu({
 
 	const { node } = target;
 	const isFolder = node?.kind === "folder";
-	// Accurate heights: blank new menu (3 items ~112px), note file menu (~190px), folder menu (~250px)
-	const menuHeight = !node ? 112 : isFolder ? 250 : 190;
+	// Accurate heights: blank new menu (3-4 items), note file menu (~190px), folder menu (~250-286px)
+	const menuHeight = !node
+		? onCreateExcalidraw
+			? 144
+			: 112
+		: isFolder
+			? onCreateExcalidraw
+				? 286
+				: 250
+			: 190;
 	const menuWidth = !node ? 144 : 176;
 
 	// Keep horizontally within viewport, flip left if overflowing right edge
@@ -124,7 +135,7 @@ export function TreeContextMenu({
 		fn();
 	};
 
-	// 1. 空白区域右键菜单（只显示新建笔记、新建文件夹、新建白板）
+	// 1. 空白区域右键菜单（只显示新建笔记、新建文件夹、新建白板、新建画板）
 	if (!node) {
 		const targetDir = target.dirPath ?? "";
 		return (
@@ -144,10 +155,17 @@ export function TreeContextMenu({
 					onClick={act(() => onCreateFolder(targetDir))}
 				/>
 				<MenuItem
-					icon={LayoutGrid}
+					icon={Waypoints}
 					label="新建白板"
 					onClick={act(() => onCreateCanvas(targetDir))}
 				/>
+				{onCreateExcalidraw && (
+					<MenuItem
+						icon={PenTool}
+						label="新建画板"
+						onClick={act(() => onCreateExcalidraw(targetDir))}
+					/>
+				)}
 			</div>
 		);
 	}
@@ -171,10 +189,17 @@ export function TreeContextMenu({
 						onClick={act(() => onCreateFolder(node.relPath))}
 					/>
 					<MenuItem
-						icon={LayoutGrid}
+						icon={Waypoints}
 						label="新建白板"
 						onClick={act(() => onCreateCanvas(node.relPath))}
 					/>
+					{onCreateExcalidraw && (
+						<MenuItem
+							icon={PenTool}
+							label="新建画板"
+							onClick={act(() => onCreateExcalidraw(node.relPath))}
+						/>
+					)}
 					<div className="my-1 border-t border-border/60" />
 				</>
 			) : (

@@ -11,6 +11,7 @@ import {
 	FolderOpen,
 	Image,
 	Music,
+	PenTool,
 	Waypoints,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
@@ -108,7 +109,9 @@ export function RowShell({
 			? node.name.slice(0, -3)
 			: !isFolder && node.name.toLowerCase().endsWith(".canvas")
 				? node.name.slice(0, -7)
-				: node.name;
+				: !isFolder && node.name.toLowerCase().endsWith(".excalidraw")
+					? node.name.slice(0, -11)
+					: node.name;
 
 	const handleContextMenu = (e: React.MouseEvent) => {
 		e.preventDefault();
@@ -283,6 +286,8 @@ export const FlatRow = memo(function FlatRow({
 		switch (category) {
 			case "canvas":
 				return <Waypoints className={iconClass} />;
+			case "excalidraw":
+				return <PenTool className={iconClass} />;
 			case "book":
 				return <BookOpen className={iconClass} />;
 			case "image":

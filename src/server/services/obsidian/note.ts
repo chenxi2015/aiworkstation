@@ -250,6 +250,63 @@ export async function createVaultCanvas(
 	}
 }
 
+/** Create a new Excalidraw drawing file */
+export async function createVaultExcalidraw(
+	dirRelPath: string,
+	name: string,
+): Promise<ObsidianMutationResult> {
+	try {
+		const cleanName = name.trim();
+		const baseFileName = cleanName.toLowerCase().endsWith(".excalidraw")
+			? cleanName
+			: `${cleanName}.excalidraw`;
+		if (!baseFileName.replace(/\.excalidraw$/i, ""))
+			throw new Error("画板名不能为空");
+		const targetDirAbs = dirAbsPath(dirRelPath);
+		if (!existsSync(targetDirAbs)) {
+			await fs.mkdir(targetDirAbs, { recursive: true });
+		}
+		let fileName = baseFileName;
+		let abs = path.join(targetDirAbs, fileName);
+		assertWritablePath(abs);
+
+		if (existsSync(abs)) {
+			const ext = ".excalidraw";
+			const rawBase = baseFileName.slice(0, -ext.length);
+			for (let i = 1; i < 1000; i++) {
+				const candidate = `${rawBase} ${i}${ext}`;
+				const candAbs = path.join(targetDirAbs, candidate);
+				if (!existsSync(candAbs)) {
+					fileName = candidate;
+					abs = candAbs;
+					break;
+				}
+			}
+		}
+
+		const defaultContent = JSON.stringify(
+			{
+				type: "excalidraw",
+				version: 2,
+				source: "https://excalidraw.com",
+				elements: [],
+				appState: {
+					gridSize: null,
+					viewBackgroundColor: "#ffffff",
+				},
+				files: {},
+			},
+			null,
+			2,
+		);
+		writeTextAtomicSync(abs, defaultContent);
+		invalidateVaultTreeCache();
+		return { success: true, relPath: toPosixRelPath(vaultRoot(), abs) };
+	} catch (err) {
+		return { success: false, error: errMessage(err, "新建画板失败") };
+	}
+}
+
 /** 同目录重命名；笔记自动保留 .md 后缀，非 md 文件（如 .canvas）保留原后缀 */
 export async function renameVaultEntry(
 	relPath: string,

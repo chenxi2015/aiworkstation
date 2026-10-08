@@ -94,6 +94,7 @@ export function ObsidianApp({
 		handleCreateNoteFromLink,
 		handleCreateFolder,
 		handleCreateCanvas,
+		handleCreateExcalidraw,
 		handleRenameCommit,
 		performDeleteEntry,
 		handleDeleteEntry,
@@ -191,6 +192,7 @@ export function ObsidianApp({
 						onCreateNote={() => void handleCreateNote()}
 						onCreateFolder={() => void handleCreateFolder()}
 						onCreateCanvas={() => void handleCreateCanvas()}
+						onCreateExcalidraw={() => void handleCreateExcalidraw()}
 						onRefresh={() => load(true)}
 						refreshing={refreshing}
 						anyExpanded={expanded.size > 0}
@@ -246,6 +248,7 @@ export function ObsidianApp({
 				onCreateNote={handleCreateNote}
 				onCreateFolder={handleCreateFolder}
 				onCreateCanvas={handleCreateCanvas}
+				onCreateExcalidraw={handleCreateExcalidraw}
 				onRename={handleStartRename}
 				onDelete={handleDeleteEntry}
 				onCopyPath={handleCopyPath}

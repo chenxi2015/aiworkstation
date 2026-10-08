@@ -17,6 +17,7 @@ import {
 import {
 	createLocalVault,
 	createVaultCanvas,
+	createVaultExcalidraw,
 	createVaultFolder,
 	createVaultNote,
 	deleteVaultEntry,
@@ -239,6 +240,15 @@ export const createVaultCanvasFn = createServerFn({ method: "POST" })
 	.validator((data: { dirPath: string; name: string }) => data)
 	.handler(async ({ data }): Promise<ObsidianMutationResult> => {
 		return await createVaultCanvas(data.dirPath, data.name);
+	});
+
+/**
+ * Server Function: 新建 Excalidraw 画板
+ */
+export const createVaultExcalidrawFn = createServerFn({ method: "POST" })
+	.validator((data: { dirPath: string; name: string }) => data)
+	.handler(async ({ data }): Promise<ObsidianMutationResult> => {
+		return await createVaultExcalidraw(data.dirPath, data.name);
 	});
 
 /**

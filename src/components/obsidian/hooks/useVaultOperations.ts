@@ -3,6 +3,7 @@ import { useCallback, useState } from "react";
 import { getFileManagerName } from "../../../lib/platform";
 import {
 	createVaultCanvasRpc,
+	createVaultExcalidrawRpc,
 	createVaultFolderRpc,
 	createVaultNoteRpc,
 	deleteVaultEntryRpc,
@@ -178,6 +179,35 @@ export function useVaultOperations({
 		[currentDir, nextAvailableName, expandDirChain, load, openNote],
 	);
 
+	/** Create a new Excalidraw drawing, optionally with a custom name, and open it */
+	const handleCreateExcalidraw = useCallback(
+		async (dir?: string, customName?: string, enterRename = true) => {
+			const targetDir = dir ?? currentDir;
+			const defaultTitle = customName?.trim() || "未命名画板";
+			const name = nextAvailableName(
+				targetDir,
+				defaultTitle,
+				false,
+				".excalidraw",
+			);
+			const res = await createVaultExcalidrawRpc(targetDir, name);
+			if (!res.success) {
+				toast.danger(res.error ?? "新建画板失败");
+				return res;
+			}
+			expandDirChain(targetDir);
+			await load(true);
+			if (res.relPath) {
+				openNote(res.relPath);
+				if (enterRename) {
+					setRenamingPath(res.relPath);
+				}
+			}
+			return res;
+		},
+		[currentDir, nextAvailableName, expandDirChain, load, openNote],
+	);
+
 	/** Commit inline rename and remap active history/expanded states */
 	const handleRenameCommit = useCallback(
 		async (relPath: string, newName: string, isFolder: boolean) => {
@@ -186,7 +216,7 @@ export function useVaultOperations({
 			const currentName = relPath.split("/").pop() ?? "";
 			const currentBase = isFolder
 				? currentName
-				: currentName.replace(/\.(md|canvas)$/i, "");
+				: currentName.replace(/\.(md|canvas|excalidraw)$/i, "");
 			if (!trimmed || trimmed === currentBase) return;
 			const isMdNote = !isFolder && relPath.toLowerCase().endsWith(".md");
 			const res = await renameVaultEntryRpc(relPath, trimmed, isMdNote);
@@ -299,6 +329,7 @@ export function useVaultOperations({
 		handleCreateNoteFromLink,
 		handleCreateFolder,
 		handleCreateCanvas,
+		handleCreateExcalidraw,
 		handleRenameCommit,
 		performDeleteEntry,
 		handleDeleteEntry,

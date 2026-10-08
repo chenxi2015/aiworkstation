@@ -9,6 +9,7 @@ import { getFileManagerName } from "../../lib/platform";
 import {
 	createLocalVaultFn,
 	createVaultCanvasFn,
+	createVaultExcalidrawFn,
 	createVaultFolderFn,
 	createVaultNoteFn,
 	deleteVaultEntryFn,
@@ -312,6 +313,17 @@ export async function createVaultCanvasRpc(
 		return await createVaultCanvasFn({ data: { dirPath, name } });
 	} catch (err) {
 		return { success: false, error: errMessage(err, "新建白板失败") };
+	}
+}
+
+export async function createVaultExcalidrawRpc(
+	dirPath: string,
+	name: string,
+): Promise<ObsidianMutationResult> {
+	try {
+		return await createVaultExcalidrawFn({ data: { dirPath, name } });
+	} catch (err) {
+		return { success: false, error: errMessage(err, "新建画板失败") };
 	}
 }
 

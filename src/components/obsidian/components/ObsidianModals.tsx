@@ -9,6 +9,7 @@ export interface ObsidianModalsProps {
 	onCreateNote: (dir?: string) => void;
 	onCreateFolder: (dir?: string) => void;
 	onCreateCanvas?: (dir?: string) => void;
+	onCreateExcalidraw?: (dir?: string) => void;
 	onRename: (node: ObsidianTree["tree"][number]) => void;
 	onDelete: (node: ObsidianTree["tree"][number]) => void;
 	onCopyPath: (node: ObsidianTree["tree"][number]) => void;
@@ -31,6 +32,7 @@ export function ObsidianModals({
 	onCreateNote,
 	onCreateFolder,
 	onCreateCanvas,
+	onCreateExcalidraw,
 	onRename,
 	onDelete,
 	onCopyPath,
@@ -51,6 +53,11 @@ export function ObsidianModals({
 				onCreateNote={(dir) => void onCreateNote(dir)}
 				onCreateFolder={(dir) => void onCreateFolder(dir)}
 				onCreateCanvas={(dir) => void onCreateCanvas?.(dir)}
+				onCreateExcalidraw={
+					onCreateExcalidraw
+						? (dir) => void onCreateExcalidraw(dir)
+						: undefined
+				}
 				onRename={onRename}
 				onDelete={onDelete}
 				onCopyPath={onCopyPath}

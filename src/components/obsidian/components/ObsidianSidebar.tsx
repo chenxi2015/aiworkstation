@@ -1,13 +1,15 @@
-import { Tooltip } from "@heroui/react";
+import { Dropdown, Tooltip } from "@heroui/react";
 import {
 	ChevronsDownUp,
 	ChevronsUpDown,
 	Crosshair,
 	FilePlus2,
 	FolderPlus,
-	LayoutGrid,
+	PenTool,
+	Plus,
 	RefreshCw,
 	Search,
+	Waypoints,
 } from "lucide-react";
 import { useState } from "react";
 import type { WorkbenchSettings } from "../../workbench/types";
@@ -24,6 +26,7 @@ export interface ObsidianSidebarProps {
 	onCreateNote: () => void;
 	onCreateFolder: () => void;
 	onCreateCanvas?: () => void;
+	onCreateExcalidraw?: () => void;
 	onRefresh: () => void;
 	refreshing: boolean;
 	anyExpanded: boolean;
@@ -66,6 +69,7 @@ export function ObsidianSidebar({
 	onCreateNote,
 	onCreateFolder,
 	onCreateCanvas,
+	onCreateExcalidraw,
 	onRefresh,
 	refreshing,
 	anyExpanded,
@@ -111,7 +115,7 @@ export function ObsidianSidebar({
 					/>
 				</div>
 				<div className="flex items-center gap-0.5 px-1">
-					<span className="flex-1 text-[11px] font-medium text-muted select-none">
+					<span className="flex-1 text-[11px] font-medium text-muted select-none whitespace-nowrap">
 						笔记
 					</span>
 					<Tooltip>
@@ -142,22 +146,61 @@ export function ObsidianSidebar({
 						</Tooltip.Trigger>
 						<Tooltip.Content placement="bottom">新建文件夹</Tooltip.Content>
 					</Tooltip>
-					{onCreateCanvas && (
-						<Tooltip>
-							<Tooltip.Trigger>
-								<button
-									type="button"
-									onClick={onCreateCanvas}
-									disabled={!vaultExists}
-									aria-label="新建白板"
-									className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/60 transition-colors disabled:opacity-40"
-								>
-									<LayoutGrid className="w-3.5 h-3.5" />
-								</button>
-							</Tooltip.Trigger>
-							<Tooltip.Content placement="bottom">新建白板</Tooltip.Content>
-						</Tooltip>
+					{(onCreateCanvas || onCreateExcalidraw) && (
+						<Dropdown>
+							<Tooltip>
+								<Tooltip.Trigger>
+									<Dropdown.Trigger>
+										<button
+											type="button"
+											disabled={!vaultExists}
+											aria-label="更多新建"
+											className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/60 transition-colors disabled:opacity-40 cursor-pointer"
+										>
+											<Plus className="w-3.5 h-3.5" />
+										</button>
+									</Dropdown.Trigger>
+								</Tooltip.Trigger>
+								<Tooltip.Content placement="bottom">更多新建</Tooltip.Content>
+							</Tooltip>
+							<Dropdown.Popover
+								placement="bottom start"
+								className="min-w-[150px] p-1 shadow-lg border border-border/80 rounded-xl bg-surface select-none"
+							>
+								<Dropdown.Menu aria-label="更多新建">
+									{onCreateCanvas && (
+										<Dropdown.Item
+											id="new-canvas"
+											textValue="新建白板"
+											onAction={onCreateCanvas}
+										>
+											<div className="flex items-center gap-2 py-0.5">
+												<Waypoints className="w-3.5 h-3.5 text-muted shrink-0" />
+												<span className="text-xs font-medium flex-1">
+													新建白板 (Canvas)
+												</span>
+											</div>
+										</Dropdown.Item>
+									)}
+									{onCreateExcalidraw && (
+										<Dropdown.Item
+											id="new-excalidraw"
+											textValue="新建画板"
+											onAction={onCreateExcalidraw}
+										>
+											<div className="flex items-center gap-2 py-0.5">
+												<PenTool className="w-3.5 h-3.5 text-muted shrink-0" />
+												<span className="text-xs font-medium flex-1">
+													新建画板 (Excalidraw)
+												</span>
+											</div>
+										</Dropdown.Item>
+									)}
+								</Dropdown.Menu>
+							</Dropdown.Popover>
+						</Dropdown>
 					)}
+					<div className="w-px h-3 bg-border/60 mx-0.5 shrink-0" />
 					<Tooltip>
 						<Tooltip.Trigger>
 							<button
