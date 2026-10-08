@@ -10,6 +10,7 @@ import {
 	ReactFlowProvider,
 	SelectionMode,
 	useReactFlow,
+	ViewportPortal,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -18,7 +19,11 @@ import {
 	CanvasActionContext,
 	type CanvasActionContextValue,
 } from "./CanvasActionContext";
-import { CanvasEdgeComponent } from "./CanvasFlowEdge";
+import {
+	CanvasConnectionLine,
+	CanvasEdgeComponent,
+	PendingConnectionEdge,
+} from "./CanvasFlowEdge";
 import { CanvasCardNode, CanvasGroupNode } from "./CanvasFlowNodes";
 import { CanvasMultiSelectionToolbar } from "./CanvasMultiSelectionToolbar";
 import { CanvasNoteSearchModal } from "./CanvasNoteSearchModal";
@@ -276,6 +281,11 @@ function CanvasFlow({
 		emit,
 	});
 
+	const pendingSourceNode = useMemo(() => {
+		if (!pendingConn) return null;
+		return nodes.find((n) => n.id === pendingConn.fromNodeId) ?? null;
+	}, [pendingConn, nodes]);
+
 	const addCardAt = useCallback(
 		(clientX: number, clientY: number) => {
 			const point = screenToFlowPosition({ x: clientX, y: clientY });
@@ -523,6 +533,7 @@ function CanvasFlow({
 							);
 						}}
 						connectionMode={ConnectionMode.Loose}
+						connectionLineComponent={CanvasConnectionLine}
 						fitView
 						fitViewOptions={{ padding: 0.1, maxZoom: 1 }}
 						minZoom={0.1}
@@ -571,6 +582,17 @@ function CanvasFlow({
 							onCreateGroupFromSelection={createGroupFromSelection}
 							onAlign={alignSelectedNodes}
 						/>
+
+						{pendingConn && pendingSourceNode && (
+							<ViewportPortal>
+								<PendingConnectionEdge
+									fromNode={pendingSourceNode}
+									fromHandleId={pendingConn.fromHandleId}
+									flowX={pendingConn.flowX}
+									flowY={pendingConn.flowY}
+								/>
+							</ViewportPortal>
+						)}
 
 						{pendingConn && (
 							<PendingConnectionMenu

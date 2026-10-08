@@ -95,3 +95,93 @@ export function guessSides(
 		? { fromSide: "bottom", toSide: "top" }
 		: { fromSide: "top", toSide: "bottom" };
 }
+
+/**
+ * Minimum safe gap between connected nodes to ensure edge and arrow are spacious and comfortable
+ */
+export const MIN_CONNECTED_NODE_GAP = 140;
+
+/**
+ * Calculate the position for a new node connected from an existing node.
+ * Prevents the new node from expanding backwards and overlapping/crowding the edge/arrow.
+ */
+export function calculateConnectedNodePosition(params: {
+	targetPos: { flowX: number; flowY: number };
+	nodeSize: { width: number; height: number };
+	fromNode?: CanvasNode | null;
+	fromSide?: Side | null;
+}): { x: number; y: number } {
+	const { targetPos, nodeSize, fromNode, fromSide } = params;
+	if (!fromNode) {
+		return {
+			x: Math.round(targetPos.flowX - nodeSize.width / 2),
+			y: Math.round(targetPos.flowY - nodeSize.height / 2),
+		};
+	}
+
+	// Determine direction: either explicit fromSide or relative vector
+	let direction = fromSide;
+	if (!direction) {
+		const fromCenterX = fromNode.x + fromNode.width / 2;
+		const fromCenterY = fromNode.y + fromNode.height / 2;
+		const dx = targetPos.flowX - fromCenterX;
+		const dy = targetPos.flowY - fromCenterY;
+		if (Math.abs(dx) >= Math.abs(dy)) {
+			direction = dx >= 0 ? "right" : "left";
+		} else {
+			direction = dy >= 0 ? "bottom" : "top";
+		}
+	}
+
+	const gap = MIN_CONNECTED_NODE_GAP;
+
+	switch (direction) {
+		case "left": {
+			// New node extends to the left; its right edge should be at targetPos.flowX
+			// and at least `gap` pixels away from fromNode's left edge
+			const fromLeft = fromNode.x;
+			const desiredRight = Math.min(targetPos.flowX, fromLeft - gap);
+			return {
+				x: Math.round(desiredRight - nodeSize.width),
+				y: Math.round(targetPos.flowY - nodeSize.height / 2),
+			};
+		}
+		case "right": {
+			// New node extends to the right; its left edge should be at targetPos.flowX
+			// and at least `gap` pixels away from fromNode's right edge
+			const fromRight = fromNode.x + fromNode.width;
+			const desiredLeft = Math.max(targetPos.flowX, fromRight + gap);
+			return {
+				x: Math.round(desiredLeft),
+				y: Math.round(targetPos.flowY - nodeSize.height / 2),
+			};
+		}
+		case "top": {
+			// New node extends upwards; its bottom edge should be at targetPos.flowY
+			// and at least `gap` pixels away from fromNode's top edge
+			const fromTop = fromNode.y;
+			const desiredBottom = Math.min(targetPos.flowY, fromTop - gap);
+			return {
+				x: Math.round(targetPos.flowX - nodeSize.width / 2),
+				y: Math.round(desiredBottom - nodeSize.height),
+			};
+		}
+		case "bottom": {
+			// New node extends downwards; its top edge should be at targetPos.flowY
+			// and at least `gap` pixels away from fromNode's bottom edge
+			const fromBottom = fromNode.y + fromNode.height;
+			const desiredTop = Math.max(targetPos.flowY, fromBottom + gap);
+			return {
+				x: Math.round(targetPos.flowX - nodeSize.width / 2),
+				y: Math.round(desiredTop),
+			};
+		}
+		default: {
+			return {
+				x: Math.round(targetPos.flowX - nodeSize.width / 2),
+				y: Math.round(targetPos.flowY - nodeSize.height / 2),
+			};
+		}
+	}
+}
+

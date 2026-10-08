@@ -12,8 +12,14 @@ import {
 	DEFAULT_EDGE_COLOR,
 	defaultEdgeProps,
 	genId,
+	sideOf,
 } from "./canvasSerializer";
-import { type CanvasNode, guessSides, resolveColor } from "./canvasUtils";
+import {
+	type CanvasNode,
+	calculateConnectedNodePosition,
+	guessSides,
+	resolveColor,
+} from "./canvasUtils";
 
 export interface PendingConnection {
 	screenX: number;
@@ -357,21 +363,30 @@ export function useCanvasConnections({
 		if (!pending) return;
 
 		const id = genId();
-		const canvasNode: CanvasNode = {
-			id,
-			type: "text",
-			text: "",
-			x: Math.round(pending.flowX - 125),
-			y: Math.round(pending.flowY - 30),
-			width: 250,
-			height: 60,
-		};
-
 		const fromFlowNode = nodesRef.current.find(
 			(node) => node.id === pending.fromNodeId,
 		);
 		if (!fromFlowNode) return;
 		const fromCanvas = getCanvasNodeFromFlow(fromFlowNode);
+		const fromSide = sideOf(pending.fromHandleId);
+
+		const { x, y } = calculateConnectedNodePosition({
+			targetPos: { flowX: pending.flowX, flowY: pending.flowY },
+			nodeSize: { width: 250, height: 60 },
+			fromNode: fromCanvas,
+			fromSide,
+		});
+
+		const canvasNode: CanvasNode = {
+			id,
+			type: "text",
+			text: "",
+			x,
+			y,
+			width: 250,
+			height: 60,
+		};
+
 		const sides = guessSides(fromCanvas, canvasNode);
 
 		const edge: Edge =
@@ -455,12 +470,25 @@ export function useCanvasConnections({
 				height = 280;
 			}
 
+			const fromFlowNode = target.fromNodeId
+				? nodesRef.current.find((node) => node.id === target.fromNodeId)
+				: null;
+			const fromCanvas = fromFlowNode ? getCanvasNodeFromFlow(fromFlowNode) : null;
+			const fromSide = sideOf(target.fromHandleId);
+
+			const { x, y } = calculateConnectedNodePosition({
+				targetPos: { flowX: target.flowX, flowY: target.flowY },
+				nodeSize: { width, height },
+				fromNode: fromCanvas,
+				fromSide,
+			});
+
 			const canvasNode: CanvasNode = {
 				id,
 				type: "file",
 				file: relPath,
-				x: Math.round(target.flowX - width / 2),
-				y: Math.round(target.flowY - height / 2),
+				x,
+				y,
 				width,
 				height,
 			};

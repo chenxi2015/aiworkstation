@@ -1,9 +1,12 @@
 import {
 	BaseEdge,
+	type ConnectionLineComponentProps,
 	type Edge,
 	EdgeLabelRenderer,
 	type EdgeProps,
 	getBezierPath,
+	type Node,
+	Position,
 	useReactFlow,
 } from "@xyflow/react";
 import {
@@ -21,7 +24,8 @@ import {
 import { memo, useCallback, useEffect, useState } from "react";
 import { useCanvasActions } from "./CanvasActionContext";
 import { useCanvasSelection } from "./CanvasSelectionContext";
-import { COLOR_PRESETS } from "./canvasUtils";
+import { sideOf } from "./canvasSerializer";
+import { type CanvasNode, COLOR_PRESETS } from "./canvasUtils";
 
 export interface CanvasEdgeData extends Record<string, unknown> {
 	/** Original color string from the .canvas file (preset id or hex) */
@@ -410,3 +414,145 @@ export const CanvasEdgeComponent = memo(function CanvasEdgeComponent({
 		</>
 	);
 });
+
+/**
+ * Interactive connection line displayed with arrow marker while actively dragging from a node handle
+ */
+export function CanvasConnectionLine({
+	fromX,
+	fromY,
+	toX,
+	toY,
+	fromPosition,
+	toPosition,
+	connectionLineStyle,
+}: ConnectionLineComponentProps) {
+	const [edgePath] = getBezierPath({
+		sourceX: fromX,
+		sourceY: fromY,
+		sourcePosition: fromPosition,
+		targetX: toX,
+		targetY: toY,
+		targetPosition: toPosition,
+	});
+
+	return (
+		<g>
+			<defs>
+				<marker
+					id="canvas-active-connection-arrow"
+					viewBox="0 0 16 16"
+					refX="11"
+					refY="8"
+					markerWidth="13"
+					markerHeight="13"
+					orient="auto"
+				>
+					<path d="M 2 3 L 14 8 L 2 13 z" fill="var(--accent, #7853ee)" />
+				</marker>
+			</defs>
+			<path
+				d={edgePath}
+				fill="none"
+				stroke="var(--accent, #7853ee)"
+				strokeWidth={2}
+				markerEnd="url(#canvas-active-connection-arrow)"
+				style={connectionLineStyle}
+			/>
+		</g>
+	);
+}
+
+export interface PendingConnectionEdgeProps {
+	fromNode: Node;
+	fromHandleId: string | null;
+	flowX: number;
+	flowY: number;
+}
+
+/**
+ * Temporary edge connecting the source node to the pending drop location / creation menu
+ */
+export function PendingConnectionEdge({
+	fromNode,
+	fromHandleId,
+	flowX,
+	flowY,
+}: PendingConnectionEdgeProps) {
+	const canvasNode = fromNode.data?.canvasNode as CanvasNode | undefined;
+	const nodeX = canvasNode?.x ?? fromNode.position.x;
+	const nodeY = canvasNode?.y ?? fromNode.position.y;
+	const nodeW = canvasNode?.width ?? fromNode.width ?? 250;
+	const nodeH = canvasNode?.height ?? fromNode.height ?? 100;
+
+	const side = sideOf(fromHandleId);
+	let sourceX = nodeX + nodeW / 2;
+	let sourceY = nodeY + nodeH / 2;
+	let sourcePosition = Position.Right;
+
+	if (side === "left") {
+		sourceX = nodeX;
+		sourceY = nodeY + nodeH / 2;
+		sourcePosition = Position.Left;
+	} else if (side === "right") {
+		sourceX = nodeX + nodeW;
+		sourceY = nodeY + nodeH / 2;
+		sourcePosition = Position.Right;
+	} else if (side === "top") {
+		sourceX = nodeX + nodeW / 2;
+		sourceY = nodeY;
+		sourcePosition = Position.Top;
+	} else if (side === "bottom") {
+		sourceX = nodeX + nodeW / 2;
+		sourceY = nodeY + nodeH;
+		sourcePosition = Position.Bottom;
+	}
+
+	const dx = flowX - sourceX;
+	const dy = flowY - sourceY;
+	let targetPosition = Position.Left;
+	if (Math.abs(dx) >= Math.abs(dy)) {
+		targetPosition = dx >= 0 ? Position.Left : Position.Right;
+	} else {
+		targetPosition = dy >= 0 ? Position.Top : Position.Bottom;
+	}
+
+	const [path] = getBezierPath({
+		sourceX,
+		sourceY,
+		sourcePosition,
+		targetX: flowX,
+		targetY: flowY,
+		targetPosition,
+	});
+
+	return (
+		<svg
+			className="pointer-events-none absolute top-0 left-0 w-full h-full overflow-visible z-10"
+			style={{ position: "absolute", top: 0, left: 0 }}
+		>
+			<defs>
+				<marker
+					id="canvas-pending-connection-arrow"
+					viewBox="0 0 16 16"
+					refX="11"
+					refY="8"
+					markerWidth="13"
+					markerHeight="13"
+					orient="auto"
+				>
+					<path d="M 2 3 L 14 8 L 2 13 z" fill="var(--accent, #7853ee)" />
+				</marker>
+			</defs>
+			<path
+				d={path}
+				fill="none"
+				stroke="var(--accent, #7853ee)"
+				strokeWidth={2}
+				strokeDasharray="5 4"
+				markerEnd="url(#canvas-pending-connection-arrow)"
+			/>
+		</svg>
+	);
+}
+
