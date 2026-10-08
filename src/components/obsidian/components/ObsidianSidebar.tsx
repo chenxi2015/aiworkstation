@@ -49,6 +49,7 @@ export interface ObsidianSidebarProps {
 	) => void;
 	onRenameCommit: (path: string, newName: string, isFolder: boolean) => void;
 	onRenameCancel: () => void;
+	onMoveEntry?: (sourceRelPath: string, targetDir: string) => void;
 	onClearCurrentDir: () => void;
 	vaultMissing: boolean;
 	settings: WorkbenchSettings;
@@ -87,6 +88,7 @@ export function ObsidianSidebar({
 	onOpenMenu,
 	onRenameCommit,
 	onRenameCancel,
+	onMoveEntry,
 	onClearCurrentDir,
 	vaultMissing,
 	settings,
@@ -97,6 +99,7 @@ export function ObsidianSidebar({
 	const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(
 		null,
 	);
+	const [isRootDragOver, setIsRootDragOver] = useState(false);
 
 	return (
 		<aside
@@ -291,19 +294,43 @@ export function ObsidianSidebar({
 							onOpenMenu={onOpenMenu}
 							onRenameCommit={onRenameCommit}
 							onRenameCancel={onRenameCancel}
+							onMoveEntry={onMoveEntry}
 						/>
 						{/* Blank area reserved at bottom for easy right-clicking and deselection when list is long */}
 						{/* biome-ignore lint/a11y/noStaticElementInteractions lint/a11y/useKeyWithClickEvents: Blank area for right-click and selection clear */}
 						<div
-							className="h-16 w-full cursor-default shrink-0"
+							className={`h-16 mx-2 my-1 rounded-lg cursor-default shrink-0 transition-colors flex items-center justify-center text-xs select-none ${
+								isRootDragOver
+									? "bg-accent/15 border-2 border-dashed border-accent/60 text-accent font-medium animate-pulse"
+									: ""
+							}`}
 							onClick={onClearCurrentDir}
+							onDragOver={(e) => {
+								if (onMoveEntry) {
+									e.preventDefault();
+									e.dataTransfer.dropEffect = "move";
+									setIsRootDragOver(true);
+								}
+							}}
+							onDragLeave={() => setIsRootDragOver(false)}
+							onDrop={(e) => {
+								setIsRootDragOver(false);
+								const source = e.dataTransfer.getData("text/plain");
+								if (source && onMoveEntry) {
+									e.preventDefault();
+									e.stopPropagation();
+									onMoveEntry(source, "");
+								}
+							}}
 							onContextMenu={(e) => {
 								if (!vaultExists) return;
 								e.preventDefault();
 								e.stopPropagation();
 								onOpenMenu(null, e.clientX, e.clientY, currentDir);
 							}}
-						/>
+						>
+							{isRootDragOver && "放置到 Vault 根目录"}
+						</div>
 					</>
 				) : (
 					<p className="px-4 py-8 text-center text-[11px] text-muted">

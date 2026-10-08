@@ -90,12 +90,15 @@ export function ObsidianApp({
 		menu,
 		deleteTarget,
 		setDeleteTarget,
+		moveTarget,
+		setMoveTarget,
 		handleCreateNote,
 		handleCreateNoteFromLink,
 		handleCreateFolder,
 		handleCreateCanvas,
 		handleCreateExcalidraw,
 		handleRenameCommit,
+		handleMoveEntry,
 		performDeleteEntry,
 		handleDeleteEntry,
 		handleCopyPath,
@@ -212,6 +215,7 @@ export function ObsidianApp({
 							void handleRenameCommit(p, name, isFolder)
 						}
 						onRenameCancel={() => setRenamingPath(null)}
+						onMoveEntry={(src, dest) => void handleMoveEntry(src, dest)}
 						onClearCurrentDir={() => setCurrentDir("")}
 						vaultMissing={vaultMissing}
 						settings={currentSettings}
@@ -249,6 +253,7 @@ export function ObsidianApp({
 				onCreateFolder={handleCreateFolder}
 				onCreateCanvas={handleCreateCanvas}
 				onCreateExcalidraw={handleCreateExcalidraw}
+				onMove={(node) => setMoveTarget(node)}
 				onRename={handleStartRename}
 				onDelete={handleDeleteEntry}
 				onCopyPath={handleCopyPath}
@@ -258,6 +263,10 @@ export function ObsidianApp({
 				onConfirmDelete={async () => {
 					if (deleteTarget) await performDeleteEntry(deleteTarget);
 				}}
+				moveTarget={moveTarget}
+				treeNodes={treeData?.tree ?? []}
+				onCloseMoveTarget={() => setMoveTarget(null)}
+				onConfirmMove={handleMoveEntry}
 				pickerOpen={pickerOpen}
 				initialPickerPath={currentSettings.obsidianVaultDir}
 				onSelectPickerPath={(path) => {

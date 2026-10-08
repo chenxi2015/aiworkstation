@@ -1,7 +1,8 @@
 import { DeleteEntryDialog } from "../DeleteEntryDialog";
 import { DirectoryPickerModal } from "../DirectoryPickerModal";
+import { MoveEntryModal } from "../MoveEntryModal";
 import { TreeContextMenu, type TreeMenuTarget } from "../TreeContextMenu";
-import type { ObsidianTree } from "../types";
+import type { ObsidianTreeNode } from "../types";
 
 export interface ObsidianModalsProps {
 	menu: TreeMenuTarget | null;
@@ -10,13 +11,21 @@ export interface ObsidianModalsProps {
 	onCreateFolder: (dir?: string) => void;
 	onCreateCanvas?: (dir?: string) => void;
 	onCreateExcalidraw?: (dir?: string) => void;
-	onRename: (node: ObsidianTree["tree"][number]) => void;
-	onDelete: (node: ObsidianTree["tree"][number]) => void;
-	onCopyPath: (node: ObsidianTree["tree"][number]) => void;
-	onReveal: (node: ObsidianTree["tree"][number]) => void;
-	deleteTarget: ObsidianTree["tree"][number] | null;
+	onMove?: (node: ObsidianTreeNode) => void;
+	onRename: (node: ObsidianTreeNode) => void;
+	onDelete: (node: ObsidianTreeNode) => void;
+	onCopyPath: (node: ObsidianTreeNode) => void;
+	onReveal: (node: ObsidianTreeNode) => void;
+	deleteTarget: ObsidianTreeNode | null;
 	onCloseDeleteTarget: () => void;
 	onConfirmDelete: () => Promise<void>;
+	moveTarget: ObsidianTreeNode | null;
+	treeNodes: ObsidianTreeNode[];
+	onCloseMoveTarget: () => void;
+	onConfirmMove: (
+		sourceRelPath: string,
+		targetDir: string,
+	) => Promise<void> | void;
 	pickerOpen: boolean;
 	initialPickerPath?: string;
 	onSelectPickerPath: (path: string) => void;
@@ -24,7 +33,7 @@ export interface ObsidianModalsProps {
 }
 
 /**
- * Global modal manager for Obsidian tree context menu, delete confirmation dialog, and directory picker.
+ * Global modal manager for Obsidian tree context menu, move dialog, delete confirmation dialog, and directory picker.
  */
 export function ObsidianModals({
 	menu,
@@ -33,6 +42,7 @@ export function ObsidianModals({
 	onCreateFolder,
 	onCreateCanvas,
 	onCreateExcalidraw,
+	onMove,
 	onRename,
 	onDelete,
 	onCopyPath,
@@ -40,6 +50,10 @@ export function ObsidianModals({
 	deleteTarget,
 	onCloseDeleteTarget,
 	onConfirmDelete,
+	moveTarget,
+	treeNodes,
+	onCloseMoveTarget,
+	onConfirmMove,
 	pickerOpen,
 	initialPickerPath,
 	onSelectPickerPath,
@@ -54,10 +68,9 @@ export function ObsidianModals({
 				onCreateFolder={(dir) => void onCreateFolder(dir)}
 				onCreateCanvas={(dir) => void onCreateCanvas?.(dir)}
 				onCreateExcalidraw={
-					onCreateExcalidraw
-						? (dir) => void onCreateExcalidraw(dir)
-						: undefined
+					onCreateExcalidraw ? (dir) => void onCreateExcalidraw(dir) : undefined
 				}
+				onMove={onMove}
 				onRename={onRename}
 				onDelete={onDelete}
 				onCopyPath={onCopyPath}
@@ -68,6 +81,14 @@ export function ObsidianModals({
 				onClose={onCloseDeleteTarget}
 				onConfirm={onConfirmDelete}
 			/>
+			{moveTarget && (
+				<MoveEntryModal
+					target={moveTarget}
+					tree={treeNodes}
+					onClose={onCloseMoveTarget}
+					onConfirmMove={onConfirmMove}
+				/>
+			)}
 			{pickerOpen && (
 				<DirectoryPickerModal
 					initialPath={initialPickerPath}

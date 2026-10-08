@@ -3,6 +3,7 @@ import {
 	Copy,
 	ExternalLink,
 	Folder,
+	FolderInput,
 	FolderSearch,
 	Pencil,
 	PenTool,
@@ -29,6 +30,7 @@ export interface TreeContextMenuProps {
 	onCreateFolder: (dir: string) => void;
 	onCreateCanvas: (dir: string) => void;
 	onCreateExcalidraw?: (dir: string) => void;
+	onMove?: (node: ObsidianTreeNode) => void;
 	onRename: (node: ObsidianTreeNode) => void;
 	onDelete: (node: ObsidianTreeNode) => void;
 	onCopyPath: (node: ObsidianTreeNode) => void;
@@ -75,6 +77,7 @@ export function TreeContextMenu({
 	onCreateFolder,
 	onCreateCanvas,
 	onCreateExcalidraw,
+	onMove,
 	onRename,
 	onDelete,
 	onCopyPath,
@@ -106,16 +109,16 @@ export function TreeContextMenu({
 
 	const { node } = target;
 	const isFolder = node?.kind === "folder";
-	// Accurate heights: blank new menu (3-4 items), note file menu (~190px), folder menu (~250-286px)
+	// Accurate heights: blank new menu (3-4 items), note file menu (~226px), folder menu (~286-320px)
 	const menuHeight = !node
 		? onCreateExcalidraw
 			? 144
 			: 112
 		: isFolder
 			? onCreateExcalidraw
-				? 286
-				: 250
-			: 190;
+				? 320
+				: 286
+			: 226;
 	const menuWidth = !node ? 144 : 176;
 
 	// Keep horizontally within viewport, flip left if overflowing right edge
@@ -218,6 +221,13 @@ export function TreeContextMenu({
 					/>
 					<div className="my-1 border-t border-border/60" />
 				</>
+			)}
+			{onMove && (
+				<MenuItem
+					icon={FolderInput}
+					label={isFolder ? "将文件夹移动到…" : "将文件移动到…"}
+					onClick={act(() => onMove(node))}
+				/>
 			)}
 			<MenuItem
 				icon={Pencil}

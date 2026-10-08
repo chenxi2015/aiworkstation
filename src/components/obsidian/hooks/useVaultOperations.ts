@@ -7,6 +7,7 @@ import {
 	createVaultFolderRpc,
 	createVaultNoteRpc,
 	deleteVaultEntryRpc,
+	moveVaultEntryRpc,
 	renameVaultEntryRpc,
 	revealVaultEntryRpc,
 } from "../../../services/api/obsidianClient";
@@ -46,6 +47,9 @@ export function useVaultOperations({
 	const [renamingPath, setRenamingPath] = useState<string | null>(null);
 	const [menu, setMenu] = useState<TreeMenuTarget | null>(null);
 	const [deleteTarget, setDeleteTarget] = useState<
+		ObsidianTree["tree"][number] | null
+	>(null);
+	const [moveTarget, setMoveTarget] = useState<
 		ObsidianTree["tree"][number] | null
 	>(null);
 
@@ -319,18 +323,70 @@ export function useVaultOperations({
 		[expandDirChain],
 	);
 
+	/** Move entry (note, canvas, or folder) to target directory and update active states */
+	const handleMoveEntry = useCallback(
+		async (sourceRelPath: string, targetDir: string) => {
+			const sourceParent = sourceRelPath.includes("/")
+				? sourceRelPath.split("/").slice(0, -1).join("/")
+				: "";
+			if (sourceParent === targetDir) {
+				toast.info("已在当前目录下");
+				return;
+			}
+			const res = await moveVaultEntryRpc(sourceRelPath, targetDir);
+			if (!res.success || !res.relPath) {
+				toast.danger(res.error ?? "移动失败");
+				return;
+			}
+			const newPath = res.relPath;
+			const remap = (p: string | null): string | null => {
+				if (!p) return p;
+				if (p === sourceRelPath) return newPath;
+				if (p.startsWith(`${sourceRelPath}/`))
+					return newPath + p.slice(sourceRelPath.length);
+				return p;
+			};
+			remapNoteHistory((p) => remap(p) ?? p);
+			setCurrentDir((prev) => remap(prev) ?? "");
+			if (targetDir) {
+				expandDirChain(targetDir);
+			}
+			setExpanded((prev) => {
+				const next = new Set<string>();
+				for (const p of prev) next.add(remap(p) ?? p);
+				if (targetDir) {
+					const parts = targetDir.split("/");
+					let cur = "";
+					for (const part of parts) {
+						cur = cur ? `${cur}/${part}` : part;
+						next.add(cur);
+					}
+				}
+				return next;
+			});
+			clearWikilinkCaches();
+			const destName = targetDir ? targetDir.split("/").pop() : "根目录";
+			toast.success(`已移动到「${destName}」`);
+			await load(true);
+		},
+		[load, remapNoteHistory, setCurrentDir, setExpanded, expandDirChain],
+	);
+
 	return {
 		renamingPath,
 		setRenamingPath,
 		menu,
 		deleteTarget,
 		setDeleteTarget,
+		moveTarget,
+		setMoveTarget,
 		handleCreateNote,
 		handleCreateNoteFromLink,
 		handleCreateFolder,
 		handleCreateCanvas,
 		handleCreateExcalidraw,
 		handleRenameCommit,
+		handleMoveEntry,
 		performDeleteEntry,
 		handleDeleteEntry,
 		handleCopyPath,

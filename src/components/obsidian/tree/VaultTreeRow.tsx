@@ -79,10 +79,19 @@ interface RowShellProps {
 	depth: number;
 	active: boolean;
 	isRenaming: boolean;
+	isDragging?: boolean;
+	isDropTarget?: boolean;
+	draggedNodeName?: string | null;
+	draggedNodeKind?: ObsidianTreeNode["kind"];
 	onRowClick: () => void;
 	onOpenMenu: (node: ObsidianTreeNode, x: number, y: number) => void;
 	onRenameCommit: (relPath: string, newName: string, isFolder: boolean) => void;
 	onRenameCancel: () => void;
+	onDragStart?: (e: React.DragEvent, node: ObsidianTreeNode) => void;
+	onDragOver?: (e: React.DragEvent, node: ObsidianTreeNode) => void;
+	onDragLeave?: (e: React.DragEvent, node: ObsidianTreeNode) => void;
+	onDrop?: (e: React.DragEvent, node: ObsidianTreeNode) => void;
+	onDragEnd?: (e: React.DragEvent) => void;
 	leading: React.ReactNode;
 	nameClassName: string;
 }
@@ -93,10 +102,19 @@ export function RowShell({
 	depth,
 	active,
 	isRenaming,
+	isDragging,
+	isDropTarget,
+	draggedNodeName,
+	draggedNodeKind,
 	onRowClick,
 	onOpenMenu,
 	onRenameCommit,
 	onRenameCancel,
+	onDragStart,
+	onDragOver,
+	onDragLeave,
+	onDrop,
+	onDragEnd,
 	leading,
 	nameClassName,
 }: RowShellProps) {
@@ -135,12 +153,22 @@ export function RowShell({
 		<div
 			style={indent}
 			data-reveal-path={node.relPath}
+			draggable={!isRenaming}
+			onDragStart={(e) => onDragStart?.(e, node)}
+			onDragOver={(e) => onDragOver?.(e, node)}
+			onDragLeave={(e) => onDragLeave?.(e, node)}
+			onDrop={(e) => onDrop?.(e, node)}
+			onDragEnd={onDragEnd}
 			onClick={handleRowClick}
 			onContextMenu={handleContextMenu}
-			className={`group w-full h-[28px] flex items-center gap-1.5 pr-1 text-left text-xs cursor-pointer select-none transition-colors ${
-				active
-					? "text-zinc-900 dark:text-zinc-100 bg-zinc-200/70 dark:bg-zinc-800 font-medium"
-					: "text-foreground/80 hover:bg-surface-secondary/60"
+			className={`group relative w-full h-[28px] flex items-center gap-1.5 pr-1 text-left text-xs cursor-pointer select-none transition-colors ${
+				isDragging ? "opacity-35" : ""
+			} ${
+				isDropTarget
+					? "bg-accent/25 dark:bg-accent/35 ring-1 ring-accent/60 font-medium z-30 rounded-md"
+					: active
+						? "text-zinc-900 dark:text-zinc-100 bg-zinc-200/70 dark:bg-zinc-800 font-medium"
+						: "text-foreground/80 hover:bg-surface-secondary/60"
 			}`}
 			title={node.relPath}
 		>
@@ -169,6 +197,19 @@ export function RowShell({
 					<Ellipsis className="w-3.5 h-3.5" />
 				</button>
 			)}
+			{isDropTarget && draggedNodeName && (
+				<div className="absolute left-6 bottom-0 translate-y-[85%] z-50 pointer-events-none flex flex-col gap-0.5 px-2.5 py-1.5 rounded-lg bg-zinc-950/95 dark:bg-zinc-900/95 text-white border border-white/10 shadow-2xl backdrop-blur-md text-[11px] leading-tight select-none whitespace-nowrap animate-in fade-in duration-100">
+					<div className="flex items-center gap-1.5 font-medium">
+						{draggedNodeKind === "folder" ? (
+							<Folder className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+						) : (
+							<FileText className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+						)}
+						<span className="truncate max-w-[200px]">{draggedNodeName}</span>
+					</div>
+					<div className="text-[10px] text-zinc-300">移动到 “{node.name}”</div>
+				</div>
+			)}
 		</div>
 	);
 }
@@ -178,12 +219,21 @@ export interface FlatRowProps {
 	isCurrent: boolean;
 	isSelected: boolean;
 	isRenaming: boolean;
+	isDragging?: boolean;
+	isDropTarget?: boolean;
+	draggedNodeName?: string | null;
+	draggedNodeKind?: ObsidianTreeNode["kind"];
 	onToggleFolder: (relPath: string) => void;
 	onSelectFolder: (relPath: string) => void;
 	onSelectNote: (relPath: string) => void;
 	onOpenMenu: (node: ObsidianTreeNode, x: number, y: number) => void;
 	onRenameCommit: (relPath: string, newName: string, isFolder: boolean) => void;
 	onRenameCancel: () => void;
+	onDragStart?: (e: React.DragEvent, node: ObsidianTreeNode) => void;
+	onDragOver?: (e: React.DragEvent, node: ObsidianTreeNode) => void;
+	onDragLeave?: (e: React.DragEvent, node: ObsidianTreeNode) => void;
+	onDrop?: (e: React.DragEvent, node: ObsidianTreeNode) => void;
+	onDragEnd?: (e: React.DragEvent) => void;
 }
 
 /** Memoized flat tree row renderer that branches between folder and file representations */
@@ -192,12 +242,21 @@ export const FlatRow = memo(function FlatRow({
 	isCurrent,
 	isSelected,
 	isRenaming,
+	isDragging,
+	isDropTarget,
+	draggedNodeName,
+	draggedNodeKind,
 	onToggleFolder,
 	onSelectFolder,
 	onSelectNote,
 	onOpenMenu,
 	onRenameCommit,
 	onRenameCancel,
+	onDragStart,
+	onDragOver,
+	onDragLeave,
+	onDrop,
+	onDragEnd,
 }: FlatRowProps) {
 	const { node, depth, isFolder, isExpanded } = item;
 
@@ -237,10 +296,19 @@ export const FlatRow = memo(function FlatRow({
 				depth={depth}
 				active={isCurrent}
 				isRenaming={isRenaming}
+				isDragging={isDragging}
+				isDropTarget={isDropTarget}
+				draggedNodeName={draggedNodeName}
+				draggedNodeKind={draggedNodeKind}
 				onRowClick={handleRowClick}
 				onOpenMenu={onOpenMenu}
 				onRenameCommit={onRenameCommit}
 				onRenameCancel={onRenameCancel}
+				onDragStart={onDragStart}
+				onDragOver={onDragOver}
+				onDragLeave={onDragLeave}
+				onDrop={onDrop}
+				onDragEnd={onDragEnd}
 				nameClassName="font-medium"
 				leading={
 					<>
@@ -307,10 +375,19 @@ export const FlatRow = memo(function FlatRow({
 			depth={depth}
 			active={isSelected}
 			isRenaming={isRenaming}
+			isDragging={isDragging}
+			isDropTarget={isDropTarget}
+			draggedNodeName={draggedNodeName}
+			draggedNodeKind={draggedNodeKind}
 			onRowClick={handleRowClick}
 			onOpenMenu={onOpenMenu}
 			onRenameCommit={onRenameCommit}
 			onRenameCancel={onRenameCancel}
+			onDragStart={onDragStart}
+			onDragOver={onDragOver}
+			onDragLeave={onDragLeave}
+			onDrop={onDrop}
+			onDragEnd={onDragEnd}
 			nameClassName={
 				isSelected
 					? "font-medium text-zinc-900 dark:text-zinc-100"

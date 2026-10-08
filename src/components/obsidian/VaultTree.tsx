@@ -1,8 +1,9 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { memo, useEffect, useMemo, useRef } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ObsidianTreeNode } from "./types";
 import { FlatRow } from "./tree/VaultTreeRow";
 import {
+	canMoveEntry,
 	collectFolderPaths,
 	filterVaultTree,
 	flattenVaultTree,
@@ -34,6 +35,8 @@ export interface VaultTreeProps {
 	/** Inline rename commit (newName excludes .md suffix for notes) */
 	onRenameCommit: (relPath: string, newName: string, isFolder: boolean) => void;
 	onRenameCancel: () => void;
+	/** Move entry (drag & drop target) */
+	onMoveEntry?: (sourceRelPath: string, targetDir: string) => void;
 }
 
 /**
@@ -55,8 +58,101 @@ export const VaultTree = memo(function VaultTree({
 	onOpenMenu,
 	onRenameCommit,
 	onRenameCancel,
+	onMoveEntry,
 }: VaultTreeProps) {
 	const internalRef = useRef<HTMLDivElement | null>(null);
+
+	// Drag & Drop states
+	const [draggedNode, setDraggedNode] = useState<ObsidianTreeNode | null>(null);
+	const [dropTargetRelPath, setDropTargetRelPath] = useState<string | null>(
+		null,
+	);
+	const hoverExpandTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+	const clearHoverTimer = useCallback(() => {
+		if (hoverExpandTimerRef.current) {
+			clearTimeout(hoverExpandTimerRef.current);
+			hoverExpandTimerRef.current = null;
+		}
+	}, []);
+
+	const handleDragStart = useCallback(
+		(e: React.DragEvent, node: ObsidianTreeNode) => {
+			e.dataTransfer.setData("text/plain", node.relPath);
+			e.dataTransfer.effectAllowed = "move";
+			setDraggedNode(node);
+		},
+		[],
+	);
+
+	const handleDragOverRow = useCallback(
+		(e: React.DragEvent, targetNode: ObsidianTreeNode) => {
+			if (!draggedNode) return;
+			// Only folders can be drop targets
+			if (targetNode.kind !== "folder") return;
+
+			const check = canMoveEntry(draggedNode, targetNode.relPath);
+			if (!check.allowed) {
+				e.dataTransfer.dropEffect = "none";
+				return;
+			}
+
+			e.preventDefault();
+			e.stopPropagation();
+			e.dataTransfer.dropEffect = "move";
+
+			if (dropTargetRelPath !== targetNode.relPath) {
+				setDropTargetRelPath(targetNode.relPath);
+
+				// Auto-expand folder if hovered for > 600ms
+				clearHoverTimer();
+				if (!expanded.has(targetNode.relPath)) {
+					hoverExpandTimerRef.current = setTimeout(() => {
+						onToggleFolder(targetNode.relPath);
+					}, 600);
+				}
+			}
+		},
+		[draggedNode, dropTargetRelPath, expanded, clearHoverTimer, onToggleFolder],
+	);
+
+	const handleDragLeaveRow = useCallback(
+		(e: React.DragEvent, targetNode: ObsidianTreeNode) => {
+			// Check if we actually left this row rather than moving to a child
+			const related = e.relatedTarget as Node | null;
+			if (e.currentTarget.contains(related)) return;
+
+			if (dropTargetRelPath === targetNode.relPath) {
+				clearHoverTimer();
+				setDropTargetRelPath(null);
+			}
+		},
+		[dropTargetRelPath, clearHoverTimer],
+	);
+
+	const handleDropOnRow = useCallback(
+		(e: React.DragEvent, targetNode: ObsidianTreeNode) => {
+			e.preventDefault();
+			e.stopPropagation();
+			clearHoverTimer();
+			setDropTargetRelPath(null);
+
+			if (targetNode.kind === "folder" && draggedNode) {
+				const check = canMoveEntry(draggedNode, targetNode.relPath);
+				if (check.allowed) {
+					onMoveEntry?.(draggedNode.relPath, targetNode.relPath);
+				}
+			}
+			setDraggedNode(null);
+		},
+		[clearHoverTimer, draggedNode, onMoveEntry],
+	);
+
+	const handleDragEnd = useCallback(() => {
+		clearHoverTimer();
+		setDraggedNode(null);
+		setDropTargetRelPath(null);
+	}, [clearHoverTimer]);
 
 	const flatNodes = useMemo(
 		() => flattenVaultTree(nodes, expanded),
@@ -127,12 +223,21 @@ export const VaultTree = memo(function VaultTree({
 							!item.isFolder && selectedNotePath === item.node.relPath
 						}
 						isRenaming={renamingPath === item.node.relPath}
+						isDragging={draggedNode?.relPath === item.node.relPath}
+						isDropTarget={dropTargetRelPath === item.node.relPath}
+						draggedNodeName={draggedNode?.name ?? null}
+						draggedNodeKind={draggedNode?.kind}
 						onToggleFolder={onToggleFolder}
 						onSelectFolder={onSelectFolder}
 						onSelectNote={onSelectNote}
 						onOpenMenu={onOpenMenu}
 						onRenameCommit={onRenameCommit}
 						onRenameCancel={onRenameCancel}
+						onDragStart={handleDragStart}
+						onDragOver={handleDragOverRow}
+						onDragLeave={handleDragLeaveRow}
+						onDrop={handleDropOnRow}
+						onDragEnd={handleDragEnd}
 					/>
 				))}
 			</div>
@@ -171,12 +276,21 @@ export const VaultTree = memo(function VaultTree({
 								!item.isFolder && selectedNotePath === item.node.relPath
 							}
 							isRenaming={renamingPath === item.node.relPath}
+							isDragging={draggedNode?.relPath === item.node.relPath}
+							isDropTarget={dropTargetRelPath === item.node.relPath}
+							draggedNodeName={draggedNode?.name ?? null}
+							draggedNodeKind={draggedNode?.kind}
 							onToggleFolder={onToggleFolder}
 							onSelectFolder={onSelectFolder}
 							onSelectNote={onSelectNote}
 							onOpenMenu={onOpenMenu}
 							onRenameCommit={onRenameCommit}
 							onRenameCancel={onRenameCancel}
+							onDragStart={handleDragStart}
+							onDragOver={handleDragOverRow}
+							onDragLeave={handleDragLeaveRow}
+							onDrop={handleDropOnRow}
+							onDragEnd={handleDragEnd}
 						/>
 					</div>
 				);

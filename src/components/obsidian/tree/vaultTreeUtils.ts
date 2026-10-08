@@ -72,3 +72,54 @@ export function collectFolderPaths(nodes: ObsidianTreeNode[]): string[] {
 	walk(nodes);
 	return out;
 }
+
+export interface VaultFolderItem {
+	name: string;
+	relPath: string;
+	depth: number;
+}
+
+/** Check if moving a source node to targetDir is allowed */
+export function canMoveEntry(
+	source: ObsidianTreeNode,
+	targetDir: string,
+): { allowed: boolean; reason?: string } {
+	const sourceParent = source.relPath.includes("/")
+		? source.relPath.split("/").slice(0, -1).join("/")
+		: "";
+
+	if (sourceParent === targetDir) {
+		return { allowed: false, reason: "已在当前位置" };
+	}
+
+	if (source.kind === "folder") {
+		if (source.relPath === targetDir) {
+			return { allowed: false, reason: "不能移动到自身" };
+		}
+		if (targetDir.startsWith(`${source.relPath}/`)) {
+			return { allowed: false, reason: "不能移动到自身子目录下" };
+		}
+	}
+
+	return { allowed: true };
+}
+
+/** Recursively collect all folders in tree with hierarchy depth */
+export function collectAllFolders(
+	nodes: ObsidianTreeNode[],
+	depth = 0,
+): VaultFolderItem[] {
+	const out: VaultFolderItem[] = [];
+	for (const node of nodes) {
+		if (node.kind !== "folder") continue;
+		out.push({
+			name: node.name,
+			relPath: node.relPath,
+			depth,
+		});
+		if (node.children && node.children.length > 0) {
+			out.push(...collectAllFolders(node.children, depth + 1));
+		}
+	}
+	return out;
+}
