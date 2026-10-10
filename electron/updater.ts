@@ -135,12 +135,22 @@ async function runCheck(): Promise<UpdateState> {
 			return state;
 		}
 
-		// A newer build is already downloaded (or downloading) — keep that state.
+		// A newer build is already downloading — keep that state.
+		if (latest === prev.latestVersion && prev.status === "downloading") {
+			setState({ status: "downloading" });
+			return state;
+		}
+
+		// Already downloaded this version — keep it only if the installer file
+		// still exists on disk; otherwise fall through to "available" so the
+		// caller re-downloads a fresh copy instead of trusting a deleted file.
 		if (
 			latest === prev.latestVersion &&
-			(prev.status === "downloaded" || prev.status === "downloading")
+			prev.status === "downloaded" &&
+			prev.downloadedFile &&
+			fs.existsSync(prev.downloadedFile)
 		) {
-			setState({ status: prev.status });
+			setState({ status: "downloaded" });
 			return state;
 		}
 
@@ -272,6 +282,26 @@ async function checkThenAutoDownload(): Promise<void> {
 	}
 }
 
+/**
+ * If the state machine believes an update is ready but the local installer was
+ * deleted (or moved) since, demote back to "available" so the UI switches from
+ * "install now" to "download again". Returns true when a demotion happened.
+ */
+function demoteIfInstallerMissing(): boolean {
+	if (state.status !== "downloaded" && state.status !== "installing") {
+		return false;
+	}
+	if (state.downloadedFile && fs.existsSync(state.downloadedFile)) {
+		return false;
+	}
+	setState({
+		status: "available",
+		progress: undefined,
+		downloadedFile: undefined,
+	});
+	return true;
+}
+
 // ── Setup ─────────────────────────────────────────────────────────────────────
 
 export function setupAutoUpdater(): void {
@@ -294,6 +324,12 @@ export function setupAutoUpdater(): void {
 	ipcMain.handle("updater:install", async () => {
 		if (state.status !== "downloaded") {
 			return { status: "not-ready", message: "更新尚未下载完成" };
+		}
+		if (demoteIfInstallerMissing()) {
+			return {
+				status: "error",
+				message: "本地安装包已被删除，请重新下载",
+			};
 		}
 
 		if (state.canAutoInstall) {
@@ -333,6 +369,7 @@ export function setupAutoUpdater(): void {
 	});
 
 	ipcMain.handle("updater:open-downloaded-file", async () => {
+		demoteIfInstallerMissing();
 		const file = state.downloadedFile;
 		if (file && fs.existsSync(file)) {
 			const openError = await shell.openPath(file);
@@ -346,12 +383,13 @@ export function setupAutoUpdater(): void {
 	});
 
 	ipcMain.handle("updater:show-downloaded-in-folder", () => {
+		demoteIfInstallerMissing();
 		const file = state.downloadedFile;
 		if (file && fs.existsSync(file)) {
 			shell.showItemInFolder(file);
 			return { status: "success", path: file };
 		}
-		return { status: "error", message: "本地安装包不存在" };
+		return { status: "error", message: "本地安装包不存在，请重新下载" };
 	});
 
 	if (isDev) return;

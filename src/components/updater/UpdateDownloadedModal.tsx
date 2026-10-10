@@ -380,7 +380,7 @@ export function UpdateDownloadedModal() {
 										? "正在处理..."
 										: canAutoInstall
 											? "立即重启"
-											: "打开安装包并退出"}
+											: "安装更新"}
 								</Button>
 							</>
 						)}

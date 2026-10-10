@@ -51,6 +51,8 @@ export interface ToolDefinition {
 	acceptTypes?: string;
 	badges?: string[];
 	features: string[];
+	/** Whether the tool supports multi-file / whole-folder batch processing */
+	batch?: boolean;
 	params?: ToolParamConfig[];
 	customComponent?: ComponentType<CustomToolWorkspaceProps>;
 }

@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 
 export type UpdateStatus =
   | "idle"
@@ -82,5 +82,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   /** Switch between compact login window and primary dashboard window */
   setWindowMode: (mode: "login" | "main") => {
     return ipcRenderer.invoke("window:set-mode", mode);
+  },
+
+  /** Resolve the absolute filesystem path of a dropped/selected File (Electron only) */
+  getPathForFile: (file: File): string => {
+    return webUtils.getPathForFile(file);
   },
 });

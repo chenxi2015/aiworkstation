@@ -70,8 +70,7 @@ export function ToolDropzone({
 						已选: {selectedFile.name}
 					</p>
 					<p className="text-[11px] text-muted font-mono">
-						{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB ·
-						点击可更换文件
+						{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB · 点击可更换文件
 					</p>
 				</div>
 			) : (

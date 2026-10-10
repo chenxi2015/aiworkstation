@@ -1,10 +1,5 @@
-import {
-	Crop,
-	Eraser,
-	LayoutGrid,
-	Minimize2,
-	Wand2,
-} from "lucide-react";
+import { Crop, Eraser, LayoutGrid, Minimize2, Wand2 } from "lucide-react";
+import { ImageBatchCompress } from "../features/ImageBatchCompress";
 import { ImageCropAndCompress } from "../features/ImageCropAndCompress";
 import type { ToolDefinition } from "../types";
 
@@ -121,24 +116,51 @@ export const IMAGE_TOOLS: ToolDefinition[] = [
 		description:
 			"支持批量压缩 PNG/JPG/WebP 体积，自由限制输出大小，解决创作后台上传过大限制。",
 		engine: "browser",
-		engineLabel: "纯前端无损压缩",
-		status: "developing",
-		supportedFormats: ["JPG", "PNG", "WebP", "AVIF"],
+		engineLabel: "纯前端批量压缩",
+		status: "completed",
+		batch: true,
+		customComponent: ImageBatchCompress,
+		supportedFormats: ["JPG", "PNG", "WebP", "GIF", "BMP"],
 		acceptTypes: "image/*",
 		features: [
-			"智能色彩量化，体积减少 60%~80% 仍保持肉眼无损清晰",
-			"纯本地浏览器运算，批量转换速度极快",
+			"拖入整个文件夹递归批量压缩，保留原目录结构",
+			"产物可保存到新目录、原路径替换（桌面端）或打包 zip 下载",
+			"纯本地浏览器运算，图片不离开本机",
 		],
 		params: [
 			{
 				id: "quality",
 				label: "压缩画质平衡",
 				type: "select",
-				defaultValue: "85",
+				defaultValue: "75",
 				options: [
 					{ label: "高质量 (85% 画质，体积缩减约 50%)", value: "85" },
 					{ label: "均衡模式 (75% 画质，体积缩减约 70%)", value: "75" },
 					{ label: "极限体积 (60% 画质，适合缩略图)", value: "60" },
+				],
+			},
+			{
+				id: "format",
+				label: "输出格式",
+				type: "select",
+				defaultValue: "original",
+				options: [
+					{ label: "保持原格式", value: "original" },
+					{ label: "转为 WebP（体积最小）", value: "image/webp" },
+					{ label: "转为 JPG（兼容性最好）", value: "image/jpeg" },
+					{ label: "转为 PNG（无损但较大）", value: "image/png" },
+				],
+			},
+			{
+				id: "maxDimension",
+				label: "最长边限制",
+				type: "select",
+				defaultValue: "0",
+				options: [
+					{ label: "保持原尺寸", value: "0" },
+					{ label: "2560px（2K 发布级）", value: "2560" },
+					{ label: "1920px（全高清）", value: "1920" },
+					{ label: "1280px（社媒配图）", value: "1280" },
 				],
 			},
 		],

@@ -4,10 +4,10 @@ import { IMAGE_TOOLS } from "./imageTools";
 import { TEXT_TOOLS } from "./textTools";
 import { VIDEO_TOOLS } from "./videoTools";
 
-export { VIDEO_TOOLS } from "./videoTools";
 export { AUDIO_TOOLS } from "./audioTools";
 export { IMAGE_TOOLS } from "./imageTools";
 export { TEXT_TOOLS } from "./textTools";
+export { VIDEO_TOOLS } from "./videoTools";
 
 /**
  * Registry of all available creator tools categorized by media type.

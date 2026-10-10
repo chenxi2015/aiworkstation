@@ -87,7 +87,7 @@ git push origin v0.2.0
 
 - app 启动 8 秒后自动检查 GitHub Releases 的 `latest*.yml`，之后每 6 小时轮询一次；发现新版本自动后台下载，下载完成弹窗提醒
 - **Windows（NSIS）**：未签名也能自更新，下载完「立即重启」即完成（`quitAndInstall`）
-- **macOS 未签名（当前状态）**：启动时用 `codesign` 检测签名。未签名时不走会失败的 Squirrel 自动安装，而是应用内直接下载 **DMG**（带进度 + sha512 校验，存于 `userData/updates/`），下载完点「打开安装包并退出」，拖入 Applications 替换即可
+- **macOS 未签名（当前状态）**：启动时用 `codesign` 检测签名。未签名时不走会失败的 Squirrel 自动安装，而是应用内直接下载 **DMG**（带进度 + sha512 校验，存于 `userData/updates/`），下载完点「包安装更新」，拖入 Applications 替换即可
 - 更新决策不依赖本地已存文件：每次启动/轮询都重新检查并下载最新包（DMG 覆盖写入 `userData/updates/`），安装前再次校验 sha512，损坏包自动删除并回到可重下状态
 - 设置页「检查更新」行实时显示状态机状态（检查中 / 下载中 xx% / 已就绪 / 失败可重试）
 - 更新失败（断网、无 Release）进入 error 状态，设置页可重试，不打扰用户

@@ -61,6 +61,7 @@ export interface ElectronAPI {
 		message?: string;
 	}>;
 	setWindowMode?: (mode: "login" | "main") => Promise<{ success: boolean }>;
+	getPathForFile?: (file: File) => string;
 }
 
 declare global {

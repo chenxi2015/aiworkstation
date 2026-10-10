@@ -80,6 +80,16 @@ const routes: RouteDefinition[] = [
 		},
 	},
 	{
+		path: "/api/local-file",
+		exact: true,
+		handler: async (req, res) => {
+			const { handleLocalFileRequest } = await import(
+				"./handlers/localFileHandler.ts"
+			);
+			return handleLocalFileRequest(req, res);
+		},
+	},
+	{
 		path: "/api/obsidian/asset",
 		exact: true,
 		handler: async (req, res) => {
