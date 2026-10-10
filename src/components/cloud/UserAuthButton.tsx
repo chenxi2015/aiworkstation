@@ -1,10 +1,11 @@
-import { Button, Card, Chip } from "@heroui/react";
+import { Button, Card, Chip, toast } from "@heroui/react";
 import {
 	Chrome,
 	Crown,
 	Download,
 	LogIn,
 	LogOut,
+	RefreshCw,
 	Settings,
 	Sparkles,
 	User,
@@ -12,9 +13,12 @@ import {
 import { useState } from "react";
 import { useCloudAuth } from "../../lib/cloud/useCloudAuth";
 import { isElectronApp } from "../../lib/platform";
+import { checkForAppUpdate } from "../../lib/updater/checkForAppUpdate";
 import ThemeToggle from "../ThemeToggle";
 import { CheckoutModal } from "./CheckoutModal";
 import { LoginModal } from "./LoginModal";
+
+const APP_VERSION = import.meta.env.VITE_APP_VERSION || "0.1.0";
 
 export interface UserAuthButtonProps {
 	onOpenExtension?: () => void;
@@ -29,7 +33,20 @@ export function UserAuthButton({
 	const [showLoginModal, setShowLoginModal] = useState(false);
 	const [showCheckoutModal, setShowCheckoutModal] = useState(false);
 	const [showDropdown, setShowDropdown] = useState(false);
+	const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
 	const isElectron = isElectronApp();
+
+	const handleCheckUpdate = async () => {
+		setShowDropdown(false);
+		setIsCheckingUpdate(true);
+		try {
+			await checkForAppUpdate(APP_VERSION);
+		} catch {
+			toast.danger("检查更新失败，请稍后重试");
+		} finally {
+			setIsCheckingUpdate(false);
+		}
+	};
 
 	// Format expiration date
 	const formatExpiresAt = (isoStr: string | null) => {
@@ -182,6 +199,17 @@ export function UserAuthButton({
 										<span>偏好设置</span>
 									</button>
 								)}
+								<button
+									type="button"
+									disabled={isCheckingUpdate}
+									onClick={handleCheckUpdate}
+									className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-muted hover:text-foreground rounded-lg hover:bg-surface-secondary transition cursor-pointer disabled:opacity-60 disabled:cursor-default"
+								>
+									<RefreshCw
+										className={`w-3.5 h-3.5 ${isCheckingUpdate ? "animate-spin" : ""}`}
+									/>
+									<span>{isCheckingUpdate ? "正在检查更新…" : "检查更新"}</span>
+								</button>
 								<ThemeToggle menu />
 							</div>
 

@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { REPO_CONFIG, SUPPORT_EMAIL } from "../../../config/app.ts";
+import { checkForAppUpdate } from "../../../lib/updater/checkForAppUpdate";
 import type { ElectronUpdateState } from "../../../vite-env";
 
 type ThemeMode = "light" | "dark" | "auto";
@@ -233,66 +234,10 @@ export function GeneralSettingsTab() {
 	const handleCheckUpdate = async () => {
 		setIsCheckingUpdate(true);
 		try {
-			if (window.electronAPI?.checkForUpdates) {
-				const res = await window.electronAPI.checkForUpdates();
-				setLastCheckedTime(new Date().toLocaleTimeString());
-				if (res?.currentVersion) {
-					setAppVersion(res.currentVersion);
-				}
-
-				if (res?.status === "dev") {
-					toast.info("当前处于开发模式，已是最新代码", { timeout: 2500 });
-				} else if (res?.status === "error") {
-					toast.warning(`检查更新失败: ${res.error || "网络异常"}`, {
-						timeout: 3000,
-					});
-				} else if (
-					res?.status === "available" ||
-					res?.status === "downloading" ||
-					res?.status === "downloaded"
-				) {
-					// State machine already carries the details — just open the modal.
-					window.dispatchEvent(
-						new CustomEvent("open-update-modal", { detail: {} }),
-					);
-				} else {
-					toast.success(
-						`当前已是最新版本 (v${res?.currentVersion || appVersion})`,
-						{ timeout: 2500 },
-					);
-				}
-			} else {
-				// Web platform: check latest release from GitHub API
-				const response = await fetch(REPO_CONFIG.RELEASES_API_URL);
-				setLastCheckedTime(new Date().toLocaleTimeString());
-
-				if (response.ok) {
-					const data = (await response.json()) as {
-						tag_name?: string;
-						body?: string;
-						html_url?: string;
-					};
-					const latestTag = (data?.tag_name || "").replace(/^v/, "");
-					if (latestTag && latestTag !== appVersion) {
-						window.dispatchEvent(
-							new CustomEvent("open-update-modal", {
-								detail: {
-									updateInfo: {
-										version: latestTag,
-										releaseNotes: data.body,
-										downloadUrl: data.html_url || REPO_CONFIG.URL,
-									},
-								},
-							}),
-						);
-					} else {
-						toast.success(`当前已是最新版本 (v${appVersion})`, {
-							timeout: 2500,
-						});
-					}
-				} else {
-					toast.success(`当前已是最新版本 (v${appVersion})`, { timeout: 2500 });
-				}
+			const res = await checkForAppUpdate(appVersion);
+			setLastCheckedTime(new Date().toLocaleTimeString());
+			if (res.currentVersion) {
+				setAppVersion(res.currentVersion);
 			}
 		} catch {
 			toast.danger("检查更新失败，请稍后重试");
