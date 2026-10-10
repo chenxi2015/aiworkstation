@@ -383,7 +383,7 @@ export function DataMaintenanceTab({
 						<Description className="text-xs text-muted mt-2">
 							视频将保存到{" "}
 							<code className="text-foreground/80 font-mono">downloads/</code>
-							，自媒体素材保存到{" "}
+							，创作素材保存到{" "}
 							<code className="text-foreground/80 font-mono">
 								creator/materials/
 							</code>

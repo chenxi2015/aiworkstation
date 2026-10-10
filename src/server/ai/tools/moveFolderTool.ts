@@ -22,7 +22,7 @@ export const moveFolderInputSchema = z
 			.nullable()
 			.optional()
 			.describe(
-				"目标分类名称（例如「工作台」、「自媒体」、「电商」、「学习」等）。当希望将文件夹移动到导航分类（特别是移到「工作台」开始工作，或批量归类）时传入",
+				"目标分类名称（例如「工作台」、「创作」、「电商」、「学习」等）。当希望将文件夹移动到导航分类（特别是移到「工作台」开始工作，或批量归类）时传入",
 			),
 		targetParentFolderName: z
 			.string()

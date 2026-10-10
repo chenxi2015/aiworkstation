@@ -47,7 +47,7 @@ AI Workstation 打通了**浏览器采集端**、**本地知识治理中心**、
 - **工作台 (`/workbench`)**：个人工作首页，可自由拖拽组合的 Widget 仪表盘，跨模块汇总全景状态。
 - **书签 (`/bookmarks`)**：完整书签知识库与**未分类缓冲池**，按分类筛选、批量管理与标签沉淀。
 - **笔记 (`/obsidian`)**：Obsidian 本地知识库（Vault）零配置直连，双链网状互联，CodeMirror 6 深度定制 Markdown 引擎。
-- **自媒体 (`/creator`)**：专为自媒体打造的「采集 ➔ AI 二创 ➔ 审稿 ➔ 发布」流水线。
+- **创作 (`/creator`)**：专为创作打造的「采集 ➔ AI 二创 ➔ 审稿 ➔ 发布」流水线。
 - **创作台 (`/editor`)**：基于 TipTap 3 的 AI 富文本创作中心，深度融合素材库引用与划词交互。
 - **学习 (`/learn`)**：学习主题聚合与成长路径跟踪。
 - **电商 (`/ecommerce`)**：电商选品、灵感素材与竞品调研归集。
@@ -159,7 +159,7 @@ aiworkstation/
 │   │   ├── workbench.tsx         # 工作台首页（Widget 仪表盘）
 │   │   ├── bookmarks.tsx         # 书签知识库与缓冲池
 │   │   ├── obsidian.tsx          # Obsidian 本地笔记模块
-│   │   ├── creator.tsx           # 自媒体工作流
+│   │   ├── creator.tsx           # 创作工作流
 │   │   ├── editor.tsx            # AI 富文本创作台
 │   │   ├── learn.tsx             # 学习模块
 │   │   ├── ecommerce.tsx         # 电商模块
@@ -281,7 +281,7 @@ pnpm --filter ./extensions/aicollector dev
   - [x] 联网搜索工具箱成（`web_search`）
   - [ ] 选区规则模板化（Recipe：可视化点选录制选择器 ➔ 持久化精准定向爬取）
   - [ ] 浏览器原子动作驱动（点击、滚动翻页、表单填写交互流）
-- [x] **M4: 创作台与自媒体工作流**
+- [x] **M4: 创作台与创作工作流**
   - [x] 基于 TipTap 3 的 AI 富文本创作台架构
   - [x] 划词 AI 润色/扩写/改写与版本 Diff 差异对比
   - [x] Mermaid 图表与代码高亮静态渲染

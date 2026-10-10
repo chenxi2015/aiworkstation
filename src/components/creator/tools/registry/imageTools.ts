@@ -69,7 +69,7 @@ export const IMAGE_TOOLS: ToolDefinition[] = [
 				options: [
 					{ label: "保持透明背景 (PNG)", value: "transparent" },
 					{ label: "纯白背景 (电商规范)", value: "white" },
-					{ label: "自媒体高亮黄底 (吸睛封面)", value: "yellow" },
+					{ label: "创作高亮黄底 (吸睛封面)", value: "yellow" },
 				],
 			},
 			{
@@ -94,7 +94,7 @@ export const IMAGE_TOOLS: ToolDefinition[] = [
 		acceptTypes: "image/*",
 		customComponent: ImageCropAndCompress,
 		features: [
-			"内置各大自媒体主流尺寸推荐比例",
+			"内置各大创作主流尺寸推荐比例",
 			"支持批量保持比例居中裁剪或缩放补白边",
 		],
 		params: [
@@ -119,7 +119,7 @@ export const IMAGE_TOOLS: ToolDefinition[] = [
 		category: "image",
 		icon: Minimize2,
 		description:
-			"支持批量压缩 PNG/JPG/WebP 体积，自由限制输出大小，解决自媒体后台上传过大限制。",
+			"支持批量压缩 PNG/JPG/WebP 体积，自由限制输出大小，解决创作后台上传过大限制。",
 		engine: "browser",
 		engineLabel: "纯前端无损压缩",
 		status: "developing",
@@ -159,7 +159,7 @@ export const IMAGE_TOOLS: ToolDefinition[] = [
 		features: [
 			"智能或指定时间轴多帧提取，自动 tile 纵向拼成长图",
 			"保持原图高清晰度，解决截多张图手动拼图排版的繁琐流程",
-			"支持一键归档至自媒体素材库",
+			"支持一键归档至创作素材库",
 		],
 		params: [
 			{

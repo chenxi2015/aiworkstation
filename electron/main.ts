@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog } from "electron";
 import { isDev, resolveFromRoot } from "./config.js";
 import { startNitroServer, stopNitroServer } from "./server.js";
 import { setupAutoUpdater } from "./updater.js";
-import { createMainWindow, focusMainWindow, getMainWindow } from "./window.js";
+import { createMainWindow, focusMainWindow } from "./window.js";
 
 // ── Enforce Single Instance ───────────────────────────────────────────────────
 const gotLock = app.requestSingleInstanceLock();
@@ -26,7 +26,7 @@ if (!gotLock) {
 		try {
 			const serverPort = await startNitroServer();
 			await createMainWindow(serverPort);
-			setupAutoUpdater(getMainWindow);
+			setupAutoUpdater();
 		} catch (err) {
 			console.error("[electron] Startup failed:", err);
 			dialog.showErrorBox(

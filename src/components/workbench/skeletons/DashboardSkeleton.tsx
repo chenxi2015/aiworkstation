@@ -4,7 +4,7 @@ import { Card } from "@heroui/react";
  * Widget 骨架的内容形态，按真实 widget 主体的结构选取：
  * - hero-rows：大数字横幅 + 条目行（待整理 / Skills 概览）
  * - rows：图标 + 双行文本的条目列表（最近收藏 / 创作文档 / 常用文件夹）
- * - tiles-rows：3 格统计块 + 条目行（自媒体管道）
+ * - tiles-rows：3 格统计块 + 条目行（创作管道）
  * - tiles：2×3 统计块网格（资产与健康）
  * - calendar：图例行 + 7 列日格（活动日历）
  */

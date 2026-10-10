@@ -326,7 +326,7 @@ export const ChatWithBookmarksPanel = forwardRef<
 
 	// 当前模块的 AI 贡献包：切换导航时更新推荐提问与（服务端）模块视角
 	// 页面桥接（如创作台内嵌的富文本编辑器）优先于路由模块：
-	// 「自媒体」板块创作台编辑态下，AI 以 editor 写作人格工作。
+	// 「创作」板块创作台编辑态下，AI 以 editor 写作人格工作。
 	const resolvedModule = pageBridge?.module ?? activeModule;
 	const moduleContribution = getAiContribution(resolvedModule);
 	const currentModuleDef = resolvedModule

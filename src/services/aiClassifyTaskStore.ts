@@ -79,7 +79,7 @@ export async function startClassifyTask(params: {
 	const categories = Array.from(
 		new Set([
 			...folders.map((f) => f.category),
-			"自媒体",
+			"创作",
 			"技能",
 			"电商",
 			"收藏",

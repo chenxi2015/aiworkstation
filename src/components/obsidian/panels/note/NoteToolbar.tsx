@@ -45,7 +45,7 @@ export interface NoteToolbarProps {
 	onToggleViewMode: () => void;
 	canDelete: boolean;
 	onDelete: () => void;
-	/** 导入自媒体创作台二次创作 */
+	/** 导入创作台二次创作 */
 	onImportToStudio?: () => void;
 	isImportingToStudio?: boolean;
 }
@@ -304,7 +304,7 @@ export function NoteToolbar({
 						{onImportToStudio && (
 							<Dropdown.Item
 								id="import-to-studio"
-								textValue="转到自媒体创作台二次创作"
+								textValue="转到创作台二次创作"
 								onAction={onImportToStudio}
 							>
 								<div className="flex items-center gap-2 py-0.5">
@@ -315,7 +315,7 @@ export function NoteToolbar({
 									)}
 									<div className="flex flex-col min-w-0">
 										<span className="text-xs font-medium text-foreground">
-											转到自媒体创作台
+											转到创作台
 										</span>
 										<span className="text-[10px] text-muted">
 											一键导入并二次创作

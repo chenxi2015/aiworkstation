@@ -198,7 +198,7 @@ export function AppShell({
 	});
 	const activeModule = getModuleByRoute(pathname)?.code ?? "workbench";
 
-	// 富文本编辑面：自媒体「创作台」/creator/studio（editor 已并入 creator）
+	// 富文本编辑面：创作「创作台」/creator/studio（editor 已并入 creator）
 	const isEditorSurface =
 		pathname.startsWith("/creator/studio") ||
 		(pathname.startsWith("/creator") && searchTab === "studio");
@@ -431,8 +431,8 @@ export function AppShell({
 							width: isCollapsed ? 0 : `${panelWidth}px`,
 						}}
 						className={`order-2 shrink-0 h-full overflow-hidden flex justify-end ${
-							isResizing ? "" : "transition-[width] duration-300 ease-out"
-						}`}
+							isCollapsed ? "ai-panel-hidden" : ""
+						} ${isResizing ? "" : "transition-[width] duration-300 ease-out"}`}
 					>
 						<ChatWithBookmarksPanel
 							ref={panelRef}

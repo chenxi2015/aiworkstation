@@ -1,5 +1,6 @@
-import { Button } from "@heroui/react";
+import { Button, Dropdown } from "@heroui/react";
 import {
+	Ellipsis,
 	FolderDown,
 	FolderPlus,
 	LayoutGrid,
@@ -67,15 +68,15 @@ export function CategoryMainView({
 	onAskAIAboutFolder,
 }: CategoryMainViewProps) {
 	return (
-		<main className="flex-1 min-w-0 flex flex-col h-full overflow-hidden">
+		<main className="flex-1 min-w-0 flex flex-col h-full overflow-hidden @container">
 			{/* Workspace Title */}
-			<div className="shrink-0 px-6 lg:px-7 pt-6 lg:pt-7 pb-5 border-b border-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-				<div>
+			<div className="shrink-0 px-6 lg:px-7 pt-6 lg:pt-7 pb-5 border-b border-border/60 flex flex-col gap-3">
+				<div className="flex items-center justify-between gap-3">
 					<div className="flex items-center gap-2">
-						<h1 className="text-2xl font-bold tracking-tight text-foreground">
+						<h1 className="text-2xl font-bold tracking-tight text-foreground whitespace-nowrap">
 							{displayTitle}
 						</h1>
-						<span className="text-xs font-medium text-muted">
+						<span className="text-xs font-medium text-muted whitespace-nowrap shrink-0">
 							{gridFolders.length} 个{currentFolder ? "子文件夹" : "文件夹"}
 						</span>
 						{canEditTitle && (
@@ -90,85 +91,156 @@ export function CategoryMainView({
 							</Button>
 						)}
 					</div>
-					<p className="text-xs text-muted mt-1 leading-relaxed max-w-2xl">
-						{currentFolder
-							? currentFolder.desc?.trim() ||
-								`当前位于「${currentFolder.name}」文件夹，可在此浏览子文件夹与归集书签。`
-							: "点击文件夹卡片可在左侧查看书签与快捷看板，支持自由拖拽排序与移动归类。"}
-					</p>
-				</div>
 
-				{/* Action buttons: new folder + import bookmarks + view toggle + refresh */}
-				<div className="flex items-center gap-2 shrink-0">
-					<Button
-						variant="secondary"
-						size="sm"
-						className="rounded-full flex items-center gap-1.5 cursor-pointer text-xs"
-						onPress={() => onCreateFolder(currentFolder ?? undefined)}
-					>
-						<FolderPlus className="w-3.5 h-3.5" />
-						<span>新建文件夹</span>
-					</Button>
+					{/* Action buttons: new folder + import bookmarks + view toggle + refresh */}
+					<div className="flex items-center gap-2 shrink-0 ml-auto">
+						{/* Wide: full action buttons */}
+						<div className="hidden @[42rem]:flex items-center gap-2">
+							<Button
+								variant="secondary"
+								size="sm"
+								className="rounded-full flex items-center gap-1.5 cursor-pointer text-xs"
+								onPress={() => onCreateFolder(currentFolder ?? undefined)}
+							>
+								<FolderPlus className="w-3.5 h-3.5" />
+								<span>新建文件夹</span>
+							</Button>
 
-					{onOpenSync && (
+							{onOpenSync && (
+								<Button
+									variant="secondary"
+									size="sm"
+									className="rounded-full flex items-center gap-1.5 cursor-pointer text-xs"
+									onPress={onOpenSync}
+								>
+									<FolderDown className="w-3.5 h-3.5" />
+									<span>导入书签</span>
+								</Button>
+							)}
+
+							<div className="h-4 w-px bg-border/60 mx-0.5" />
+						</div>
+
+						<div className="flex items-center rounded-full border border-border/70 bg-surface-secondary/60 p-0.5">
+							<button
+								type="button"
+								onClick={() => onFolderGridViewChange("grid")}
+								className={`w-7 h-6 rounded-full flex items-center justify-center cursor-pointer transition-colors ${
+									folderGridView === "grid"
+										? "bg-surface text-foreground shadow-2xs"
+										: "text-muted/70 hover:text-foreground"
+								}`}
+								title="网格视图"
+								aria-label="网格视图"
+								aria-pressed={folderGridView === "grid"}
+							>
+								<LayoutGrid className="w-3.5 h-3.5" />
+							</button>
+							<button
+								type="button"
+								onClick={() => onFolderGridViewChange("list")}
+								className={`w-7 h-6 rounded-full flex items-center justify-center cursor-pointer transition-colors ${
+									folderGridView === "list"
+										? "bg-surface text-foreground shadow-2xs"
+										: "text-muted/70 hover:text-foreground"
+								}`}
+								title="列表视图"
+								aria-label="列表视图"
+								aria-pressed={folderGridView === "list"}
+							>
+								<List className="w-3.5 h-3.5" />
+							</button>
+						</div>
+
 						<Button
 							variant="secondary"
 							size="sm"
-							className="rounded-full flex items-center gap-1.5 cursor-pointer text-xs"
-							onPress={onOpenSync}
+							className="rounded-full hidden @[42rem]:flex items-center gap-1.5 cursor-pointer text-xs"
+							isDisabled={isRefreshing}
+							onPress={onRefresh}
 						>
-							<FolderDown className="w-3.5 h-3.5" />
-							<span>导入书签</span>
+							<RefreshCw
+								className={`w-3.5 h-3.5 ${
+									isRefreshing ? "animate-spin text-accent" : "text-muted"
+								}`}
+							/>
+							<span>刷新列表</span>
 						</Button>
-					)}
 
-					<div className="h-4 w-px bg-border/60 mx-0.5" />
-
-					<div className="flex items-center rounded-full border border-border/70 bg-surface-secondary/60 p-0.5">
-						<button
-							type="button"
-							onClick={() => onFolderGridViewChange("grid")}
-							className={`w-7 h-6 rounded-full flex items-center justify-center cursor-pointer transition-colors ${
-								folderGridView === "grid"
-									? "bg-surface text-foreground shadow-2xs"
-									: "text-muted/70 hover:text-foreground"
-							}`}
-							title="网格视图"
-							aria-label="网格视图"
-							aria-pressed={folderGridView === "grid"}
-						>
-							<LayoutGrid className="w-3.5 h-3.5" />
-						</button>
-						<button
-							type="button"
-							onClick={() => onFolderGridViewChange("list")}
-							className={`w-7 h-6 rounded-full flex items-center justify-center cursor-pointer transition-colors ${
-								folderGridView === "list"
-									? "bg-surface text-foreground shadow-2xs"
-									: "text-muted/70 hover:text-foreground"
-							}`}
-							title="列表视图"
-							aria-label="列表视图"
-							aria-pressed={folderGridView === "list"}
-						>
-							<List className="w-3.5 h-3.5" />
-						</button>
+						{/* Narrow: collapse actions into an ellipsis dropdown */}
+						<div className="@[42rem]:hidden">
+							<Dropdown>
+								<Dropdown.Trigger
+									aria-label="更多操作"
+									className="w-7 h-7 rounded-full flex items-center justify-center text-muted/70 hover:text-foreground hover:bg-foreground/[0.06] dark:hover:bg-white/[0.08] data-[pressed]:bg-foreground/[0.08] cursor-pointer transition-colors"
+								>
+									<Ellipsis className="w-4 h-4" />
+								</Dropdown.Trigger>
+								<Dropdown.Popover
+									placement="bottom end"
+									className="min-w-[148px] p-1 shadow-lg border border-border/80 rounded-xl bg-surface"
+								>
+									<Dropdown.Menu aria-label="书签操作">
+										<Dropdown.Item
+											id="new-folder"
+											textValue="新建文件夹"
+											onAction={() =>
+												onCreateFolder(currentFolder ?? undefined)
+											}
+										>
+											<div className="flex items-center gap-2 w-full py-0.5">
+												<FolderPlus className="w-3.5 h-3.5 text-muted shrink-0" />
+												<span className="text-xs font-medium flex-1">
+													新建文件夹
+												</span>
+											</div>
+										</Dropdown.Item>
+										{onOpenSync && (
+											<Dropdown.Item
+												id="import-bookmarks"
+												textValue="导入书签"
+												onAction={onOpenSync}
+											>
+												<div className="flex items-center gap-2 w-full py-0.5">
+													<FolderDown className="w-3.5 h-3.5 text-muted shrink-0" />
+													<span className="text-xs font-medium flex-1">
+														导入书签
+													</span>
+												</div>
+											</Dropdown.Item>
+										)}
+										<Dropdown.Item
+											id="refresh"
+											textValue="刷新列表"
+											isDisabled={isRefreshing}
+											onAction={onRefresh}
+										>
+											<div className="flex items-center gap-2 w-full py-0.5">
+												<RefreshCw
+													className={`w-3.5 h-3.5 shrink-0 ${
+														isRefreshing
+															? "animate-spin text-accent"
+															: "text-muted"
+													}`}
+												/>
+												<span className="text-xs font-medium flex-1">
+													刷新列表
+												</span>
+											</div>
+										</Dropdown.Item>
+									</Dropdown.Menu>
+								</Dropdown.Popover>
+							</Dropdown>
+						</div>
 					</div>
-					<Button
-						variant="secondary"
-						size="sm"
-						className="rounded-full flex items-center gap-1.5 cursor-pointer text-xs"
-						isDisabled={isRefreshing}
-						onPress={onRefresh}
-					>
-						<RefreshCw
-							className={`w-3.5 h-3.5 ${
-								isRefreshing ? "animate-spin text-accent" : "text-muted"
-							}`}
-						/>
-						<span>刷新列表</span>
-					</Button>
 				</div>
+
+				<p className="text-xs text-muted leading-relaxed">
+					{currentFolder
+						? currentFolder.desc?.trim() ||
+							`当前位于「${currentFolder.name}」文件夹，可在此浏览子文件夹与归集书签。`
+						: "点击文件夹卡片可在左侧查看书签与快捷看板，支持自由拖拽排序与移动归类。"}
+				</p>
 			</div>
 
 			{/* Folders Grid View（独立滚动，标题栏固定） */}

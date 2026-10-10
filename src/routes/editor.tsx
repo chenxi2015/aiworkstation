@@ -1,7 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 /**
- * 「创作」模块已并入「自媒体」（docs/selfmedia-merge-plan.md）：
+ * 「创作」模块已并入「创作」（docs/selfmedia-merge-plan.md）：
  * /editor?doc=N → /creator/studio?mode=doc&doc=N，保留历史深链兼容重定向。
  */
 export const Route = createFileRoute("/editor")({

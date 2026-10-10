@@ -105,7 +105,7 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 	creator: {
 		code: "creator",
 		systemPromptHint:
-			"用户正在「自媒体」板块（素材库/创作台/归档/工具箱/热点雷达）。偏向内容生产：管理素材、从收藏库检索选题、提炼观点、生成二创草稿（推文/小红书/脚本），并提醒人工确认后再发布。创作台编辑态下由 editor 写作人格接管（页面桥接）。",
+			"用户正在「创作」板块（素材库/创作台/归档/工具箱/热点雷达）。偏向内容生产：管理素材、从收藏库检索选题、提炼观点、生成二创草稿（推文/小红书/脚本），并提醒人工确认后再发布。创作台编辑态下由 editor 写作人格接管（页面桥接）。",
 		tools: [
 			"query_bookmarks",
 			"read_webpage_content",
@@ -170,7 +170,7 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 			"根据全文提炼 5 个高点击爆款标题，并选最优的一个直接更新为文章标题",
 			"对全文进行逐段流式润色，保留图片并对照审阅",
 			"帮我分析当前文档的结构，给出改进建议",
-			"把这篇文章改写成更适合自媒体传播的风格",
+			"把这篇文章改写成更适合创作传播的风格",
 			"从我的收藏库找可以引用的素材",
 		],
 		contextItemTypes: ["bookmark", "folder", "tag", "file", "document"],
@@ -183,7 +183,7 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 			{
 				label: "爆款标题拟定",
 				prompt:
-					"请深度阅读当前文档核心内容，为我拟定 5 个针对自媒体传播的爆款标题（涵盖悬念、干货、反常识等维度），并选择综合效果最好的一个直接更新为文章标题。",
+					"请深度阅读当前文档核心内容，为我拟定 5 个针对创作传播的爆款标题（涵盖悬念、干货、反常识等维度），并选择综合效果最好的一个直接更新为文章标题。",
 			},
 			{
 				label: "分析文档结构",

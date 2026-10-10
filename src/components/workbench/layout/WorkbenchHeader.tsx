@@ -8,6 +8,7 @@ import {
 	Settings,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useCloudAuth } from "../../../lib/cloud/useCloudAuth";
 import { isElectronApp } from "../../../lib/platform";
 import type { NavLayoutEntry } from "../../../modules/registry";
 import { useAIClassifyTask } from "../../../services/aiClassifyTaskStore";
@@ -50,6 +51,7 @@ export function WorkbenchHeader({
 }: WorkbenchHeaderProps) {
 	const aiClassifyTask = useAIClassifyTask();
 	const isElectron = isElectronApp();
+	const { isLoggedIn } = useCloudAuth();
 
 	// Custom tooltip bubble: hover-triggered, and auto-flashed when the
 	// classify modal sends the task to background (store bgHintNonce)
@@ -94,22 +96,22 @@ export function WorkbenchHeader({
 	const tipVisible = Boolean(tipText) && (hintVisible || hoverVisible);
 
 	return (
-		<header className="shrink-0 relative z-50 bg-surface/80 border-b border-border px-6 h-15 flex items-center gap-4 justify-between backdrop-blur-md workbench-top-header window-drag-region select-none">
+		<header className="shrink-0 relative z-50 bg-surface/80 border-b border-border px-6 h-15 grid grid-cols-[1fr_auto_1fr] items-center gap-4 backdrop-blur-md workbench-top-header window-drag-region select-none">
 			{/* Left: Brand */}
 			<div className="flex items-center gap-2.5 shrink-0 pr-2">
 				<WorkbenchLogoIcon className="w-9 h-9 shrink-0" />
 				<div className="flex flex-col">
-					<span className="font-semibold text-sm tracking-tight text-foreground leading-none">
+					<span className="font-semibold text-sm tracking-tight text-foreground leading-none whitespace-nowrap">
 						AI 工作台
 					</span>
-					<span className="text-[10px] text-muted tracking-tight font-mono mt-0.5">
+					<span className="text-[10px] text-muted tracking-tight font-mono mt-0.5 whitespace-nowrap">
 						SQLite 驱动
 					</span>
 				</div>
 			</div>
 
 			{/* Center: Fixed Module Navigation */}
-			<div className="window-no-drag">
+			<div className="window-no-drag min-w-0 workbench-top-nav">
 				<ModuleTabs
 					unclassifiedCount={unclassifiedCount}
 					navLayout={navLayout}
@@ -117,7 +119,7 @@ export function WorkbenchHeader({
 			</div>
 
 			{/* Right: Actions */}
-			<div className="flex items-center gap-2 shrink-0 window-no-drag">
+			<div className="flex items-center gap-2 shrink-0 window-no-drag justify-self-end">
 				{/* Background AI Classification Task Indicator */}
 				{onOpenAIClassifyTask && aiClassifyTask.status !== "idle" && (
 					// biome-ignore lint/a11y/noStaticElementInteractions: hover wrapper only drives tooltip visibility
@@ -171,54 +173,61 @@ export function WorkbenchHeader({
 					</div>
 				)}
 
-				{/* Tools Group: Extension, Settings, Theme */}
-				<div className="flex items-center gap-1">
-					{/* Open / Download AI Collector Extension */}
-					{(onOpenExtension || onOpenSearch) && (
-						<button
-							type="button"
-							onClick={onOpenExtension || onOpenSearch}
-							className="h-8 px-2.5 rounded-lg flex items-center gap-1.5 text-xs font-medium text-foreground/80 hover:text-foreground hover:bg-surface-secondary transition-all cursor-pointer"
-							title={
-								isElectron
-									? "下载 AI Collector 浏览器插件"
-									: "呼起 AI Collector 浏览器插件"
-							}
-						>
-							{isElectron ? (
-								<Download className="w-3.5 h-3.5 text-accent" />
-							) : (
-								<Chrome className="w-3.5 h-3.5 text-accent" />
-							)}
-							<span>{isElectron ? "下载插件" : "打开插件"}</span>
-						</button>
-					)}
+				{/* Tools Group: Extension, Settings, Theme — 已登录时收进用户下拉 */}
+				{!isLoggedIn && (
+					<div className="flex items-center gap-1">
+						{/* Open / Download AI Collector Extension */}
+						{(onOpenExtension || onOpenSearch) && (
+							<button
+								type="button"
+								onClick={onOpenExtension || onOpenSearch}
+								className="h-8 px-2.5 rounded-lg flex items-center gap-1.5 text-xs font-medium text-foreground/80 hover:text-foreground hover:bg-surface-secondary transition-all cursor-pointer"
+								title={
+									isElectron
+										? "下载 AI Collector 浏览器插件"
+										: "呼起 AI Collector 浏览器插件"
+								}
+							>
+								{isElectron ? (
+									<Download className="w-3.5 h-3.5 text-accent" />
+								) : (
+									<Chrome className="w-3.5 h-3.5 text-accent" />
+								)}
+								<span>{isElectron ? "下载插件" : "打开插件"}</span>
+							</button>
+						)}
 
-					{/* Settings */}
-					{onOpenSettings && (
-						<button
-							type="button"
-							onClick={onOpenSettings}
-							className="h-8 w-8 rounded-lg flex items-center justify-center text-muted hover:text-foreground hover:bg-surface-secondary transition-all cursor-pointer"
-							title="偏好设置"
-							aria-label="设置"
-						>
-							<Settings className="w-4 h-4" />
-						</button>
-					)}
+						{/* Settings */}
+						{onOpenSettings && (
+							<button
+								type="button"
+								onClick={onOpenSettings}
+								className="h-8 w-8 rounded-lg flex items-center justify-center text-muted hover:text-foreground hover:bg-surface-secondary transition-all cursor-pointer"
+								title="偏好设置"
+								aria-label="设置"
+							>
+								<Settings className="w-4 h-4" />
+							</button>
+						)}
 
-					{/* Theme Switcher (Compact Icon Mode) */}
-					<ThemeToggle compact />
-				</div>
+						{/* Theme Switcher (Compact Icon Mode) */}
+						<ThemeToggle compact />
+					</div>
+				)}
 
 				{/* Subtle Divider */}
-				<div
-					className="h-4 w-px bg-border/60 mx-0.5 shrink-0"
-					aria-hidden="true"
-				/>
+				{(!isLoggedIn || aiClassifyTask.status !== "idle") && (
+					<div
+						className="h-4 w-px bg-border/60 mx-0.5 shrink-0"
+						aria-hidden="true"
+					/>
+				)}
 
 				{/* Cloud User Profile & WeChat Login */}
-				<UserAuthButton />
+				<UserAuthButton
+					onOpenExtension={onOpenExtension || onOpenSearch}
+					onOpenSettings={onOpenSettings}
+				/>
 			</div>
 		</header>
 	);

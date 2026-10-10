@@ -147,7 +147,7 @@ export function initSchema(db: SqliteDatabase): void {
       title TEXT NOT NULL,
       content TEXT NOT NULL DEFAULT '',   -- TipTap JSON（富文本单一事实源）
       content_text TEXT DEFAULT '',       -- 纯文本冗余：检索/字数统计用
-      style_preset TEXT DEFAULT '',       -- 行文风格 preset key（公文/自媒体/报告/自定义）
+      style_preset TEXT DEFAULT '',       -- 行文风格 preset key（公文/创作/报告/自定义）
       status TEXT NOT NULL DEFAULT 'editing',  -- editing | finalized | archived
       created_at TEXT,
       updated_at TEXT

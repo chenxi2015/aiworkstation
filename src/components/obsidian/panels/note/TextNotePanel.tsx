@@ -401,7 +401,7 @@ export function TextNotePanel({
 				title: activeName,
 				content: draft,
 			});
-			toast.success(`《${res.title}》已导入自媒体创作台，正在进入…`);
+			toast.success(`《${res.title}》已导入创作台，正在进入…`);
 			void navigate({
 				to: "/creator/studio",
 				search: { doc: res.documentId, mode: "doc" },

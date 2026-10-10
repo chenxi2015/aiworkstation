@@ -62,7 +62,7 @@ export const WORKBENCH_WIDGETS: readonly WidgetDef[] = [
 	},
 	{
 		id: "creator-pipeline",
-		label: "自媒体管道",
+		label: "创作管道",
 		description: "素材 → 二创 → 审稿的流水线状态",
 		icon: Megaphone,
 		moduleCode: "creator",

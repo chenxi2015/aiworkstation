@@ -40,7 +40,7 @@ const TABS: Array<{ id: CreatorTab; label: string; icon: typeof PenSquare }> = [
 ];
 
 /**
- * 自媒体模块主页（docs/selfmedia-merge-plan.md）：
+ * 创作模块主页（docs/selfmedia-merge-plan.md）：
  * 素材库 / 创作台(文档创作+一键处理+草稿进度) / 归档 / 工具箱 / 热点雷达。
  * 主线：素材 → 创作 → 归档；热点 → 创作 → 归档。
  */
@@ -115,7 +115,7 @@ export function CreatorApp({
 	return (
 		<div className="h-full bg-surface dark:bg-background text-foreground flex flex-col overflow-hidden">
 			<div className="border-b border-border bg-surface/60 shrink-0">
-				<div className="mx-auto px-6 flex items-center gap-1">
+				<div className="mx-auto px-6 flex items-center justify-center gap-1">
 					{TABS.map((tab) => {
 						const Icon = tab.icon;
 						const active = activeTab === tab.id;

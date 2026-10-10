@@ -9,45 +9,57 @@ interface ImportMeta {
 	readonly env: ImportMetaEnv;
 }
 
-export interface ElectronUpdateDownloadedInfo {
-	version?: string;
-	releaseNotes?: string | Record<string, unknown>[];
-	releaseDate?: string;
-}
+export type ElectronUpdateStatus =
+	| "idle"
+	| "checking"
+	| "available"
+	| "not-available"
+	| "downloading"
+	| "downloaded"
+	| "installing"
+	| "error";
 
-export interface ElectronCheckUpdateResult {
-	status: "success" | "dev" | "error" | string;
-	message?: string;
-	hasUpdate?: boolean;
-	currentVersion?: string;
+export interface ElectronUpdateState {
+	status: ElectronUpdateStatus;
+	currentVersion: string;
 	latestVersion?: string;
-	updateInfo?: unknown;
+	releaseNotes?: string;
+	releaseDate?: string;
+	progress?: number;
+	downloadedFile?: string;
+	canAutoInstall: boolean;
+	checkedAt?: number;
+	error?: string;
 }
 
-export interface ElectronDownloadProgress {
-	percent: number;
-	bytesPerSecond?: number;
-	transferred?: number;
-	total?: number;
-}
+export type ElectronUpdateCheckResult = Omit<ElectronUpdateState, "status"> & {
+	status: ElectronUpdateStatus | "dev";
+};
 
 export interface ElectronAPI {
 	platform: "darwin" | "win32" | "linux" | string;
 	getVersion?: () => Promise<string>;
-	onUpdateDownloaded?: (
-		callback: (info: ElectronUpdateDownloadedInfo) => void,
+	getUpdateState?: () => Promise<ElectronUpdateState>;
+	onUpdateState?: (
+		callback: (state: ElectronUpdateState) => void,
 	) => () => void;
-	onDownloadProgress?: (
-		callback: (progress: ElectronDownloadProgress) => void,
-	) => () => void;
-	startDownload?: () => Promise<{ status: string; message?: string }>;
+	checkForUpdates?: () => Promise<ElectronUpdateCheckResult>;
+	startDownload?: () => Promise<ElectronUpdateCheckResult>;
 	installUpdate?: () => Promise<{
 		status: string;
 		message?: string;
-		openedFile?: boolean;
+		path?: string;
 	}>;
-	openDownloadedFile?: () => Promise<{ status: string; message?: string }>;
-	checkForUpdates?: () => Promise<ElectronCheckUpdateResult>;
+	openDownloadedFile?: () => Promise<{
+		status: string;
+		isLocal?: boolean;
+		path?: string;
+	}>;
+	showDownloadedInFolder?: () => Promise<{
+		status: string;
+		path?: string;
+		message?: string;
+	}>;
 	setWindowMode?: (mode: "login" | "main") => Promise<{ success: boolean }>;
 }
 

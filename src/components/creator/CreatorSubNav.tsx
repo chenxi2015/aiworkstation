@@ -22,7 +22,7 @@ export function CreatorSubNav({ materialsCount }: CreatorSubNavProps) {
 
 	return (
 		<div className="border-b border-border bg-surface/60 shrink-0">
-			<div className="mx-auto px-6 flex items-center gap-1">
+			<div className="mx-auto px-6 flex items-center justify-center-safe gap-1 overflow-x-auto no-scrollbar">
 				{SUB_TABS.map((tab) => {
 					const Icon = tab.icon;
 					const active =
@@ -31,7 +31,7 @@ export function CreatorSubNav({ materialsCount }: CreatorSubNavProps) {
 						<Link
 							key={tab.id}
 							to={tab.to}
-							className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 -mb-px transition-colors cursor-pointer ${
+						className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 -mb-px transition-colors cursor-pointer shrink-0 whitespace-nowrap ${
 								active
 									? "border-accent text-accent font-semibold"
 									: "border-transparent text-muted hover:text-foreground"

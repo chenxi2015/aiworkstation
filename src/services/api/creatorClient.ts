@@ -170,7 +170,7 @@ export async function createDocumentFromMaterialRpc(
 	return await createDocumentFromMaterial({ data: { materialId } });
 }
 
-/** Obsidian 笔记一键导入自媒体创作台进行二次创作，返回文档 id 与标题 */
+/** Obsidian 笔记一键导入创作台进行二次创作，返回文档 id 与标题 */
 export async function importObsidianNoteToStudioRpc(params: {
 	relPath: string;
 	title?: string;

@@ -39,7 +39,7 @@ export function buildDraftsSystemPrompt(platforms: DraftPlatform[]): string {
 	const presetBlock = platforms.map((p) => PLATFORM_PRESETS[p]).join("\n\n");
 	const platformsJson = platforms.map((p) => `"${p}"`).join(" | ");
 	return [
-		"你是一名资深的自媒体内容二创专家，擅长把一份素材改写成适配不同平台调性的文案。",
+		"你是一名资深的创作内容二创专家，擅长把一份素材改写成适配不同平台调性的文案。",
 		"",
 		"你需要为用户选中的每个平台各产出一条变体，平台风格要求如下：",
 		"",

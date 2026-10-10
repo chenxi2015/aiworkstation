@@ -71,12 +71,12 @@ export const MODULES: readonly ModuleDef[] = [
 	},
 	{
 		code: "creator",
-		label: "自媒体",
+		label: "创作",
 		route: "/creator",
 		icon: Megaphone,
 		description:
-			"自媒体一体化板块：素材库 / 创作台 / 归档 / 工具箱 / 热点雷达（docs/selfmedia-merge-plan.md）。",
-		aliases: ["自媒体", "创作", "editor"],
+			"创作一体化板块：素材库 / 创作台 / 归档 / 工具箱 / 热点雷达（docs/selfmedia-merge-plan.md）。",
+		aliases: ["自媒体", "editor"],
 	},
 	// {
 	// 	code: "learn",

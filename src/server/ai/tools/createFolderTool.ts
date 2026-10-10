@@ -20,7 +20,7 @@ export const createFolderInputSchema = z
 			.nullable()
 			.optional()
 			.describe(
-				"所属工作台大分类（如：工作台、自媒体、技能、电商、收藏等），默认'工作台'",
+				"所属工作台大分类（如：工作台、创作、技能、电商、收藏等），默认'工作台'",
 			),
 		desc: z
 			.string()

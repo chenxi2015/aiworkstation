@@ -16,7 +16,7 @@ export function resolveActiveMaterialPrompt(
 	const preview = (material.content || "").slice(0, 1000) || "(空素材/暂无正文)";
 	const previewSuffix = contentLength > 1000 ? `\n…（共 ${contentLength} 字）` : "";
 
-	return `\n- 【当前选中的自媒体二创素材（用户当前屏幕聚焦，最高优先级）】:
+	return `\n- 【当前选中的创作二创素材（用户当前屏幕聚焦，最高优先级）】:
   - 素材 ID: ${material.id}
   - 标题: 《${material.title}》
   - 状态: ${material.status} | 来源: ${material.sourceType}

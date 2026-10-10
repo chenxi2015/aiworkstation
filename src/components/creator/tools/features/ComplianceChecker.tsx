@@ -54,7 +54,7 @@ const COMPLIANCE_RULES: {
 	{
 		pattern: /100%|百分之百|绝对|必[须买赢达火爆]|包过|保真/g,
 		term: "100% / 必须 / 保真 / 包过",
-		reason: "绝对化保证收益或效果，自媒体平台容易被限流与违规处罚",
+		reason: "绝对化保证收益或效果，创作平台容易被限流与违规处罚",
 		replacement: "力求 / 建议 / 值得体验",
 		severity: "medium",
 	},
@@ -152,7 +152,7 @@ export function ComplianceChecker({
 
 	const handleLoadSample = () => {
 		setText(
-			"欢迎大家观看！这是全网最棒的自媒体工具箱，拥有国家级顶尖技术，100%保证能帮你解决自媒体痛点！全网独家首发，今日点击疯抢，错过后悔一辈子，永久有效！",
+			"欢迎大家观看！这是全网最棒的创作工具箱，拥有国家级顶尖技术，100%保证能帮你解决创作痛点！全网独家首发，今日点击疯抢，错过后悔一辈子，永久有效！",
 		);
 		setStatusMessage("已载入测试样本，右侧已实时生成违规词排查报告。");
 	};
@@ -326,7 +326,7 @@ export function ComplianceChecker({
 											未发现广告法极限词或高危敏感词
 										</h3>
 										<p className="text-[11px] text-muted max-w-xs mx-auto">
-											文案合规度良好，符合主流自媒体平台发布规范，可放心发布。
+											文案合规度良好，符合主流创作平台发布规范，可放心发布。
 										</p>
 									</div>
 								) : (

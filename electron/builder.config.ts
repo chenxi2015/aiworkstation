@@ -82,6 +82,7 @@ const config: Configuration = {
 
   // ── macOS ─────────────────────────────────────────────────────────────────
   mac: {
+    artifactName: `${APP_CONFIG.SLUG}-\${version}-\${arch}-mac.\${ext}`,
     target: [
       // arm64 only on Apple Silicon; add x64 via CI for universal builds
       { target: "dmg", arch: ["arm64"] },

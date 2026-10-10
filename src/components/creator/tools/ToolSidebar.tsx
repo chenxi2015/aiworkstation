@@ -51,7 +51,7 @@ export function ToolSidebar({
 							<Wrench className="w-3.5 h-3.5" />
 						</div>
 						<h2 className="text-sm font-semibold tracking-tight text-foreground">
-							自媒体工具箱
+							创作工具箱
 						</h2>
 					</div>
 					<span className="text-[11px] text-muted font-mono px-1.5 py-0.5 rounded bg-muted/10">
@@ -108,7 +108,7 @@ export function ToolSidebar({
 			<div className="flex-1 overflow-y-auto p-2 space-y-1 scrollbar-thin">
 				{tools.length === 0 ? (
 					<div className="py-12 text-center text-xs text-muted">
-						没有找到匹配的自媒体工具
+						没有找到匹配的创作工具
 					</div>
 				) : (
 					tools.map((tool) => {

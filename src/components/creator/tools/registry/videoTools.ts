@@ -56,7 +56,7 @@ export const VIDEO_TOOLS: ToolDefinition[] = [
 				defaultValue: "320k",
 				options: [
 					{ label: "320 kbps (超清高保真)", value: "320k" },
-					{ label: "192 kbps (标准自媒体音质)", value: "192k" },
+					{ label: "192 kbps (标准创作音质)", value: "192k" },
 					{ label: "128 kbps (小体积省流量)", value: "128k" },
 				],
 			},
@@ -181,7 +181,7 @@ export const VIDEO_TOOLS: ToolDefinition[] = [
 		acceptTypes: "video/*",
 		features: [
 			"瞬间剥离音频轨，不影响视频画质",
-			"方便二次混剪、自媒体配乐和口播重录",
+			"方便二次混剪、创作配乐和口播重录",
 		],
 	},
 	{
@@ -270,7 +270,7 @@ export const VIDEO_TOOLS: ToolDefinition[] = [
 				defaultValue: "23",
 				options: [
 					{ label: "CRF 20 (超高画质，大文件)", value: "20" },
-					{ label: "CRF 23 (自媒体黄金平衡点，推荐)", value: "23" },
+					{ label: "CRF 23 (创作黄金平衡点，推荐)", value: "23" },
 					{ label: "CRF 26 (高压缩率，适合演示录屏)", value: "26" },
 				],
 			},
@@ -303,7 +303,7 @@ export const VIDEO_TOOLS: ToolDefinition[] = [
 				options: [
 					{ label: "0.5x 慢动作放慢", value: "0.5" },
 					{ label: "1.25x 轻度紧凑", value: "1.25" },
-					{ label: "1.5x 口播快节奏 (自媒体推荐)", value: "1.5" },
+					{ label: "1.5x 口播快节奏 (创作推荐)", value: "1.5" },
 					{ label: "2.0x 快速演示", value: "2.0" },
 					{ label: "3.0x 极速跳过", value: "3.0" },
 				],
@@ -360,10 +360,10 @@ export const VIDEO_TOOLS: ToolDefinition[] = [
 		status: "completed",
 		supportedFormats: ["MP4", "MOV", "WebM"],
 		acceptTypes: "video/*",
-		badges: ["自媒体黄字", "全平台免挂载"],
+		badges: ["创作黄字", "全平台免挂载"],
 		features: [
 			"与「视频提取文案(ASR)」无缝串联，提取出的字幕可直接在此一键烧录",
-			"内置短视频最经典的自媒体高亮黄字+黑色描边，防背景遮挡",
+			"内置短视频最经典的创作高亮黄字+黑色描边，防背景遮挡",
 			"适合海外视频双语字幕压制与口播加字幕",
 		],
 		params: [
@@ -374,7 +374,7 @@ export const VIDEO_TOOLS: ToolDefinition[] = [
 				defaultValue: "yellow_stroke",
 				options: [
 					{
-						label: "自媒体高亮黄字 + 黑边强调 (吸睛推荐)",
+						label: "创作高亮黄字 + 黑边强调 (吸睛推荐)",
 						value: "yellow_stroke",
 					},
 					{ label: "经典白色字 + 阴影", value: "white_shadow" },

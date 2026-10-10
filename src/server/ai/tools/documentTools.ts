@@ -166,7 +166,7 @@ export const rewriteDocumentInputSchema = z.object({
 	documentId: z.number().describe("要改写的文档 id"),
 	instruction: z
 		.string()
-		.describe("改写指令（如：润色全文、压缩至 500 字、改成自媒体风格）"),
+		.describe("改写指令（如：润色全文、压缩至 500 字、改成创作风格）"),
 	targetSection: z
 		.string()
 		.optional()
@@ -275,7 +275,7 @@ export const triggerParagraphRewriteInputSchema = z.object({
 	instruction: z
 		.string()
 		.describe(
-			"提炼后的精细润色/改写/排版优化要求与风格原则（若应用了技能规范如公众号排版、设计规范、自媒体文风等，需在此详细写明具体的样式要点与排版规则），将直接注入正文逐段流式改写流水线中",
+			"提炼后的精细润色/改写/排版优化要求与风格原则（若应用了技能规范如公众号排版、设计规范、创作文风等，需在此详细写明具体的样式要点与排版规则），将直接注入正文逐段流式改写流水线中",
 		),
 	strategySummary: z.string().describe("针对当前文章的结构诊断与优化策略简述"),
 });
@@ -317,7 +317,7 @@ export const updateDocumentTitleInputSchema = z.object({
 	reason: z
 		.string()
 		.optional()
-		.describe("修改理由或受众切入点说明（如：更具悬念感与自媒体传播度）"),
+		.describe("修改理由或受众切入点说明（如：更具悬念感与创作传播度）"),
 });
 export type UpdateDocumentTitleInput = z.infer<
 	typeof updateDocumentTitleInputSchema

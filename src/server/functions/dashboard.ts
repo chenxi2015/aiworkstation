@@ -153,7 +153,7 @@ function queryActivity(): ActivityDay[] {
 }
 
 /**
- * Server Function: 工作台仪表盘跨模块汇总（一次调用聚合书签/文件夹/自媒体/创作/Skills/巡检）
+ * Server Function: 工作台仪表盘跨模块汇总（一次调用聚合书签/文件夹/创作/创作/Skills/巡检）
  */
 export const getWorkbenchSummary = createServerFn({ method: "GET" }).handler(
 	async (): Promise<WorkbenchSummary> => {

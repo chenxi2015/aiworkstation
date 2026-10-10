@@ -1,5 +1,5 @@
 /**
- * 自媒体（creator）模块共享类型 —— 数据模型以 docs/creator-plan.md 第三节为准。
+ * 创作（creator）模块共享类型 —— 数据模型以 docs/creator-plan.md 第三节为准。
  * 服务端仓储与前端组件共用。
  */
 

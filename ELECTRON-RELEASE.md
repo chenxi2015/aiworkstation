@@ -83,10 +83,15 @@ git push origin v0.2.0
 
 ## 自动更新机制
 
-- app 启动时 `electron/main.ts` 的 `setupAutoUpdater()` 检查 GitHub Releases 上的 `latest*.yml`
-- 发现新版本 → 后台静默下载 → 下载完弹窗「立即重启 / 稍后」
-- 更新失败（断网、无 Release）只记日志，不打扰用户
-- **Windows 未签名也能正常自更新**；**macOS 必须 Apple Developer ID 签名**，否则能检测但装不上（当前状态：未签名，Mac 自更新不可用，Windows 正常）
+主进程 `electron/updater.ts` 维护单一更新状态机（idle → checking → available → downloading → downloaded → installing / error），渲染层只订阅 `updater:state` 广播、通过 IPC 发命令，不用定时器猜结果。
+
+- app 启动 8 秒后自动检查 GitHub Releases 的 `latest*.yml`，之后每 6 小时轮询一次；发现新版本自动后台下载，下载完成弹窗提醒
+- **Windows（NSIS）**：未签名也能自更新，下载完「立即重启」即完成（`quitAndInstall`）
+- **macOS 未签名（当前状态）**：启动时用 `codesign` 检测签名。未签名时不走会失败的 Squirrel 自动安装，而是应用内直接下载 **DMG**（带进度 + sha512 校验，存于 `userData/updates/`），下载完点「打开安装包并退出」，拖入 Applications 替换即可
+- 更新决策不依赖本地已存文件：每次启动/轮询都重新检查并下载最新包（DMG 覆盖写入 `userData/updates/`），安装前再次校验 sha512，损坏包自动删除并回到可重下状态
+- 设置页「检查更新」行实时显示状态机状态（检查中 / 下载中 xx% / 已就绪 / 失败可重试）
+- 更新失败（断网、无 Release）进入 error 状态，设置页可重试，不打扰用户
+- **macOS 自更新彻底打通需要 Apple Developer ID 签名**（$99/年），签名后 `codesign` 检测自动切换到 `quitAndInstall` 路径，无需改代码
 
 ## 常见问题
 

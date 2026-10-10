@@ -4,7 +4,7 @@
  */
 export function HeaderSkeleton() {
 	return (
-		<header className="shrink-0 bg-surface/80 border-b border-border px-6 h-15 flex items-center gap-4 justify-between backdrop-blur-md animate-pulse workbench-top-header window-drag-region select-none">
+		<header className="shrink-0 bg-surface/80 border-b border-border px-6 h-15 grid grid-cols-[1fr_auto_1fr] items-center gap-4 backdrop-blur-md animate-pulse workbench-top-header window-drag-region select-none">
 			{/* Left: Brand */}
 			<div className="flex items-center gap-2.5 shrink-0 pr-2">
 				<div className="w-8 h-8 rounded-xl bg-surface-secondary/80 shrink-0" />
@@ -15,7 +15,7 @@ export function HeaderSkeleton() {
 			</div>
 
 			{/* Center: Category Tabs Skeleton */}
-			<div className="hidden md:flex items-center gap-1.5 p-1 bg-surface-secondary/40 rounded-full border border-border/50">
+			<div className="hidden md:flex items-center gap-1.5 p-1 bg-surface-secondary/40 rounded-full border border-border/50 justify-self-center">
 				<div className="w-16 h-6 rounded-full bg-surface-secondary/80" />
 				<div className="w-14 h-6 rounded-full bg-surface-secondary/40" />
 				<div className="w-14 h-6 rounded-full bg-surface-secondary/40" />
@@ -23,7 +23,7 @@ export function HeaderSkeleton() {
 			</div>
 
 			{/* Right: Actions Skeleton */}
-			<div className="flex items-center gap-2 shrink-0">
+			<div className="flex items-center gap-2 shrink-0 justify-self-end">
 				<div className="w-20 h-7 rounded-full bg-surface-secondary/60" />
 				<div className="w-20 h-7 rounded-full bg-surface-secondary/50" />
 				<div className="w-22 h-7 rounded-full bg-surface-secondary/40 hidden sm:block" />

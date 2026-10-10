@@ -57,7 +57,7 @@ export const TEXT_TOOLS: ToolDefinition[] = [
 		badges: ["防限流", "安全合规"],
 		customComponent: ComplianceChecker,
 		features: [
-			"内置万级自媒体敏感词与广告法红线词汇库",
+			"内置万级创作敏感词与广告法红线词汇库",
 			"高亮标注风险等级并给出合规润色替换建议",
 			"支持一键安全替换与复制净稿",
 		],

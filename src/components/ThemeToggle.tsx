@@ -34,8 +34,10 @@ function applyThemeMode(mode: ThemeMode) {
 
 export default function ThemeToggle({
 	compact = false,
+	menu = false,
 }: {
 	compact?: boolean;
+	menu?: boolean;
 }) {
 	const [mode, setMode] = useState<ThemeMode>("auto");
 
@@ -73,6 +75,30 @@ export default function ThemeToggle({
 			: mode === "dark"
 				? "当前主题：暗色模式（点击切换）"
 				: "当前主题：亮色模式（点击切换）";
+
+	if (menu) {
+		return (
+			<button
+				type="button"
+				onClick={toggleMode}
+				aria-label={label}
+				title={label}
+				className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-muted hover:text-foreground rounded-lg hover:bg-surface-secondary transition cursor-pointer"
+			>
+				{mode === "auto" ? (
+					<Laptop className="w-3.5 h-3.5 opacity-75" />
+				) : mode === "dark" ? (
+					<Moon className="w-3.5 h-3.5 text-accent" />
+				) : (
+					<Sun className="w-3.5 h-3.5 text-amber-500" />
+				)}
+				<span>
+					主题：
+					{mode === "auto" ? "跟随系统" : mode === "dark" ? "暗色" : "亮色"}
+				</span>
+			</button>
+		);
+	}
 
 	if (compact) {
 		return (

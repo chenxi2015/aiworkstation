@@ -8,7 +8,7 @@ import {
 } from "../format";
 import type { DashboardWidgetProps } from "./widgetProps";
 
-/** 自媒体管道：素材/待审稿/草稿总量 + 最近草稿动态 */
+/** 创作管道：素材/待审稿/草稿总量 + 最近草稿动态 */
 export function CreatorPipelineWidget({ summary }: DashboardWidgetProps) {
 	const { materials, draftsPending, draftsTotal, recentDrafts } =
 		summary.creator;
@@ -85,7 +85,7 @@ export function CreatorPipelineWidget({ summary }: DashboardWidgetProps) {
 				</ul>
 			) : (
 				<p className="text-[11px] text-muted">
-					还没有草稿，去自媒体模块导入素材并生成二创
+					还没有草稿，去创作模块导入素材并生成二创
 				</p>
 			)}
 		</div>

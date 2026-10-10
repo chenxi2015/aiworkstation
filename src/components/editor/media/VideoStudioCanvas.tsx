@@ -441,7 +441,7 @@ export function VideoStudioCanvas({
 							视频二次创作工作台
 						</h2>
 						<span className="text-[11px] text-muted">
-							（基于当前视频源素材一键派生多种自媒体产物）
+							（基于当前视频源素材一键派生多种创作产物）
 						</span>
 					</div>
 

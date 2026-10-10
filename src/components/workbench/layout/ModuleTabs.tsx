@@ -69,7 +69,7 @@ const ModuleTabItem = memo(function ModuleTabItem({
 });
 
 /**
- * Fixed top-level module navigation (工作台 / 书签 / 自媒体 / ...), driven by
+ * Fixed top-level module navigation (工作台 / 书签 / 创作 / ...), driven by
  * the module registry and the user's nav layout. Route-based active state.
  */
 export const ModuleTabs = memo(function ModuleTabs({
@@ -80,7 +80,7 @@ export const ModuleTabs = memo(function ModuleTabs({
 	const modules = resolveNavModules(navLayout);
 
 	return (
-		<nav className="flex items-center gap-1 overflow-x-auto no-scrollbar flex-1 py-1 px-2">
+		<nav className="flex items-center gap-1 overflow-x-auto no-scrollbar justify-center-safe py-1 px-2">
 			{modules.map((mod) => (
 				<ModuleTabItem
 					key={mod.code}

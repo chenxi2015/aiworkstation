@@ -54,7 +54,7 @@ export const DEFAULT_STYLE_PRESETS: EditorStylePreset[] = [
 	},
 	{
 		id: "media",
-		label: "自媒体风格",
+		label: "创作风格",
 		description: "生动活泼、节奏轻快、引人入胜，适合平台发布传播",
 		promptRules:
 			"语言生动亲和，善用金句与段落短句，节奏轻快，观点鲜明，易于在社交媒体阅读传播。",
@@ -87,7 +87,7 @@ export const DEFAULT_STYLE_PRESETS: EditorStylePreset[] = [
 
 export const STYLE_PRESET_LABELS: Record<string, string> = {
 	official: "公文风格",
-	media: "自媒体风格",
+	media: "创作风格",
 	report: "报告风格",
 	rewrite: "二创洗稿",
 	custom: "自定义",

@@ -1,15 +1,35 @@
 import { Button, Card, Chip } from "@heroui/react";
-import { Crown, LogIn, LogOut, Sparkles, User } from "lucide-react";
+import {
+	Chrome,
+	Crown,
+	Download,
+	LogIn,
+	LogOut,
+	Settings,
+	Sparkles,
+	User,
+} from "lucide-react";
 import { useState } from "react";
 import { useCloudAuth } from "../../lib/cloud/useCloudAuth";
+import { isElectronApp } from "../../lib/platform";
+import ThemeToggle from "../ThemeToggle";
 import { CheckoutModal } from "./CheckoutModal";
 import { LoginModal } from "./LoginModal";
 
-export function UserAuthButton() {
+export interface UserAuthButtonProps {
+	onOpenExtension?: () => void;
+	onOpenSettings?: () => void;
+}
+
+export function UserAuthButton({
+	onOpenExtension,
+	onOpenSettings,
+}: UserAuthButtonProps) {
 	const { user, isLoggedIn, isMember, logout } = useCloudAuth();
 	const [showLoginModal, setShowLoginModal] = useState(false);
 	const [showCheckoutModal, setShowCheckoutModal] = useState(false);
 	const [showDropdown, setShowDropdown] = useState(false);
+	const isElectron = isElectronApp();
 
 	// Format expiration date
 	const formatExpiresAt = (isoStr: string | null) => {
@@ -119,7 +139,7 @@ export function UserAuthButton() {
 								<Button
 									size="sm"
 									variant="primary"
-									className="w-full text-xs font-semibold flex items-center justify-center gap-1.5 rounded-xl py-2 cursor-pointer bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 text-white shadow-xs hover:opacity-95 transition"
+									className="w-full text-xs font-semibold flex items-center justify-center gap-1.5 rounded-md py-2 cursor-pointer bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 text-white shadow-xs hover:opacity-95 transition"
 									onPress={() => {
 										setShowDropdown(false);
 										setShowCheckoutModal(true);
@@ -128,6 +148,41 @@ export function UserAuthButton() {
 									<Sparkles className="w-3.5 h-3.5" />
 									<span>{isMember ? "立即续费会员" : "开通 Pro 尊享特权"}</span>
 								</Button>
+							</div>
+
+							{/* Tools: Extension, Settings, Theme */}
+							<div className="pt-1.5 border-t border-border/60">
+								{onOpenExtension && (
+									<button
+										type="button"
+										onClick={() => {
+											setShowDropdown(false);
+											onOpenExtension();
+										}}
+										className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-muted hover:text-foreground rounded-lg hover:bg-surface-secondary transition cursor-pointer"
+									>
+										{isElectron ? (
+											<Download className="w-3.5 h-3.5 text-accent" />
+										) : (
+											<Chrome className="w-3.5 h-3.5 text-accent" />
+										)}
+										<span>{isElectron ? "下载插件" : "打开插件"}</span>
+									</button>
+								)}
+								{onOpenSettings && (
+									<button
+										type="button"
+										onClick={() => {
+											setShowDropdown(false);
+											onOpenSettings();
+										}}
+										className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-muted hover:text-foreground rounded-lg hover:bg-surface-secondary transition cursor-pointer"
+									>
+										<Settings className="w-3.5 h-3.5" />
+										<span>偏好设置</span>
+									</button>
+								)}
+								<ThemeToggle menu />
 							</div>
 
 							<div className="pt-1.5 border-t border-border/60">

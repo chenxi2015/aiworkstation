@@ -1436,7 +1436,23 @@ blockquote::after {
 	-webkit-app-region: no-drag;
 }
 
+/* AI 面板折叠时宽度收为 0、仅靠 overflow 裁剪，但面板头部的拖拽区布局矩形仍停留在
+   窗口右上角；Electron 计算 draggable region 不考虑祖先裁剪，会在该区域吞掉点击
+   （恰好盖住顶栏右侧按钮）。折叠时强制整棵子树退出拖拽区。 */
+.ai-panel-hidden .window-drag-region,
+.ai-panel-hidden .window-drag-region * {
+	-webkit-app-region: no-drag;
+}
+
 /* In Electron on macOS, offset the top header so the traffic lights do not overlap the logo */
 html.electron-mac .workbench-top-header {
 	padding-left: 5.5rem; /* 88px, leaves clear spacing for traffic lights (x: 18px ~ 70px) */
+}
+
+/* The extra 64px left inset above (88px vs 24px right) shifts the header's
+   1fr/auto/1fr grid center to the right; pull the module nav back by half of
+   the difference so it stays on the same vertical center axis as the
+   symmetrically-padded sub navigation (e.g. CreatorSubNav) below. */
+html.electron-mac .workbench-top-nav {
+	margin-right: 4rem;
 }

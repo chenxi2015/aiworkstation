@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { REPO_CONFIG, SUPPORT_EMAIL } from "../../../config/app.ts";
+import type { ElectronUpdateState } from "../../../vite-env";
 
 type ThemeMode = "light" | "dark" | "auto";
 type LanguageOption = "zh-CN" | "zh-TW" | "en-US";
@@ -154,6 +155,26 @@ export function GeneralSettingsTab() {
 	// Update check state
 	const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
 	const [lastCheckedTime, setLastCheckedTime] = useState<string | null>(null);
+	const [updateState, setUpdateState] = useState<ElectronUpdateState | null>(
+		null,
+	);
+
+	// Subscribe to the main-process updater state machine so the settings page
+	// always reflects background check/download progress.
+	useEffect(() => {
+		if (!window.electronAPI?.getUpdateState) return;
+		let disposed = false;
+		window.electronAPI.getUpdateState().then((snapshot) => {
+			if (!disposed && snapshot) setUpdateState(snapshot);
+		});
+		const unsubscribe = window.electronAPI.onUpdateState?.((next) => {
+			setUpdateState(next);
+		});
+		return () => {
+			disposed = true;
+			unsubscribe?.();
+		};
+	}, []);
 
 	// Copy email feedback state
 	const [isEmailCopied, setIsEmailCopied] = useState(false);
@@ -222,27 +243,17 @@ export function GeneralSettingsTab() {
 				if (res?.status === "dev") {
 					toast.info("当前处于开发模式，已是最新代码", { timeout: 2500 });
 				} else if (res?.status === "error") {
-					toast.warning(`检查更新失败: ${res.message || "网络异常"}`, {
+					toast.warning(`检查更新失败: ${res.error || "网络异常"}`, {
 						timeout: 3000,
 					});
-				} else if (res?.hasUpdate) {
-					// Open update modal dialog with new release details
+				} else if (
+					res?.status === "available" ||
+					res?.status === "downloading" ||
+					res?.status === "downloaded"
+				) {
+					// State machine already carries the details — just open the modal.
 					window.dispatchEvent(
-						new CustomEvent("open-update-modal", {
-							detail: {
-								step: "available",
-								updateInfo: {
-									version: res.latestVersion,
-									releaseNotes:
-										typeof res.updateInfo === "object" &&
-										res.updateInfo &&
-										"releaseNotes" in res.updateInfo
-											? (res.updateInfo as { releaseNotes?: string })
-													.releaseNotes
-											: undefined,
-								},
-							},
-						}),
+						new CustomEvent("open-update-modal", { detail: {} }),
 					);
 				} else {
 					toast.success(
@@ -266,7 +277,6 @@ export function GeneralSettingsTab() {
 						window.dispatchEvent(
 							new CustomEvent("open-update-modal", {
 								detail: {
-									step: "available",
 									updateInfo: {
 										version: latestTag,
 										releaseNotes: data.body,
@@ -303,6 +313,44 @@ export function GeneralSettingsTab() {
 		}
 	};
 
+	// Derived status line / action for the update row, driven by the state machine
+	const updateStatusDescription = (() => {
+		const fallback = lastCheckedTime
+			? `上次检查时间: ${lastCheckedTime}`
+			: "检查是否有新版本的工作台可用。";
+		if (!updateState) return fallback;
+		switch (updateState.status) {
+			case "checking":
+				return "正在检查更新...";
+			case "available":
+				return `发现新版本 v${updateState.latestVersion}，点击右侧按钮查看`;
+			case "downloading":
+				return `正在后台下载 v${updateState.latestVersion} · ${Math.round(updateState.progress ?? 0)}%`;
+			case "downloaded":
+				return `新版本 v${updateState.latestVersion} 已下载到本地，随时可安装`;
+			case "installing":
+				return "正在安装更新...";
+			case "error":
+				return "上次检查/下载失败，可重新检查";
+			default:
+				return fallback;
+		}
+	})();
+
+	const updateStateAction = (() => {
+		if (!updateState) return null;
+		switch (updateState.status) {
+			case "available":
+				return "查看更新";
+			case "downloading":
+				return "查看进度";
+			case "downloaded":
+				return "立即安装";
+			default:
+				return null;
+		}
+	})();
+
 	return (
 		<div className="flex flex-col gap-6 pt-1">
 			<SettingsSection title="通用">
@@ -317,27 +365,36 @@ export function GeneralSettingsTab() {
 					</div>
 				</SettingsRow>
 
-				<SettingsRow
-					title="检查更新"
-					description={
-						lastCheckedTime
-							? `上次检查时间: ${lastCheckedTime}`
-							: "检查是否有新版本的工作台可用。"
-					}
-				>
-					<Button
-						type="button"
-						size="sm"
-						variant="outline"
-						className="h-7 text-xs px-3 rounded-full cursor-pointer"
-						onPress={handleCheckUpdate}
-						isDisabled={isCheckingUpdate}
-					>
-						<RefreshCw
-							className={`w-3.5 h-3.5 mr-1.5 ${isCheckingUpdate ? "animate-spin" : ""}`}
-						/>
-						{isCheckingUpdate ? "检查中..." : "检查更新"}
-					</Button>
+				<SettingsRow title="检查更新" description={updateStatusDescription}>
+					{updateStateAction ? (
+						<Button
+							type="button"
+							size="sm"
+							variant="outline"
+							className="h-7 text-xs px-3 rounded-full cursor-pointer"
+							onPress={() =>
+								window.dispatchEvent(
+									new CustomEvent("open-update-modal", { detail: {} }),
+								)
+							}
+						>
+							{updateStateAction}
+						</Button>
+					) : (
+						<Button
+							type="button"
+							size="sm"
+							variant="outline"
+							className="h-7 text-xs px-3 rounded-full cursor-pointer"
+							onPress={handleCheckUpdate}
+							isDisabled={isCheckingUpdate}
+						>
+							<RefreshCw
+								className={`w-3.5 h-3.5 mr-1.5 ${isCheckingUpdate ? "animate-spin" : ""}`}
+							/>
+							{isCheckingUpdate ? "检查中..." : "检查更新"}
+						</Button>
+					)}
 				</SettingsRow>
 
 				<SettingsRow title="语言" description="选择工作台界面的显示语言偏好。">

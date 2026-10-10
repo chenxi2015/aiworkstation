@@ -155,7 +155,7 @@ function parsePromptMeta(prompt: string) {
 		};
 	}
 	if (
-		prompt.includes("自媒体") ||
+		prompt.includes("创作") ||
 		prompt.includes("小红书") ||
 		prompt.includes("脚本") ||
 		prompt.includes("选题") ||
@@ -217,7 +217,7 @@ export const ChatEmptyState = memo(function ChatEmptyState({
 				};
 			case "creator":
 				return {
-					title: "认识 自媒体二创助手",
+					title: "认识 创作二创助手",
 					description:
 						"不只是一个生成工具——而是一位深谙传播逻辑的二创策划。提炼核心亮点，快速起草并裂变多平台发布文案。",
 				};

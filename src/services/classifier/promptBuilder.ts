@@ -13,7 +13,7 @@ Your task is to analyze bookmark metadata (title, URL, description, keywords, fo
 ### Taxonomy Rules:
 1. "category" (Top-Level Navigation):
    - Choose the best fitting primary domain: "工作", "学习", "工具", "资源", "生活".
-   - Or specific domain if applicable: "自媒体", "电商", "设计", "金融".
+   - Or specific domain if applicable: "创作", "电商", "设计", "金融".
    - Prioritize existing categories: ${JSON.stringify(targetCategories)}.
 2. "folderName" (Theme Folder):
    - Specific 2-6 word topic folder (e.g., "chrome插件", "Prompt工程", "短视频剪辑", "前端开发", "UI设计灵感").

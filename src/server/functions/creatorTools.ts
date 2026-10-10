@@ -204,7 +204,7 @@ async function processMediaPipeline(
 		sourceType: "manual",
 		folderId: folderId ?? null,
 		title: toolTitle,
-		content: `由自媒体工具箱 [${toolId}] 处理生成，源文件：${basename(sourcePath)}`,
+		content: `由创作工具箱 [${toolId}] 处理生成，源文件：${basename(sourcePath)}`,
 		note: null,
 	});
 

@@ -73,7 +73,7 @@ export function MaterialsTableView({
 		<Table className="w-full text-xs rounded-none">
 			<Table.ScrollContainer className="overflow-x-auto">
 				<Table.Content
-					aria-label="自媒体素材列表"
+					aria-label="创作素材列表"
 					className="min-w-full text-xs"
 				>
 					<Table.Header>

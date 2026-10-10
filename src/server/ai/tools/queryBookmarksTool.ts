@@ -41,7 +41,7 @@ export const queryBookmarksInputSchema = z.object({
 		.nullable()
 		.optional()
 		.describe(
-			"所属工作台大类（如：工作台、自媒体、技能、电商、收藏等），无需过滤请勿包含此字段",
+			"所属工作台大类（如：工作台、创作、技能、电商、收藏等），无需过滤请勿包含此字段",
 		),
 	tag: z
 		.string()
