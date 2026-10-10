@@ -42,6 +42,7 @@
     "electron:dist:win": "pnpm run build && pnpm run electron:build:main && electron-builder --config electron/builder.config.ts --win",
     "electron:generate-icons": "electron scripts/generate-icons.cjs",
     "electron:release": "pnpm run build && pnpm run electron:build:main && electron-builder --config electron/builder.config.ts -mw --publish always",
+    "release": "node scripts/release.mjs",
     "release:patch": "node scripts/release.mjs patch",
     "release:minor": "node scripts/release.mjs minor",
     "release:major": "node scripts/release.mjs major"
