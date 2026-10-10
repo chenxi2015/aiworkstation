@@ -5,25 +5,41 @@ import { autoUpdater } from "electron-updater";
 import { isDev, REPO_CONFIG } from "./config.js";
 
 /**
- * Locate existing local DMG installer in updater cache or system downloads folder
+ * Locate existing local DMG / EXE installer in updater cache or system downloads folder
  */
 function resolveLocalInstallerFile(targetVersion?: string): string | null {
-	if (process.platform !== "darwin") {
+	const platform = process.platform;
+	if (platform !== "darwin" && platform !== "win32") {
 		return null;
 	}
 
-	const candidatesDirs = [
-		path.join(app.getPath("home"), "Library", "Caches", "aiworkstation-updater", "pending"),
-		path.join(app.getPath("home"), "Library", "Caches", "aiworkstation-updater"),
-		app.getPath("downloads"),
-	];
+	const isMac = platform === "darwin";
+	const fileExt = isMac ? ".dmg" : ".exe";
+
+	const candidatesDirs: string[] = [];
+
+	if (isMac) {
+		candidatesDirs.push(
+			path.join(app.getPath("home"), "Library", "Caches", "aiworkstation-updater", "pending"),
+			path.join(app.getPath("home"), "Library", "Caches", "aiworkstation-updater"),
+		);
+	} else if (platform === "win32") {
+		const localAppData = process.env.LOCALAPPDATA || path.join(app.getPath("home"), "AppData", "Local");
+		candidatesDirs.push(
+			path.join(localAppData, "aiworkstation-updater", "pending"),
+			path.join(localAppData, "aiworkstation-updater"),
+			path.join(app.getPath("temp"), "aiworkstation-updater"),
+		);
+	}
+
+	candidatesDirs.push(app.getPath("downloads"));
 
 	for (const dir of candidatesDirs) {
 		try {
 			if (!fs.existsSync(dir)) continue;
 			const files = fs.readdirSync(dir);
-			const dmgFiles = files
-				.filter((f) => f.toLowerCase().endsWith(".dmg") && f.toLowerCase().includes("workstation"))
+			const installerFiles = files
+				.filter((f) => f.toLowerCase().endsWith(fileExt) && f.toLowerCase().includes("workstation"))
 				.map((f) => {
 					const fullPath = path.join(dir, f);
 					const stat = fs.statSync(fullPath);
@@ -31,14 +47,14 @@ function resolveLocalInstallerFile(targetVersion?: string): string | null {
 				})
 				.sort((a, b) => b.mtime - a.mtime);
 
-			if (dmgFiles.length === 0) continue;
+			if (installerFiles.length === 0) continue;
 
 			if (targetVersion) {
-				const matched = dmgFiles.find((f) => f.name.includes(targetVersion));
+				const matched = installerFiles.find((f) => f.name.includes(targetVersion));
 				if (matched) return matched.fullPath;
 			}
 
-			return dmgFiles[0].fullPath;
+			return installerFiles[0].fullPath;
 		} catch {
 			// Skip directories that cannot be accessed
 		}
@@ -133,18 +149,19 @@ export function setupAutoUpdater(getMainWindow: () => BrowserWindow | null): voi
 			return { status: "success" };
 		} catch (err) {
 			console.error("[electron] quitAndInstall failed:", err);
-			if (process.platform === "darwin") {
-				const targetDmg =
-					(downloadedFilePath && fs.existsSync(downloadedFilePath) ? downloadedFilePath : null) ||
-					resolveLocalInstallerFile(latestTargetVersion || undefined);
-				if (targetDmg) {
-					await shell.openPath(targetDmg);
-					return {
-						status: "opened_file",
-						message: "macOS 签名限制，已为您直接打开安装包",
-						openedFile: true,
-					};
-				}
+			const targetInstaller =
+				(downloadedFilePath && fs.existsSync(downloadedFilePath) ? downloadedFilePath : null) ||
+				resolveLocalInstallerFile(latestTargetVersion || undefined);
+			if (targetInstaller) {
+				await shell.openPath(targetInstaller);
+				return {
+					status: "opened_file",
+					message:
+						process.platform === "darwin"
+							? "macOS 签名限制，已为您直接打开安装包"
+							: "已为您直接打开安装程序",
+					openedFile: true,
+				};
 			}
 			return {
 				status: "error",
@@ -153,7 +170,7 @@ export function setupAutoUpdater(getMainWindow: () => BrowserWindow | null): voi
 		}
 	});
 
-	// Manually open downloaded update file in system file manager or mount DMG
+	// Manually open downloaded update file in system file manager or launch installer
 	ipcMain.handle("updater:open-downloaded-file", async () => {
 		let targetPath =
 			downloadedFilePath && fs.existsSync(downloadedFilePath) ? downloadedFilePath : null;

@@ -9,6 +9,7 @@ import {
 	Sparkles,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { detectHostOS } from "../../lib/platform";
 import type { ElectronUpdateDownloadedInfo } from "../../vite-env";
 
 export type UpdateModalStep = "available" | "downloading" | "downloaded";
@@ -130,12 +131,6 @@ export function UpdateDownloadedModal({
 
 	// Start downloading update package in Electron or redirect in Web
 	const handleStartDownload = async () => {
-		if (updateInfo?.downloadUrl) {
-			window.open(updateInfo.downloadUrl, "_blank", "noopener,noreferrer");
-			handleClose();
-			return;
-		}
-
 		if (window.electronAPI?.startDownload) {
 			setStep("downloading");
 			setDownloadPercent(0);
@@ -144,16 +139,23 @@ export function UpdateDownloadedModal({
 			} catch (err) {
 				console.error("[updater] Failed to start download:", err);
 			}
-		} else {
-			// Fallback simulation in dev/web
-			setStep("downloading");
-			setDownloadPercent(25);
-			setTimeout(() => setDownloadPercent(70), 800);
-			setTimeout(() => {
-				setDownloadPercent(100);
-				setStep("downloaded");
-			}, 1600);
+			return;
 		}
+
+		if (updateInfo?.downloadUrl) {
+			window.open(updateInfo.downloadUrl, "_blank", "noopener,noreferrer");
+			handleClose();
+			return;
+		}
+
+		// Fallback simulation in dev/web
+		setStep("downloading");
+		setDownloadPercent(25);
+		setTimeout(() => setDownloadPercent(70), 800);
+		setTimeout(() => {
+			setDownloadPercent(100);
+			setStep("downloaded");
+		}, 1600);
 	};
 
 	// Execute install and restart
@@ -180,14 +182,15 @@ export function UpdateDownloadedModal({
 		}
 
 		// On macOS unsigned packages, ShipIt blocks automatic in-place restart.
-		// If application hasn't terminated after 2.5 seconds, reset state and show manual install option.
+		// On Windows, NSIS launcher may take several seconds to elevate and kill old process.
+		const fallbackDelay = detectHostOS() === "macos" ? 2500 : 5000;
 		setTimeout(() => {
 			setIsInstalling(false);
 			setShowManualFallback(true);
-		}, 2500);
+		}, fallbackDelay);
 	};
 
-	// Manually open downloaded DMG / installer package
+	// Manually open downloaded installer package
 	const handleOpenDownloadedFile = async () => {
 		if (window.electronAPI?.openDownloadedFile) {
 			try {
@@ -196,7 +199,14 @@ export function UpdateDownloadedModal({
 					| undefined;
 
 				if (res?.status === "success") {
-					toast.success("已打开本地安装包，拖入 Applications 即可完成更新", {
+					const hostOS = detectHostOS();
+					const successMessage =
+						hostOS === "macos"
+							? "已打开本地安装包，拖入 Applications 即可完成更新"
+							: hostOS === "windows"
+								? "已启动本地安装程序，请按照指引完成更新"
+								: "已打开本地安装包，请按指引完成更新";
+					toast.success(successMessage, {
 						timeout: 3500,
 					});
 					handleClose();
@@ -337,7 +347,7 @@ export function UpdateDownloadedModal({
 								/>
 							</div>
 						)}
-						{/* Fallback advice card when macOS ShipIt does not auto-restart */}
+						{/* Fallback advice card when automatic restart is blocked */}
 						{showManualFallback && step === "downloaded" && (
 							<div className="rounded-xl border border-border/80 bg-surface-secondary/50 p-3 flex flex-col gap-1.5 text-xs animate-in fade-in">
 								<div className="flex items-center gap-1.5 font-medium text-foreground">
@@ -345,9 +355,11 @@ export function UpdateDownloadedModal({
 									<span>若未自动重启，请手动完成安装</span>
 								</div>
 								<p className="text-[11px] text-muted leading-relaxed">
-									受 macOS
-									签名限制未自动替换。安装包已在本地就绪，点击下方按钮直接打开，拖入
-									Applications 目录替换即可完成更新。
+									{detectHostOS() === "macos"
+										? "受 macOS 签名限制未自动替换。安装包已在本地就绪，点击下方按钮直接打开，拖入 Applications 目录替换即可完成更新。"
+										: detectHostOS() === "windows"
+											? "若未能自动启动安装程序，安装包已在本地就绪。点击下方按钮直接运行安装程序即可完成更新。"
+											: "若未能自动完成更新，安装包已在本地就绪。点击下方按钮直接打开安装包即可完成更新。"}
 								</p>
 							</div>
 						)}
@@ -375,7 +387,13 @@ export function UpdateDownloadedModal({
 										onPress={handleOpenDownloadedFile}
 									>
 										<FolderOpen className="w-3.5 h-3.5" />
-										<span>打开安装包 (DMG)</span>
+										<span>
+											{detectHostOS() === "macos"
+												? "打开安装包 (DMG)"
+												: detectHostOS() === "windows"
+													? "打开安装程序 (.exe)"
+													: "打开安装包"}
+										</span>
 									</Button>
 								) : (
 									<Button
