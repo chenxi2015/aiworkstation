@@ -55,6 +55,15 @@ export const MainMenu = Object.assign(() => null, {
 });
 export const restore = () => ({ elements: [], appState: {}, files: {} });
 export const serializeAsJSON = () => "{}";
+export const convertToExcalidrawElements = (elements) => elements || [];
+export const exportToBlob = () => Promise.resolve(null);
+export const exportToSvg = () => Promise.resolve(null);
+export const exportToCanvas = () => Promise.resolve(null);
+export const exportToClipboard = () => Promise.resolve();
+export const getSceneVersion = () => 0;
+export const isInvisiblySmallElement = () => false;
+export const FONT_FAMILY = { Virgil: 1, Helvetica: 2, Cascadia: 3 };
+export const THEME = { LIGHT: "light", DARK: "dark" };
 export default Excalidraw;
 `;
 			}

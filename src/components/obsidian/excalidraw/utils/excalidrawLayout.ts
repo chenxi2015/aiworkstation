@@ -1,4 +1,4 @@
-import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
+import type { convertToExcalidrawElements } from "@excalidraw/excalidraw";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type {
 	ExcalidrawConnectionInput,
@@ -720,12 +720,16 @@ function calculateArrowRoute(
 	};
 }
 
+export type ConvertToExcalidrawElementsFn =
+	typeof convertToExcalidrawElements;
+
 /**
  * Generate standard Excalidraw elements from abstract AI draw inputs
  */
 export function buildExcalidrawElements(
 	input: ExcalidrawDrawInput,
 	existingElements: readonly ExcalidrawElement[] = [],
+	converter?: ConvertToExcalidrawElementsFn,
 ): readonly ExcalidrawElement[] {
 	const {
 		elements = [],
@@ -868,11 +872,12 @@ export function buildExcalidrawElements(
 		}
 	});
 
-	const generated = convertToExcalidrawElements(
-		rawElementConfigs as unknown as Parameters<
-			typeof convertToExcalidrawElements
-		>[0],
-	);
+	const generated =
+		(converter
+			? converter(
+					rawElementConfigs as unknown as Parameters<ConvertToExcalidrawElementsFn>[0],
+				)
+			: (rawElementConfigs as unknown as ExcalidrawElement[])) || [];
 
 	// Post-processing: Normalize all linear elements (arrows and lines)
 	// Guarantee points[0] is exactly [0, 0] to satisfy Excalidraw LinearElementEditor invariants

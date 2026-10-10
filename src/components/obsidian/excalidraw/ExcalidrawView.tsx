@@ -199,7 +199,11 @@ export default function ExcalidrawView({
 			drawElements: (params) => {
 				try {
 					const currentElements = excalidrawApi.getSceneElements() || [];
-					const nextElements = buildExcalidrawElements(params, currentElements);
+					const nextElements = buildExcalidrawElements(
+						params,
+						currentElements,
+						mod?.convertToExcalidrawElements,
+					);
 					excalidrawApi.updateScene({
 						elements: nextElements,
 					});
@@ -272,7 +276,7 @@ export default function ExcalidrawView({
 		});
 
 		return () => onRegisterExcalidrawApi(null);
-	}, [onRegisterExcalidrawApi, excalidrawApi]);
+	}, [onRegisterExcalidrawApi, excalidrawApi, mod]);
 
 	if (!mod || !scene) {
 		return (
