@@ -18,11 +18,11 @@ export const Route = createFileRoute("/creator/")({
 	}),
 	beforeLoad: ({ search }) => {
 		const tab = search.tab;
-		let targetPath = "/creator/materials";
+		let targetPath = "/creator/studio";
 		let mode = search.mode;
 
-		if (tab === "studio") {
-			targetPath = "/creator/studio";
+		if (tab === "materials") {
+			targetPath = "/creator/materials";
 		} else if (tab === "workbench") {
 			targetPath = "/creator/studio";
 			mode = "batch";

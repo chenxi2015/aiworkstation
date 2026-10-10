@@ -29,7 +29,7 @@ import { MarkdownAiBubbleMenu } from "../../markdown/MarkdownAiBubbleMenu";
 import { MarkdownEditor } from "../../markdown/MarkdownEditor";
 import { SplitNoteCompareView } from "../../markdown/SplitNoteCompareView";
 import type { NotePanelProps } from "../../NotePanel";
-import type { ObsidianCanvasApi } from "../../types";
+import type { ObsidianCanvasApi, ObsidianExcalidrawApi } from "../../types";
 import { JsonEditor } from "../JsonEditor";
 import { NoteConflictBanner } from "./NoteConflictBanner";
 import { NoteStatusBar } from "./NoteStatusBar";
@@ -156,6 +156,14 @@ export function TextNotePanel({
 		[],
 	);
 
+	const excalidrawApiRef = useRef<ObsidianExcalidrawApi | null>(null);
+	const handleRegisterExcalidrawApi = useCallback(
+		(api: ObsidianExcalidrawApi | null) => {
+			excalidrawApiRef.current = api;
+		},
+		[],
+	);
+
 	const {
 		note,
 		draft,
@@ -170,8 +178,7 @@ export function TextNotePanel({
 	} = useNoteSync({
 		relPath,
 		onMutated,
-		// Excalidraw scenes are JSON: skip the markdown-oriented AI sidebar bridge
-		onRegisterNoteApi: isExcalidraw ? undefined : onRegisterNoteApi,
+		onRegisterNoteApi,
 		onStartRewritePipeline: startRewritePipeline,
 		toggleSplitCompare,
 		onUndo: () => handleUndoRef.current(),
@@ -179,6 +186,7 @@ export function TextNotePanel({
 		canUndo: () => canUndoRef.current(),
 		canRedo: () => canRedoRef.current(),
 		canvasApiRef,
+		excalidrawApiRef,
 	});
 
 	const isEditableDoc = !(isCanvas || isExcalidraw) || canvasMode === "source";
@@ -482,6 +490,7 @@ export function TextNotePanel({
 									content={draft}
 									onChange={handleDraftChange}
 									readOnly={Boolean(note.truncated)}
+									onRegisterExcalidrawApi={handleRegisterExcalidrawApi}
 								/>
 							</Suspense>
 						) : (

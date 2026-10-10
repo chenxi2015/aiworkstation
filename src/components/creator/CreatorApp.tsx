@@ -32,8 +32,8 @@ type CreatorTab = "materials" | "studio" | "archive" | "tools" | "radar";
 type StudioMode = "doc" | "batch" | "drafts";
 
 const TABS: Array<{ id: CreatorTab; label: string; icon: typeof PenSquare }> = [
-	{ id: "materials", label: "素材库", icon: Library },
 	{ id: "studio", label: "创作台", icon: PenSquare },
+	{ id: "materials", label: "素材库", icon: Library },
 	{ id: "archive", label: "归档", icon: Archive },
 	{ id: "tools", label: "工具箱", icon: Wrench },
 	{ id: "radar", label: "热点雷达", icon: Radar },
@@ -55,7 +55,7 @@ export function CreatorApp({
 	initialMaterialId,
 }: CreatorAppProps) {
 	const [activeTab, setActiveTab] = useState<CreatorTab>(
-		initialTab ?? "materials",
+		initialTab ?? "studio",
 	);
 	const [studioMode, setStudioMode] = useState<StudioMode>(
 		initialStudioMode ?? (initialDraftId ? "drafts" : "doc"),

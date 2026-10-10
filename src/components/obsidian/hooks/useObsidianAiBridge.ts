@@ -7,6 +7,7 @@ import {
 	LayoutGrid,
 	ListTree,
 	Network,
+	Palette,
 	PlusSquare,
 	Replace,
 	Shuffle,
@@ -18,6 +19,7 @@ import { workbenchContextActions } from "../../../stores/workbenchContextStore";
 import { useAiPanel } from "../../shell/AppShell";
 import type {
 	ObsidianCanvasApi,
+	ObsidianExcalidrawApi,
 	ObsidianMutationResult,
 	ObsidianNoteApi,
 } from "../types";
@@ -44,6 +46,25 @@ async function waitForCanvasApi(
 	return apiRef.current?.canvasApi ?? null;
 }
 
+/**
+ * Wait for excalidrawApi to become ready
+ */
+async function waitForExcalidrawApi(
+	apiRef: React.RefObject<ObsidianNoteApi | null>,
+	maxWaitMs = 5000,
+	intervalMs = 80,
+): Promise<ObsidianExcalidrawApi | null> {
+	const startTime = Date.now();
+	while (Date.now() - startTime < maxWaitMs) {
+		const excalidrawApi = apiRef.current?.excalidrawApi;
+		if (excalidrawApi) {
+			return excalidrawApi;
+		}
+		await new Promise((resolve) => setTimeout(resolve, intervalMs));
+	}
+	return apiRef.current?.excalidrawApi ?? null;
+}
+
 export interface UseObsidianAiBridgeOptions {
 	/** NotePanel 注册的当前笔记操作句柄 */
 	noteApiRef: React.RefObject<ObsidianNoteApi | null>;
@@ -51,6 +72,12 @@ export interface UseObsidianAiBridgeOptions {
 	selectedNotePath: string | null;
 	/** 创建新白板回调（来自 useVaultOperations） */
 	onCreateCanvas?: (
+		dir?: string,
+		customName?: string,
+		enterRename?: boolean,
+	) => Promise<ObsidianMutationResult>;
+	/** 创建新 Excalidraw 画板回调 */
+	onCreateExcalidraw?: (
 		dir?: string,
 		customName?: string,
 		enterRename?: boolean,
@@ -66,6 +93,7 @@ export function useObsidianAiBridge({
 	noteApiRef,
 	selectedNotePath,
 	onCreateCanvas,
+	onCreateExcalidraw,
 }: UseObsidianAiBridgeOptions) {
 	const { registerPageBridge, sendPrompt } = useAiPanel();
 	const sendPromptRef = useRef(sendPrompt);
@@ -144,6 +172,7 @@ export function useObsidianAiBridge({
 		};
 
 		const isCanvas = Boolean(selectedNotePath?.endsWith(".canvas"));
+		const isExcalidraw = Boolean(selectedNotePath?.endsWith(".excalidraw"));
 
 		const canvasActions = isCanvas
 			? [
@@ -185,65 +214,104 @@ export function useObsidianAiBridge({
 						},
 					},
 				]
-			: [
-					{
-						id: "stream_spin_rewrite",
-						label: "二创洗稿重构",
-						icon: Shuffle,
-						variant: "accent" as const,
-						tooltip:
-							"基于当前笔记事实进行深度二创与结构重组，在双栏视图中实时 Diff 审阅",
-						onAction: async (payload?: string) => {
-							const api = noteApiRef.current;
-							if (!api?.hasNote()) {
-								toast.info("请先在左侧打开一篇笔记");
-								return;
-							}
-							await api.flushSave();
-							await api.onStartRewritePipeline?.(payload, "二创洗稿");
+			: isExcalidraw
+				? [
+						{
+							id: "excalidraw_flowchart",
+							label: "绘制业务流程图",
+							icon: GitFork,
+							variant: "accent" as const,
+							tooltip: "在当前 Excalidraw 画板中绘制包含判定与流向的业务流程图",
+							onAction: () => {
+								sendPromptRef.current(
+									"请根据当前画板主题，调用 excalidraw_draw_elements 工具绘制一份结构清晰的手绘流程图（包含关键操作、分支判断与流向箭头）。",
+								);
+							},
 						},
-					},
-					{
-						id: "stream_full_rewrite",
-						label: "双栏全文润色",
-						icon: Sparkles,
-						variant: "default" as const,
-						tooltip: "在双栏中逐句润色语言表达、排版结构，红绿 Diff 直观对比",
-						onAction: async (payload?: string) => {
-							const api = noteApiRef.current;
-							if (!api?.hasNote()) {
-								toast.info("请先在左侧打开一篇笔记");
-								return;
-							}
-							await api.flushSave();
-							await api.onStartRewritePipeline?.(payload, "全文润色");
+						{
+							id: "excalidraw_arch",
+							label: "绘制系统架构图",
+							icon: Network,
+							variant: "default" as const,
+							tooltip: "在当前 Excalidraw 画板中绘制系统分层架构拓扑与调用流向",
+							onAction: () => {
+								sendPromptRef.current(
+									"请规划当前系统的分层架构，调用 excalidraw_draw_elements 工具在当前画板中绘制包含展示层、业务层、数据层及依赖关系的架构图。",
+								);
+							},
 						},
-					},
-					{
-						id: "stream_structure_rewrite",
-						label: "结构化整理",
-						icon: ListTree,
-						tooltip: "将凌乱速记重新梳理为层级规范、要点清晰的知识笔记",
-						onAction: async (payload?: string) => {
-							const api = noteApiRef.current;
-							if (!api?.hasNote()) {
-								toast.info("请先在左侧打开一篇笔记");
-								return;
-							}
-							await api.flushSave();
-							await api.onStartRewritePipeline?.(payload, "结构化整理");
+						{
+							id: "excalidraw_center",
+							label: "居中画板视野",
+							icon: Palette,
+							variant: "default" as const,
+							tooltip: "平滑缩放并将当前画板内容居中对齐到视口中央",
+							onAction: () => {
+								sendPromptRef.current(
+									"请调用 excalidraw_center_view 工具，将当前 Excalidraw 画板内容居中显示。",
+								);
+							},
 						},
-					},
-					{
-						id: "toggle_split_compare",
-						label: "切换双栏比对",
-						icon: Columns2,
-						tooltip: "手动开启或关闭左右双栏并排比对视图",
-						onAction: () => {
-							noteApiRef.current?.toggleSplitCompare?.();
+					]
+				: [
+						{
+							id: "stream_spin_rewrite",
+							label: "二创洗稿重构",
+							icon: Shuffle,
+							variant: "accent" as const,
+							tooltip:
+								"基于当前笔记事实进行深度二创与结构重组，在双栏视图中实时 Diff 审阅",
+							onAction: async (payload?: string) => {
+								const api = noteApiRef.current;
+								if (!api?.hasNote()) {
+									toast.info("请先在左侧打开一篇笔记");
+									return;
+								}
+								await api.flushSave();
+								await api.onStartRewritePipeline?.(payload, "二创洗稿");
+							},
 						},
-					},
-				];
+						{
+							id: "stream_full_rewrite",
+							label: "双栏全文润色",
+							icon: Sparkles,
+							variant: "default" as const,
+							tooltip: "在双栏中逐句润色语言表达、排版结构，红绿 Diff 直观对比",
+							onAction: async (payload?: string) => {
+								const api = noteApiRef.current;
+								if (!api?.hasNote()) {
+									toast.info("请先在左侧打开一篇笔记");
+									return;
+								}
+								await api.flushSave();
+								await api.onStartRewritePipeline?.(payload, "全文润色");
+							},
+						},
+						{
+							id: "stream_structure_rewrite",
+							label: "结构化整理",
+							icon: ListTree,
+							tooltip: "将凌乱速记重新梳理为层级规范、要点清晰的知识笔记",
+							onAction: async (payload?: string) => {
+								const api = noteApiRef.current;
+								if (!api?.hasNote()) {
+									toast.info("请先在左侧打开一篇笔记");
+									return;
+								}
+								await api.flushSave();
+								await api.onStartRewritePipeline?.(payload, "结构化整理");
+							},
+						},
+						{
+							id: "toggle_split_compare",
+							label: "切换双栏比对",
+							icon: Columns2,
+							tooltip: "手动开启或关闭左右双栏并排比对视图",
+							onAction: () => {
+								noteApiRef.current?.toggleSplitCompare?.();
+							},
+						},
+					];
 
 		registerPageBridge({
 			module: "obsidian",
@@ -410,6 +478,112 @@ export function useObsidianAiBridge({
 						}
 					},
 				},
+				// Excalidraw tool execution bridges
+				{
+					id: "excalidraw_create_board",
+					label: "新建画板",
+					onAction: async (payload?: string | Record<string, unknown>) => {
+						try {
+							const data = payload
+								? typeof payload === "string"
+									? JSON.parse(payload)
+									: payload
+								: {};
+							const name = data.name
+								? String(data.name).replace(/\.excalidraw$/i, "")
+								: "未命名画板";
+							const dir = data.dir ? String(data.dir) : undefined;
+							if (onCreateExcalidraw) {
+								const res = await onCreateExcalidraw(dir, name, false);
+								if (res.success) {
+									toast.success(`AI 已创建并打开画板「${name}」`);
+								}
+							} else {
+								toast.success(`已创建 Excalidraw 画板「${name}」`);
+							}
+						} catch (err) {
+							console.error("[excalidraw_create_board] execution error:", err);
+						}
+					},
+				},
+				{
+					id: "excalidraw_draw_elements",
+					label: "绘制画板元素",
+					onAction: async (payload?: string | Record<string, unknown>) => {
+						if (!payload) return;
+						try {
+							const data =
+								typeof payload === "string" ? JSON.parse(payload) : payload;
+							const excalidrawApi = await waitForExcalidrawApi(noteApiRef);
+							if (!excalidrawApi) {
+								toast.info("当前未处于 Excalidraw 画板视图，无法绘制图形");
+								return;
+							}
+							const ok = excalidrawApi.drawElements(data);
+							if (ok) {
+								toast.success("AI 已向 Excalidraw 绘制图形元素与手绘连线");
+							}
+						} catch (err) {
+							console.error("[excalidraw_draw_elements] error:", err);
+						}
+					},
+				},
+				{
+					id: "excalidraw_update_element",
+					label: "更新画板元素",
+					onAction: async (payload?: string | Record<string, unknown>) => {
+						if (!payload) return;
+						try {
+							const data =
+								typeof payload === "string" ? JSON.parse(payload) : payload;
+							const excalidrawApi = await waitForExcalidrawApi(noteApiRef);
+							if (!excalidrawApi) return;
+							const ok = excalidrawApi.updateElement(data.elementId, data);
+							if (ok) {
+								toast.success("已更新画板元素");
+							}
+						} catch (err) {
+							console.error("[excalidraw_update_element] error:", err);
+						}
+					},
+				},
+				{
+					id: "excalidraw_clear_canvas",
+					label: "清空画板",
+					onAction: async () => {
+						try {
+							const excalidrawApi = await waitForExcalidrawApi(noteApiRef);
+							if (!excalidrawApi) return;
+							const ok = excalidrawApi.clearCanvas();
+							if (ok) {
+								toast.success("已清空 Excalidraw 画板");
+							}
+						} catch (err) {
+							console.error("[excalidraw_clear_canvas] error:", err);
+						}
+					},
+				},
+				{
+					id: "excalidraw_center_view",
+					label: "居中画板视野",
+					onAction: async (payload?: string | Record<string, unknown>) => {
+						try {
+							const data = payload
+								? typeof payload === "string"
+									? JSON.parse(payload)
+									: payload
+								: undefined;
+							const excalidrawApi = await waitForExcalidrawApi(noteApiRef);
+							if (!excalidrawApi) return;
+							const ok = excalidrawApi.centerView(data?.elementIds);
+							if (ok) {
+								toast.success("已将画板内容居中显示");
+							}
+						} catch (err) {
+							console.error("[excalidraw_center_view] error:", err);
+						}
+					},
+				},
 				// Canvas message-level action
 				{
 					id: "canvas_add_as_card",
@@ -477,5 +651,6 @@ export function useObsidianAiBridge({
 		noteTitle,
 		selectedNotePath,
 		onCreateCanvas,
+		onCreateExcalidraw,
 	]);
 }

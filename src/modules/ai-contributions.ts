@@ -199,11 +199,13 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 	obsidian: {
 		code: "obsidian",
 		systemPromptHint:
-			"用户正在「笔记」模块（Obsidian Vault 直连）。偏向笔记与白板协同：总结润色笔记、二创改写；当打开 .canvas 白板时，可通过 canvas 工具实时绘制思维导图、架构图与知识卡片网络，修改由用户确认或实时呈现在白板上。",
+			"用户正在「笔记」模块（Obsidian Vault 直连）。偏向笔记与白板协同：总结润色笔记、二创改写；当打开 .canvas 白板时，可通过 canvas 工具实时绘制思维导图、架构图与知识卡片网络；当打开 .excalidraw 画板时，可通过 excalidraw 工具批量绘制手绘风格流程图、架构图与实体关系。",
 		promptSuggestions: [
 			"帮我新建一个名为「系统架构」的白板并梳理核心模块",
+			"在当前 Excalidraw 画板中绘制用户登录鉴权流程图",
+			"在当前 Excalidraw 画板中绘制微服务调用链路与架构图",
 			"帮我规整一下当前白板的排版，对齐节点并优化连线",
-			"将当前白板内容居中显示",
+			"将当前画板内容居中显示",
 			"帮我在当前白板中梳理思维导图，向右延伸层级结构",
 			"根据这篇笔记的内容在白板中绘制系统架构与模块流向图",
 			"基于当前笔记事实进行二创改写与重新表述，生成全新的内容稿件",
@@ -218,6 +220,11 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 			"canvas_update_node",
 			"canvas_tidy_layout",
 			"canvas_center_view",
+			"excalidraw_create_board",
+			"excalidraw_draw_elements",
+			"excalidraw_update_element",
+			"excalidraw_clear_canvas",
+			"excalidraw_center_view",
 			"read_webpage_content",
 			"query_bookmarks",
 			"web_search",

@@ -128,6 +128,7 @@ export function ObsidianApp({
 		noteApiRef,
 		selectedNotePath,
 		onCreateCanvas: handleCreateCanvas,
+		onCreateExcalidraw: handleCreateExcalidraw,
 	});
 
 	// 5. Vault directory configuration & switcher

@@ -6,8 +6,8 @@ export interface CreatorSubNavProps {
 }
 
 const SUB_TABS = [
-	{ id: "materials", to: "/creator/materials", label: "素材库", icon: Library },
 	{ id: "studio", to: "/creator/studio", label: "创作台", icon: PenSquare },
+	{ id: "materials", to: "/creator/materials", label: "素材库", icon: Library },
 	{ id: "archive", to: "/creator/archive", label: "归档", icon: Archive },
 	{ id: "tools", to: "/creator/tools", label: "工具箱", icon: Wrench },
 	{ id: "radar", to: "/creator/radar", label: "热点雷达", icon: Radar },

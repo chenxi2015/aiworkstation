@@ -1,8 +1,14 @@
 import "./ExcalidrawView.css";
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-import type { AppState, BinaryFiles } from "@excalidraw/excalidraw/types";
+import type {
+	AppState,
+	BinaryFiles,
+	ExcalidrawImperativeAPI,
+} from "@excalidraw/excalidraw/types";
 import { AlertTriangle } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { ObsidianExcalidrawApi } from "../types";
+import { buildExcalidrawElements } from "./utils/excalidrawLayout";
 
 export interface ExcalidrawViewProps {
 	/** .excalidraw file JSON text */
@@ -11,6 +17,8 @@ export interface ExcalidrawViewProps {
 	onChange?: (json: string) => void;
 	/** Disable all editing interactions (e.g. truncated oversized file) */
 	readOnly?: boolean;
+	/** Expose Excalidraw API for AI assistants or external tools */
+	onRegisterExcalidrawApi?: (api: ObsidianExcalidrawApi | null) => void;
 }
 
 /** Serialize debounce: keeps drag-heavy onChange storms off the save path */
@@ -75,9 +83,12 @@ export default function ExcalidrawView({
 	content,
 	onChange,
 	readOnly = false,
+	onRegisterExcalidrawApi,
 }: ExcalidrawViewProps) {
 	const theme = useThemeMode();
 	const [mod, setMod] = useState<ExcalidrawModule | null>(null);
+	const [excalidrawApi, setExcalidrawApi] =
+		useState<ExcalidrawImperativeAPI | null>(null);
 
 	// Load heavy Excalidraw assets strictly on client mount
 	useEffect(() => {
@@ -180,6 +191,89 @@ export default function ExcalidrawView({
 	// Flush any pending scene on unmount so switching files never loses strokes
 	useEffect(() => flushPending, [flushPending]);
 
+	// Register Excalidraw API handle for AI sidebar bridge
+	useEffect(() => {
+		if (!onRegisterExcalidrawApi || !excalidrawApi) return;
+
+		onRegisterExcalidrawApi({
+			drawElements: (params) => {
+				try {
+					const currentElements = excalidrawApi.getSceneElements() || [];
+					const nextElements = buildExcalidrawElements(params, currentElements);
+					excalidrawApi.updateScene({
+						elements: nextElements,
+					});
+					setTimeout(() => {
+						try {
+							excalidrawApi.scrollToContent(undefined, {
+								fitToViewport: true,
+								animate: true,
+							});
+						} catch {}
+					}, 100);
+					return true;
+				} catch (err) {
+					console.error("[ExcalidrawApi.drawElements] error:", err);
+					return false;
+				}
+			},
+			updateElement: (id, updates) => {
+				try {
+					const currentElements = excalidrawApi.getSceneElements() || [];
+					let found = false;
+					const nextElements = currentElements.map((el) => {
+						if (el.id === id) {
+							found = true;
+							return {
+								...el,
+								...(updates.label ? { text: updates.label } : {}),
+							};
+						}
+						return el;
+					});
+					if (!found) return false;
+					excalidrawApi.updateScene({
+						elements: nextElements,
+					});
+					return true;
+				} catch (err) {
+					console.error("[ExcalidrawApi.updateElement] error:", err);
+					return false;
+				}
+			},
+			clearCanvas: () => {
+				try {
+					excalidrawApi.updateScene({
+						elements: [],
+					});
+					return true;
+				} catch (err) {
+					console.error("[ExcalidrawApi.clearCanvas] error:", err);
+					return false;
+				}
+			},
+			centerView: (elementIds) => {
+				try {
+					const currentElements = excalidrawApi.getSceneElements() || [];
+					const targets =
+						elementIds && elementIds.length > 0
+							? currentElements.filter((el) => elementIds.includes(el.id))
+							: undefined;
+					excalidrawApi.scrollToContent(targets, {
+						fitToViewport: true,
+						animate: true,
+					});
+					return true;
+				} catch (err) {
+					console.error("[ExcalidrawApi.centerView] error:", err);
+					return false;
+				}
+			},
+		});
+
+		return () => onRegisterExcalidrawApi(null);
+	}, [onRegisterExcalidrawApi, excalidrawApi]);
+
 	if (!mod || !scene) {
 		return (
 			<div className="h-full w-full flex items-center justify-center bg-background text-muted text-xs">
@@ -205,6 +299,7 @@ export default function ExcalidrawView({
 		// 主菜单宽度/快捷键换行修正见 ExcalidrawView.css
 		<div className="excalidraw-host h-full w-full [&_.excalidraw]:h-full">
 			<Excalidraw
+				excalidrawAPI={setExcalidrawApi}
 				initialData={scene.data ?? undefined}
 				onChange={handleChange}
 				theme={theme}

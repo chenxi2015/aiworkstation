@@ -34,7 +34,12 @@ export interface UseAiChatOptions {
 			| "canvas_create_group"
 			| "canvas_update_node"
 			| "canvas_tidy_layout"
-			| "canvas_center_view",
+			| "canvas_center_view"
+			| "excalidraw_create_board"
+			| "excalidraw_draw_elements"
+			| "excalidraw_update_element"
+			| "excalidraw_clear_canvas"
+			| "excalidraw_center_view",
 		args: any,
 	) => void;
 }
@@ -394,9 +399,15 @@ export function useAiChat(options?: UseAiChatOptions) {
 								step.toolName === "canvas_create_elements" ||
 								step.toolName === "canvas_create_group" ||
 								step.toolName === "canvas_update_node" ||
-								step.toolName === "canvas_tidy_layout"
+								step.toolName === "canvas_tidy_layout" ||
+								step.toolName === "canvas_center_view" ||
+								step.toolName === "excalidraw_create_board" ||
+								step.toolName === "excalidraw_draw_elements" ||
+								step.toolName === "excalidraw_update_element" ||
+								step.toolName === "excalidraw_clear_canvas" ||
+								step.toolName === "excalidraw_center_view"
 							) {
-								options?.onCanvasAction?.(step.toolName, step.args);
+								options?.onCanvasAction?.(step.toolName as any, step.args);
 							}
 							setMessages((prev) => {
 								const last = prev[prev.length - 1];

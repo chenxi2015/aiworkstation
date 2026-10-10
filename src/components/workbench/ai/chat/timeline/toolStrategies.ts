@@ -1,4 +1,4 @@
-﻿import {
+import {
 	ArrowUpDown,
 	BarChart3,
 	BookOpen,
@@ -8,8 +8,9 @@
 	GitBranch,
 	GitCommit,
 	Globe,
-	LayoutGrid,
 	Layers,
+	LayoutGrid,
+	Palette,
 	Pencil,
 	Search,
 	SquareTerminal,
@@ -276,6 +277,29 @@ export const TOOL_STRATEGIES: Record<string, ToolStrategy> = {
 		Icon: LayoutGrid,
 		actionText: "新建了画布白板",
 		targetText: extractTargetText(args),
+	}),
+
+	// ================= Excalidraw Tools =================
+	excalidraw_create_board: (args) => ({
+		Icon: Palette,
+		actionText: "新建了 Excalidraw 画板",
+		targetText: extractTargetText(args),
+	}),
+	excalidraw_draw_elements: () => ({
+		Icon: Palette,
+		actionText: "绘制了手绘图形与连线",
+	}),
+	excalidraw_update_element: () => ({
+		Icon: Palette,
+		actionText: "更新了画板元素",
+	}),
+	excalidraw_clear_canvas: () => ({
+		Icon: Palette,
+		actionText: "清空了画板",
+	}),
+	excalidraw_center_view: () => ({
+		Icon: Palette,
+		actionText: "居中了画板视野",
 	}),
 
 	// ================= Charts & Diagram Tools =================

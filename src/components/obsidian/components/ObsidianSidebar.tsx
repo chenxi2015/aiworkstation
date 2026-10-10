@@ -153,15 +153,12 @@ export function ObsidianSidebar({
 						<Dropdown>
 							<Tooltip>
 								<Tooltip.Trigger>
-									<Dropdown.Trigger>
-										<button
-											type="button"
-											disabled={!vaultExists}
-											aria-label="更多新建"
-											className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/60 transition-colors disabled:opacity-40 cursor-pointer"
-										>
-											<Plus className="w-3.5 h-3.5" />
-										</button>
+									<Dropdown.Trigger
+										isDisabled={!vaultExists}
+										aria-label="更多新建"
+										className="p-1.5 rounded-md text-muted hover:text-foreground hover:bg-surface-secondary/60 transition-colors disabled:opacity-40 cursor-pointer"
+									>
+										<Plus className="w-3.5 h-3.5" />
 									</Dropdown.Trigger>
 								</Tooltip.Trigger>
 								<Tooltip.Content placement="bottom">更多新建</Tooltip.Content>

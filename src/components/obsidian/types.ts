@@ -95,8 +95,66 @@ export interface ObsidianNoteApi {
 	canRedo?: () => boolean;
 	/** 当前打开的文件是否为 Canvas 白板 */
 	isCanvas?: () => boolean;
+	/** 当前打开的文件是否为 Excalidraw 画板 */
+	isExcalidraw?: () => boolean;
 	/** 白板操作句柄（仅在打开 .canvas 文件且处于可视视图时生效） */
 	canvasApi?: ObsidianCanvasApi;
+	/** 画板操作句柄（仅在打开 .excalidraw 文件且处于可视视图时生效） */
+	excalidrawApi?: ObsidianExcalidrawApi;
+}
+
+export interface ExcalidrawElementInput {
+	id: string;
+	type?: "rectangle" | "ellipse" | "diamond" | "text";
+	label: string;
+	color?: "blue" | "green" | "yellow" | "red" | "purple" | "gray" | "default";
+	strokeWidth?: 1 | 2 | 4;
+}
+
+export interface ExcalidrawConnectionInput {
+	from: string;
+	to: string;
+	label?: string;
+	style?: "solid" | "dashed";
+}
+
+export interface ExcalidrawDrawInput {
+	layout?:
+		| "horizontal_flow"
+		| "vertical_flow"
+		| "architecture_layers"
+		| "grid"
+		| "free";
+	mode?: "append" | "replace";
+	elements: ExcalidrawElementInput[];
+	connections?: ExcalidrawConnectionInput[];
+}
+
+/**
+ * Excalidraw 画板操作句柄（AI 侧边栏实时写入与渲染使用）
+ */
+export interface ObsidianExcalidrawApi {
+	/** 批量绘制元素与连线，自动排版并居中聚焦 */
+	drawElements: (params: ExcalidrawDrawInput) => boolean;
+	/** 更新指定元素的文字或样式 */
+	updateElement: (
+		id: string,
+		updates: {
+			label?: string;
+			color?:
+				| "blue"
+				| "green"
+				| "yellow"
+				| "red"
+				| "purple"
+				| "gray"
+				| "default";
+		},
+	) => boolean;
+	/** 清空画板 */
+	clearCanvas: () => boolean;
+	/** 平滑居中聚焦整张画板或指定元素 */
+	centerView: (elementIds?: string[]) => boolean;
 }
 
 /**

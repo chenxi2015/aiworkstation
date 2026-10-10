@@ -9,6 +9,7 @@ import {
 import { clearWikilinkCaches } from "../../markdown/wikilink";
 import type {
 	ObsidianCanvasApi,
+	ObsidianExcalidrawApi,
 	ObsidianNoteApi,
 	ObsidianNoteContent,
 } from "../../types";
@@ -35,6 +36,7 @@ export interface UseNoteSyncOptions {
 	canUndo?: () => boolean;
 	canRedo?: () => boolean;
 	canvasApiRef?: React.RefObject<ObsidianCanvasApi | null>;
+	excalidrawApiRef?: React.RefObject<ObsidianExcalidrawApi | null>;
 }
 
 export interface UseNoteSyncReturn {
@@ -68,6 +70,7 @@ export function useNoteSync({
 	canUndo,
 	canRedo,
 	canvasApiRef,
+	excalidrawApiRef,
 }: UseNoteSyncOptions): UseNoteSyncReturn {
 	const initialCached = getCachedVaultNote(relPath);
 	const [note, setNote] = useState<ObsidianNoteContent | null>(initialCached);
@@ -231,6 +234,7 @@ export function useNoteSync({
 	}, []);
 
 	// Register note API handler for AI sidebar bridge
+	// biome-ignore lint/correctness/useExhaustiveDependencies: api getters resolve lazily via mutable refs
 	useEffect(() => {
 		if (!onRegisterNoteApi) return;
 		onRegisterNoteApi({
@@ -261,8 +265,12 @@ export function useNoteSync({
 			canUndo,
 			canRedo,
 			isCanvas: () => relPath.endsWith(".canvas"),
+			isExcalidraw: () => relPath.endsWith(".excalidraw"),
 			get canvasApi() {
 				return canvasApiRef?.current ?? undefined;
+			},
+			get excalidrawApi() {
+				return excalidrawApiRef?.current ?? undefined;
 			},
 		});
 		return () => onRegisterNoteApi(null);

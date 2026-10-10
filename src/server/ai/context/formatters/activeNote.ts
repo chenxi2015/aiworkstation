@@ -19,6 +19,10 @@ export async function resolveActiveNotePrompt(
 			return formatCanvasContext(note.relPath, note.name, note.content);
 		}
 
+		if (activeNotePath.endsWith(".excalidraw")) {
+			return formatExcalidrawContext(note.relPath, note.name, note.content);
+		}
+
 		const wordCount = note.content.length;
 		const preview = note.content.trim() || "(空笔记/暂无内容)";
 
@@ -82,5 +86,66 @@ ${edgeLines.length > 0 ? edgeLines.join("\n") : "    (暂无连线)"}
 	💡 工具路由：新增节点/连线调用 canvas_create_elements；修改卡片调用 canvas_update_node；分组调用 canvas_create_group；规整、对齐、消除重叠或切换水平/垂直/网格/紧凑布局调用 canvas_tidy_layout。布局意图必须产生对应工具调用，不可只用文字承诺执行。`;
 	} catch {
 		return `\n- 【当前活跃文件为 Obsidian Canvas 白板】: ${relPath} (白板结构读取异常)`;
+	}
+}
+
+/**
+ * Format an Excalidraw scene JSON into a concise summary for LLM context.
+ */
+interface RawExcalidrawElement {
+	id?: string;
+	type?: string;
+	isDeleted?: boolean;
+	text?: string;
+	label?: { text?: string };
+	start?: { id?: string };
+	end?: { id?: string };
+}
+
+/**
+ * Format an Excalidraw scene JSON into a concise summary for LLM context.
+ */
+function formatExcalidrawContext(
+	relPath: string,
+	name: string,
+	content: string,
+): string {
+	try {
+		const raw = JSON.parse(content || "{}");
+		const elements: RawExcalidrawElement[] = Array.isArray(raw.elements)
+			? raw.elements.filter((el: RawExcalidrawElement) => !el.isDeleted)
+			: [];
+
+		const shapes = elements.filter(
+			(el) => el.type !== "arrow" && el.type !== "line",
+		);
+		const arrows = elements.filter((el) => el.type === "arrow");
+
+		const shapeLines = shapes.slice(0, 40).map((el) => {
+			const label = el.text || el.label?.text || "";
+			const labelPreview = label
+				? `「${label.length > 50 ? `${label.slice(0, 50)}...` : label}」`
+				: "(无文字)";
+			return `    - [ID: ${el.id || "unknown"}] (${el.type || "shape"}): ${labelPreview}`;
+		});
+
+		const arrowLines = arrows.slice(0, 30).map((arr) => {
+			const from = arr.start?.id ? `[${arr.start.id}]` : "起点";
+			const to = arr.end?.id ? `[${arr.end.id}]` : "终点";
+			const label = arr.label?.text ? ` (标注: ${arr.label.text})` : "";
+			return `    - ${from} -> ${to}${label}`;
+		});
+
+		return `\n- 【当前正在查看/编辑的活跃 Excalidraw 手绘画板（用户当前屏幕聚焦，最高优先级）】:
+  - 文件相对路径: ${relPath}
+  - 画板名称: 《${name}》
+  - 统计: 共 ${elements.length} 个元素（${shapes.length} 个图形/文本卡片，${arrows.length} 条连线箭头）
+  - 现有图形列表:
+${shapeLines.length > 0 ? shapeLines.join("\n") : "    (当前画板为空，暂无图形)"}
+  - 现有箭头连接:
+${arrowLines.length > 0 ? arrowLines.join("\n") : "    (暂无连线)"}
+  💡 工具路由：绘制图形/架构图/流程图调用 excalidraw_draw_elements；修改元素调用 excalidraw_update_element；清空画板调用 excalidraw_clear_canvas；居中缩放视野调用 excalidraw_center_view。绘图意图必须产生对应工具调用，不可只在聊天框输出伪代码或纯文本描述。`;
+	} catch {
+		return `\n- 【当前活跃文件为 Excalidraw 画板】: ${relPath} (画板结构读取异常)`;
 	}
 }

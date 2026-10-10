@@ -103,6 +103,10 @@ AI Workstation 打通了**浏览器采集端**、**本地知识治理中心**、
   - **导航历史栈**：顶栏提供完整面包屑层级定位与前进/后退历史堆栈；
   - **跨平台系统穿透**：一键在系统文件管理器（macOS Finder / Windows Explorer / Linux）快速定位并揭示文件；
   - **回收站安全防护（Move to Trash）**：删除笔记配备二次确认弹窗，并统一移入操作系统回收站，绝不直接硬删除。
+- **Canvas 白板与 Excalidraw 手绘图双空间智能体**：
+  - **双画板格式直读直写**：无缝支持 Obsidian 原生 `.canvas` 结构化白板与 `.excalidraw` 手绘画板；
+  - **全套 AI 画板工具链**：提供 `excalidraw_create_board`、`excalidraw_draw_elements`、`excalidraw_update_element` 等专用工具；
+  - **“逻辑因果归 AI、几何布局归代码”的关注点分离架构**：大模型仅负责推导业务因果拓扑，前端确定性 DAG 引擎自动处理列中轴绝对对齐、动态层高防碰撞（$\ge 75\text{px}$ 呼吸间距）、Happy-Path 主干优先排布与正交避障连线，杜绝手绘流程图连线反向打钩或穿心穿透卡片。
 
 ### 6. 🔍 混合 RAG 检索与知识活化
 - **Hybrid Search 融合排序**：`0.6 * 语义向量相似度 (Embedding) + 0.4 * 关键词精准匹配 (BM25 权重)`，模糊记忆也能秒级定位目标。

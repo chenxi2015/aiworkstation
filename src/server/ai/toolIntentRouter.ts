@@ -17,6 +17,20 @@ export function resolveRequiredToolIntent(
 	const required = (toolName: string, intent: string) =>
 		availableToolNames.has(toolName) ? { toolName, intent } : null;
 
+	// 1. Explicit request to create a new board/canvas takes highest priority
+	if (
+		/(?:新建|创建|建个|建一个|新开).{0,10}(?:excalidraw|画板)/i.test(question)
+	) {
+		const intent = required("excalidraw_create_board", "create_excalidraw");
+		if (intent) return intent;
+	}
+
+	if (/(?:新建|创建|建个|建一个|新开).{0,10}(?:canvas|白板)/i.test(question)) {
+		const intent = required("canvas_create_board", "create_canvas");
+		if (intent) return intent;
+	}
+
+	// 2. Active Canvas board actions
 	if (module === "obsidian" && activeNotePath?.endsWith(".canvas")) {
 		if (
 			/(?:居中|视野.{0,6}中央|白板.{0,6}中央|内容.{0,8}(?:中央|居中)|(?:移动|移到|放到|定位).{0,12}(?:中央|中间|中心)|(?:中央|中间|中心).{0,8}(?:显示|视野))/i.test(
@@ -40,6 +54,29 @@ export function resolveRequiredToolIntent(
 			)
 		) {
 			return required("canvas_create_elements", "canvas_create");
+		}
+	}
+
+	// 3. Active Excalidraw board actions
+	if (module === "obsidian" && activeNotePath?.endsWith(".excalidraw")) {
+		if (
+			/(?:居中|视野.{0,6}中央|画板.{0,6}中央|内容.{0,8}(?:中央|居中)|(?:移动|移到|放到|定位).{0,12}(?:中央|中间|中心)|(?:中央|中间|中心).{0,8}(?:显示|视野))/i.test(
+				question,
+			)
+		) {
+			return required("excalidraw_center_view", "excalidraw_center_view");
+		}
+
+		if (/(?:清空|清掉|重置).{0,6}(?:画板|画布|内容)/i.test(question)) {
+			return required("excalidraw_clear_canvas", "excalidraw_clear_canvas");
+		}
+
+		if (
+			/(?:绘制|画|创建|添加|补充|梳理).{0,16}(?:图形|图表|流程|架构|关系|模型|时序|系统)/i.test(
+				question,
+			)
+		) {
+			return required("excalidraw_draw_elements", "excalidraw_draw");
 		}
 	}
 

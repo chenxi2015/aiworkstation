@@ -364,14 +364,14 @@ export function CreatorSkeleton() {
 			{/* 1. Creator Sub-Navigation Tabs */}
 			<div className="border-b border-border bg-surface/60 shrink-0">
 				<div className="mx-auto px-6 flex items-center gap-1">
+					<div className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium text-muted">
+						<div className="w-3.5 h-3.5 rounded bg-surface-secondary/60" />
+						<span>创作台</span>
+					</div>
 					<div className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 border-accent text-accent">
 						<div className="w-3.5 h-3.5 rounded bg-accent/40" />
 						<span>素材库</span>
 						<div className="ml-1 w-4 h-3.5 rounded-full bg-accent/20" />
-					</div>
-					<div className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium text-muted">
-						<div className="w-3.5 h-3.5 rounded bg-surface-secondary/60" />
-						<span>创作台</span>
 					</div>
 					<div className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium text-muted">
 						<div className="w-3.5 h-3.5 rounded bg-surface-secondary/60" />

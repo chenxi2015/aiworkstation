@@ -15,6 +15,7 @@ import { createFsServerTools } from "./fs/index.ts";
 import { prepareRagAgentContext, resolveLlmConfig } from "./ragContext.ts";
 import { resolveRequiredToolIntent } from "./toolIntentRouter.ts";
 import { createCanvasServerTools } from "./tools/canvasTools.ts";
+import { createExcalidrawServerTools } from "./tools/excalidrawTools.ts";
 import type { BookmarkToolHooks } from "./tools/types.ts";
 
 export type StreamEventEmitter = (event: AgentStreamEvent) => void;
@@ -124,6 +125,9 @@ export async function runAgentStream(
 			: []),
 		...(module === "obsidian" || activeNotePath?.endsWith(".canvas")
 			? createCanvasServerTools(toolHooks)
+			: []),
+		...(module === "obsidian" || activeNotePath?.endsWith(".excalidraw")
+			? createExcalidrawServerTools(toolHooks)
 			: []),
 	];
 	const tools = Array.from(

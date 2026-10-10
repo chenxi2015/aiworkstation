@@ -24,6 +24,11 @@ export const obsidianPrompt: ModulePromptDefinition = {
 | 用户意图 | 必须使用 | 严禁 |
 |---|---|---|
 | 新建白板 / 基于笔记创建新白板画布 | 链式调用：先 \`canvas_create_board\` 创建空白画布，随后紧接着调用 \`canvas_create_elements\` 批量写入节点与连线 | 提示用户手动去文件列表点击新建，或试图在创建工具中直接塞入节点，或只建空白画布不写入节点 |
+| 新建 Excalidraw 画板 / 基于需求创建新画板绘制图形 | 链式调用：先 \`excalidraw_create_board\` 创建画板并自动打开，随后紧接着调用 \`excalidraw_draw_elements\` 批量写入图形与连线 | 提示用户手动新建，或只建空白画板不绘制图形，或在要求新建时直接在旧画板上覆盖绘制 |
+| Excalidraw 绘制架构图 / 流程图 / 实体关系 / 手绘图形连线 | \`excalidraw_draw_elements\`（由前端自动排版与手绘渲染） | 在聊天框输出大量纯文本排版、伪代码或手算像素坐标 |
+| 修改 Excalidraw 元素文本或颜色 | \`excalidraw_update_element\` | 直接覆盖整张画板 |
+| 清空 Excalidraw 画板 | \`excalidraw_clear_canvas\` | — |
+| 将 Excalidraw 画板内容或指定元素居中显示 | \`excalidraw_center_view\` | — |
 | 整篇二创洗稿 / 全文润色 / 结构化整理 / 结构重排 | \`trigger_paragraph_rewrite\`（驱动双栏流式改写流水线） | 在聊天框输出成稿全文 |
 | 白板中梳理脑图 / 架构图 / 流程卡片 / 添加知识节点 | \`canvas_create_elements\`（由前端自动排版与实时渲染，支持 groups 分组） | 在聊天框输出大量纯文本排版或伪坐标 |
 | 白板卡片模块化分组 / 框选容器框 | \`canvas_create_group\`（前端自动计算外接包围盒与 padding） | 让大模型自行估算绝对像素包围盒 |
@@ -44,5 +49,15 @@ export const obsidianPrompt: ModulePromptDefinition = {
   3. 白板绘制类请求（如向当前白板补充架构、思维导图、流程卡片），先简要阐述节点拓扑关系，然后【必须且只能】调用 \`canvas_create_elements\` 传入节点与连线（如有分层结构可一并声明 groups 分组），由前端白板自动计算排版并实时流式渲染。
   4. 为白板现有节点创建分组框时，调用 \`canvas_create_group\` 传入指定 nodeIds 与标题，由前端自动计算包围盒与边距。
   5. 白板规整与排版整理类请求，先简要说明规整原则（如对齐网格、优化连接流向），然后【必须且只能】调用 \`canvas_tidy_layout\` 工具下发规整指令。
-  6. 用户要求将白板内容居中、移动到视野中央或聚焦指定节点时，【必须且只能】调用 \`canvas_center_view\`；未指定节点时省略 targetNodeIds 以居中整张白板。`,
+  6. 用户要求将白板内容居中、移动到视野中央或聚焦指定节点时，【必须且只能】调用 \`canvas_center_view\`；未指定节点时省略 targetNodeIds 以居中整张白板。
+  7. Excalidraw 画板绘图类请求（向当前已有画板绘制流程图、架构图）：【必须且只能】调用 \`excalidraw_draw_elements\`：
+     - **排版推荐**：业务流程图必须指定 \`layout: "vertical_flow"\`（自上而下主干，分支向右展布）；系统分层架构图必须指定 \`layout: "architecture_layers"\`；
+     - **图元规范**：起始/结束用 \`ellipse\`；业务步骤用 \`rectangle\`；判断条件必须用 \`diamond\`；
+     - **分支隔离底线**：严禁把成功与失败混合写在同一卡片内，必须为成功路径与失败分支各自创建独立节点；
+     - **配色规范**：起始/结束用 green/blue，步骤用 blue/purple，判断菱形用 yellow，异常失败用 red；
+     - **连线标注与时序规范**：菱形分叉连线必须带简明 label（如「充足 / 不足」、「成功 / 失败」）；连线必须严格按时序连接相邻前后步骤，严禁跨越多个中间卡片拉长线直连结束节点。
+  8. 新建 Excalidraw 画板并绘图类请求（如“创建新画板绘制架构图/流程图”）：【创建与写入必须彻底分离，强制分两步链式调用】
+     - **第一步**：先调用 \`excalidraw_create_board\` 创建画板文件并在画板视图中自动打开（参数仅传 name 与可选的 dir，严禁在此试图塞入图元）；
+     - **第二步**：紧接着调用 \`excalidraw_draw_elements\` 向新画板中批量写入图形图元、手绘连线与排版模式；
+     - 严禁在用户明确要求创建新画板时直接在当前打开的旧画板上覆盖绘制！`,
 };
