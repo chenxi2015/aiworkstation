@@ -3,12 +3,11 @@ import { Card } from "@heroui/react";
 /**
  * Widget 骨架的内容形态，按真实 widget 主体的结构选取：
  * - hero-rows：大数字横幅 + 条目行（待整理 / Skills 概览）
- * - rows：图标 + 双行文本的条目列表（最近收藏 / 创作文档 / 常用文件夹）
- * - tiles-rows：3 格统计块 + 条目行（创作管道）
+ * - rows：图标 + 双行文本的条目列表（最近收藏 / 素材库 / 创作文档 / 最近笔记 / 常用文件夹）
  * - tiles：2×3 统计块网格（资产与健康）
  * - calendar：图例行 + 7 列日格（活动日历）
  */
-type WidgetVariant = "hero-rows" | "rows" | "tiles-rows" | "tiles" | "calendar";
+type WidgetVariant = "hero-rows" | "rows" | "tiles" | "calendar";
 
 /** 镜像 widgetRegistry 注册表的默认顺序与宽窄，保持骨架与首屏布局一致 */
 const WIDGET_SKELETONS: ReadonlyArray<{
@@ -18,12 +17,13 @@ const WIDGET_SKELETONS: ReadonlyArray<{
 }> = [
 	{ key: "inbox", variant: "hero-rows" },
 	{ key: "recent-bookmarks", wide: true, variant: "rows" },
-	{ key: "creator-pipeline", variant: "tiles-rows" },
+	{ key: "materials-inbox", variant: "rows" },
 	{ key: "editor-recent", variant: "rows" },
-	{ key: "folder-shortcuts", variant: "rows" },
-	{ key: "skills-overview", variant: "hero-rows" },
 	{ key: "insights", wide: true, variant: "tiles" },
+	{ key: "obsidian-recent", variant: "rows" },
+	{ key: "folder-shortcuts", variant: "rows" },
 	{ key: "activity-calendar", wide: true, variant: "calendar" },
+	{ key: "skills-overview", variant: "hero-rows" },
 ];
 
 /** 列表行占位：图标 + 标题/副标题双行 + 右侧时间戳 */
@@ -57,27 +57,6 @@ function WidgetBody({ variant }: { variant: WidgetVariant }) {
 					<div className="space-y-1.5 px-1">
 						<div className="w-11/12 h-2.5 rounded bg-surface-secondary/50" />
 						<div className="w-4/5 h-2.5 rounded bg-surface-secondary/40" />
-						<div className="w-3/5 h-2.5 rounded bg-surface-secondary/40" />
-					</div>
-				</div>
-			);
-		case "tiles-rows":
-			return (
-				<div className="flex flex-col gap-2.5">
-					<div className="grid grid-cols-3 gap-2">
-						{Array.from({ length: 3 }, (_, i) => (
-							<div
-								// biome-ignore lint/suspicious/noArrayIndexKey: skeleton placeholders are static
-								key={i}
-								className="rounded-xl bg-surface-secondary/50 px-2.5 py-2 space-y-1.5"
-							>
-								<div className="w-8 h-4 rounded bg-surface-secondary/80" />
-								<div className="w-10 h-2 rounded bg-surface-secondary/50" />
-							</div>
-						))}
-					</div>
-					<div className="space-y-1.5 px-1">
-						<div className="w-11/12 h-2.5 rounded bg-surface-secondary/50" />
 						<div className="w-3/5 h-2.5 rounded bg-surface-secondary/40" />
 					</div>
 				</div>

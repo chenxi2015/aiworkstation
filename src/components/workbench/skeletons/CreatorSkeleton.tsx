@@ -218,118 +218,6 @@ export function MaterialsToolbarSkeleton() {
 }
 
 /**
- * Skeleton for Drafts tab Kanban lanes
- */
-export function DraftsKanbanSkeleton() {
-	const lanes = [
-		{ label: "待审", count: 2 },
-		{ label: "创作中", count: 3 },
-		{ label: "已定稿", count: 1 },
-		{ label: "待发布", count: 2 },
-	];
-
-	return (
-		<div className="flex-1 overflow-x-auto overflow-y-hidden min-h-0 animate-pulse">
-			<div className="h-full max-w-7xl mx-auto px-6 py-5 flex flex-col gap-3 min-w-[900px]">
-				<div className="w-96 h-3 rounded bg-surface-secondary/40 shrink-0" />
-				<div className="flex-1 grid grid-cols-4 gap-4 min-h-0">
-					{lanes.map((lane, idx) => (
-						<div
-							// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton keys
-							key={idx}
-							className="flex flex-col rounded-2xl border border-border/70 bg-surface/40 overflow-hidden"
-						>
-							{/* Lane Header */}
-							<div className="p-3.5 border-b border-border/70 flex items-center justify-between">
-								<div className="flex items-center gap-2">
-									<div className="w-14 h-3.5 rounded bg-surface-secondary/80" />
-									<div className="w-5 h-4 rounded-full bg-surface-secondary/50" />
-								</div>
-								<div className="w-12 h-2.5 rounded bg-surface-secondary/40" />
-							</div>
-
-							{/* Lane Cards */}
-							<div className="p-3 space-y-3 overflow-y-auto flex-1">
-								{Array.from({ length: lane.count }).map((_, cIdx) => (
-									<div
-										// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton keys
-										key={cIdx}
-										className="p-3 rounded-xl border border-border/60 bg-surface-secondary/30 space-y-2.5"
-									>
-										<div className="flex items-center justify-between">
-											<div className="w-12 h-4 rounded-full bg-surface-secondary/60" />
-											<div className="w-16 h-2.5 rounded bg-surface-secondary/40" />
-										</div>
-										<div className="space-y-1.5">
-											<div className="w-4/5 h-3.5 rounded bg-surface-secondary/70" />
-											<div className="w-full h-2.5 rounded bg-surface-secondary/50" />
-											<div className="w-3/4 h-2.5 rounded bg-surface-secondary/50" />
-										</div>
-										<div className="pt-1.5 flex items-center justify-between border-t border-border/40">
-											<div className="w-16 h-2.5 rounded bg-surface-secondary/40" />
-											<div className="w-12 h-5 rounded-md bg-surface-secondary/50" />
-										</div>
-									</div>
-								))}
-							</div>
-						</div>
-					))}
-				</div>
-			</div>
-		</div>
-	);
-}
-
-/**
- * Skeleton for Studio Batch (WorkbenchTab) mode
- */
-export function StudioBatchSkeleton() {
-	return (
-		<div className="flex-1 flex min-h-0 animate-pulse">
-			{/* Left Column: Material Selector & Prompt */}
-			<aside className="w-[380px] shrink-0 border-r border-border flex flex-col min-h-0 bg-surface/30">
-				<div className="px-4 py-3 border-b border-border shrink-0">
-					<div className="w-16 h-3 rounded bg-surface-secondary/70" />
-				</div>
-				<div className="p-2 space-y-1.5 border-b border-border">
-					<div className="w-full h-8 rounded-lg bg-surface-secondary/50" />
-					<div className="w-full h-8 rounded-lg bg-surface-secondary/40" />
-					<div className="w-full h-8 rounded-lg bg-surface-secondary/30" />
-				</div>
-				<div className="p-4 space-y-3 flex-1">
-					<div className="w-20 h-3 rounded bg-surface-secondary/70" />
-					<div className="w-full h-24 rounded-xl bg-surface-secondary/40" />
-					<div className="w-full h-8 rounded-lg bg-accent/20" />
-				</div>
-			</aside>
-
-			{/* Right Column: Platform Variants */}
-			<div className="flex-1 p-6 overflow-y-auto">
-				<div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-					{Array.from({ length: 4 }).map((_, idx) => (
-						<div
-							// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton keys
-							key={idx}
-							className="rounded-2xl border border-border/70 bg-surface/40 p-4 space-y-3"
-						>
-							<div className="flex items-center justify-between">
-								<div className="w-20 h-4 rounded-full bg-surface-secondary/70" />
-								<div className="w-16 h-4 rounded bg-surface-secondary/40" />
-							</div>
-							<div className="space-y-2 py-2">
-								<div className="w-full h-3 rounded bg-surface-secondary/60" />
-								<div className="w-5/6 h-3 rounded bg-surface-secondary/50" />
-								<div className="w-4/6 h-3 rounded bg-surface-secondary/40" />
-							</div>
-						</div>
-					))}
-				</div>
-			</div>
-		</div>
-	);
-}
-
-/**
  * Skeleton for Archive tab
  */
 export function ArchiveTableSkeleton() {
@@ -356,7 +244,7 @@ export function ArchiveTableSkeleton() {
 
 /**
  * Full page skeleton placeholder for Creator route pending state.
- * Faithfully matches CreatorApp layout: WorkbenchHeader + Creator SubTabs + Materials View.
+ * Faithfully matches the Creator layout: SubTabs + Materials View.
  */
 export function CreatorSkeleton() {
 	return (

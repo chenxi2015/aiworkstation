@@ -133,7 +133,7 @@ export function WidgetCard({
 					</div>
 				) : module ? (
 					<Link
-						to={module.route}
+						to={widget.linkTo ?? module.route}
 						className={`flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface-secondary text-xs font-medium text-muted transition-colors shrink-0 ${tone.link}`}
 					>
 						{module.label}

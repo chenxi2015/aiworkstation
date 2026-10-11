@@ -19,11 +19,12 @@ import type {
 import type { WorkbenchSummary } from "./types";
 import { WidgetCard } from "./WidgetCard";
 import { ActivityCalendarWidget } from "./widgets/ActivityCalendarWidget";
-import { CreatorPipelineWidget } from "./widgets/CreatorPipelineWidget";
 import { EditorRecentWidget } from "./widgets/EditorRecentWidget";
 import { FolderShortcutsWidget } from "./widgets/FolderShortcutsWidget";
 import { InboxWidget } from "./widgets/InboxWidget";
 import { InsightsWidget } from "./widgets/InsightsWidget";
+import { MaterialsWidget } from "./widgets/MaterialsWidget";
+import { ObsidianRecentWidget } from "./widgets/ObsidianRecentWidget";
 import { RecentBookmarksWidget } from "./widgets/RecentBookmarksWidget";
 import { SkillsOverviewWidget } from "./widgets/SkillsOverviewWidget";
 import type { DashboardWidgetProps } from "./widgets/widgetProps";
@@ -41,8 +42,9 @@ const WIDGET_COMPONENTS: Record<
 > = {
 	inbox: InboxWidget,
 	"recent-bookmarks": RecentBookmarksWidget,
-	"creator-pipeline": CreatorPipelineWidget,
+	"materials-inbox": MaterialsWidget,
 	"editor-recent": EditorRecentWidget,
+	"obsidian-recent": ObsidianRecentWidget,
 	"folder-shortcuts": FolderShortcutsWidget,
 	"skills-overview": SkillsOverviewWidget,
 	insights: InsightsWidget,
@@ -60,7 +62,7 @@ function defaultLayout(): WorkbenchLayoutEntry[] {
 export function DashboardApp({
 	settings,
 	unclassified,
-	folders,
+	folders: _folders,
 	summary,
 }: DashboardAppProps) {
 	const [editing, setEditing] = useState(false);
@@ -159,7 +161,7 @@ export function DashboardApp({
 	const heroStats = [
 		{ label: "收藏", value: summary.bookmarks.total },
 		{ label: "待整理", value: summary.bookmarks.unclassified },
-		{ label: "待审稿", value: summary.creator.draftsPending },
+		{ label: "素材", value: summary.creator.materials },
 		{ label: "文档", value: summary.editor.total },
 	];
 

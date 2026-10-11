@@ -1,4 +1,3 @@
-import type { DraftStatus } from "../../components/creator/types.ts";
 import type {
 	AIClassificationResult,
 	BookmarkTDKItem,
@@ -383,30 +382,6 @@ export class WorkbenchDatabase {
 		params: Parameters<CreatorRepository["updateAssetFile"]>[1],
 	) {
 		return this.creatorRepo.updateAssetFile(id, params);
-	}
-
-	getDraft(id: number) {
-		return this.creatorRepo.getDraft(id);
-	}
-
-	createDraft(params: Parameters<CreatorRepository["createDraft"]>[0]) {
-		return this.creatorRepo.createDraft(params);
-	}
-
-	createDraftVersion(parentDraftId: number, content: string) {
-		return this.creatorRepo.createDraftVersion(parentDraftId, content);
-	}
-
-	updateDraftStatus(draftId: number, target: DraftStatus) {
-		return this.creatorRepo.updateDraftStatus(draftId, target);
-	}
-
-	exportDraft(draftId: number) {
-		return this.creatorRepo.exportDraft(draftId);
-	}
-
-	listDrafts() {
-		return this.creatorRepo.listDrafts();
 	}
 
 	// ================= Editor (创作) Operations =================

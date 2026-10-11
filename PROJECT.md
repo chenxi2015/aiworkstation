@@ -54,7 +54,7 @@
   （与 `navLayout` 同一约定）；页面内「自定义布局」进入编辑态，卡片 DnD 自由拖拽换位（复用
   `@dnd-kit/react` sortable，与文件夹网格同一套基建），支持宽窄切换、隐藏/恢复
 - **汇总数据**：`getWorkbenchSummary`（`src/server/functions/dashboard.ts`）一次调用跨表聚合
-  （bookmarks/folders/materials/drafts/documents/skills 扫描/死链巡检），各段独立 try/catch 容错
+  （bookmarks/folders/materials/documents/obsidian 笔记扫描/skills 扫描/死链巡检），各段独立 try/catch 容错
 - **存量迁移**：`category='workbench'/'工作台'` 的文件夹在启动时幂等归并到 `bookmarks`
   （`src/server/db/schema.ts`）；"工作台" 保留为 workbench 模块的历史别名，不再作为文件夹分类使用
 
@@ -128,7 +128,8 @@
 > 创作板块合并规划已定稿于 `docs/selfmedia-merge-plan.md`：editor 并入 creator（统称「创作」）、
 > 素材库/创作台/归档/工具箱/热点雷达五子板块划分、进度台抛弃、`documents.status` 归档互斥状态机、
 > P0-P4 分期均以该文档为准。
-> 创作（creator）模块的产品规划已定稿于 `docs/creator-plan.md`：`materials` / `drafts` / `assets` 表、
+> 创作（creator）模块的产品规划已定稿于 `docs/creator-plan.md`：`materials` / `assets` 表、
+> （⚠️ 二创草稿管道 2026-10 已下线：`drafts` 表已 DROP，二创工作台/草稿箱/`generateDrafts` 全部移除）
 > `downloadsDir` → `filesRootDir` 文件管理根目录升级、M4-α/β/γ 分期均以该文档为准。
 > 创作（editor）模块的产品规划已定稿于 `docs/editor-plan.md`：`documents` / `document_versions` 表、
 > TipTap 富文本内核、右侧 AI 面板模块人格（ai-contributions 能力包）升级、Editor-α/β/γ/δ 分期均以该文档为准。

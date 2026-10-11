@@ -4,14 +4,17 @@ import type {
 	ActivityEvent,
 	ActivityKind,
 	DocumentSummary,
-	DraftSummary,
 	FolderShortcut,
 	RecentBookmark,
+	RecentMaterial,
+	RecentNote,
 	WorkbenchSummary,
 } from "../../components/dashboard/types.ts";
+import type { ObsidianTreeNode } from "../../components/obsidian/types.ts";
 import { getDb } from "../db/connection.ts";
 import { workbenchDb } from "../db/sqlite.ts";
 import { getLastDeadLinkScan } from "../maintenance.ts";
+import { scanVaultTree } from "../services/obsidian/index.ts";
 import { scanSkillsOverview } from "../services/skills/index.ts";
 
 function queryRecentBookmarks(limit: number): RecentBookmark[] {
@@ -34,6 +37,46 @@ function queryRecentBookmarks(limit: number): RecentBookmark[] {
 		favicon: r.favicon || "",
 		createdAt: r.created_at,
 	}));
+}
+
+function queryRecentMaterials(limit: number): RecentMaterial[] {
+	const rows = getDb()
+		.prepare(
+			`SELECT id, title, created_at
+       FROM materials WHERE status = 'active' ORDER BY created_at DESC LIMIT ?`,
+		)
+		.all(limit) as Array<{
+		id: number;
+		title: string;
+		created_at: string;
+	}>;
+	return rows.map((r) => ({
+		id: r.id,
+		title: r.title,
+		createdAt: r.created_at,
+	}));
+}
+
+/** 拍平 Vault 目录树取最近修改的笔记（文件夹 mtime=0 天然沉底，sort 后截断） */
+function collectRecentNotes(
+	nodes: ObsidianTreeNode[],
+	limit: number,
+): RecentNote[] {
+	const notes: RecentNote[] = [];
+	const walk = (list: ObsidianTreeNode[]) => {
+		for (const node of list) {
+			if (node.kind === "note") {
+				notes.push({
+					name: node.name,
+					relPath: node.relPath,
+					mtime: node.mtime,
+				});
+			}
+			if (node.children) walk(node.children);
+		}
+	};
+	walk(nodes);
+	return notes.sort((a, b) => b.mtime - a.mtime).slice(0, limit);
 }
 
 function queryTopFolders(limit: number): FolderShortcut[] {
@@ -70,7 +113,7 @@ function countRows(sql: string): number {
 
 /** 活动日历聚合范围：最近 26 周（约半年），与 GitHub 热点图的半年视图对齐 */
 const ACTIVITY_DAYS = 183;
-/** 单日事件明细上限（日历面板可展开滚动查看；批量导入日可能上千条，仍需封顶控制载荷） */
+/** 单日事件明细上限（按需加载，批量导入日可能上千条，仍需封顶控制载荷） */
 const ACTIVITY_EVENTS_PER_DAY = 50;
 
 const ACTIVITY_COUNT_QUERIES: Record<ActivityKind, string> = {
@@ -78,27 +121,19 @@ const ACTIVITY_COUNT_QUERIES: Record<ActivityKind, string> = {
     WHERE date(created_at) >= date('now', ?) GROUP BY d`,
 	material: `SELECT date(created_at) AS d, COUNT(*) AS n FROM materials
     WHERE date(created_at) >= date('now', ?) GROUP BY d`,
-	draft: `SELECT date(created_at) AS d, COUNT(*) AS n FROM drafts
-    WHERE date(created_at) >= date('now', ?) GROUP BY d`,
 	// 文档按「最后被编辑」归类：反映当天的创作动作而非建档时间
 	document: `SELECT date(COALESCE(updated_at, created_at)) AS d, COUNT(*) AS n FROM documents
     WHERE date(COALESCE(updated_at, created_at)) >= date('now', ?) GROUP BY d`,
 };
 
 const ACTIVITY_EVENT_QUERIES: Record<ActivityKind, string> = {
-	bookmark: `SELECT id, title, date(created_at) AS d, created_at AS ts FROM bookmarks
-    WHERE date(created_at) >= date('now', ?) ORDER BY created_at DESC`,
-	material: `SELECT id, title, date(created_at) AS d, created_at AS ts FROM materials
-    WHERE date(created_at) >= date('now', ?) ORDER BY created_at DESC`,
-	draft: `SELECT d.id AS id, m.title AS title, date(d.created_at) AS d, d.created_at AS ts
-    FROM drafts d LEFT JOIN materials m ON m.id = d.material_id
-    WHERE date(d.created_at) >= date('now', ?) ORDER BY d.created_at DESC`,
-	document: `SELECT id, title, date(COALESCE(updated_at, created_at)) AS d,
-      COALESCE(updated_at, created_at) AS ts FROM documents
-    WHERE date(COALESCE(updated_at, created_at)) >= date('now', ?) ORDER BY ts DESC`,
+	bookmark: `SELECT id, title, created_at AS ts FROM bookmarks WHERE date(created_at) = ?`,
+	material: `SELECT id, title, created_at AS ts FROM materials WHERE date(created_at) = ?`,
+	document: `SELECT id, title, COALESCE(updated_at, created_at) AS ts FROM documents
+    WHERE date(COALESCE(updated_at, created_at)) = ?`,
 };
 
-/** 按日聚合四类实体的活动量与事件明细（收藏/素材/草稿/文档），日历 widget 数据源 */
+/** 按日聚合三类实体的活动量（收藏/素材/文档），日历 widget 热力数据源（仅计数，明细按需加载） */
 function queryActivity(): ActivityDay[] {
 	const db = getDb();
 	const range = `-${ACTIVITY_DAYS} days`;
@@ -109,8 +144,7 @@ function queryActivity(): ActivityDay[] {
 			day = {
 				date,
 				total: 0,
-				counts: { bookmark: 0, material: 0, draft: 0, document: 0 },
-				events: [],
+				counts: { bookmark: 0, material: 0, document: 0 },
 			};
 			days.set(date, day);
 		}
@@ -129,28 +163,43 @@ function queryActivity(): ActivityDay[] {
 		}
 	}
 
-	for (const kind of Object.keys(ACTIVITY_EVENT_QUERIES) as ActivityKind[]) {
-		const rows = db.prepare(ACTIVITY_EVENT_QUERIES[kind]).all(range) as Array<{
-			id: string | number;
-			title: string | null;
-			d: string;
-		}>;
-		for (const row of rows) {
-			const day = days.get(row.d);
-			if (!day || day.events.length >= ACTIVITY_EVENTS_PER_DAY) continue;
-			const event: ActivityEvent = {
-				kind,
-				id: row.id,
-				title:
-					row.title ||
-					(kind === "draft" ? `草稿 #${row.id}` : `未命名 #${row.id}`),
-			};
-			day.events.push(event);
-		}
-	}
-
 	return [...days.values()].sort((a, b) => b.date.localeCompare(a.date));
 }
+
+/**
+ * Server Function: 活动日历单日事件明细（按需加载，避免汇总接口携带近半年全量明细）。
+ * 入参为 YYYY-MM-DD，返回当日三类实体事件（按时间倒序，封顶 ACTIVITY_EVENTS_PER_DAY 条）。
+ */
+export const getActivityDayEvents = createServerFn({ method: "GET" })
+	.validator((date: string): string => {
+		if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+			throw new Error(`非法日期：${date}`);
+		}
+		return date;
+	})
+	.handler(async ({ data: date }): Promise<ActivityEvent[]> => {
+		const db = getDb();
+		const events: Array<ActivityEvent & { ts: string }> = [];
+		for (const kind of Object.keys(ACTIVITY_EVENT_QUERIES) as ActivityKind[]) {
+			const rows = db.prepare(ACTIVITY_EVENT_QUERIES[kind]).all(date) as Array<{
+				id: string | number;
+				title: string | null;
+				ts: string;
+			}>;
+			for (const row of rows) {
+				events.push({
+					kind,
+					id: row.id,
+					title: row.title || `未命名 #${row.id}`,
+					ts: row.ts,
+				});
+			}
+		}
+		return events
+			.sort((a, b) => b.ts.localeCompare(a.ts))
+			.slice(0, ACTIVITY_EVENTS_PER_DAY)
+			.map(({ ts: _ts, ...event }) => event);
+	});
 
 /**
  * Server Function: 工作台仪表盘跨模块汇总（一次调用聚合书签/文件夹/创作/创作/Skills/巡检）
@@ -162,10 +211,9 @@ export const getWorkbenchSummary = createServerFn({ method: "GET" }).handler(
 			folders: { total: 0, top: [] },
 			creator: {
 				materials: 0,
-				draftsPending: 0,
-				draftsTotal: 0,
-				recentDrafts: [],
+				recentMaterials: [],
 			},
+			obsidian: { available: false, noteCount: 0, recent: [] },
 			editor: { total: 0, recent: [] },
 			skills: { available: false, total: 0, rootCount: 0, recent: [] },
 			health: { deadLinks: null },
@@ -196,22 +244,22 @@ export const getWorkbenchSummary = createServerFn({ method: "GET" }).handler(
 			summary.creator.materials = countRows(
 				"SELECT COUNT(*) AS n FROM materials WHERE status = 'active'",
 			);
-			const drafts = workbenchDb.listDrafts();
-			summary.creator.draftsTotal = drafts.length;
-			summary.creator.draftsPending = drafts.filter(
-				(d) => d.status === "draft_ready" || d.status === "reviewing",
-			).length;
-			summary.creator.recentDrafts = drafts.slice(0, 5).map(
-				(d): DraftSummary => ({
-					id: d.id,
-					materialTitle: d.materialTitle,
-					platform: d.platform,
-					status: d.status,
-					updatedAt: d.updatedAt,
-				}),
-			);
+			summary.creator.recentMaterials = queryRecentMaterials(5);
 		} catch (err) {
 			console.warn("[getWorkbenchSummary] creator error:", err);
+		}
+
+		try {
+			const vaultTree = await scanVaultTree();
+			summary.obsidian = {
+				available: vaultTree.vault.exists,
+				noteCount: vaultTree.vault.noteCount,
+				recent: vaultTree.vault.exists
+					? collectRecentNotes(vaultTree.tree, 5)
+					: [],
+			};
+		} catch (err) {
+			console.warn("[getWorkbenchSummary] obsidian error:", err);
 		}
 
 		try {

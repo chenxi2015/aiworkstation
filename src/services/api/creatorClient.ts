@@ -1,9 +1,4 @@
 import type {
-	Draft,
-	DraftPlatform,
-	DraftStatus,
-	DraftVariant,
-	DraftWithMaterial,
 	Material,
 	MaterialAsset,
 	MaterialFolder,
@@ -13,14 +8,6 @@ import {
 	createDocumentFromMaterial,
 	importObsidianNoteToStudio,
 } from "../../server/functions/creatorBridge";
-import {
-	adoptDraft,
-	exportDraft,
-	generateDrafts,
-	listDrafts,
-	updateDraftContent,
-	updateDraftStatus,
-} from "../../server/functions/creatorDrafts";
 import {
 	batchDeleteMaterials,
 	createManualMaterial,
@@ -221,50 +208,4 @@ export async function importLocalPathsAsMaterialsRpc(params: {
 	folderId?: number | null;
 }): Promise<{ imported: number }> {
 	return await importLocalPathsAsMaterials({ data: params });
-}
-
-/** AI 二创 */
-export async function generateDraftsRpc(params: {
-	materialId: number;
-	platforms: DraftPlatform[];
-}): Promise<{ variants: DraftVariant[] }> {
-	return await generateDrafts({ data: params });
-}
-
-export async function adoptDraftRpc(params: {
-	materialId: number;
-	platform: DraftPlatform;
-	content: string;
-}): Promise<Draft> {
-	return await adoptDraft({ data: params });
-}
-
-/** 草稿箱 */
-export async function fetchDrafts(): Promise<DraftWithMaterial[]> {
-	try {
-		return (await listDrafts()) ?? [];
-	} catch (err) {
-		console.warn("[creatorClient] listDrafts error:", err);
-		return [];
-	}
-}
-
-export async function updateDraftContentRpc(params: {
-	draftId: number;
-	content: string;
-}): Promise<Draft> {
-	return await updateDraftContent({ data: params });
-}
-
-export async function updateDraftStatusRpc(params: {
-	draftId: number;
-	status: DraftStatus;
-}): Promise<void> {
-	await updateDraftStatus({ data: params });
-}
-
-export async function exportDraftRpc(params: {
-	draftId: number;
-}): Promise<{ content: string; platform: DraftPlatform; draftId: number }> {
-	return await exportDraft({ data: params });
 }

@@ -6,39 +6,8 @@
 /** 素材来源：手动录入 | 书签快照 */
 export type MaterialSourceType = "manual" | "bookmark";
 
-/** 素材状态机：active（可用于二创）/ archived（归档保留溯源） */
+/** 素材状态机：active（可用于创作）/ archived（归档保留溯源） */
 export type MaterialStatus = "active" | "archived";
-
-/** 二创平台变体 */
-export type DraftPlatform = "xhs" | "twitter" | "wechat" | "script";
-
-export const DRAFT_PLATFORMS: readonly DraftPlatform[] = [
-	"xhs",
-	"twitter",
-	"wechat",
-	"script",
-];
-
-export const PLATFORM_LABELS: Record<DraftPlatform, string> = {
-	xhs: "小红书",
-	twitter: "Twitter/X",
-	wechat: "公众号",
-	script: "短视频脚本",
-};
-
-/**
- * 草稿状态机（creator-plan.md 第二节）：
- * draft_ready → reviewing → approved → exported（→ published 预留）
- * 任何状态可 → discarded（软删除）
- */
-export type DraftStatus =
-	| "draft_ready"
-	| "reviewing"
-	| "approved"
-	| "exported"
-	| "discarded";
-
-export type DraftOrigin = "ai" | "human";
 
 export type AssetKind = "video" | "markdown" | "image" | "audio" | "other";
 
@@ -85,28 +54,4 @@ export interface MaterialAsset {
 	storageMode?: AssetStorageMode;
 	sourcePath?: string | null;
 	createdAt?: string;
-}
-
-export interface Draft {
-	id: number;
-	materialId: number;
-	platform: DraftPlatform;
-	content: string;
-	version: number;
-	parentDraftId?: number | null;
-	origin: DraftOrigin;
-	status: DraftStatus;
-	createdAt?: string;
-	updatedAt?: string;
-}
-
-/** 草稿箱泳道展示用：草稿 + 所属素材标题 */
-export interface DraftWithMaterial extends Draft {
-	materialTitle: string;
-}
-
-/** generateDrafts 的 AI 输出变体（未采纳前不落库） */
-export interface DraftVariant {
-	platform: DraftPlatform;
-	content: string;
 }

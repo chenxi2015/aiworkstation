@@ -4,11 +4,13 @@ import {
 	FolderOpen,
 	Gauge,
 	Inbox,
+	Library,
 	type LucideIcon,
-	Megaphone,
+	NotebookPen,
 	PenLine,
 	Sparkles,
 } from "lucide-react";
+import type { ModuleRoute } from "./registry";
 
 /**
  * Workbench Widget Registry — 工作台仪表盘的单一事实源（约定大于配置）。
@@ -30,6 +32,8 @@ export interface WidgetDef {
 	defaultWide?: boolean;
 	/** 所属模块 code：卡片提供「进入模块」跳转；无则为纯信息卡 */
 	moduleCode?: string;
+	/** 跳转目标覆盖：缺省跳模块路由，需要落到子页面时指定（如素材库跳 /creator/materials） */
+	linkTo?: ModuleRoute | "/creator/materials";
 	/** 色彩身份（卡片图标/高亮的柔和配色，见 WidgetCard 的 TONE_STYLES） */
 	tone: WidgetTone;
 }
@@ -61,12 +65,13 @@ export const WORKBENCH_WIDGETS: readonly WidgetDef[] = [
 		tone: "sky",
 	},
 	{
-		id: "creator-pipeline",
-		label: "创作管道",
-		description: "素材 → 二创 → 审稿的流水线状态",
-		icon: Megaphone,
+		id: "materials-inbox",
+		label: "素材库",
+		description: "创作素材池：最近入库与总量",
+		icon: Library,
 		moduleCode: "creator",
-		tone: "violet",
+		linkTo: "/creator/materials",
+		tone: "teal",
 	},
 	{
 		id: "editor-recent",
@@ -77,21 +82,6 @@ export const WORKBENCH_WIDGETS: readonly WidgetDef[] = [
 		tone: "emerald",
 	},
 	{
-		id: "folder-shortcuts",
-		label: "常用文件夹",
-		description: "按内容量排序的文件夹速览",
-		icon: FolderOpen,
-		tone: "indigo",
-	},
-	{
-		id: "skills-overview",
-		label: "Skills 概览",
-		description: "本机 skills 目录集合状态",
-		icon: Blocks,
-		moduleCode: "skills",
-		tone: "cyan",
-	},
-	{
 		id: "insights",
 		label: "资产与健康",
 		description: "知识资产统计、向量覆盖与死链巡检",
@@ -100,12 +90,35 @@ export const WORKBENCH_WIDGETS: readonly WidgetDef[] = [
 		tone: "teal",
 	},
 	{
+		id: "obsidian-recent",
+		label: "最近笔记",
+		description: "Obsidian Vault 最近修改的笔记",
+		icon: NotebookPen,
+		moduleCode: "obsidian",
+		tone: "violet",
+	},
+	{
+		id: "folder-shortcuts",
+		label: "常用文件夹",
+		description: "按内容量排序的文件夹速览",
+		icon: FolderOpen,
+		tone: "indigo",
+	},
+	{
 		id: "activity-calendar",
 		label: "活动日历",
-		description: "按日热点：收藏/素材/二创/创作的当日任务",
+		description: "按日热点：收藏/素材/创作的当日记录",
 		icon: CalendarDays,
 		defaultWide: true,
 		tone: "rose",
+	},
+	{
+		id: "skills-overview",
+		label: "Skills 概览",
+		description: "本机 skills 目录集合状态",
+		icon: Blocks,
+		moduleCode: "skills",
+		tone: "cyan",
 	},
 ] as const;
 

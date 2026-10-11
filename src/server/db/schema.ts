@@ -102,21 +102,7 @@ export function initSchema(db: SqliteDatabase): void {
       updated_at TEXT
     );
 
-    -- 9. Creator drafts table (AI 二创产物 + 版本链)
-    CREATE TABLE IF NOT EXISTS drafts (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      material_id INTEGER DEFAULT NULL REFERENCES materials(id) ON DELETE SET NULL,
-      platform TEXT NOT NULL,             -- 'xhs' | 'twitter' | 'wechat' | 'script'（短视频脚本）
-      content TEXT NOT NULL,
-      version INTEGER NOT NULL DEFAULT 1,
-      parent_draft_id INTEGER,            -- 版本链：由哪条草稿改来
-      origin TEXT NOT NULL,               -- 'ai' | 'human'
-      status TEXT NOT NULL DEFAULT 'draft_ready',
-      created_at TEXT,
-      updated_at TEXT
-    );
-
-    -- 10. Creator assets table (大文件落文件系统或外部引用，DB 只存关联)
+    -- 9. Creator assets table (大文件落文件系统或外部引用，DB 只存关联)
     CREATE TABLE IF NOT EXISTS assets (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       material_id INTEGER NOT NULL REFERENCES materials(id),
@@ -183,8 +169,6 @@ export function initSchema(db: SqliteDatabase): void {
     CREATE INDEX IF NOT EXISTS idx_materials_folder_status ON materials(folder_id, status);
     CREATE INDEX IF NOT EXISTS idx_materials_updated ON materials(status, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_material_folders_sort ON material_folders(sort_order ASC, id ASC);
-    CREATE INDEX IF NOT EXISTS idx_drafts_material_id ON drafts(material_id);
-    CREATE INDEX IF NOT EXISTS idx_drafts_status ON drafts(status);
     CREATE INDEX IF NOT EXISTS idx_assets_material_id ON assets(material_id);
     CREATE INDEX IF NOT EXISTS idx_tags_name ON tags(name);
     CREATE INDEX IF NOT EXISTS idx_bookmark_tags_bookmark_id ON bookmark_tags(bookmark_id);
@@ -278,36 +262,8 @@ export function initSchema(db: SqliteDatabase): void {
 			db.exec("ALTER TABLE assets ADD COLUMN source_path TEXT DEFAULT NULL");
 		}
 
-		// Drafts 外键平滑解绑（2026-09）：删除素材时保留草稿（设为 NULL），避免 FOREIGN KEY constraint failed
-		const draftCols = db.prepare("PRAGMA table_info(drafts)").all() as Array<{
-			name: string;
-			notnull: number;
-		}>;
-		const matIdCol = draftCols.find((c) => c.name === "material_id");
-		if (matIdCol && matIdCol.notnull === 1) {
-			db.exec(`
-				PRAGMA foreign_keys = OFF;
-				CREATE TABLE drafts_migrated (
-					id INTEGER PRIMARY KEY AUTOINCREMENT,
-					material_id INTEGER DEFAULT NULL REFERENCES materials(id) ON DELETE SET NULL,
-					platform TEXT NOT NULL,
-					content TEXT NOT NULL,
-					version INTEGER NOT NULL DEFAULT 1,
-					parent_draft_id INTEGER,
-					origin TEXT NOT NULL,
-					status TEXT NOT NULL DEFAULT 'draft_ready',
-					created_at TEXT,
-					updated_at TEXT
-				);
-				INSERT INTO drafts_migrated (id, material_id, platform, content, version, parent_draft_id, origin, status, created_at, updated_at)
-				SELECT id, material_id, platform, content, version, parent_draft_id, origin, status, created_at, updated_at FROM drafts;
-				DROP TABLE drafts;
-				ALTER TABLE drafts_migrated RENAME TO drafts;
-				CREATE INDEX IF NOT EXISTS idx_drafts_material_platform ON drafts(material_id, platform);
-				CREATE INDEX IF NOT EXISTS idx_drafts_parent ON drafts(parent_draft_id);
-				PRAGMA foreign_keys = ON;
-			`);
-		}
+		// 彻底清理废弃的草稿数据表（2026-10 自媒体审核流下线）
+		db.exec("DROP TABLE IF EXISTS drafts;");
 
 		// 工作台升级为跨模块仪表盘后不再是文件夹分类（2026-09 定案）：
 		// 存量 category='workbench'/'工作台' 的文件夹一次性归并到书签模块（幂等，可随启动重复执行）

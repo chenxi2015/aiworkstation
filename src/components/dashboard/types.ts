@@ -18,19 +18,26 @@ export interface FolderShortcut {
 	itemCount: number;
 }
 
-export interface DraftSummary {
-	id: number;
-	materialTitle: string;
-	platform: string;
-	status: string;
-	updatedAt?: string;
-}
-
 export interface DocumentSummary {
 	id: number;
 	title: string;
 	status: string;
 	updatedAt?: string;
+}
+
+/** 最近入库的素材摘要（素材库 widget 用） */
+export interface RecentMaterial {
+	id: number;
+	title: string;
+	createdAt?: string;
+}
+
+/** 最近修改的 Obsidian 笔记摘要（relPath 用于 ?note= 深链定位） */
+export interface RecentNote {
+	name: string;
+	relPath: string;
+	/** ms epoch */
+	mtime: number;
 }
 
 /** 最近变更的 skill 摘要（dirPath 用于深链定位详情面板） */
@@ -39,8 +46,8 @@ export interface SkillRecent {
 	dirPath: string;
 }
 
-/** 活动日历的事件类型：收藏 / 素材 / 二创草稿 / 创作文档 */
-export type ActivityKind = "bookmark" | "material" | "draft" | "document";
+/** 活动日历的事件类型：收藏 / 素材 / 创作文档 */
+export type ActivityKind = "bookmark" | "material" | "document";
 
 /** 某一天的一条活动记录（深链回所属模块） */
 export interface ActivityEvent {
@@ -55,8 +62,6 @@ export interface ActivityDay {
 	date: string;
 	total: number;
 	counts: Record<ActivityKind, number>;
-	/** 当日事件明细（按时间倒序，服务端截断） */
-	events: ActivityEvent[];
 }
 
 /** 跨模块聚合的工作台首页数据（getWorkbenchSummary 返回） */
@@ -74,10 +79,13 @@ export interface WorkbenchSummary {
 	};
 	creator: {
 		materials: number;
-		/** 待审稿（draft_ready / reviewing）草稿数 */
-		draftsPending: number;
-		draftsTotal: number;
-		recentDrafts: DraftSummary[];
+		recentMaterials: RecentMaterial[];
+	};
+	obsidian: {
+		/** Vault 已配置且目录存在 */
+		available: boolean;
+		noteCount: number;
+		recent: RecentNote[];
 	};
 	editor: {
 		total: number;
@@ -94,7 +102,7 @@ export interface WorkbenchSummary {
 		deadLinks: number | null;
 		lastScanAt?: string;
 	};
-	/** 活动日历：最近若干个月的按日聚合（收藏/素材/草稿/文档） */
+	/** 活动日历：最近若干个月的按日计数聚合（收藏/素材/文档；明细由 getActivityDayEvents 按需加载） */
 	activity: {
 		days: ActivityDay[];
 	};

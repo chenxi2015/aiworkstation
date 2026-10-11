@@ -5,10 +5,11 @@ import {
 	today,
 } from "@internationalized/date";
 import { Link } from "@tanstack/react-router";
-import { Inbox } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Inbox, Loader2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { I18nProvider } from "react-aria-components";
-import type { ActivityDay, ActivityKind } from "../types";
+import { getActivityDayEvents } from "../../../server/functions/dashboard";
+import type { ActivityDay, ActivityEvent, ActivityKind } from "../types";
 import type { DashboardWidgetProps } from "./widgetProps";
 
 /** 事件类型的展示身份：标签 + 圆点/徽章配色（亮/暗双模式） */
@@ -27,12 +28,6 @@ const KIND_META: Record<
 		badge:
 			"bg-amber-100 text-amber-700 dark:bg-amber-400/15 dark:text-amber-300",
 	},
-	draft: {
-		label: "二创",
-		dot: "bg-violet-600 dark:bg-violet-400",
-		badge:
-			"bg-violet-100 text-violet-700 dark:bg-violet-400/15 dark:text-violet-300",
-	},
 	document: {
 		label: "创作",
 		dot: "bg-emerald-700 dark:bg-emerald-300",
@@ -41,12 +36,7 @@ const KIND_META: Record<
 	},
 };
 
-const KIND_ORDER: ActivityKind[] = [
-	"bookmark",
-	"material",
-	"draft",
-	"document",
-];
+const KIND_ORDER: ActivityKind[] = ["bookmark", "material", "document"];
 
 /** 热点强度 0-4（固定阈值，跨月可比，类 GitHub contributions 的 Less→More） */
 function intensityLevel(total: number): number {
@@ -74,14 +64,6 @@ function eventLink(kind: ActivityKind, id: string | number) {
 			return {
 				to: "/creator/materials" as const,
 			};
-		case "draft":
-			return {
-				to: "/creator/studio" as const,
-				search: {
-					mode: "drafts" as const,
-					draft: Number(id),
-				},
-			};
 		case "document":
 			return {
 				to: "/creator/studio" as const,
@@ -94,8 +76,8 @@ function eventLink(kind: ActivityKind, id: string | number) {
 }
 
 /**
- * 活动日历：HeroUI Calendar 月历 + 按日热点强度（收藏/素材/二创/创作四类动作聚合）。
- * 点日期看当日任务明细，标题可深链回所属模块定位。
+ * 活动日历：HeroUI Calendar 月历 + 按日热点强度（收藏/素材/创作三类动作聚合）。
+ * 点日期按需加载当日事件明细（不随汇总接口全量下发），标题可深链回所属模块定位。
  */
 export function ActivityCalendarWidget({ summary }: DashboardWidgetProps) {
 	const dayMap = useMemo(() => {
@@ -110,6 +92,12 @@ export function ActivityCalendarWidget({ summary }: DashboardWidgetProps) {
 	const [focused, setFocused] = useState<CalendarDate>(todayDate);
 	/** 已展开「全部事件」的日期（换日期自动收回预览态） */
 	const [expandedFor, setExpandedFor] = useState<string | null>(null);
+	/** 单日事件明细缓存（按日期懒加载，避免汇总接口携带近半年全量明细） */
+	const [eventsCache, setEventsCache] = useState<
+		ReadonlyMap<string, ActivityEvent[]>
+	>(() => new Map());
+	const [loadingFor, setLoadingFor] = useState<string | null>(null);
+	const requestSeq = useRef(0);
 
 	const goToday = () => {
 		setSelected(todayDate);
@@ -122,12 +110,38 @@ export function ActivityCalendarWidget({ summary }: DashboardWidgetProps) {
 		? `${selected.month}月${selected.day}日`
 		: "未选择日期";
 	const expanded = expandedFor === selectedStr;
+
+	// 选中日期有活动且未缓存时按需拉取明细；seq 防旧请求覆盖新选择
+	useEffect(() => {
+		if (!selectedStr || !selectedDay || selectedDay.total === 0) return;
+		if (eventsCache.has(selectedStr)) return;
+		const seq = ++requestSeq.current;
+		setLoadingFor(selectedStr);
+		getActivityDayEvents({ data: selectedStr })
+			.then((events) => {
+				if (requestSeq.current !== seq) return;
+				setEventsCache((prev) => new Map(prev).set(selectedStr, events));
+			})
+			.catch((err) => {
+				if (requestSeq.current !== seq) return;
+				console.warn("[ActivityCalendar] load day events error:", err);
+				setEventsCache((prev) => new Map(prev).set(selectedStr, []));
+			})
+			.finally(() => {
+				if (requestSeq.current === seq) setLoadingFor(null);
+			});
+	}, [selectedStr, selectedDay, eventsCache]);
+
+	const selectedEvents =
+		(selectedStr ? eventsCache.get(selectedStr) : undefined) ?? [];
+	const eventsLoading =
+		loadingFor === selectedStr && !eventsCache.has(selectedStr);
 	/** 预览态只显示前几条，点「其余 N 条」展开后在面板内滚动 */
 	const PREVIEW_COUNT = 8;
 	const visibleEvents =
-		selectedDay && !expanded
-			? selectedDay.events.slice(0, PREVIEW_COUNT)
-			: (selectedDay?.events ?? []);
+		!expanded && selectedEvents.length > PREVIEW_COUNT
+			? selectedEvents.slice(0, PREVIEW_COUNT)
+			: selectedEvents;
 
 	return (
 		<div className="flex flex-col gap-3 h-full">
@@ -242,7 +256,12 @@ export function ActivityCalendarWidget({ summary }: DashboardWidgetProps) {
 							<span className="text-[10px] text-muted">无记录</span>
 						)}
 					</div>
-					{selectedDay && visibleEvents.length > 0 ? (
+					{eventsLoading ? (
+						<div className="flex-1 min-h-24 flex items-center justify-center gap-2 text-muted">
+							<Loader2 className="w-3.5 h-3.5 animate-spin" />
+							<span className="text-[11px]">加载当日记录…</span>
+						</div>
+					) : selectedDay && visibleEvents.length > 0 ? (
 						<ul className="flex-1 min-h-0 overflow-y-auto px-2 py-1.5 space-y-0.5">
 							{visibleEvents.map((event) => {
 								const meta = KIND_META[event.kind];
@@ -270,22 +289,20 @@ export function ActivityCalendarWidget({ summary }: DashboardWidgetProps) {
 									</li>
 								);
 							})}
-							{!expanded &&
-								selectedDay.events.length > visibleEvents.length && (
-									<li>
-										<button
-											type="button"
-											onClick={() => setExpandedFor(selectedStr)}
-											className="w-full px-1.5 py-1 rounded-md text-[10px] text-accent hover:bg-surface-secondary cursor-pointer transition-colors"
-										>
-											… 展开其余{" "}
-											{selectedDay.events.length - visibleEvents.length} 条
-										</button>
-									</li>
-								)}
-							{expanded && selectedDay.total > selectedDay.events.length && (
+							{!expanded && selectedEvents.length > visibleEvents.length && (
+								<li>
+									<button
+										type="button"
+										onClick={() => setExpandedFor(selectedStr)}
+										className="w-full px-1.5 py-1 rounded-md text-[10px] text-accent hover:bg-surface-secondary cursor-pointer transition-colors"
+									>
+										… 展开其余 {selectedEvents.length - visibleEvents.length} 条
+									</button>
+								</li>
+							)}
+							{expanded && selectedDay.total > selectedEvents.length && (
 								<li className="px-1.5 py-1 text-[10px] text-muted">
-									… 另有 {selectedDay.total - selectedDay.events.length}{" "}
+									… 另有 {selectedDay.total - selectedEvents.length}{" "}
 									条未加载（单日最多加载 50 条明细）
 								</li>
 							)}
@@ -296,7 +313,7 @@ export function ActivityCalendarWidget({ summary }: DashboardWidgetProps) {
 								<Inbox className="w-4 h-4" />
 							</div>
 							<p className="text-[11px] text-muted">
-								当天没有收藏、素材、二创或创作记录
+								当天没有收藏、素材或创作记录
 							</p>
 						</div>
 					)}
