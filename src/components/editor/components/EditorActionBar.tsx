@@ -238,15 +238,15 @@ export function EditorActionBar({
 
 			<div className="w-px h-4 bg-border mx-1" />
 
-			{/* Distribution / Social Card generation */}
+			{/* PublishCenter：一次生成 · 全平台直发（docs/creator-publish-plan.md P2） */}
 			<button
 				type="button"
 				onClick={onOpenDistribution}
 				className="flex items-center gap-1.5 px-3 py-1 text-xs text-accent font-medium bg-accent/10 hover:bg-accent/20 rounded-md transition-colors cursor-pointer"
-				title="一键生成移动端长图、小红书 3:4 多图卡片与多平台分发排版"
+				title="AI 一次生成各平台发布产物（封面/卡片/文案），确认后直发"
 			>
 				<Share2 className="w-3.5 h-3.5" />
-				<span>📱 贴图 / 分发</span>
+				<span>🚀 一键发布</span>
 			</button>
 		</div>
 	);

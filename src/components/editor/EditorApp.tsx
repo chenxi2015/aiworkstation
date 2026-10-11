@@ -16,7 +16,6 @@ import { DocumentEditorCanvas } from "./components/DocumentEditorCanvas";
 import { DocumentSidebar } from "./components/DocumentSidebar";
 import { EditorDragChip } from "./components/EditorDragChip";
 import { FolderSidebar } from "./components/FolderSidebar";
-import { DistributionModal } from "./DistributionModal";
 import { useArticleCreationPipeline } from "./hooks/useArticleCreationPipeline";
 import { useDocumentExport } from "./hooks/useDocumentExport";
 import { useDocumentManager } from "./hooks/useDocumentManager";
@@ -25,6 +24,7 @@ import { ImportModal } from "./ImportModal";
 import { markdownToTiptapDoc } from "./markdown";
 import { AudioStudioCanvas } from "./media/AudioStudioCanvas";
 import { VideoStudioCanvas } from "./media/VideoStudioCanvas";
+import { PublishCenter } from "./publish-center/PublishCenter";
 import { normalizeCodeCardHtml } from "./utils/codeCardNormalizer";
 import { detectDocumentMediaInfo } from "./utils/documentMediaKind";
 import type { EditorDragData } from "./utils/editorDnd";
@@ -312,7 +312,7 @@ export function EditorApp({ initialDocId }: EditorAppProps = {}) {
 	} = useDocumentExport({ activeDoc, contentText });
 
 	const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-	const [isDistributionModalOpen, setIsDistributionModalOpen] = useState(false);
+	const [isPublishCenterOpen, setIsPublishCenterOpen] = useState(false);
 
 	const editorInstanceRef = useRef<Editor | null>(null);
 	const pipelineTriggerRef = useRef<
@@ -649,7 +649,7 @@ export function EditorApp({ initialDocId }: EditorAppProps = {}) {
 								onExportMarkdown={handleExportMarkdown}
 								onExportHtml={handleExportHtml}
 								onExportPdf={handleExportPdf}
-								onOpenDistribution={() => setIsDistributionModalOpen(true)}
+								onOpenDistribution={() => setIsPublishCenterOpen(true)}
 								mediaMode={
 									forceDocModeId === activeDoc.id &&
 									activeMediaInfo.kind !== "doc"
@@ -674,9 +674,10 @@ export function EditorApp({ initialDocId }: EditorAppProps = {}) {
 				onImport={handleImport}
 			/>
 			{activeDoc && effectiveMediaKind === "doc" && (
-				<DistributionModal
-					isOpen={isDistributionModalOpen}
-					onClose={() => setIsDistributionModalOpen(false)}
+				<PublishCenter
+					isOpen={isPublishCenterOpen}
+					onClose={() => setIsPublishCenterOpen(false)}
+					documentId={activeDoc.id}
 					title={activeDoc.title}
 					contentHtml={currentHtml || activeDoc.contentText}
 					contentText={contentText || activeDoc.contentText}

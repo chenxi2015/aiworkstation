@@ -159,6 +159,38 @@ export function initSchema(db: SqliteDatabase): void {
       updated_at TEXT NOT NULL
     );
 
+    -- 15. Platform accounts table（发布平台账号配置，凭证 AES-GCM 加密落本地，docs/creator-publish-plan.md）
+    CREATE TABLE IF NOT EXISTS platform_accounts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      platform TEXT NOT NULL,            -- wechat-mp / douyin / redbook / bilibili
+      channel TEXT NOT NULL,             -- api / extension / clipboard
+      label TEXT NOT NULL,               -- 用户起的账号名
+      credentials TEXT NOT NULL,         -- AES-GCM 加密 JSON（appid/secret 或 OAuth token）
+      status TEXT NOT NULL DEFAULT 'active', -- active / expired / invalid
+      meta TEXT DEFAULT '',              -- 平台侧信息快照（JSON，如公众号昵称）
+      last_validated_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(platform, label)
+    );
+
+    -- 16. Publish records table（文档 × 平台发布记录，状态机驱动）
+    CREATE TABLE IF NOT EXISTS publish_records (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      document_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+      account_id INTEGER REFERENCES platform_accounts(id) ON DELETE SET NULL,
+      platform TEXT NOT NULL,
+      channel TEXT NOT NULL,
+      variant_json TEXT NOT NULL,        -- 该平台实际发布的标题/摘要/封面快照
+      status TEXT NOT NULL DEFAULT 'pending', -- pending / publishing / published / filled / failed / cancelled
+      platform_post_id TEXT,             -- 平台返回稿件 id（公众号 draft media_id / publish_id）
+      platform_url TEXT,                 -- 发布后的文章链接（可回查时回填）
+      error TEXT,
+      published_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
     -- Indexes for fast queries
     CREATE INDEX IF NOT EXISTS idx_folders_category ON folders(category);
     CREATE INDEX IF NOT EXISTS idx_folder_items_folder_id ON folder_items(folder_id);
@@ -176,6 +208,8 @@ export function initSchema(db: SqliteDatabase): void {
     CREATE INDEX IF NOT EXISTS idx_documents_status ON documents(status);
     CREATE INDEX IF NOT EXISTS idx_documents_updated_at ON documents(updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_document_versions_document_id ON document_versions(document_id);
+    CREATE INDEX IF NOT EXISTS idx_publish_records_document ON publish_records(document_id);
+    CREATE INDEX IF NOT EXISTS idx_platform_accounts_platform ON platform_accounts(platform);
   `);
 
 	// Graceful migration for existing SQLite DBs without embedding columns or color column

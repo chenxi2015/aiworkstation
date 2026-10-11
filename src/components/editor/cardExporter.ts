@@ -1,6 +1,6 @@
 import { toPng } from "html-to-image";
 import { triggerFileDownload } from "./exporters";
-import type { CardTheme, CardThemeConfig } from "./types";
+import type { CardTheme, CardThemeConfig, CoverPlatform } from "./types";
 
 /**
  * 预设主题配置
@@ -49,6 +49,66 @@ export const CARD_THEMES: Record<CardTheme, CardThemeConfig> = {
 		cardBorder: "#fed7d7",
 		quoteBorder: "#ff2442",
 		headerBg: "#fff1f0",
+	},
+};
+
+/**
+ * 平台封面规格矩阵（docs/creator-publish-plan.md 第四节.3）
+ * logical = 渲染逻辑尺寸；导出 PNG 像素 = logical × pixelRatio，与平台要求一致。
+ */
+export interface CoverSpec {
+	id: CoverPlatform;
+	name: string;
+	/** 导出目标像素 */
+	width: number;
+	height: number;
+	/** 渲染逻辑尺寸（导出时按 pixelRatio 放大到目标像素） */
+	logicalWidth: number;
+	logicalHeight: number;
+	pixelRatio: number;
+	ratioLabel: string;
+}
+
+export const COVER_SPECS: Record<CoverPlatform, CoverSpec> = {
+	redbook: {
+		id: "redbook",
+		name: "小红书封面",
+		width: 1080,
+		height: 1440,
+		logicalWidth: 360,
+		logicalHeight: 480,
+		pixelRatio: 3,
+		ratioLabel: "3:4",
+	},
+	wechat: {
+		id: "wechat",
+		name: "公众号头图",
+		width: 900,
+		height: 383,
+		logicalWidth: 450,
+		logicalHeight: 191.5,
+		pixelRatio: 2,
+		ratioLabel: "2.35:1",
+	},
+	douyin: {
+		id: "douyin",
+		name: "抖音图文封面",
+		width: 1080,
+		height: 1920,
+		logicalWidth: 270,
+		logicalHeight: 480,
+		pixelRatio: 4,
+		ratioLabel: "9:16",
+	},
+	bilibili: {
+		id: "bilibili",
+		name: "B站专栏头图",
+		width: 1146,
+		height: 717,
+		logicalWidth: 382,
+		logicalHeight: 239,
+		pixelRatio: 3,
+		ratioLabel: "16:9",
 	},
 };
 
@@ -171,18 +231,29 @@ export function extractQuoteSnippet(htmlContent: string): string {
 }
 
 /**
+ * 捕获指定 DOM 节点为 PNG dataURL（发布封面等场景复用）
+ */
+export async function captureElementToDataUrl(
+	element: HTMLElement,
+	pixelRatio = 2,
+): Promise<string> {
+	return toPng(element, {
+		quality: 0.96,
+		pixelRatio,
+		cacheBust: true,
+	});
+}
+
+/**
  * 捕获指定 DOM 节点并渲染导出为高清 PNG 文件
  */
 export async function captureAndDownloadElement(
 	element: HTMLElement,
 	filename: string,
+	pixelRatio = 2,
 ): Promise<void> {
 	try {
-		const dataUrl = await toPng(element, {
-			quality: 0.96,
-			pixelRatio: 2, // 2x 高清视网膜分辨率
-			cacheBust: true,
-		});
+		const dataUrl = await captureElementToDataUrl(element, pixelRatio);
 
 		// 将 dataURL 转换为 Blob 进行下载
 		const res = await fetch(dataUrl);

@@ -15,6 +15,7 @@ import {
 import { CreatorRepository } from "./repositories/creator.repo.ts";
 import { DocumentRepository } from "./repositories/document.repo.ts";
 import { FolderRepository } from "./repositories/folder.repo.ts";
+import { PublishRepository } from "./repositories/publish.repo.ts";
 import { SearchRepository } from "./repositories/search.repo.ts";
 import {
 	type AddTagsPlanItem,
@@ -44,6 +45,7 @@ export class WorkbenchDatabase {
 	private tagRepo!: TagRepository;
 	private creatorRepo!: CreatorRepository;
 	private documentRepo!: DocumentRepository;
+	private publishRepo!: PublishRepository;
 
 	private initRepositories(): void {
 		const db = getDb();
@@ -54,6 +56,7 @@ export class WorkbenchDatabase {
 		this.tagRepo = new TagRepository(db);
 		this.creatorRepo = new CreatorRepository(db);
 		this.documentRepo = new DocumentRepository(db);
+		this.publishRepo = new PublishRepository(db);
 	}
 
 	constructor() {
@@ -452,6 +455,54 @@ export class WorkbenchDatabase {
 
 	listDocumentVersions(documentId: number) {
 		return this.documentRepo.listVersions(documentId);
+	}
+
+	// ================= Publish (平台发布) Operations =================
+	listPlatformAccounts() {
+		return this.publishRepo.listAccounts();
+	}
+
+	getPlatformAccount(id: number) {
+		return this.publishRepo.getAccount(id);
+	}
+
+	upsertPlatformAccount(
+		params: Parameters<PublishRepository["upsertAccount"]>[0],
+	) {
+		return this.publishRepo.upsertAccount(params);
+	}
+
+	markPlatformAccountStatus(
+		id: number,
+		status: Parameters<PublishRepository["markAccountStatus"]>[1],
+		meta?: Record<string, unknown>,
+	) {
+		return this.publishRepo.markAccountStatus(id, status, meta);
+	}
+
+	deletePlatformAccount(id: number) {
+		return this.publishRepo.deleteAccount(id);
+	}
+
+	createPublishRecord(
+		params: Parameters<PublishRepository["createRecord"]>[0],
+	) {
+		return this.publishRepo.createRecord(params);
+	}
+
+	updatePublishRecord(
+		id: number,
+		patch: Parameters<PublishRepository["updateRecord"]>[1],
+	) {
+		return this.publishRepo.updateRecord(id, patch);
+	}
+
+	getPublishRecord(id: number) {
+		return this.publishRepo.getRecord(id);
+	}
+
+	listPublishRecordsByDocument(documentId: number) {
+		return this.publishRepo.listRecordsByDocument(documentId);
 	}
 }
 

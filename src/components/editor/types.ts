@@ -134,8 +134,18 @@ export interface DocumentVersion {
 	createdAt?: string;
 }
 
-/** 卡片导出模式：单张长图 / 小红书 3:4 多图卡片 / 金句卡片 */
-export type CardExportMode = "long-image" | "redbook-slices" | "quote";
+/** 卡片导出模式：内容卡片（长图/小红书切片/金句）+ 各平台独立封面 */
+export type CardExportMode =
+	| "long-image"
+	| "redbook-slices"
+	| "quote"
+	| "cover-redbook"
+	| "cover-wechat"
+	| "cover-douyin"
+	| "cover-bilibili";
+
+/** 平台封面规格 code */
+export type CoverPlatform = "redbook" | "wechat" | "douyin" | "bilibili";
 
 /** 贴图视觉风格预设 */
 export type CardTheme =
@@ -168,3 +178,110 @@ export interface PublishPayload {
 	coverImage?: string;
 	images?: string[];
 }
+
+// ============ 平台直连发布（docs/creator-publish-plan.md，P0 公众号） ============
+
+/** 发布平台 code（区别于剪贴板通道的 PublishPlatform） */
+export type PublishPlatformCode =
+	| "wechat-mp"
+	| "douyin"
+	| "redbook"
+	| "bilibili";
+
+export type PublishChannel = "api" | "extension" | "clipboard";
+
+export type PlatformAccountStatus = "active" | "expired" | "invalid";
+
+/** 平台账号（前端视图：credentials 已被服务端掩码/剥离） */
+export interface PlatformAccountInfo {
+	id: number;
+	platform: PublishPlatformCode;
+	channel: PublishChannel;
+	label: string;
+	status: PlatformAccountStatus;
+	/** 掩码后的凭据摘要，如 appid 明文 + secret 尾 4 位 */
+	credentialsHint: string;
+	/** 平台侧信息快照（如公众号昵称），可序列化的字符串键值 */
+	meta: Record<string, string>;
+	lastValidatedAt: string | null;
+	createdAt: string;
+	updatedAt: string;
+}
+
+export type PublishRecordStatus =
+	| "pending"
+	| "publishing"
+	| "published"
+	| "filled"
+	| "failed"
+	| "cancelled";
+
+export interface PublishRecord {
+	id: number;
+	documentId: number;
+	accountId: number | null;
+	platform: PublishPlatformCode;
+	channel: PublishChannel;
+	variantJson: string;
+	status: PublishRecordStatus;
+	platformPostId: string | null;
+	platformUrl: string | null;
+	error: string | null;
+	publishedAt: string | null;
+	createdAt: string;
+	updatedAt: string;
+}
+
+// ============ PublishCenter v2（docs/creator-publish-plan.md P2 一把梭交互） ============
+
+/** 公众号发布变体 */
+export interface WechatVariant {
+	/** ≤64 字 */
+	title: string;
+	author: string;
+	/** ≤120 字 */
+	digest: string;
+}
+
+/** 小红书发布变体 */
+export interface RedbookVariant {
+	/** ≤20 字硬限 */
+	title: string;
+	/** 口语化正文，≤1000 字 */
+	body: string;
+	/** 3-6 个话题标签（不带 # 号） */
+	topics: string[];
+}
+
+/** 知乎发布变体 */
+export interface ZhihuVariant {
+	title: string;
+	/** 开篇导语一段 */
+	intro: string;
+}
+
+/** X / Twitter 发布变体 */
+export interface TwitterVariant {
+	/** ≤260 字符 */
+	text: string;
+}
+
+/** 小红书卡片叙事结构（内容层 AI 智能拆卡） */
+export interface RedbookCardPlan {
+	coverTitle: string;
+	coverSummary: string;
+	slides: { heading: string; text: string }[];
+	outro: string;
+}
+
+/** 全平台发布变体集（AI 一次生成；缺省时客户端走确定性回退） */
+export interface PublishVariants {
+	wechat: WechatVariant;
+	redbook: RedbookVariant;
+	zhihu: ZhihuVariant;
+	twitter: TwitterVariant;
+	cards: RedbookCardPlan;
+}
+
+/** 「换一版」重生成目标：单平台或卡片结构 */
+export type VariantFocus = PublishPlatform | "cards";

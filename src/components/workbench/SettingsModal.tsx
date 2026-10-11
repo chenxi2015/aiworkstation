@@ -5,6 +5,7 @@ import {
 	Database,
 	RotateCcw,
 	Save,
+	Send,
 	ShieldAlert,
 	SlidersHorizontal,
 } from "lucide-react";
@@ -26,9 +27,16 @@ import { EmbeddingSettingsTab } from "./settings/EmbeddingSettingsTab";
 import { GeneralSettingsTab } from "./settings/GeneralSettingsTab";
 import { LlmSettingsTab } from "./settings/LlmSettingsTab";
 import type { ModelSettingsFormData } from "./settings/ModelSettingsTab";
+import { PublishAccountsTab } from "./settings/PublishAccountsTab";
 import type { WorkbenchSettings } from "./types";
 
-export type SettingTabId = "general" | "llm" | "embedding" | "data" | "danger";
+export type SettingTabId =
+	| "general"
+	| "llm"
+	| "embedding"
+	| "publish"
+	| "data"
+	| "danger";
 
 interface SettingTabItem {
 	id: SettingTabId;
@@ -56,6 +64,12 @@ const SETTING_TABS: SettingTabItem[] = [
 		label: "向量检索模型",
 		description: "配置全局语义检索与知识库 (RAG) 向量嵌入模型 (Embedding)",
 		icon: Brain,
+	},
+	{
+		id: "publish",
+		label: "发布平台",
+		description: "配置微信公众号等自媒体平台的直连发布账号与插件通道",
+		icon: Send,
 	},
 	{
 		id: "data",
@@ -334,6 +348,10 @@ export function SettingsModal({
 											embeddingModelList={embeddingModelList}
 											setEmbeddingModelList={setEmbeddingModelList}
 										/>
+									</Tabs.Panel>
+
+									<Tabs.Panel id="publish" className="outline-none">
+										<PublishAccountsTab />
 									</Tabs.Panel>
 
 									<Tabs.Panel id="data" className="outline-none">
