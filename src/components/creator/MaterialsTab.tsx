@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ConfirmDialog } from "../workbench/ConfirmDialog";
 import {
 	CreatorFolderSidebarSkeleton,
@@ -8,6 +8,7 @@ import {
 import { ImportMaterialModal } from "./ImportMaterialModal";
 import { FolderFormModal } from "./materials/FolderFormModal";
 import { FolderSidebar } from "./materials/FolderSidebar";
+import { MaterialImageBatchModal } from "./materials/MaterialImageBatchModal";
 import { MaterialImageModal } from "./materials/MaterialImageModal";
 import { MaterialsGridView } from "./materials/MaterialsGridView";
 import { MaterialsTableView } from "./materials/MaterialsTableView";
@@ -42,6 +43,10 @@ export function MaterialsTab({
 	});
 
 	const sentinelRef = useRef<HTMLDivElement | null>(null);
+	// 图片批量处理范围：工具栏入口 = 当前筛选范围；卡片菜单入口 = 单个素材
+	const [imageBatchScope, setImageBatchScope] = useState<Material[] | null>(
+		null,
+	);
 
 	// Automatically load more when scrolling near bottom
 	useEffect(() => {
@@ -111,6 +116,7 @@ export function MaterialsTab({
 					typeTab={state.typeTab}
 					onTypeTabChange={state.setTypeTab}
 					getTypeCount={state.getTypeCount}
+					onOpenImageBatch={() => setImageBatchScope(state.visibleMaterials)}
 				/>
 
 				<div className="flex-1 overflow-y-auto min-h-0">
@@ -145,6 +151,7 @@ export function MaterialsTab({
 									onDelete={(m) => state.setDeleting(m)}
 									onPlayVideo={state.handlePlayVideo}
 									onPreviewImage={state.handlePreviewImage}
+									onProcessImage={(m) => setImageBatchScope([m])}
 								/>
 							) : (
 								<MaterialsTableView
@@ -162,6 +169,7 @@ export function MaterialsTab({
 									onDelete={(m) => state.setDeleting(m)}
 									onPlayVideo={state.handlePlayVideo}
 									onPreviewImage={state.handlePreviewImage}
+									onProcessImage={(m) => setImageBatchScope([m])}
 								/>
 							)}
 
@@ -346,6 +354,14 @@ export function MaterialsTab({
 				onClose={state.closeImageModal}
 				onOpenDir={(m) => void state.handleOpenDir(m)}
 				onImportToStudio={(m) => void state.handleImportToStudio(m)}
+			/>
+
+			{/* 图片批量处理（压缩/格式转换，复用工具箱引擎） */}
+			<MaterialImageBatchModal
+				isOpen={imageBatchScope !== null}
+				onClose={() => setImageBatchScope(null)}
+				materials={imageBatchScope ?? []}
+				onChanged={state.handleChanged}
 			/>
 		</div>
 	);

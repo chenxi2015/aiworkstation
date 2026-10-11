@@ -8,6 +8,7 @@ import {
 	List,
 	ListChecks,
 	Loader2,
+	Minimize2,
 	Plus,
 	RefreshCw,
 	Search,
@@ -44,6 +45,8 @@ interface MaterialsToolbarProps {
 	typeTab: TypeTab;
 	onTypeTabChange: (tab: TypeTab) => void;
 	getTypeCount: (tabId: TypeTab) => number;
+	// 图片 tab 下的批量处理入口（压缩/格式转换）
+	onOpenImageBatch?: () => void;
 }
 
 /**
@@ -73,6 +76,7 @@ export function MaterialsToolbar({
 	typeTab,
 	onTypeTabChange,
 	getTypeCount,
+	onOpenImageBatch,
 }: MaterialsToolbarProps) {
 	return (
 		<div className="shrink-0 px-4 sm:px-5 pt-3 sm:pt-4 border-b border-border">
@@ -273,6 +277,20 @@ export function MaterialsToolbar({
 						</button>
 					);
 				})}
+
+				{/* 图片 tab：批量压缩/格式转换入口 */}
+				{typeTab === "image" && onOpenImageBatch && (
+					<Button
+						type="button"
+						variant="ghost"
+						size="sm"
+						className="ml-auto shrink-0 flex items-center gap-1.5 cursor-pointer"
+						onPress={onOpenImageBatch}
+					>
+						<Minimize2 className="w-3.5 h-3.5" />
+						批量处理
+					</Button>
+				)}
 			</div>
 		</div>
 	);

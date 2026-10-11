@@ -5,6 +5,7 @@ import {
 	Eye,
 	FolderOpen,
 	Loader2,
+	Minimize2,
 	Paperclip,
 	Play,
 	Sparkles,
@@ -30,6 +31,7 @@ interface MaterialsTableViewProps {
 	onDelete: (material: Material) => void;
 	onPlayVideo?: (material: Material, assetId?: number) => void;
 	onPreviewImage?: (material: Material, assetId?: number) => void;
+	onProcessImage?: (material: Material) => void;
 }
 
 /**
@@ -50,6 +52,7 @@ export function MaterialsTableView({
 	onDelete,
 	onPlayVideo,
 	onPreviewImage,
+	onProcessImage,
 }: MaterialsTableViewProps) {
 	const isAllSelected =
 		materials.length > 0 && materials.every((m) => selectedIds.has(m.id));
@@ -72,10 +75,7 @@ export function MaterialsTableView({
 	return (
 		<Table className="w-full text-xs rounded-none">
 			<Table.ScrollContainer className="overflow-x-auto">
-				<Table.Content
-					aria-label="创作素材列表"
-					className="min-w-full text-xs"
-				>
+				<Table.Content aria-label="创作素材列表" className="min-w-full text-xs">
 					<Table.Header>
 						{selectMode && (
 							<Table.Column id="select" className="pl-4 py-2 w-10">
@@ -327,6 +327,24 @@ export function MaterialsTableView({
 																	<Eye className="w-3.5 h-3.5 text-accent" />
 																	<span className="text-xs font-medium flex-1">
 																		预览图片
+																		{images.length > 1
+																			? ` (${images.length})`
+																			: ""}
+																	</span>
+																</div>
+															</Dropdown.Item>
+														)}
+
+														{hasImage && (
+															<Dropdown.Item
+																id="process-image"
+																textValue="处理图片"
+																onAction={() => onProcessImage?.(material)}
+															>
+																<div className="flex items-center gap-2 w-full py-0.5">
+																	<Minimize2 className="w-3.5 h-3.5 text-emerald-500" />
+																	<span className="text-xs font-medium flex-1">
+																		处理图片
 																		{images.length > 1
 																			? ` (${images.length})`
 																			: ""}

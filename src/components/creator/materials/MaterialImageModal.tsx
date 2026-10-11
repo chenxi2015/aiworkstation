@@ -85,6 +85,11 @@ export function MaterialImageModal({
 	const [currentIndex, setCurrentIndex] = useState(0);
 	const [zoom, setZoom] = useState(1);
 	const [rotation, setRotation] = useState(0);
+	const [position, setPosition] = useState<{ x: number; y: number }>({
+		x: 0,
+		y: 0,
+	});
+	const [isDragging, setIsDragging] = useState(false);
 	const [dimensions, setDimensions] = useState<{
 		width: number;
 		height: number;
@@ -92,6 +97,18 @@ export function MaterialImageModal({
 	const [imageError, setImageError] = useState(false);
 
 	const activeThumbRef = useRef<HTMLButtonElement | null>(null);
+	const viewportRef = useRef<HTMLDivElement | null>(null);
+	const dragStartRef = useRef<{
+		startX: number;
+		startY: number;
+		initX: number;
+		initY: number;
+	}>({
+		startX: 0,
+		startY: 0,
+		initX: 0,
+		initY: 0,
+	});
 
 	// Synchronize initial index when modal opens or target changes
 	useEffect(() => {
@@ -110,10 +127,11 @@ export function MaterialImageModal({
 		setCurrentIndex(0);
 	}, [isOpen, material, initialAssetId, allImages]);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: Reset zoom/rotation/dimensions on image change or modal open
+	// biome-ignore lint/correctness/useExhaustiveDependencies: Reset zoom/rotation/position/dimensions on image change or modal open
 	useEffect(() => {
 		setZoom(1);
 		setRotation(0);
+		setPosition({ x: 0, y: 0 });
 		setDimensions(null);
 		setImageError(false);
 	}, [currentIndex, isOpen]);
@@ -128,6 +146,65 @@ export function MaterialImageModal({
 			});
 		}
 	}, [currentIndex]);
+
+	// Native wheel listener on image viewport for trackpad panning and mouse wheel zooming
+	useEffect(() => {
+		const viewport = viewportRef.current;
+		if (!viewport) return;
+
+		const handleWheel = (e: WheelEvent) => {
+			e.preventDefault();
+
+			// 1. Trackpad pinch or Ctrl/Cmd + wheel zoom
+			const isPinch = e.ctrlKey || e.metaKey;
+
+			// 2. Discrete mouse wheel detection (discrete line/page scroll, or large integer deltaY without horizontal delta)
+			const isMouseWheel =
+				e.deltaMode !== 0 ||
+				(e.deltaX === 0 &&
+					Math.abs(e.deltaY) >= 40 &&
+					Number.isInteger(e.deltaY));
+
+			if (isPinch || isMouseWheel) {
+				const rect = viewport.getBoundingClientRect();
+				const cx = e.clientX - rect.left - rect.width / 2;
+				const cy = e.clientY - rect.top - rect.height / 2;
+
+				const delta = isPinch ? -e.deltaY * 0.015 : -e.deltaY * 0.0025;
+				const factor = Math.exp(delta);
+
+				setZoom((prevZoom) => {
+					const nextZoom = Math.max(
+						0.2,
+						Math.min(6, +(prevZoom * factor).toFixed(3)),
+					);
+					if (nextZoom === prevZoom) return prevZoom;
+
+					// Anchor zoom origin to cursor
+					setPosition((prevPos) => {
+						const scaleRatio = nextZoom / prevZoom;
+						const newX = cx - (cx - prevPos.x) * scaleRatio;
+						const newY = cy - (cy - prevPos.y) * scaleRatio;
+						return {
+							x: Math.round(newX * 10) / 10,
+							y: Math.round(newY * 10) / 10,
+						};
+					});
+
+					return nextZoom;
+				});
+			} else {
+				// Trackpad 2-finger panning across canvas
+				setPosition((prev) => ({
+					x: Math.round((prev.x - e.deltaX) * 10) / 10,
+					y: Math.round((prev.y - e.deltaY) * 10) / 10,
+				}));
+			}
+		};
+
+		viewport.addEventListener("wheel", handleWheel, { passive: false });
+		return () => viewport.removeEventListener("wheel", handleWheel);
+	}, []);
 
 	const handlePrev = useCallback(() => {
 		setCurrentIndex((prev) => Math.max(0, prev - 1));
@@ -163,14 +240,76 @@ export function MaterialImageModal({
 	const totalImages = allImages.length;
 
 	const handleZoomIn = () =>
-		setZoom((z) => Math.min(3, +(z + 0.25).toFixed(2)));
+		setZoom((z) => Math.min(6, +(z + 0.25).toFixed(2)));
 	const handleZoomOut = () =>
-		setZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)));
+		setZoom((z) => Math.max(0.2, +(z - 0.25).toFixed(2)));
 	const handleResetZoom = () => {
 		setZoom(1);
 		setRotation(0);
+		setPosition({ x: 0, y: 0 });
 	};
 	const handleRotate = () => setRotation((r) => (r + 90) % 360);
+
+	// Pointer drag handlers for canvas panning
+	const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+		if (e.button !== 0) return;
+		e.preventDefault();
+		try {
+			e.currentTarget.setPointerCapture(e.pointerId);
+		} catch {
+			// ignore
+		}
+		setIsDragging(true);
+		dragStartRef.current = {
+			startX: e.clientX,
+			startY: e.clientY,
+			initX: position.x,
+			initY: position.y,
+		};
+	};
+
+	const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+		if (!isDragging) return;
+		const dx = e.clientX - dragStartRef.current.startX;
+		const dy = e.clientY - dragStartRef.current.startY;
+		setPosition({
+			x: Math.round((dragStartRef.current.initX + dx) * 10) / 10,
+			y: Math.round((dragStartRef.current.initY + dy) * 10) / 10,
+		});
+	};
+
+	const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+		if (isDragging) {
+			setIsDragging(false);
+			try {
+				e.currentTarget.releasePointerCapture(e.pointerId);
+			} catch {
+				// ignore
+			}
+		}
+	};
+
+	// Double click to toggle zoom / reset position
+	const handleDoubleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+		if (zoom !== 1 || position.x !== 0 || position.y !== 0) {
+			handleResetZoom();
+		} else {
+			const viewport = viewportRef.current;
+			if (!viewport) return;
+			const rect = viewport.getBoundingClientRect();
+			const cx = e.clientX - rect.left - rect.width / 2;
+			const cy = e.clientY - rect.top - rect.height / 2;
+			const nextZoom = 2;
+			const scaleRatio = nextZoom / 1;
+			const newX = cx - cx * scaleRatio;
+			const newY = cy - cy * scaleRatio;
+			setZoom(nextZoom);
+			setPosition({
+				x: Math.round(newX * 10) / 10,
+				y: Math.round(newY * 10) / 10,
+			});
+		}
+	};
 
 	return (
 		<Modal.Backdrop
@@ -178,10 +317,10 @@ export function MaterialImageModal({
 			onOpenChange={(open) => !open && onClose()}
 			variant="blur"
 		>
-			<Modal.Container size="lg" className="w-full !max-w-4xl">
+			<Modal.Container size="lg" className="w-full !max-w-5xl">
 				<Modal.Dialog
 					aria-label={`预览图片 - ${currentMaterial?.title ?? ""}`}
-					className="w-full flex flex-col bg-surface border border-border shadow-2xl rounded-2xl overflow-hidden"
+					className="w-full !max-w-5xl flex flex-col bg-surface border border-border shadow-2xl rounded-2xl overflow-hidden"
 				>
 					<Modal.CloseTrigger />
 
@@ -258,7 +397,10 @@ export function MaterialImageModal({
 									>
 										<RotateCw className="w-3.5 h-3.5" />
 									</Button>
-									{(zoom !== 1 || rotation !== 0) && (
+									{(zoom !== 1 ||
+										rotation !== 0 ||
+										position.x !== 0 ||
+										position.y !== 0) && (
 										<Button
 											type="button"
 											variant="ghost"
@@ -289,7 +431,18 @@ export function MaterialImageModal({
 
 					{/* Modal Body / Image Viewport */}
 					<Modal.Body className="p-0 flex flex-col gap-0 select-none">
-						<div className="relative w-full h-[52vh] min-h-[360px] max-h-[600px] bg-neutral-950 flex items-center justify-center overflow-hidden">
+						{/* biome-ignore lint/a11y/noStaticElementInteractions: Interactive pan-and-zoom image canvas */}
+						<div
+							ref={viewportRef}
+							onPointerDown={handlePointerDown}
+							onPointerMove={handlePointerMove}
+							onPointerUp={handlePointerUp}
+							onPointerCancel={handlePointerUp}
+							onDoubleClick={handleDoubleClick}
+							className={`relative w-full h-[58vh] min-h-[400px] max-h-[680px] bg-neutral-950 flex items-center justify-center overflow-hidden touch-none select-none ${
+								isDragging ? "cursor-grabbing" : "cursor-grab"
+							}`}
+						>
 							{currentItem ? (
 								imageError ? (
 									<div className="text-xs text-muted flex flex-col items-center gap-2 py-12">
@@ -309,10 +462,12 @@ export function MaterialImageModal({
 											});
 										}}
 										style={{
-											transform: `scale(${zoom}) rotate(${rotation}deg)`,
-											transition: "transform 0.15s ease-out",
+											transform: `translate3d(${position.x}px, ${position.y}px, 0) scale(${zoom}) rotate(${rotation}deg)`,
+											transition: isDragging
+												? "none"
+												: "transform 0.12s ease-out",
 										}}
-										className="max-w-full max-h-full object-contain pointer-events-auto transition-transform"
+										className="max-w-full max-h-full object-contain pointer-events-none transition-transform will-change-transform"
 										draggable={false}
 									/>
 								)
@@ -328,6 +483,7 @@ export function MaterialImageModal({
 								<button
 									type="button"
 									onClick={handlePrev}
+									onPointerDown={(e) => e.stopPropagation()}
 									disabled={currentIndex <= 0}
 									className="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/60 hover:bg-black/85 text-white flex items-center justify-center backdrop-blur-md border border-white/10 transition-all hover:scale-105 active:scale-95 disabled:opacity-20 disabled:pointer-events-none cursor-pointer shadow-lg"
 									title="上一张 (← 键盘左键)"
@@ -342,6 +498,7 @@ export function MaterialImageModal({
 								<button
 									type="button"
 									onClick={handleNext}
+									onPointerDown={(e) => e.stopPropagation()}
 									disabled={currentIndex >= totalImages - 1}
 									className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/60 hover:bg-black/85 text-white flex items-center justify-center backdrop-blur-md border border-white/10 transition-all hover:scale-105 active:scale-95 disabled:opacity-20 disabled:pointer-events-none cursor-pointer shadow-lg"
 									title="下一张 (→ 键盘右键)"
@@ -444,8 +601,9 @@ export function MaterialImageModal({
 							)}
 						</div>
 
-						<div className="hidden sm:flex items-center text-[11px] text-muted/70">
-							{totalImages > 1 ? "按 ← / → 键翻页" : "可使用上方工具缩放或旋转"}
+						<div className="hidden sm:flex items-center text-[11px] text-muted/70 gap-1.5">
+							<span>滚轮缩放 · 双指滑动与拖动画布</span>
+							{totalImages > 1 && <span>· 按 ← / → 翻页</span>}
 						</div>
 
 						<div className="flex items-center gap-2">

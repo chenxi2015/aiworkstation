@@ -425,6 +425,54 @@ export class CreatorRepository {
 		return Number(res.lastInsertRowid);
 	}
 
+	/**
+	 * 批量处理（如图片压缩/格式转换）原路径替换后同步资产记录：
+	 * 文件名/扩展名、mime、体积乃至存储位置都可能变化。
+	 */
+	updateAssetFile(
+		id: number,
+		params: {
+			relPath?: string;
+			filename?: string;
+			mime?: string | null;
+			sizeBytes?: number | null;
+			storageMode?: AssetStorageMode;
+			sourcePath?: string | null;
+		},
+	): void {
+		const sets: string[] = [];
+		const values: unknown[] = [];
+		if (params.relPath !== undefined) {
+			sets.push("rel_path = ?");
+			values.push(params.relPath);
+		}
+		if (params.filename !== undefined) {
+			sets.push("filename = ?");
+			values.push(params.filename);
+		}
+		if (params.mime !== undefined) {
+			sets.push("mime = ?");
+			values.push(params.mime);
+		}
+		if (params.sizeBytes !== undefined) {
+			sets.push("size_bytes = ?");
+			values.push(params.sizeBytes);
+		}
+		if (params.storageMode !== undefined) {
+			sets.push("storage_mode = ?");
+			values.push(params.storageMode);
+		}
+		if (params.sourcePath !== undefined) {
+			sets.push("source_path = ?");
+			values.push(params.sourcePath);
+		}
+		if (sets.length === 0) return;
+		values.push(id);
+		this.db
+			.prepare(`UPDATE assets SET ${sets.join(", ")} WHERE id = ?`)
+			.run(...values);
+	}
+
 	// ================= Drafts =================
 
 	getDraft(id: number): Draft | null {

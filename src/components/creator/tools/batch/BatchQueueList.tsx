@@ -35,14 +35,14 @@ function SavingsBadge({ item }: { item: BatchItem }) {
 	const diff = item.size - item.output.size;
 	if (diff <= 0) {
 		return (
-			<span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted/10 text-muted">
+			<span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted/10 text-muted shrink-0">
 				已最小
 			</span>
 		);
 	}
 	const pct = Math.round((diff / item.size) * 100);
 	return (
-		<span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+		<span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shrink-0">
 			-{pct}%
 		</span>
 	);
@@ -90,7 +90,7 @@ export function BatchQueueList({
 	}
 
 	return (
-		<div className="p-4 rounded-xl border border-border bg-surface flex-1 flex flex-col min-h-64 overflow-hidden">
+		<div className="p-4 rounded-xl border border-border bg-surface flex-1 flex flex-col min-h-64 overflow-hidden max-h-[600px]">
 			<div className="flex items-center justify-between pb-2.5 border-b border-border/50 mb-2 shrink-0">
 				<span className="text-xs font-bold text-foreground">
 					批量队列 · {items.length} 个文件
@@ -120,18 +120,21 @@ export function BatchQueueList({
 							>
 								{item.relativePath}
 							</p>
-							<div className="flex items-center gap-1.5 mt-0.5">
-								<span className="text-[10px] text-muted font-mono">
+							<div className="flex items-center gap-1.5 mt-0.5 min-w-0">
+								<span className="text-[10px] text-muted font-mono shrink-0">
 									{formatBytes(item.size)}
 								</span>
 								{item.output && (
 									<>
-										<span className="text-[10px] text-muted">→</span>
-										<span className="text-[10px] text-foreground font-mono">
+										<span className="text-[10px] text-muted shrink-0">→</span>
+										<span className="text-[10px] text-foreground font-mono shrink-0">
 											{formatBytes(item.output.size)}
 										</span>
 										{item.output.filename !== item.name && (
-											<span className="text-[10px] text-accent font-mono">
+											<span
+												className="text-[10px] text-accent font-mono truncate min-w-0"
+												title={item.output.filename}
+											>
 												{item.output.filename}
 											</span>
 										)}

@@ -6,7 +6,7 @@ import {
 	statSync,
 	writeFileSync,
 } from "node:fs";
-import { basename, extname, join } from "node:path";
+import { basename, extname, join, relative, resolve } from "node:path";
 import { createServerFn } from "@tanstack/react-start";
 import type {
 	AssetKind,
@@ -611,4 +611,143 @@ export const openMaterialAssetsDir = createServerFn({ method: "POST" })
 			skipRootCheck: true,
 		});
 		return { opened: result.success, path: result.path };
+	});
+
+/** 批量处理支持的位图扩展名（与工具箱 image-compress 的 supportedFormats 对齐） */
+const BATCH_IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "webp", "gif", "bmp"]);
+
+export interface ImageAssetBatchEntry {
+	assetId: number;
+	materialId: number;
+	materialTitle: string;
+	filename: string;
+	mime?: string | null;
+	sizeBytes: number;
+	absPath: string;
+}
+
+/**
+ * Server Function: 解析素材图片资产为批量处理队列所需的绝对路径清单。
+ * 路径解析与 /api/assets/stream 保持一致：external 用 sourcePath，
+ * managed 用 filesRoot + relPath（含 creator/materials/<id>/ 旧结构回退）。
+ */
+export const resolveImageAssetsForBatch = createServerFn({ method: "POST" })
+	.validator((data: { materialIds: number[] }) => data)
+	.handler(
+		async ({
+			data,
+		}): Promise<{ entries: ImageAssetBatchEntry[]; skipped: number }> => {
+			const filesRoot = getFilesRootDir();
+			const entries: ImageAssetBatchEntry[] = [];
+			let skipped = 0;
+			for (const materialId of data.materialIds) {
+				const material = workbenchDb.getMaterial(materialId);
+				if (!material) continue;
+				for (const asset of material.assets ?? []) {
+					const ext = extname(asset.filename || asset.relPath)
+						.replace(/^\./, "")
+						.toLowerCase();
+					if (asset.kind !== "image" || !BATCH_IMAGE_EXTS.has(ext)) continue;
+
+					let absPath: string;
+					if (asset.storageMode === "external") {
+						if (!asset.sourcePath) {
+							skipped += 1;
+							continue;
+						}
+						absPath = resolve(asset.sourcePath);
+					} else {
+						absPath = resolve(filesRoot, asset.relPath);
+						if (!existsSync(absPath) || !statSync(absPath).isFile()) {
+							const fallback = resolve(
+								filesRoot,
+								"creator",
+								"materials",
+								String(asset.materialId),
+								asset.relPath,
+							);
+							if (existsSync(fallback) && statSync(fallback).isFile()) {
+								absPath = fallback;
+							}
+						}
+					}
+					if (!existsSync(absPath) || !statSync(absPath).isFile()) {
+						skipped += 1;
+						continue;
+					}
+					entries.push({
+						assetId: asset.id,
+						materialId: material.id,
+						materialTitle: material.title,
+						filename: basename(absPath),
+						mime: asset.mime,
+						sizeBytes: statSync(absPath).size,
+						absPath,
+					});
+				}
+			}
+			return { entries, skipped };
+		},
+	);
+
+/**
+ * Server Function: 批量处理「原路径替换」导出后同步素材资产记录。
+ * 格式转换会改变扩展名（如 .png → .webp），需更新 rel_path / source_path /
+ * filename / mime / size_bytes，否则素材库会指向已被移入回收站的旧文件。
+ */
+export const syncMaterialAssetsAfterOverwrite = createServerFn({
+	method: "POST",
+})
+	.validator(
+		(data: {
+			items: {
+				assetId: number;
+				writtenPath: string;
+				sizeBytes: number;
+				mime?: string | null;
+			}[];
+		}) => data,
+	)
+	.handler(async ({ data }): Promise<{ updated: number }> => {
+		const filesRoot = getFilesRootDir();
+		let updated = 0;
+		for (const item of data.items) {
+			const asset = workbenchDb.getAsset(item.assetId);
+			if (!asset) continue;
+			if (!existsSync(item.writtenPath)) continue;
+			const filename = basename(item.writtenPath);
+			const mime = item.mime ?? asset.mime ?? null;
+			if (asset.storageMode === "external") {
+				workbenchDb.updateAssetFile(item.assetId, {
+					sourcePath: item.writtenPath,
+					filename,
+					mime,
+					sizeBytes: item.sizeBytes,
+				});
+			} else {
+				const relPath = relative(filesRoot, item.writtenPath);
+				if (
+					relPath.startsWith("..") ||
+					resolve(filesRoot, relPath) !== resolve(item.writtenPath)
+				) {
+					// 产物落在 filesRoot 之外：降级为原位引用，避免记录失效的相对路径
+					workbenchDb.updateAssetFile(item.assetId, {
+						storageMode: "external",
+						sourcePath: item.writtenPath,
+						filename,
+						mime,
+						sizeBytes: item.sizeBytes,
+					});
+				} else {
+					workbenchDb.updateAssetFile(item.assetId, {
+						relPath,
+						filename,
+						mime,
+						sizeBytes: item.sizeBytes,
+					});
+				}
+			}
+			updated += 1;
+		}
+		return { updated };
 	});

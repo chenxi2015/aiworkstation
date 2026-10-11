@@ -6,6 +6,7 @@ import {
 	FolderOpen,
 	Images,
 	Loader2,
+	Minimize2,
 	Play,
 	Sparkles,
 	Star,
@@ -35,6 +36,7 @@ interface MaterialsGridViewProps {
 	onDelete: (material: Material) => void;
 	onPlayVideo?: (material: Material, assetId?: number) => void;
 	onPreviewImage?: (material: Material, assetId?: number) => void;
+	onProcessImage?: (material: Material) => void;
 }
 
 interface MaterialCardProps {
@@ -51,6 +53,7 @@ interface MaterialCardProps {
 	onDelete: (material: Material) => void;
 	onPlayVideo?: (material: Material, assetId?: number) => void;
 	onPreviewImage?: (material: Material, assetId?: number) => void;
+	onProcessImage?: (material: Material) => void;
 }
 
 interface MaterialCoverProps {
@@ -137,6 +140,7 @@ const MaterialCard = memo(function MaterialCard({
 	onDelete,
 	onPlayVideo,
 	onPreviewImage,
+	onProcessImage,
 }: MaterialCardProps) {
 	const kind = getMaterialKind(material);
 	const kindConfig = KIND_CONFIG[kind];
@@ -304,6 +308,22 @@ const MaterialCard = memo(function MaterialCard({
 									</Dropdown.Item>
 								)}
 
+								{hasImage && (
+									<Dropdown.Item
+										id="process-image"
+										textValue="处理图片"
+										onAction={() => onProcessImage?.(material)}
+									>
+										<div className="flex items-center gap-2 w-full py-0.5">
+											<Minimize2 className="w-3.5 h-3.5 text-emerald-500" />
+											<span className="text-xs font-medium flex-1">
+												处理图片
+												{images.length > 1 ? ` (${images.length})` : ""}
+											</span>
+										</div>
+									</Dropdown.Item>
+								)}
+
 								<Dropdown.Item
 									id="star"
 									textValue={material.starred ? "取消收藏" : "收藏"}
@@ -391,6 +411,7 @@ export function MaterialsGridView({
 	onDelete,
 	onPlayVideo,
 	onPreviewImage,
+	onProcessImage,
 }: MaterialsGridViewProps) {
 	return (
 		<div className="p-4 sm:p-5">
@@ -411,6 +432,7 @@ export function MaterialsGridView({
 						onDelete={onDelete}
 						onPlayVideo={onPlayVideo}
 						onPreviewImage={onPreviewImage}
+						onProcessImage={onProcessImage}
 					/>
 				))}
 			</ul>

@@ -372,6 +372,13 @@ export class WorkbenchDatabase {
 		return this.creatorRepo.addAsset(params);
 	}
 
+	updateAssetFile(
+		id: number,
+		params: Parameters<CreatorRepository["updateAssetFile"]>[1],
+	) {
+		return this.creatorRepo.updateAssetFile(id, params);
+	}
+
 	getDraft(id: number) {
 		return this.creatorRepo.getDraft(id);
 	}
