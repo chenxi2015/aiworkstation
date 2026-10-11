@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { stdin as input, stdout as output } from "node:process";
@@ -14,6 +14,23 @@ function run(command) {
 
 function runOutput(command) {
 	return execSync(command, { cwd: rootDir, encoding: "utf-8" }).trim();
+}
+
+// Retrieve commit messages since the previous tag
+function getReleaseCommits(prevTag) {
+	try {
+		const range = prevTag ? `v${prevTag}..HEAD` : "-n 20";
+		const logs = runOutput(
+			`git log ${range} --pretty=format:"* %s (%h)" --no-merges`,
+		);
+		if (!logs) return [];
+		return logs
+			.split("\n")
+			.map((line) => line.trim())
+			.filter((line) => line && !line.includes("chore(release):"));
+	} catch {
+		return [];
+	}
 }
 
 // Ask user confirmation via terminal
@@ -128,6 +145,7 @@ if (existingTag) {
 }
 
 // 5. Release confirmation
+const releaseCommits = getReleaseCommits(baseVersion);
 console.log(`\n📋 Release Confirmation:`);
 if (baseVersion !== pkgVersion) {
 	console.log(`   • Base version:    v${baseVersion} (Git tag; package.json was v${pkgVersion})`);
@@ -138,6 +156,17 @@ console.log(
 	`   • Target version:  v${newVersion} (${isCustomVersion ? "custom" : bumpType})`,
 );
 console.log(`   • Target branch:   main -> origin/main`);
+if (releaseCommits.length > 0) {
+	console.log(`   • Commits included (${releaseCommits.length}):`);
+	for (const commit of releaseCommits.slice(0, 15)) {
+		console.log(`     ${commit}`);
+	}
+	if (releaseCommits.length > 15) {
+		console.log(`     ... and ${releaseCommits.length - 15} more`);
+	}
+} else {
+	console.log(`   • Commits included: None detected`);
+}
 console.log(
 	`   • Actions:         Pre-flight Build -> Update package.json -> Git Commit & Tag -> Push to remote\n`,
 );
@@ -207,7 +236,16 @@ if (overwriteExistingTag) {
 console.log(`🏷️ Creating commit and tag v${newVersion}...`);
 run("git add package.json extensions/aicollector/package.json");
 run(`git commit -m "chore(release): v${newVersion}"`);
-run(`git tag -a "v${newVersion}" -m "Release v${newVersion}"`);
+
+let tagMessage = `Release v${newVersion}`;
+if (releaseCommits.length > 0) {
+	tagMessage += `\n\n### What's Changed\n\n${releaseCommits.join("\n")}`;
+}
+
+execFileSync("git", ["tag", "-a", `v${newVersion}`, "-m", tagMessage], {
+	cwd: rootDir,
+	stdio: "inherit",
+});
 
 // 11. Push commit and tag to remote
 console.log("⬆️ Pushing changes and tags to origin main...");

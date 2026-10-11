@@ -34,6 +34,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -80,12 +82,43 @@ jobs:
       - name: Zip Firefox extension
         run: pnpm run zip:extension:firefox
 
+      # Generate release notes from git commits between tags
+      - name: Generate Release Notes
+        id: release_notes
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          git fetch --tags --force 2>/dev/null || true
+          PREV_TAG=$(git describe --tags --abbrev=0 --exclude="${GITHUB_REF_NAME}" HEAD^ 2>/dev/null || true)
+          if [ -n "$PREV_TAG" ]; then
+            COMMITS=$(git log "${PREV_TAG}..HEAD" --pretty=format:"* %s (%h)" --no-merges | grep -v "chore(release):" || true)
+          else
+            COMMITS=$(git log --pretty=format:"* %s (%h)" --no-merges -n 30 | grep -v "chore(release):" || true)
+          fi
+
+          DELIMITER="RELEASE_NOTES_$(date +%s)"
+          {
+            echo "body<<$DELIMITER"
+            if [ -n "$COMMITS" ]; then
+              echo "### What's Changed"
+              echo ""
+              echo "$COMMITS"
+              echo ""
+            fi
+            if [ -n "$PREV_TAG" ]; then
+              echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${GITHUB_REF_NAME}"
+            fi
+            echo "$DELIMITER"
+          } >> "$GITHUB_OUTPUT"
+
       # Single upload point: find-or-create the release for this tag and attach
       # every artifact atomically (overwrites same-name assets on re-runs).
       - name: Release to GitHub Releases
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
+          body: ${{ steps.release_notes.outputs.body }}
+          generate_release_notes: true
           files: |
             dist/*.dmg
             dist/*.zip
