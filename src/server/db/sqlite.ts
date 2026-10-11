@@ -368,6 +368,12 @@ export class WorkbenchDatabase {
 		return this.creatorRepo.getAsset(id);
 	}
 
+	listMediaAssetsPage(
+		params: Parameters<CreatorRepository["listMediaAssetsPage"]>[0],
+	) {
+		return this.creatorRepo.listMediaAssetsPage(params);
+	}
+
 	addAsset(params: Parameters<CreatorRepository["addAsset"]>[0]) {
 		return this.creatorRepo.addAsset(params);
 	}

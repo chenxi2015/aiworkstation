@@ -4,6 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { useFloatingDockAction } from "../shell/FloatingDock";
 import { AiBubbleMenu } from "./AiBubbleMenu";
 import { EditorToolbar } from "./components/EditorToolbar";
+import {
+	MaterialPickerDialog,
+	type PickedMaterialAsset,
+} from "./components/MaterialPickerDialog";
 import { PipelineProgressFloatingBar } from "./components/PipelineProgressFloatingBar";
 import { SlashCommandMenu } from "./components/SlashCommandMenu";
 import { TableActionMenu } from "./components/TableActionMenu";
@@ -11,6 +15,7 @@ import { EditorMediaContext } from "./extensions/MediaNodeView";
 import { useEditorMediaUpload } from "./hooks/useEditorMediaUpload";
 import { useParagraphRewritePipeline } from "./hooks/useParagraphRewritePipeline";
 import { useRichTextEditor } from "./hooks/useRichTextEditor";
+import type { MaterialToolKind } from "./toolbar/materialTools";
 
 export interface RichTextEditorProps {
 	/** 文档 id（媒体上传需要） */
@@ -55,6 +60,10 @@ export function RichTextEditor({
 }: RichTextEditorProps) {
 	const [preview, setPreview] = useState(false);
 	const [showScrollTop, setShowScrollTop] = useState(false);
+	const [materialPicker, setMaterialPicker] = useState<{
+		open: boolean;
+		kind: MaterialToolKind;
+	}>({ open: false, kind: "all" });
 	const editorRef = useRef<Editor | null>(null);
 	const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -107,6 +116,14 @@ export function RichTextEditor({
 
 	if (!editor) return null;
 
+	const openMaterialPicker = (kind: MaterialToolKind) =>
+		setMaterialPicker({ open: true, kind });
+
+	const handleInsertMaterialAssets = (items: PickedMaterialAsset[]) => {
+		setMaterialPicker((prev) => ({ ...prev, open: false }));
+		void mediaUpload.insertMaterialAssets(items);
+	};
+
 	const togglePreview = () => {
 		const currentScroll = scrollContainerRef.current?.scrollTop ?? 0;
 		const next = !preview;
@@ -135,6 +152,7 @@ export function RichTextEditor({
 				onTogglePreview={togglePreview}
 				onSelectLocalImages={mediaUpload.triggerSelectLocalImages}
 				onSelectLocalVideos={mediaUpload.triggerSelectLocalVideos}
+				onOpenMaterialPicker={openMaterialPicker}
 				onInsertImageUrl={mediaUpload.insertImageFromUrl}
 				onInsertVideoUrl={mediaUpload.insertVideoFromUrl}
 				onOpenImport={onOpenImport}
@@ -168,6 +186,7 @@ export function RichTextEditor({
 						if (kind === "image") mediaUpload.triggerSelectLocalImages();
 						else mediaUpload.triggerSelectLocalVideos();
 					}}
+					onSelectMaterial={(kind) => openMaterialPicker(kind)}
 				/>
 			)}
 
@@ -237,6 +256,15 @@ export function RichTextEditor({
 					if (files.length > 0) mediaUpload.insertAndUploadMediaFiles(files);
 					e.target.value = "";
 				}}
+			/>
+
+			{/* 素材库选择器（工具栏「素材库」下拉 / 斜杠命令触发） */}
+			<MaterialPickerDialog
+				isOpen={materialPicker.open}
+				initialKind={materialPicker.kind}
+				inserting={mediaUpload.uploading}
+				onClose={() => setMaterialPicker((prev) => ({ ...prev, open: false }))}
+				onInsert={handleInsertMaterialAssets}
 			/>
 		</div>
 	);

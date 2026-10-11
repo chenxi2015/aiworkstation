@@ -12,6 +12,7 @@ import {
 	downloadExternalAssetToDocument,
 	duplicateDocument,
 	generateAiBarText,
+	importMaterialAssetToDocument,
 	listArchivedDocuments,
 	listDocumentFolders,
 	listDocuments,
@@ -163,6 +164,16 @@ export async function uploadAssetRpc(
 	formData.append("documentId", String(documentId));
 	formData.append("file", file);
 	return await uploadDocumentAsset({ data: formData });
+}
+
+/** 从素材库复制资产到当前稿件本地资产目录（文档自包含，素材删移不影响文档） */
+export async function importMaterialAssetToDocumentRpc(
+	documentId: number,
+	assetId: number,
+): Promise<{ url: string; filename: string; kind: string }> {
+	return await importMaterialAssetToDocument({
+		data: { documentId, assetId },
+	});
 }
 
 /** 下载外链图片/视频并转存到当前稿件本地资产目录（免跨域，微信防盗链可破） */

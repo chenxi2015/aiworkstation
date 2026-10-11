@@ -72,6 +72,27 @@ const HeadlessChart = Node.create({
 });
 
 /**
+ * Headless Audio node definition for HTML/Markdown roundtrip serialization without React runtime
+ */
+const HeadlessAudio = Node.create({
+	name: "audio",
+	group: "block",
+	atom: true,
+	addAttributes() {
+		return {
+			src: { default: null },
+			title: { default: null },
+		};
+	},
+	parseHTML() {
+		return [{ tag: "audio[src]" }];
+	},
+	renderHTML({ HTMLAttributes }) {
+		return ["audio", mergeAttributes(HTMLAttributes, { controls: "true" })];
+	},
+});
+
+/**
  * Shared core extensions for TipTap schema and AST conversion (works isomorphically in Browser and Node.js)
  */
 export const coreConversionExtensions = [
@@ -90,6 +111,7 @@ export const coreConversionExtensions = [
 	}),
 	Image.configure({ inline: false, allowBase64: true }),
 	HeadlessVideo,
+	HeadlessAudio,
 	HeadlessChart,
 	...getStylePreservationExtensions(),
 	...SuggestionDiffExtensions,
@@ -173,6 +195,16 @@ export function tiptapJsonToMarkdown(doc: JSONContent): string {
 						const spec =
 							typeof node.attrs?.spec === "string" ? node.attrs.spec : "";
 						return `\n\`\`\`chart\n${spec}\n\`\`\`\n`;
+					},
+					// 音频序列化为链接行（Markdown 无音频语法，保留可点击的来源地址）
+					audio({ node }) {
+						const src =
+							typeof node.attrs?.src === "string" ? node.attrs.src : "";
+						const title =
+							typeof node.attrs?.title === "string" && node.attrs.title
+								? node.attrs.title
+								: "音频";
+						return src ? `\n[🎵 ${title}](${src})\n` : "";
 					},
 					// static-renderer 默认 heading 直接把 children 数组插值进模板字符串，
 					// 多个内联子节点会被 Array.toString() 用逗号拼接（产生孤立的 ","），这里覆盖修正

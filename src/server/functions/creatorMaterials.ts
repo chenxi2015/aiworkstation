@@ -65,6 +65,24 @@ export const listCreatorMaterials = createServerFn({ method: "GET" }).handler(
 );
 
 /**
+ * Server Function: 媒体资产分页查询（创作台编辑器素材选择器专用，
+ * docs/studio-materials-link-plan.md；避免一次性摊平全部资产）
+ */
+export const listMediaAssetsPage = createServerFn({ method: "GET" })
+	.validator(
+		(data: {
+			kind: "image" | "video" | "audio";
+			folderId?: number | null;
+			query?: string;
+			page: number;
+			pageSize: number;
+		}) => data,
+	)
+	.handler(async ({ data }) => {
+		return workbenchDb.listMediaAssetsPage(data);
+	});
+
+/**
  * Server Function: 已归档素材列表（归档 Tab 展示，含文件资产关联）
  */
 export const listArchivedCreatorMaterials = createServerFn({

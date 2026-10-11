@@ -21,10 +21,12 @@ import {
 	Video,
 } from "lucide-react";
 import { useState } from "react";
+import type { MaterialToolKind } from "../toolbar/materialTools";
 import { AlignDropdown } from "./AlignDropdown";
 import { ColorDropdown } from "./ColorDropdown";
 import { HeadingDropdown } from "./HeadingDropdown";
 import { ListDropdown } from "./ListDropdown";
+import { MaterialToolsDropdown } from "./MaterialToolsDropdown";
 import { SourceCodeModal } from "./SourceCodeModal";
 import { ThemeColorDropdown } from "./ThemeColorDropdown";
 import { UrlInputPopover } from "./UrlInputPopover";
@@ -72,6 +74,7 @@ export interface EditorToolbarProps {
 	onTogglePreview: () => void;
 	onSelectLocalImages: () => void;
 	onSelectLocalVideos: () => void;
+	onOpenMaterialPicker: (kind: MaterialToolKind) => void;
 	onInsertImageUrl: (url: string) => void;
 	onInsertVideoUrl: (url: string) => void;
 	onOpenImport?: () => void;
@@ -89,6 +92,7 @@ export function EditorToolbar({
 	onTogglePreview,
 	onSelectLocalImages,
 	onSelectLocalVideos,
+	onOpenMaterialPicker,
 	onInsertImageUrl,
 	onInsertVideoUrl,
 	onOpenImport,
@@ -250,6 +254,10 @@ export function EditorToolbar({
 						label="本地视频"
 						disabled={uploading}
 						onClick={onSelectLocalVideos}
+					/>
+					<MaterialToolsDropdown
+						onOpenMaterialPicker={onOpenMaterialPicker}
+						disabled={uploading}
 					/>
 					<div className="relative inline-block">
 						<button

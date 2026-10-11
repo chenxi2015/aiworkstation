@@ -172,6 +172,12 @@ function preprocessHtmlForExport(
 		video.replaceWith(p);
 	}
 
+	for (const audio of Array.from(container.querySelectorAll("audio"))) {
+		const p = docDom.createElement("p");
+		p.textContent = `[🎵 音频: ${audio.getAttribute("src") || ""}]`;
+		audio.replaceWith(p);
+	}
+
 	return container.innerHTML;
 }
 

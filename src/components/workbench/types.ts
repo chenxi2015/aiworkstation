@@ -155,6 +155,8 @@ export interface WorkbenchSettings {
 	folderGridView?: FolderGridView;
 	// 创作模块（editor）自定义行文风格预设
 	editorStylePresets?: import("../editor/types.ts").EditorStylePreset[];
+	// 创作台工具栏素材工具的自定义布局（显隐/顺序），未设置时按注册表默认
+	editorToolbarLayout?: import("../editor/toolbar/materialTools.ts").EditorToolbarLayoutEntry[];
 }
 
 export type SearchMode = "hybrid" | "semantic" | "keyword";

@@ -5,6 +5,7 @@ import type {
 	DraftVariant,
 	DraftWithMaterial,
 	Material,
+	MaterialAsset,
 	MaterialFolder,
 } from "../../components/creator/types";
 import type { WorkbenchItem } from "../../components/workbench/types";
@@ -32,6 +33,7 @@ import {
 	listArchivedCreatorMaterials,
 	listCreatorMaterials,
 	listMaterialFolders,
+	listMediaAssetsPage,
 	openMaterialAssetsDir,
 	pickLocalPaths,
 	searchBookmarksForPicker,
@@ -81,6 +83,22 @@ export async function fetchMaterials(): Promise<Material[]> {
 	}
 }
 
+/** 媒体资产分页查询（创作台编辑器素材选择器专用） */
+export interface MediaAssetsPage {
+	items: Array<{ asset: MaterialAsset; materialTitle: string }>;
+	total: number;
+	counts: { image: number; video: number; audio: number };
+}
+
+export async function fetchMediaAssetsPage(params: {
+	kind: "image" | "video" | "audio";
+	folderId?: number | null;
+	query?: string;
+	page: number;
+	pageSize: number;
+}): Promise<MediaAssetsPage> {
+	return await listMediaAssetsPage({ data: params });
+}
 /** 已归档素材（归档 Tab） */
 export async function fetchArchivedMaterials(): Promise<Material[]> {
 	try {

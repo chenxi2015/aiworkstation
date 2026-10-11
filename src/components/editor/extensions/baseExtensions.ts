@@ -8,6 +8,7 @@ import TaskItem from "@tiptap/extension-task-item";
 import TaskList from "@tiptap/extension-task-list";
 import TextAlign from "@tiptap/extension-text-align";
 import StarterKit from "@tiptap/starter-kit";
+import { AudioNode } from "../audioNode";
 import { VideoNode } from "../videoNode";
 import { AiSelectionHighlight } from "./aiSelectionHighlight";
 import { CodeBlockWithHighlight } from "./CodeBlockWithHighlight";
@@ -46,6 +47,7 @@ export function getEditorBaseExtensions(options?: { placeholder?: string }) {
 			},
 		}),
 		VideoNode,
+		AudioNode,
 		ChartNode,
 		Table.configure({
 			resizable: true,

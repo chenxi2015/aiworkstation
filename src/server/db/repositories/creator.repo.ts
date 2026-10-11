@@ -395,6 +395,96 @@ export class CreatorRepository {
 		return row ? rowToAsset(row) : null;
 	}
 
+	/**
+	 * 媒体资产分页查询（创作台编辑器素材选择器专用，docs/studio-materials-link-plan.md）。
+	 * 直接 JOIN 摊平 assets × materials，避免整表加载；counts 统计三类媒体总量（不受筛选影响）。
+	 */
+	listMediaAssetsPage(params: {
+		kind: "image" | "video" | "audio";
+		folderId?: number | null;
+		query?: string;
+		page: number;
+		pageSize: number;
+	}): {
+		items: Array<{ asset: MaterialAsset; materialTitle: string }>;
+		total: number;
+		counts: { image: number; video: number; audio: number };
+	} {
+		// 视频识别与客户端 isVideoAsset 对齐：kind='video' 或常见视频扩展名
+		const VIDEO_COND = `(a.kind = 'video' OR lower(a.filename) LIKE '%.mp4' OR lower(a.filename) LIKE '%.mov' OR lower(a.filename) LIKE '%.webm' OR lower(a.filename) LIKE '%.mkv' OR lower(a.filename) LIKE '%.m4v')`;
+		const kindCond =
+			params.kind === "image"
+				? "a.kind = 'image'"
+				: params.kind === "video"
+					? VIDEO_COND
+					: "a.kind = 'audio'";
+
+		const conditions = ["m.status = 'active'", kindCond];
+		const args: (string | number)[] = [];
+		if (params.folderId != null) {
+			conditions.push("m.folder_id = ?");
+			args.push(params.folderId);
+		}
+		const keyword = params.query?.trim();
+		if (keyword) {
+			conditions.push("(a.filename LIKE ? OR m.title LIKE ?)");
+			const like = `%${keyword}%`;
+			args.push(like, like);
+		}
+		const where = conditions.join(" AND ");
+
+		const total =
+			(
+				this.db
+					.prepare(
+						`SELECT COUNT(*) AS c FROM assets a JOIN materials m ON m.id = a.material_id WHERE ${where}`,
+					)
+					.get(...args) as { c: number }
+			)?.c ?? 0;
+
+		const page = Math.max(1, params.page);
+		const pageSize = Math.min(Math.max(1, params.pageSize), 200);
+		const rows = this.db
+			.prepare(
+				`SELECT a.*, m.title AS material_title
+         FROM assets a JOIN materials m ON m.id = a.material_id
+         WHERE ${where}
+         ORDER BY m.updated_at DESC, a.id ASC
+         LIMIT ? OFFSET ?`,
+			)
+			.all(...args, pageSize, (page - 1) * pageSize) as Array<
+			AssetRow & { material_title: string }
+		>;
+
+		const countsRow = this.db
+			.prepare(
+				`SELECT
+           SUM(CASE WHEN a.kind = 'image' THEN 1 ELSE 0 END) AS image,
+           SUM(CASE WHEN ${VIDEO_COND} THEN 1 ELSE 0 END) AS video,
+           SUM(CASE WHEN a.kind = 'audio' THEN 1 ELSE 0 END) AS audio
+         FROM assets a JOIN materials m ON m.id = a.material_id
+         WHERE m.status = 'active'`,
+			)
+			.get() as {
+			image: number | null;
+			video: number | null;
+			audio: number | null;
+		};
+
+		return {
+			items: rows.map((r) => ({
+				asset: rowToAsset(r),
+				materialTitle: r.material_title ?? "",
+			})),
+			total,
+			counts: {
+				image: countsRow?.image ?? 0,
+				video: countsRow?.video ?? 0,
+				audio: countsRow?.audio ?? 0,
+			},
+		};
+	}
+
 	addAsset(params: {
 		materialId: number;
 		relPath: string;

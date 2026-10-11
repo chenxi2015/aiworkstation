@@ -1,5 +1,13 @@
-import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { extname, join } from "node:path";
+import {
+	copyFileSync,
+	cpSync,
+	existsSync,
+	mkdirSync,
+	rmSync,
+	statSync,
+	writeFileSync,
+} from "node:fs";
+import { basename, extname, join, resolve } from "node:path";
 import { chat } from "@tanstack/ai";
 import { openaiCompatibleText } from "@tanstack/ai-openai/compatible";
 import { createServerFn } from "@tanstack/react-start";
@@ -349,6 +357,90 @@ export const uploadDocumentAsset = createServerFn({ method: "POST" })
 		const relPath = `editor/documents/${documentId}/${finalName}`;
 		return { url: `/api/files/${relPath}`, filename: finalName };
 	});
+
+/**
+ * Server Function: 从素材库复制资产到当前文档媒体目录（docs/studio-materials-link-plan.md：
+ * 插入 = 复制不是引用，文档自包含，素材日后删除/移动不影响文档）。
+ * managed 资产相对 filesRootDir 解析，external 原位资产从 sourcePath 复制。
+ */
+export const importMaterialAssetToDocument = createServerFn({
+	method: "POST",
+})
+	.validator((data: { documentId: number; assetId: number }) => data)
+	.handler(
+		async ({
+			data,
+		}): Promise<{ url: string; filename: string; kind: string }> => {
+			const { documentId, assetId } = data;
+			if (!Number.isInteger(documentId) || documentId <= 0) {
+				throw new Error("documentId 非法");
+			}
+			if (!Number.isInteger(assetId) || assetId <= 0) {
+				throw new Error("assetId 非法");
+			}
+			if (!workbenchDb.getDocument(documentId)) throw new Error("文档不存在");
+			const asset = workbenchDb.getAsset(assetId);
+			if (!asset) throw new Error("素材资产不存在");
+
+			const filesRoot = getFilesRootDir();
+			let sourceAbs: string;
+
+			if (asset.storageMode === "external") {
+				// 外部原位引用：路径由用户导入时登记，信任级别对齐 /api/assets/stream
+				if (!asset.sourcePath) throw new Error("外部素材未记录原始路径");
+				sourceAbs = resolve(asset.sourcePath);
+			} else {
+				sourceAbs = resolve(filesRoot, asset.relPath);
+				// 兼容历史工具落盘的素材：rel_path 可能只是文件名，实际位于素材目录下
+				if (
+					(!existsSync(sourceAbs) || !statSync(sourceAbs).isFile()) &&
+					asset.materialId
+				) {
+					const fallback = resolve(
+						filesRoot,
+						"creator",
+						"materials",
+						String(asset.materialId),
+						asset.relPath,
+					);
+					if (existsSync(fallback) && statSync(fallback).isFile()) {
+						sourceAbs = fallback;
+					}
+				}
+				assertPathWithinRoot(sourceAbs, filesRoot);
+			}
+
+			if (!existsSync(sourceAbs) || !statSync(sourceAbs).isFile()) {
+				throw new Error("素材原始文件不存在或已被移动/删除");
+			}
+
+			const destDir = getDocumentAssetsDir(documentId);
+			assertPathWithinRoot(destDir, filesRoot);
+			assertWritablePath(destDir);
+			mkdirSync(destDir, { recursive: true });
+
+			// 重名去重：name.png → name-1.png / name-2.png（与 uploadDocumentAsset 同规则）
+			const rawName = asset.filename || basename(sourceAbs) || "asset";
+			const ext = extname(rawName);
+			const stem = rawName.slice(0, rawName.length - ext.length);
+			let finalName = rawName;
+			let counter = 1;
+			while (existsSync(join(destDir, finalName))) {
+				finalName = `${stem}-${counter}${ext}`;
+				counter += 1;
+			}
+
+			copyFileSync(sourceAbs, join(destDir, finalName));
+
+			// rel 路径相对 filesRootDir，由 /api/files/ 静态服务回读
+			const relPath = `editor/documents/${documentId}/${finalName}`;
+			return {
+				url: `/api/files/${relPath}`,
+				filename: finalName,
+				kind: asset.kind,
+			};
+		},
+	);
 
 interface PlatformRefererRule {
 	matches: (hostname: string) => boolean;

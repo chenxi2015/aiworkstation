@@ -1,16 +1,19 @@
 import type { Editor, Range } from "@tiptap/core";
 import {
 	ChartColumn,
+	Clapperboard,
 	Code2,
 	CornerDownLeft,
 	Heading1,
 	Heading2,
 	Heading3,
 	ImagePlus,
+	Images,
 	List,
 	ListOrdered,
 	ListTodo,
 	Minus,
+	Music,
 	Pilcrow,
 	Quote,
 	Table as TableIcon,
@@ -42,6 +45,7 @@ export interface SlashCommandMenuProps {
 	clientRect: (() => DOMRect | null) | null;
 	onClose: () => void;
 	onSelectMedia?: (kind: "image" | "video") => void;
+	onSelectMaterial?: (kind: "image" | "video" | "audio") => void;
 }
 
 export interface SlashCommandMenuRef {
@@ -52,7 +56,15 @@ export const SlashCommandMenu = forwardRef<
 	SlashCommandMenuRef,
 	SlashCommandMenuProps
 >(function SlashCommandMenu(
-	{ editor, range, query, clientRect, onClose, onSelectMedia },
+	{
+		editor,
+		range,
+		query,
+		clientRect,
+		onClose,
+		onSelectMedia,
+		onSelectMaterial,
+	},
 	ref,
 ) {
 	const [selectedIndex, setSelectedIndex] = useState(0);
@@ -252,8 +264,41 @@ export const SlashCommandMenu = forwardRef<
 					onSelectMedia?.("video");
 				},
 			},
+			{
+				id: "material-image",
+				title: "素材库图片",
+				description: "从素材库挑选图片插入",
+				icon: Images,
+				keywords: ["material", "sucai", "sc", "tupian", "素材", "图片"],
+				command: ({ editor, range }) => {
+					editor.chain().focus().deleteRange(range).run();
+					onSelectMaterial?.("image");
+				},
+			},
+			{
+				id: "material-video",
+				title: "素材库视频",
+				description: "从素材库挑选视频插入",
+				icon: Clapperboard,
+				keywords: ["material", "sucai", "sc", "shipin", "素材", "视频"],
+				command: ({ editor, range }) => {
+					editor.chain().focus().deleteRange(range).run();
+					onSelectMaterial?.("video");
+				},
+			},
+			{
+				id: "material-audio",
+				title: "素材库音频",
+				description: "从素材库挑选音频插入",
+				icon: Music,
+				keywords: ["material", "sucai", "sc", "yinpin", "yp", "素材", "音频"],
+				command: ({ editor, range }) => {
+					editor.chain().focus().deleteRange(range).run();
+					onSelectMaterial?.("audio");
+				},
+			},
 		],
-		[onSelectMedia],
+		[onSelectMedia, onSelectMaterial],
 	);
 
 	// Filter based on user query

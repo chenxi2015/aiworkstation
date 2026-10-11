@@ -141,7 +141,9 @@ export function updateMediaSrc(editor: Editor, oldSrc: string, newSrc: string) {
 	editor.state.doc.descendants((node, pos) => {
 		if (found) return false;
 		if (
-			(node.type.name === "image" || node.type.name === "video") &&
+			(node.type.name === "image" ||
+				node.type.name === "video" ||
+				node.type.name === "audio") &&
 			node.attrs.src === oldSrc
 		) {
 			editor.view.dispatch(
