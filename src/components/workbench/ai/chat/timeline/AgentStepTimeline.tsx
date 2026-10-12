@@ -1,4 +1,3 @@
-import { ScrollShadow } from "@heroui/react";
 import { ChevronRight, Loader2 } from "lucide-react";
 import { memo, useMemo, useState } from "react";
 import { formatDurationMs } from "../../../../../lib/utils.ts";
@@ -6,7 +5,7 @@ import { AgentStepItem } from "./AgentStepItem.tsx";
 import type { AgentStepTimelineProps } from "./types.ts";
 
 /**
- * Modern minimalist Agent step timeline container wrapped in ScrollShadow
+ * Modern minimalist Agent step timeline container
  */
 export const AgentStepTimeline = memo(function AgentStepTimeline({
 	steps = [],
@@ -15,7 +14,7 @@ export const AgentStepTimeline = memo(function AgentStepTimeline({
 	defaultOpen = true,
 }: AgentStepTimelineProps) {
 	const [isOpen, setIsOpen] = useState<boolean>(() => defaultOpen ?? true);
-	const [expandedStepIds, setExpandedStepIds] = useState<Set<string>>(
+	const [expandedStepKeys, setExpandedStepKeys] = useState<Set<string>>(
 		new Set(),
 	);
 
@@ -31,14 +30,14 @@ export const AgentStepTimeline = memo(function AgentStepTimeline({
 
 	if (!steps || steps.length === 0) return null;
 
-	const handleToggleStepExpand = (id: string, e: React.MouseEvent) => {
+	const handleToggleStepExpand = (stepKey: string, e: React.MouseEvent) => {
 		e.stopPropagation();
-		setExpandedStepIds((prev) => {
+		setExpandedStepKeys((prev) => {
 			const next = new Set(prev);
-			if (next.has(id)) {
-				next.delete(id);
+			if (next.has(stepKey)) {
+				next.delete(stepKey);
 			} else {
-				next.add(id);
+				next.add(stepKey);
 			}
 			return next;
 		});
@@ -71,21 +70,22 @@ export const AgentStepTimeline = memo(function AgentStepTimeline({
 				</button>
 			)}
 
-			{/* Tool items stream wrapped in bounded ScrollShadow */}
+			{/* Tool items stream rendered in a clean flow */}
 			{isOpen && (
-				<ScrollShadow
-					className="max-h-[200px] overflow-y-auto space-y-0.5 pr-1 py-0.5"
-					size={16}
-				>
-					{steps.map((step, idx) => (
-						<AgentStepItem
-							key={step.id ? `${step.id}-${idx}` : `step-${idx}`}
-							step={step}
-							isExpanded={expandedStepIds.has(step.id)}
-							onToggleExpand={handleToggleStepExpand}
-						/>
-					))}
-				</ScrollShadow>
+				<div className="space-y-0.5 py-0.5">
+					{steps.map((step, idx) => {
+						const stepKey = step.id ? `${step.id}-${idx}` : `step-${idx}`;
+						return (
+							<AgentStepItem
+								key={stepKey}
+								stepKey={stepKey}
+								step={step}
+								isExpanded={expandedStepKeys.has(stepKey)}
+								onToggleExpand={handleToggleStepExpand}
+							/>
+						);
+					})}
+				</div>
 			)}
 		</div>
 	);

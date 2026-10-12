@@ -1,4 +1,5 @@
-﻿import { useNavigate } from "@tanstack/react-router";
+import { ScrollShadow } from "@heroui/react";
+import { useNavigate } from "@tanstack/react-router";
 import {
 	ChevronDown,
 	ChevronRight,
@@ -16,6 +17,7 @@ import type { AgentStepItemProps } from "./types.ts";
  */
 export const AgentStepItem = memo(function AgentStepItem({
 	step,
+	stepKey,
 	isExpanded,
 	onToggleExpand,
 }: AgentStepItemProps) {
@@ -23,13 +25,18 @@ export const AgentStepItem = memo(function AgentStepItem({
 	const diffStat = extractDiffStat(step.args, step.summary);
 	const navigate = useNavigate();
 	const navigation = step.status === "completed" ? step.navigation : undefined;
+	const activeKey = stepKey || step.id || "step";
+
+	const hasDetails =
+		Boolean(step.args && Object.keys(step.args).length > 0) ||
+		Boolean(step.summary);
 
 	return (
 		<div className="group/item">
 			{/* Step action line button */}
 			<button
 				type="button"
-				onClick={(e) => onToggleExpand(step.id, e)}
+				onClick={(e) => onToggleExpand(activeKey, e)}
 				className="w-full flex items-center justify-between text-left py-1 px-1.5 -ml-1.5 rounded-md hover:bg-neutral-100/70 dark:hover:bg-neutral-800/40 transition-colors cursor-pointer select-none"
 			>
 				<div className="flex items-center gap-2 min-w-0 flex-1">
@@ -79,31 +86,39 @@ export const AgentStepItem = memo(function AgentStepItem({
 			{isExpanded && (
 				<div className="mt-1 mb-2 ml-6 p-2 rounded-lg bg-neutral-50/90 dark:bg-neutral-900/60 border border-neutral-200/60 dark:border-neutral-800 space-y-2 text-xs">
 					{/* Tool identifier & execution time */}
-					<div className="flex items-center justify-between text-[11px] text-neutral-400 border-b border-neutral-200/50 dark:border-neutral-800/80 pb-1">
+					<div className="flex items-center justify-between text-[11px] text-neutral-400 border-b border-neutral-200/50 dark:border-neutral-800/80 pb-1 select-none">
 						<span className="font-mono">工具: {step.toolName}</span>
 						{step.timestamp && (
 							<span className="font-mono">{step.timestamp}</span>
 						)}
 					</div>
 
-					{/* Invocation arguments */}
-					{step.args && Object.keys(step.args).length > 0 && (
-						<div>
-							<span className="text-neutral-400 text-[10.5px]">入参:</span>
-							<pre className="mt-0.5 p-1.5 rounded bg-white dark:bg-neutral-950 text-neutral-800 dark:text-neutral-200 overflow-x-auto text-[11px] font-mono border border-neutral-200/60 dark:border-neutral-800">
-								{JSON.stringify(step.args, null, 2)}
-							</pre>
-						</div>
-					)}
+					{/* Step arguments & results in an isolated ScrollShadow container */}
+					{hasDetails && (
+						<ScrollShadow
+							size={20}
+							className="max-h-[280px] overflow-y-auto space-y-2 pr-1 select-text"
+						>
+							{/* Invocation arguments */}
+							{step.args && Object.keys(step.args).length > 0 && (
+								<div>
+									<span className="text-neutral-400 text-[10.5px]">入参:</span>
+									<pre className="mt-0.5 p-1.5 rounded bg-white dark:bg-neutral-950 text-neutral-800 dark:text-neutral-200 overflow-x-auto text-[11px] font-mono border border-neutral-200/60 dark:border-neutral-800 whitespace-pre-wrap break-all">
+										{JSON.stringify(step.args, null, 2)}
+									</pre>
+								</div>
+							)}
 
-					{/* Execution output summary */}
-					{step.summary && (
-						<div>
-							<span className="text-neutral-400 text-[10.5px]">结果响应:</span>
-							<div className="mt-0.5 p-2 rounded bg-white/80 dark:bg-neutral-950/60 text-neutral-700 dark:text-neutral-300 text-xs overflow-x-auto border border-neutral-200/60 dark:border-neutral-800">
-								<AiMarkdownRenderer content={step.summary} compact={true} />
-							</div>
-						</div>
+							{/* Execution output summary */}
+							{step.summary && (
+								<div>
+									<span className="text-neutral-400 text-[10.5px]">结果响应:</span>
+									<div className="mt-0.5 p-2 rounded bg-white/80 dark:bg-neutral-950/60 text-neutral-700 dark:text-neutral-300 text-xs overflow-x-auto border border-neutral-200/60 dark:border-neutral-800">
+										<AiMarkdownRenderer content={step.summary} compact={true} />
+									</div>
+								</div>
+							)}
+						</ScrollShadow>
 					)}
 
 					{/* Artifact navigation card (headless/cross-module results) */}

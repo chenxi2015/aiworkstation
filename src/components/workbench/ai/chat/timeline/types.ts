@@ -1,4 +1,4 @@
-﻿import type { LucideIcon } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import type { AgentStep } from "../../../../../types/agent.ts";
 
 /**
@@ -23,8 +23,9 @@ export type ToolStrategy = (
  */
 export interface AgentStepItemProps {
 	step: AgentStep;
+	stepKey?: string;
 	isExpanded: boolean;
-	onToggleExpand: (stepId: string, e: React.MouseEvent) => void;
+	onToggleExpand: (stepKey: string, e: React.MouseEvent) => void;
 }
 
 /**
