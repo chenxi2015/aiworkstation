@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { invalidateVaultNoteCache } from "../../../services/api/obsidianClient";
 
 const LAST_NOTE_STORAGE_KEY = "obsidian_last_selected_note";
 
@@ -55,7 +56,11 @@ export function useNoteHistory(options: UseNoteHistoryOptions = {}) {
 
 	const openNote = useCallback((path: string) => {
 		setNoteHistory((prev) => {
-			if (prev.stack[prev.index] === path) return prev;
+			if (prev.stack[prev.index] === path) {
+				// Same path re-selected (e.g. re-clicking an artifact card): bump a
+				// fresh state object so listeners still react and reload the note.
+				return { ...prev };
+			}
 			const stack = [...prev.stack.slice(0, prev.index + 1), path];
 			return { stack, index: stack.length - 1 };
 		});
@@ -142,11 +147,16 @@ export function useNoteHistory(options: UseNoteHistoryOptions = {}) {
 		return () => window.removeEventListener("keydown", onKeyDown);
 	}, [goBack, goForward]);
 
-	// Deep link: open initial note when provided
-	const initialNoteHandledRef = useRef(false);
+	// Deep link: open the note requested via the ?note= search param. Reacts to
+	// every param change (e.g. clicking an artifact card navigates again) and
+	// drops the stale client cache so headless writes always render fresh.
+	const lastOpenedInitialRef = useRef<string | null>(null);
 	useEffect(() => {
-		if (initialNoteHandledRef.current || !initialNotePath) return;
-		initialNoteHandledRef.current = true;
+		if (!initialNotePath || lastOpenedInitialRef.current === initialNotePath) {
+			return;
+		}
+		lastOpenedInitialRef.current = initialNotePath;
+		invalidateVaultNoteCache(initialNotePath);
 		openNote(initialNotePath);
 	}, [initialNotePath, openNote]);
 

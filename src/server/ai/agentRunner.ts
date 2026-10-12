@@ -73,18 +73,19 @@ export async function runAgentStream(
 				status: "running",
 				timestamp: new Date().toLocaleTimeString(),
 			};
-			activeSteps.set(toolName, step);
+			activeSteps.set(stepId, step);
 			emit({ type: "step_start", step });
+			return stepId;
 		},
-		onToolEnd: (toolName, summary, ok, durationMs, navigation) => {
-			const existing = activeSteps.get(toolName);
+		onToolEnd: (toolName, summary, ok, durationMs, navigation, stepId) => {
+			const existing = stepId ? activeSteps.get(stepId) : undefined;
 			if (ok && summary) {
 				completedStepSummaries.push(`【${toolName}】\n${summary}`);
 			} else if (!ok) {
 				failedToolSummary = summary;
 			}
 			const step: AgentStep = {
-				id: existing?.id || `step_${Date.now()}_${toolName}`,
+				id: existing?.id || stepId || `step_${stepCounter}_${toolName}`,
 				toolName,
 				args: existing?.args,
 				status: ok ? "completed" : "failed",
@@ -93,7 +94,9 @@ export async function runAgentStream(
 				timestamp: new Date().toLocaleTimeString(),
 				...(navigation ? { navigation } : {}),
 			};
-			activeSteps.delete(toolName);
+			if (stepId) {
+				activeSteps.delete(stepId);
+			}
 			emit({ type: "step_end", step });
 		},
 	};

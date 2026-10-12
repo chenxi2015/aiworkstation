@@ -207,10 +207,11 @@ export async function createVaultFolder(
 	}
 }
 
-/** 新建白板（dirRelPath 为空串时建在 Vault 根目录） */
+/** 新建白板（dirRelPath 为空串时建在 Vault 根目录；overwrite 时重置同名文件为空画布） */
 export async function createVaultCanvas(
 	dirRelPath: string,
 	name: string,
+	overwrite = false,
 ): Promise<ObsidianMutationResult> {
 	try {
 		const cleanName = name.trim();
@@ -227,7 +228,7 @@ export async function createVaultCanvas(
 		let abs = path.join(targetDirAbs, fileName);
 		assertWritablePath(abs);
 
-		if (existsSync(abs)) {
+		if (existsSync(abs) && !overwrite) {
 			const ext = ".canvas";
 			const rawBase = baseFileName.slice(0, -ext.length);
 			for (let i = 1; i < 1000; i++) {
@@ -250,10 +251,11 @@ export async function createVaultCanvas(
 	}
 }
 
-/** Create a new Excalidraw drawing file */
+/** Create a new Excalidraw drawing file (overwrite resets an existing same-name file to blank) */
 export async function createVaultExcalidraw(
 	dirRelPath: string,
 	name: string,
+	overwrite = false,
 ): Promise<ObsidianMutationResult> {
 	try {
 		const cleanName = name.trim();
@@ -270,7 +272,7 @@ export async function createVaultExcalidraw(
 		let abs = path.join(targetDirAbs, fileName);
 		assertWritablePath(abs);
 
-		if (existsSync(abs)) {
+		if (existsSync(abs) && !overwrite) {
 			const ext = ".excalidraw";
 			const rawBase = baseFileName.slice(0, -ext.length);
 			for (let i = 1; i < 1000; i++) {

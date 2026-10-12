@@ -1,4 +1,4 @@
-﻿import { ScrollShadow } from "@heroui/react";
+import { ScrollShadow } from "@heroui/react";
 import { ChevronRight, Loader2 } from "lucide-react";
 import { memo, useMemo, useState } from "react";
 import { formatDurationMs } from "../../../../../lib/utils.ts";
@@ -79,7 +79,7 @@ export const AgentStepTimeline = memo(function AgentStepTimeline({
 				>
 					{steps.map((step, idx) => (
 						<AgentStepItem
-							key={step.id || idx}
+							key={step.id ? `${step.id}-${idx}` : `step-${idx}`}
 							step={step}
 							isExpanded={expandedStepIds.has(step.id)}
 							onToggleExpand={handleToggleStepExpand}

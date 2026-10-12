@@ -56,12 +56,13 @@ export type ToolExecutionClass =
 export interface BookmarkToolHooks {
 	onMutated?: () => void;
 	onReferencesFound?: (references: SearchResultItem[]) => void;
-	onToolStart?: (toolName: string, args: Record<string, unknown>) => void;
+	onToolStart?: (toolName: string, args: Record<string, unknown>) => string | void;
 	onToolEnd?: (
 		toolName: string,
 		summary: string,
 		ok: boolean,
 		durationMs: number,
 		navigation?: ToolNavigation,
+		stepId?: string,
 	) => void;
 }

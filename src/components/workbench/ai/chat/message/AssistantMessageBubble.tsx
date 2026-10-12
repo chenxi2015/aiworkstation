@@ -75,9 +75,9 @@ export const AssistantMessageBubble = memo(function AssistantMessageBubble({
 				<div className="space-y-2">
 					{msg.parts.map((part, partIndex) => {
 						if (part.type === "step_group") {
-							const groupKey =
-								part.steps[0]?.id ||
-								`step-group-${msg.timestamp || "stream"}-${partIndex}`;
+							const groupKey = part.steps[0]?.id
+								? `step-group-${partIndex}-${part.steps[0].id}`
+								: `step-group-${msg.timestamp || "stream"}-${partIndex}`;
 							return (
 								<div key={groupKey} className="my-1.5">
 									<AgentStepTimeline

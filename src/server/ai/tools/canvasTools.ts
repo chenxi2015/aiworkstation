@@ -88,6 +88,12 @@ export const canvasGroupSchema = z.object({
 });
 
 export const canvasCreateElementsInputSchema = z.object({
+	targetPath: z
+		.string()
+		.optional()
+		.describe(
+			"目标白板相对路径（.canvas）。省略时写入本会话最近一次创建/当前打开的白板；仅在需要写入其他已有白板时指定",
+		),
 	layout: z
 		.enum(["horizontal_tree", "vertical_tree", "grid", "free"])
 		.default("horizontal_tree")
@@ -295,6 +301,13 @@ export const canvasCreateBoardInputSchema = z.object({
 		.describe(
 			"存放白板的相对目录路径（例如：'架构设计'，留空或省略则保存在当前目录或 Vault 根目录）",
 		),
+	overwrite: z
+		.boolean()
+		.optional()
+		.default(false)
+		.describe(
+			"当同名白板已存在时是否重置为空白板重新绘制。仅在用户明确要求重画/覆盖时传 true；否则同名时自动追加序号，且内容写入仍应指向原白板",
+		),
 });
 
 export type CanvasCreateBoardInput = z.input<
@@ -317,7 +330,7 @@ export function executeCanvasCreateBoard(
 export const canvasCreateBoardToolDef = toolDefinition({
 	name: "canvas_create_board",
 	description:
-		"在 Obsidian Vault 中创建新的 Canvas 空白白板文件（.canvas）并自动在编辑器中打开白板画布视图。注意：此工具仅负责创建并打开空白白板；若需要向白板中写入节点、连线与脑图，必须在调用此工具后紧接着调用 canvas_create_elements 写入内容。",
+		"在 Obsidian Vault 中创建新的 Canvas 空白白板文件（.canvas）并自动在编辑器中打开白板画布视图。注意：此工具仅负责创建并打开空白白板；若需要向白板中写入节点、连线与脑图，必须在调用此工具后紧接着调用 canvas_create_elements 写入内容。创建成功后白板即自动成为后续写入目标，切勿因未收到跳转确认而重复创建新白板。",
 	inputSchema: canvasCreateBoardInputSchema,
 });
 
@@ -327,6 +340,8 @@ export function createCanvasServerTools(
 ) {
 	const activeNotePath = runtime?.activeNotePath;
 	const boardOpen = Boolean(activeNotePath?.endsWith(".canvas"));
+	/** 会话内最近一次创建的白板：创建即成为后续 create_elements 的写入目标 */
+	let sessionBoardPath: string | undefined;
 
 	return [
 		canvasCreateBoardToolDef.server((args) =>
@@ -334,7 +349,11 @@ export function createCanvasServerTools(
 				"canvas_create_board",
 				args,
 				// Creation is always headless (atomic Vault file write)
-				() => headlessCreateCanvasBoard(args),
+				async () => {
+					const result = await headlessCreateCanvasBoard(args);
+					sessionBoardPath = result.navigation?.searchParams?.note;
+					return result;
+				},
 				hooks,
 			),
 		),
@@ -343,11 +362,15 @@ export function createCanvasServerTools(
 				"canvas_create_elements",
 				args,
 				async () => {
-					if (boardOpen) {
+					const targetPath = args.targetPath;
+					if (boardOpen && (!targetPath || targetPath === activeNotePath)) {
 						// Live path: frontend bridge renders with animation via streamed step.
 						return executeCanvasCreateElements(args);
 					}
-					return headlessCreateCanvasElements(args, activeNotePath);
+					return headlessCreateCanvasElements(
+						args,
+						targetPath ?? sessionBoardPath ?? activeNotePath,
+					);
 				},
 				hooks,
 			),

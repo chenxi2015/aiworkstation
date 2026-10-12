@@ -45,6 +45,7 @@ export const obsidianPrompt: ModulePromptDefinition = {
      - **第一步**：先调用 \`canvas_create_board\` 创建空白白板并打开画布（参数仅传 name 与可选的 dir，严禁传入 nodes/edges）；
      - **第二步**：紧接着调用 \`canvas_create_elements\` 向新白板中批量写入节点（nodes）、连线（edges）与排版模式（layout）；若有需要还可随后调用 \`canvas_create_group\` 进行区域分组。
      - 严禁在调用 \`canvas_create_board\` 时试图一次性生成节点，严禁只创建空白白板而不调用 \`canvas_create_elements\` 写入内容！
+     - **严禁重复创建白板**：\`canvas_create_board\` 显示"已完成"即代表文件已写入磁盘并自动成为后续写入目标；后续 \`canvas_create_elements\` 不传 targetPath 时会自动写入刚创建的白板。若写入工具报错，应根据报错重试写入或调整参数，绝对不要再次调用 \`canvas_create_board\` 新建白板。
   2. 整篇改写类请求，先在聊天中用 1~3 句简述改写策略，然后【必须且只能】调用 \`trigger_paragraph_rewrite\` 传入改写指令，由前端双栏视图在右栏流式生成并渲染 Diff 供用户审阅。
   3. 白板绘制类请求（如向当前白板补充架构、思维导图、流程卡片），先简要阐述节点拓扑关系，然后【必须且只能】调用 \`canvas_create_elements\` 传入节点与连线（如有分层结构可一并声明 groups 分组），由前端白板自动计算排版并实时流式渲染。
   4. 为白板现有节点创建分组框时，调用 \`canvas_create_group\` 传入指定 nodeIds 与标题，由前端自动计算包围盒与边距。
@@ -60,5 +61,6 @@ export const obsidianPrompt: ModulePromptDefinition = {
      - **第一步**：先调用 \`excalidraw_create_board\` 创建画板文件并在画板视图中自动打开（参数仅传 name 与可选的 dir，严禁在此试图塞入图元）；
      - **第二步**：紧接着调用 \`excalidraw_draw_elements\` 向新画板中批量写入图形图元、手绘连线与排版模式；
      - 严禁在用户明确要求创建新画板时直接在当前打开的旧画板上覆盖绘制！
+     - **严禁重复创建画板**：\`excalidraw_create_board\` 显示"已完成"即代表画板已写入磁盘并自动成为后续绘制目标；后续 \`excalidraw_draw_elements\` 不传 targetPath 时会自动写入刚创建的画板。若绘制工具报错，应重试绘制或调整参数，绝对不要再次调用 \`excalidraw_create_board\`。
   9. 静默执行与结果卡片：画板/白板的创建与内容写入已支持服务端静默执行——即使用户当前不在笔记模块，工具也会直接写入 Vault 文件并在对话中生成可点击的结果卡片（点击跳转打开产物）。执行完成后用一句话告知用户"已创建/绘制完成，可点击下方卡片跳转查看"，不要声称需要用户手动切换模块。`,
 };

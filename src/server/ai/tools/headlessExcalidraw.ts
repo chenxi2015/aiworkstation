@@ -36,7 +36,11 @@ function obsidianNavigation(relPath: string, label: string): ToolNavigation {
 export async function headlessCreateExcalidrawBoard(
 	args: ExcalidrawCreateBoardInput,
 ): Promise<ToolExecutionResult> {
-	const res = await createVaultExcalidraw(args.dir ?? "", args.name);
+	const res = await createVaultExcalidraw(
+		args.dir ?? "",
+		args.name,
+		args.overwrite,
+	);
 	if (!res.success || !res.relPath) {
 		throw new Error(res.error || "新建画板失败");
 	}
@@ -55,7 +59,11 @@ export async function headlessCreateExcalidrawBoard(
 export async function headlessCreateCanvasBoard(
 	args: CanvasCreateBoardInput,
 ): Promise<ToolExecutionResult> {
-	const res = await createVaultCanvas(args.dir ?? "", args.name);
+	const res = await createVaultCanvas(
+		args.dir ?? "",
+		args.name,
+		args.overwrite,
+	);
 	if (!res.success || !res.relPath) {
 		throw new Error(res.error || "新建白板失败");
 	}

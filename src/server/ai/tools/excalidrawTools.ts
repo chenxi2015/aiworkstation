@@ -52,6 +52,12 @@ export const excalidrawConnectionSchema = z.object({
 });
 
 export const excalidrawDrawInputSchema = z.object({
+	targetPath: z
+		.string()
+		.optional()
+		.describe(
+			"目标画板相对路径（.excalidraw）。省略时写入本会话最近一次创建/当前打开的画板；仅在需要写入其他已有画板时指定",
+		),
 	layout: z
 		.enum([
 			"vertical_flow",
@@ -117,6 +123,13 @@ export const excalidrawCreateBoardInputSchema = z.object({
 		.optional()
 		.describe(
 			"Relative folder path inside Vault, e.g. 'diagrams'; empty or omitted for Vault root",
+		),
+	overwrite: z
+		.boolean()
+		.optional()
+		.default(false)
+		.describe(
+			"当同名画板已存在时是否重置为空白画板重新绘制。仅在用户明确要求重画/覆盖时传 true；否则同名时自动追加序号，且内容写入仍应指向原画板",
 		),
 });
 
@@ -240,6 +253,8 @@ export function createExcalidrawServerTools(
 	// Board is open in the view only when the obsidian module has it active;
 	// in that case the frontend bridge handles rendering. Otherwise headless.
 	const boardOpen = Boolean(activeNotePath?.endsWith(".excalidraw"));
+	/** 会话内最近一次创建的画板：创建即成为后续 draw_elements 的写入目标 */
+	let sessionBoardPath: string | undefined;
 
 	return [
 		excalidrawCreateBoardToolDef.server((args) =>
@@ -249,7 +264,11 @@ export function createExcalidrawServerTools(
 				// Creation is always headless (atomic Vault file write); when the
 				// obsidian module is active the frontend additionally opens the file
 				// via the bridge action triggered from the streamed step.
-				() => headlessCreateExcalidrawBoard(args),
+				async () => {
+					const result = await headlessCreateExcalidrawBoard(args);
+					sessionBoardPath = result.navigation?.searchParams?.note;
+					return result;
+				},
 				hooks,
 			),
 		),
@@ -258,11 +277,15 @@ export function createExcalidrawServerTools(
 				"excalidraw_draw_elements",
 				args,
 				async () => {
-					if (boardOpen) {
+					const targetPath = args.targetPath;
+					if (boardOpen && (!targetPath || targetPath === activeNotePath)) {
 						// Live path: frontend bridge renders with animation via streamed step.
 						return executeExcalidrawDrawElements(args);
 					}
-					return headlessDrawExcalidrawElements(args, activeNotePath);
+					return headlessDrawExcalidrawElements(
+						args,
+						targetPath ?? sessionBoardPath ?? activeNotePath,
+					);
 				},
 				hooks,
 			),

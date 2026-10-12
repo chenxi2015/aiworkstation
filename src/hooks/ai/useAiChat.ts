@@ -441,6 +441,9 @@ export function useAiChat(options?: UseAiChatOptions) {
 								const last = prev[prev.length - 1];
 								if (!last || last.role !== "assistant") return prev;
 
+								// Prevent inserting duplicate steps if already present
+								if (last.steps?.some((s) => s.id === step.id)) return prev;
+
 								const existingParts = last.parts ? [...last.parts] : [];
 								const lastPart = existingParts[existingParts.length - 1];
 
@@ -477,33 +480,77 @@ export function useAiChat(options?: UseAiChatOptions) {
 							setMessages((prev) => {
 								const last = prev[prev.length - 1];
 								if (!last || last.role !== "assistant") return prev;
-								const updatedSteps = (last.steps || []).map((s) =>
-									s.id === step.id ||
-									(s.toolName === step.toolName && s.status === "running")
-										? step
-										: s,
-								);
+
+								let matched = false;
+								const updatedSteps = (last.steps || []).map((s) => {
+									if (s.id === step.id) {
+										matched = true;
+										return step;
+									}
+									return s;
+								});
+								// Fallback: only update the first running step with matching toolName if ID not matched
+								const finalSteps = matched
+									? updatedSteps
+									: (() => {
+											let didReplace = false;
+											return updatedSteps.map((s) => {
+												if (
+													!didReplace &&
+													s.toolName === step.toolName &&
+													s.status === "running"
+												) {
+													didReplace = true;
+													return step;
+												}
+												return s;
+											});
+										})();
 
 								const existingParts = last.parts ? [...last.parts] : [];
+								let matchedPart = false;
 								const nextParts = existingParts.map((p) => {
 									if (p.type !== "step_group") return p;
 									return {
 										...p,
-										steps: p.steps.map((s) =>
-											s.id === step.id ||
-											(s.toolName === step.toolName && s.status === "running")
-												? step
-												: s,
-										),
+										steps: p.steps.map((s) => {
+											if (s.id === step.id) {
+												matchedPart = true;
+												return step;
+											}
+											return s;
+										}),
 									};
 								});
+								const finalParts = matchedPart
+									? nextParts
+									: (() => {
+											let didReplace = false;
+											return nextParts.map((p) => {
+												if (p.type !== "step_group") return p;
+												return {
+													...p,
+													steps: p.steps.map((s) => {
+														if (
+															!didReplace &&
+															s.toolName === step.toolName &&
+															s.status === "running"
+														) {
+															didReplace = true;
+															return step;
+														}
+														return s;
+													}),
+												};
+											});
+										})();
 
 								return [
 									...prev.slice(0, -1),
 									{
 										...last,
-										steps: updatedSteps,
-										parts: nextParts,
+										steps: finalSteps,
+										parts: finalParts,
 									},
 								];
 							});

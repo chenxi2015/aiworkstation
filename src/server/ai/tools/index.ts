@@ -130,7 +130,10 @@ export async function wrapExecution<TArgs>(
 	hooks?: BookmarkToolHooks,
 ): Promise<string> {
 	const start = Date.now();
-	hooks?.onToolStart?.(toolName, (args || {}) as Record<string, unknown>);
+	const stepId = hooks?.onToolStart?.(
+		toolName,
+		(args || {}) as Record<string, unknown>,
+	);
 	try {
 		const res = await executor();
 		if (res.isMutation) {
@@ -140,12 +143,26 @@ export async function wrapExecution<TArgs>(
 			hooks?.onReferencesFound?.(res.references);
 		}
 		const durationMs = Date.now() - start;
-		hooks?.onToolEnd?.(toolName, res.summary, true, durationMs, res.navigation);
+		hooks?.onToolEnd?.(
+			toolName,
+			res.summary,
+			true,
+			durationMs,
+			res.navigation,
+			typeof stepId === "string" ? stepId : undefined,
+		);
 		return res.summary;
 	} catch (err: unknown) {
 		const durationMs = Date.now() - start;
 		const errMsg = err instanceof Error ? err.message : String(err);
-		hooks?.onToolEnd?.(toolName, `执行失败: ${errMsg}`, false, durationMs);
+		hooks?.onToolEnd?.(
+			toolName,
+			`执行失败: ${errMsg}`,
+			false,
+			durationMs,
+			undefined,
+			typeof stepId === "string" ? stepId : undefined,
+		);
 		throw err;
 	}
 }
