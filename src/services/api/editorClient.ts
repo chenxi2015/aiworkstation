@@ -6,6 +6,7 @@ import type {
 } from "../../components/editor/types";
 import {
 	createDocument,
+	createDocumentHeadless,
 	createDocumentFolder,
 	deleteDocument,
 	deleteDocumentFolder,
@@ -59,6 +60,15 @@ export async function createDocumentRpc(params: {
 	folderId?: number | null;
 }): Promise<EditorDocument> {
 	return await createDocument({ data: params });
+}
+
+export async function createDocumentHeadlessRpc(params: {
+	title?: string;
+	prompt?: string;
+	stylePreset?: string;
+	folderId?: number | null;
+}): Promise<EditorDocument> {
+	return await createDocumentHeadless({ data: params });
 }
 
 export async function fetchDocumentFolders(): Promise<EditorDocFolder[]> {

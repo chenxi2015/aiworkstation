@@ -1,6 +1,7 @@
 import { Button, Tooltip, toast } from "@heroui/react";
 import { History, MessageSquarePlus, PanelRightClose } from "lucide-react";
 import { forwardRef, useImperativeHandle, useRef, useState } from "react";
+import { createDocumentHeadlessRpc } from "../../../../services/api/editorClient";
 import { type ChatItem, useAiChat } from "../../../../hooks/ai/useAiChat";
 import { useChatScope } from "../../../../hooks/ai/useChatScope";
 import { useItemFolderAssign } from "../../../../hooks/ai/useItemFolderAssign";
@@ -213,6 +214,18 @@ export const ChatWithBookmarksPanel = forwardRef<
 			);
 			if (createAct) {
 				void createAct.onAction(JSON.stringify(params));
+			} else {
+				// 创作台未挂载：headless 兜底直接服务端生成并入库
+				toast.info("创作台未打开，正在后台静默生成文档…");
+				void createDocumentHeadlessRpc(params)
+					.then((doc) => {
+						toast.success(`文档《${doc.title}》已生成并入库`);
+						onDataChanged?.();
+					})
+					.catch((err) => {
+						console.error("[ChatPanel] headless create document failed:", err);
+						toast.danger("文档后台生成失败，请重试或手动打开创作台");
+					});
 			}
 		},
 		onCanvasAction: (toolName, args, navigation) => {

@@ -255,7 +255,7 @@ export function executeTriggerDocumentCreate(
 ): ToolExecutionResult {
 	return {
 		toolName: "trigger_document_create",
-		summary: `已在单栏富文本编辑器中创建新文档《${args.title}》并启动流式创作流水线。`,
+		summary: `已下发新建文档《${args.title}》的流式创作指令，等待创作台接管并逐段生成正文。若前端创作台未挂载，请使用 list_documents 校验是否已入库；未入库时请改走 headless 路径或提示用户先打开创作台。`,
 		items: [],
 		references: [],
 		isMutation: true,

@@ -29,6 +29,7 @@ import {
 	getDocumentAssetsDir,
 	getFilesRootDir,
 } from "../services/filesRoot.ts";
+import { generateArticleContent } from "../ai/documentGeneration.ts";
 
 /** 上传媒体大小上限（图片/视频混排场景，本地优先故放宽到 200MB） */
 const MAX_UPLOAD_BYTES = 200 * 1024 * 1024;
@@ -118,6 +119,38 @@ export const createDocument = createServerFn({ method: "POST" })
 	.handler(async ({ data }): Promise<EditorDocument> => {
 		const id = workbenchDb.createDocument({
 			title: data.title?.trim() || "未命名文档",
+			stylePreset: data.stylePreset ?? "",
+			folderId: data.folderId ?? null,
+		});
+		const doc = workbenchDb.getDocument(id);
+		if (!doc) throw new Error("文档创建失败");
+		return doc;
+	});
+
+/**
+ * Server Function: headless 创建并生成文档（供 AI 信号未被创作台接住时兜底）
+ */
+export const createDocumentHeadless = createServerFn({ method: "POST" })
+	.validator(
+		(data: {
+			title?: string;
+			prompt?: string;
+			stylePreset?: string;
+			folderId?: number | null;
+		}) => data,
+	)
+	.handler(async ({ data }): Promise<EditorDocument> => {
+		const title = data.title?.trim() || "未命名文档";
+		const prompt = data.prompt ?? "";
+		const presetPrompt = resolveEditorPresetPrompt(data.stylePreset);
+		const content = await generateArticleContent(
+			{ title, prompt, stylePreset: data.stylePreset },
+			presetPrompt,
+		);
+		const id = workbenchDb.createDocument({
+			title,
+			content,
+			contentText: content,
 			stylePreset: data.stylePreset ?? "",
 			folderId: data.folderId ?? null,
 		});
