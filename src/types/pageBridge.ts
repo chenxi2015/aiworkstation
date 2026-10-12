@@ -23,8 +23,9 @@ export interface PageAction {
 	};
 	/** 在 AI 回复消息操作条上展示（onAction 收到该消息全文） */
 	showOnMessages?: boolean;
-	/** Execution handler receiving the AI message content */
-	onAction: (content: string) => Promise<void> | void;
+	/** Execution handler receiving the AI message content; may optionally
+	 * return a result payload (e.g. the created document id) to the caller. */
+	onAction: (content: string) => Promise<unknown> | unknown;
 }
 
 /**

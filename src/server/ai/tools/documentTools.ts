@@ -6,7 +6,7 @@ import {
 	tiptapJsonToMarkdown,
 } from "../../../components/editor/markdown.ts";
 import { workbenchDb } from "../../db/sqlite.ts";
-import type { ToolExecutionResult } from "./types.ts";
+import type { ToolExecutionResult, ToolNavigation } from "./types.ts";
 
 // ---------- read_document ----------
 
@@ -253,12 +253,18 @@ export type TriggerDocumentCreateInput = z.infer<
 export function executeTriggerDocumentCreate(
 	args: TriggerDocumentCreateInput,
 ): ToolExecutionResult {
+	const navigation: ToolNavigation = {
+		route: "/creator/studio",
+		searchParams: { mode: "doc", title: args.title },
+		label: "打开文档",
+	};
 	return {
 		toolName: "trigger_document_create",
 		summary: `已下发新建文档《${args.title}》的流式创作指令，等待创作台接管并逐段生成正文。若前端创作台未挂载，请使用 list_documents 校验是否已入库；未入库时请改走 headless 路径或提示用户先打开创作台。`,
 		items: [],
 		references: [],
 		isMutation: true,
+		navigation,
 	};
 }
 

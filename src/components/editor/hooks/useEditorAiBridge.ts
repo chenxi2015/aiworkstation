@@ -18,7 +18,7 @@ export interface UseEditorAiBridgeOptions {
 		title: string;
 		prompt: string;
 		stylePreset?: string;
-	}) => Promise<void>;
+	}) => Promise<{ documentId?: number } | void>;
 	flushSave?: () => Promise<void>;
 	onSwitchDocument?: (id: number) => Promise<void>;
 }
@@ -75,9 +75,9 @@ export function useEditorAiBridge({
 						if (!payload) return;
 						try {
 							const parsed = JSON.parse(payload);
-							await onStartCreatePipelineRef.current?.(parsed);
+							return await onStartCreatePipelineRef.current?.(parsed);
 						} catch {
-							await onStartCreatePipelineRef.current?.({
+							return await onStartCreatePipelineRef.current?.({
 								title: "新建文档",
 								prompt: payload,
 							});

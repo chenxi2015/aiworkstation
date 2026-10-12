@@ -27,7 +27,7 @@ export interface UseAiChatOptions {
 		title: string;
 		prompt: string;
 		stylePreset?: string;
-	}) => void;
+	}) => Promise<{ documentId?: number } | void> | void;
 	onCanvasAction?: (
 		toolName:
 			| "canvas_create_board"
@@ -54,6 +54,10 @@ export function useAiChat(options?: UseAiChatOptions) {
 	const [contextItems, setContextItems] = useState<ChatContextItem[]>([]);
 	const [isLoading, setIsLoading] = useState<boolean>(false);
 	const abortControllerRef = useRef<AbortController | null>(null);
+	// Document id produced by the interactive studio pipeline for the in-flight
+	// trigger_document_create step, backfilled into the step's navigation on
+	// step_end so the artifact card always renders.
+	const pendingCreateDocRef = useRef<number | null>(null);
 
 	const addContextItem = useCallback((item: ChatContextItem) => {
 		setContextItems((prev) => {
@@ -377,6 +381,7 @@ export function useAiChat(options?: UseAiChatOptions) {
 								// the document (navigation payload present) — skip the
 								// studio's interactive pipeline.
 								if (!step.navigation) {
+									pendingCreateDocRef.current = null;
 									const title =
 										typeof step.args?.title === "string"
 											? step.args.title
@@ -389,11 +394,21 @@ export function useAiChat(options?: UseAiChatOptions) {
 										typeof step.args?.stylePreset === "string"
 											? step.args.stylePreset
 											: undefined;
-									options?.onTriggerCreateDocumentPipeline?.({
-										title,
-										prompt,
-										stylePreset,
-									});
+									void Promise.resolve(
+										options?.onTriggerCreateDocumentPipeline?.({
+											title,
+											prompt,
+											stylePreset,
+										}),
+									)
+										.then((result) => {
+											if (result?.documentId != null) {
+												pendingCreateDocRef.current = result.documentId;
+											}
+										})
+										.catch(() => {
+											/* pipeline callback failures surface via toast */
+										});
 								}
 							}
 							if (step.toolName === "trigger_paragraph_rewrite") {
@@ -476,7 +491,25 @@ export function useAiChat(options?: UseAiChatOptions) {
 								];
 							});
 						},
-						onStepEnd: (step) => {
+						onStepEnd: (rawStep) => {
+							// trigger_document_create via the interactive studio pipeline has
+							// no server-side navigation; backfill it from the document id the
+							// pipeline reported so the artifact card always renders.
+							let step = rawStep;
+							if (
+								step.toolName === "trigger_document_create" &&
+								!step.navigation &&
+								pendingCreateDocRef.current != null
+							) {
+								const docId = pendingCreateDocRef.current;
+								pendingCreateDocRef.current = null;
+								const navigation: AgentStepNavigation = {
+									route: "/creator/studio",
+									searchParams: { doc: String(docId), mode: "doc" },
+									label: "打开文档",
+								};
+								step = { ...step, navigation };
+							}
 							setMessages((prev) => {
 								const last = prev[prev.length - 1];
 								if (!last || last.role !== "assistant") return prev;

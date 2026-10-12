@@ -366,6 +366,10 @@ export function EditorApp({ initialDocId }: EditorAppProps = {}) {
 				prompt,
 				stylePreset: stylePreset || targetDoc.stylePreset,
 			});
+
+			// Surface the created document id so the chat panel can render a
+			// persistent artifact card entry to this document.
+			return { documentId: targetDoc.id };
 		},
 		[
 			activeDoc,

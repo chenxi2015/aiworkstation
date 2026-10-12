@@ -1,12 +1,12 @@
 import { Button, Tooltip, toast } from "@heroui/react";
 import { History, MessageSquarePlus, PanelRightClose } from "lucide-react";
 import { forwardRef, useImperativeHandle, useRef, useState } from "react";
-import { createDocumentHeadlessRpc } from "../../../../services/api/editorClient";
 import { type ChatItem, useAiChat } from "../../../../hooks/ai/useAiChat";
 import { useChatScope } from "../../../../hooks/ai/useChatScope";
 import { useItemFolderAssign } from "../../../../hooks/ai/useItemFolderAssign";
 import { getAiContribution } from "../../../../modules/ai-contributions";
 import { getModuleByCode } from "../../../../modules/registry";
+import { createDocumentHeadlessRpc } from "../../../../services/api/editorClient";
 import { fetchSkillDetail } from "../../../../services/api/skillsClient";
 import { workbenchContextStore } from "../../../../stores/workbenchContextStore";
 import type { ChatContextItem } from "../../../../types/chatContext";
@@ -208,24 +208,31 @@ export const ChatWithBookmarksPanel = forwardRef<
 				: "polish";
 			runBridgeRewriteAction(intent, instruction);
 		},
-		onTriggerCreateDocumentPipeline: (params) => {
+		onTriggerCreateDocumentPipeline: async (params) => {
 			const createAct = pageBridge?.actions.find(
 				(a) => a.id === "stream_create_document",
 			);
 			if (createAct) {
-				void createAct.onAction(JSON.stringify(params));
-			} else {
-				// 创作台未挂载：headless 兜底直接服务端生成并入库
-				toast.info("创作台未打开，正在后台静默生成文档…");
-				void createDocumentHeadlessRpc(params)
-					.then((doc) => {
-						toast.success(`文档《${doc.title}》已生成并入库`);
-						onDataChanged?.();
-					})
-					.catch((err) => {
-						console.error("[ChatPanel] headless create document failed:", err);
-						toast.danger("文档后台生成失败，请重试或手动打开创作台");
-					});
+				// Studio pipeline path: returns the created document id so the chat
+				// can backfill a navigation payload onto the step and render the
+				// "打开文档" artifact card.
+				const result = (await createAct.onAction(JSON.stringify(params))) as {
+					documentId?: number;
+				} | void;
+				return { documentId: result?.documentId };
+			}
+
+			// 创作台未挂载：headless 兜底直接服务端生成并入库
+			toast.info("创作台未打开，正在后台静默生成文档…");
+			try {
+				const doc = await createDocumentHeadlessRpc(params);
+				toast.success(`文档《${doc.title}》已生成并入库`);
+				onDataChanged?.();
+				return { documentId: doc.id };
+			} catch (err) {
+				console.error("[ChatPanel] headless create document failed:", err);
+				toast.danger("文档后台生成失败，请重试或手动打开创作台");
+				return undefined;
 			}
 		},
 		onCanvasAction: (toolName, args, navigation) => {
