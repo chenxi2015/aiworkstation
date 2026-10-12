@@ -1,7 +1,7 @@
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 import type { SearchResultItem } from "../../../components/workbench/types.ts";
-import { getSearchProvider } from "../search/index.ts";
+import { getLastSearchTrace, getSearchProvider } from "../search/index.ts";
 import type { ToolExecutionResult } from "./types.ts";
 
 export const webSearchInputSchema = z.object({
@@ -58,21 +58,34 @@ export async function executeWebSearch(
 			type: "link",
 			summary: r.snippet,
 			description: r.snippet,
-			score: Math.max(0.1, Number((1.0 - idx * 0.05).toFixed(2))),
+			score:
+				typeof r.score === "number"
+					? Math.max(0.1, Math.min(1, r.score))
+					: Math.max(0.1, Number((1.0 - idx * 0.05).toFixed(2))),
 			matchType: "keyword",
-			matchReason: "网络搜索结果",
+			matchReason: r.engine ? `网络搜索 · ${r.engine}` : "网络搜索结果",
 		}));
 
+		const trace = getLastSearchTrace();
+		const engineTag = trace?.attempts?.length
+			? trace.attempts[trace.attempts.length - 1].engine
+			: undefined;
+		const totalMs = trace?.totalMs;
 		const formattedSummary = rawResults
 			.map(
 				(r, i) =>
-					`${i + 1}. [${r.title}](${r.url})\n   摘要: ${r.snippet || "无简介"}`,
+					`${i + 1}. [${r.title}](${r.url})${r.engine ? ` [来源: ${r.engine}]` : ""}\n   摘要: ${r.snippet || "无简介"}`,
 			)
 			.join("\n\n");
 
+		const meta: string[] = [];
+		if (engineTag) meta.push(`引擎: ${engineTag}`);
+		if (typeof totalMs === "number") meta.push(`耗时: ${totalMs}ms`);
+		const metaSuffix = meta.length ? `\n\n(${meta.join(" · ")})` : "";
+
 		return {
 			toolName: "web_search",
-			summary: `已为你检索到 ${rawResults.length} 条关于「${query}」的网络信息：\n\n${formattedSummary}`,
+			summary: `已为你检索到 ${rawResults.length} 条关于「${query}」的网络信息：\n\n${formattedSummary}${metaSuffix}`,
 			items: [],
 			references,
 			isMutation: false,

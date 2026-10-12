@@ -11,24 +11,22 @@ import {
 	writeTextAtomicSync,
 } from "./fsSafety.ts";
 
-export const patchFileInputSchema = z
-	.object({
-		path: z.string().describe("要修改的文件路径，支持 ~ 开头"),
-		oldText: z
-			.string()
-			.describe(
-				"要被替换的原始文本（必须在文件中唯一出现，修改前请先用 fs_read_file 确认）",
-			),
-		newText: z.string().describe("替换后的新文本"),
-		replaceAll: z
-			.boolean()
-			.nullable()
-			.optional()
-			.describe(
-				"true 表示替换所有出现的位置，默认 false（要求 oldText 在文件中唯一出现）",
-			),
-	})
-	.passthrough();
+export const patchFileInputSchema = z.object({
+	path: z.string().describe("要修改的文件路径，支持 ~ 开头"),
+	oldText: z
+		.string()
+		.describe(
+			"要被替换的原始文本（必须在文件中唯一出现，修改前请先用 fs_read_file 确认）",
+		),
+	newText: z.string().describe("替换后的新文本"),
+	replaceAll: z
+		.boolean()
+		.nullable()
+		.optional()
+		.describe(
+			"true 表示替换所有出现的位置，默认 false（要求 oldText 在文件中唯一出现）",
+		),
+});
 
 export type PatchFileInput = z.infer<typeof patchFileInputSchema>;
 

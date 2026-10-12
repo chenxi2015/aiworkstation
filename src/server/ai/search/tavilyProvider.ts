@@ -6,9 +6,11 @@ import type { SearchOptions, SearchProvider, SearchResult } from "./types.ts";
 export class TavilySearchProvider implements SearchProvider {
 	name = "tavily";
 	private apiKey: string;
+	private timeoutMs?: number;
 
-	constructor(apiKey: string) {
+	constructor(apiKey: string, options?: { timeoutMs?: number }) {
 		this.apiKey = apiKey;
+		this.timeoutMs = options?.timeoutMs;
 	}
 
 	async search(
@@ -16,6 +18,7 @@ export class TavilySearchProvider implements SearchProvider {
 		options?: SearchOptions,
 	): Promise<SearchResult[]> {
 		const maxResults = options?.maxResults ?? 5;
+		const timeoutMs = options?.timeoutMs ?? this.timeoutMs;
 		const response = await fetch("https://api.tavily.com/search", {
 			method: "POST",
 			headers: {
@@ -25,9 +28,11 @@ export class TavilySearchProvider implements SearchProvider {
 				api_key: this.apiKey,
 				query,
 				max_results: maxResults,
-				search_depth: "basic",
+				search_depth: "advanced",
 				include_answer: false,
+				include_images: false,
 			}),
+			signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined,
 		});
 
 		if (!response.ok) {
@@ -41,6 +46,7 @@ export class TavilySearchProvider implements SearchProvider {
 				url?: string;
 				content?: string;
 				published_date?: string;
+				score?: number;
 			}>;
 		};
 
@@ -49,6 +55,8 @@ export class TavilySearchProvider implements SearchProvider {
 			url: r.url || "",
 			snippet: r.content || "",
 			publishedDate: r.published_date,
+			score: typeof r.score === "number" ? r.score : undefined,
+			engine: "tavily",
 		}));
 	}
 }

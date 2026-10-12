@@ -3,31 +3,27 @@ import { z } from "zod";
 import { workbenchDb } from "../../db/sqlite.ts";
 import type { ToolExecutionResult } from "./types.ts";
 
-export const createTagsInputSchema = z
-	.object({
-		name: z
-			.string()
-			.nullable()
-			.optional()
-			.describe("单个标签名称（单标签场景），如 '并发'"),
-		tags: z
-			.array(
-				z.object({
-					name: z.string().describe("标签名称"),
-					color: z
-						.string()
-						.nullable()
-						.optional()
-						.describe("标签颜色 Hex，如 '#f59e0b'，可选"),
-				}),
-			)
-			.nullable()
-			.optional()
-			.describe(
-				"批量创建标签列表。需要创建 2 个及以上标签时必须优先使用此字段",
-			),
-	})
-	.passthrough();
+export const createTagsInputSchema = z.object({
+	name: z
+		.string()
+		.nullable()
+		.optional()
+		.describe("单个标签名称（单标签场景），如 '并发'"),
+	tags: z
+		.array(
+			z.object({
+				name: z.string().describe("标签名称"),
+				color: z
+					.string()
+					.nullable()
+					.optional()
+					.describe("标签颜色 Hex，如 '#f59e0b'，可选"),
+			}),
+		)
+		.nullable()
+		.optional()
+		.describe("批量创建标签列表。需要创建 2 个及以上标签时必须优先使用此字段"),
+});
 
 export type CreateTagsInput = z.infer<typeof createTagsInputSchema>;
 

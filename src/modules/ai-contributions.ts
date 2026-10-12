@@ -20,7 +20,12 @@ export interface AiModuleContribution {
 	persona?: string;
 	/** @deprecated 使用 persona 字段，此字段保留作向后兼容 alias */
 	systemPromptHint: string;
-	/** 该模块可用的 Agent Tool 白名单（能力层全局注册，此处只做筛选） */
+	/**
+	 * 该模块优先展示的 Agent Tool 列表（软分层：仅影响 LLM 工具列表排序，
+	 * 不做硬过滤排除；意图路由命中的工具跨模块强制放行）。
+	 * 工具执行依赖分类（global-headless / content-generating / context-dependent）
+	 * 由工具自身注册元数据声明，见 server/ai/tools。
+	 */
 	tools?: string[];
 	/** 聊天空态的快捷提问建议（客户端使用） */
 	promptSuggestions: string[];
@@ -42,6 +47,7 @@ export const GLOBAL_AI_CONTRIBUTION: AiModuleContribution = {
 		"move_bookmarks_to_folder",
 		"merge_folders",
 		"web_search",
+		"web_fetch",
 		"read_webpage_content",
 	],
 	promptSuggestions: [
@@ -62,6 +68,7 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 			"query_bookmarks",
 			"get_stats",
 			"web_search",
+		"web_fetch",
 			"read_webpage_content",
 		],
 		promptSuggestions: [
@@ -93,6 +100,7 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 			"remove_tags",
 			"rename_or_merge_tags",
 			"web_search",
+		"web_fetch",
 		],
 		promptSuggestions: [
 			"检索我收藏的所有关于 AI、自动化与大模型相关的开源项目与工具",
@@ -111,6 +119,7 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 			"read_webpage_content",
 			"crawl_webpage_via_extension",
 			"web_search",
+		"web_fetch",
 		],
 		promptSuggestions: [
 			"从我的收藏里挖掘 3 个值得二创的选题并给出切入角度",
@@ -136,6 +145,7 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 			"read_webpage_content",
 			"crawl_webpage_via_extension",
 			"web_search",
+		"web_fetch",
 		],
 		promptSuggestions: [
 			"梳理我收藏的学习资源，按主题规划一条学习路径",
@@ -161,6 +171,7 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 			"generate_mermaid_diagram",
 			"generate_data_chart",
 			"web_search",
+		"web_fetch",
 			"query_bookmarks",
 			"read_webpage_content",
 			"crawl_webpage_via_extension",
@@ -228,6 +239,7 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 			"read_webpage_content",
 			"query_bookmarks",
 			"web_search",
+		"web_fetch",
 		],
 		contextItemTypes: ["bookmark", "folder", "tag", "image", "file"],
 	},
@@ -241,6 +253,7 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 			"read_webpage_content",
 			"crawl_webpage_via_extension",
 			"web_search",
+		"web_fetch",
 		],
 		promptSuggestions: [
 			"整理我收藏的电商运营工具，按用途分类并推荐组合",

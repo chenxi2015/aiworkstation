@@ -3,36 +3,34 @@ import { z } from "zod";
 import { workbenchDb } from "../../db/sqlite.ts";
 import type { ToolExecutionResult } from "./types.ts";
 
-export const moveFolderInputSchema = z
-	.object({
-		folderName: z
-			.string()
-			.nullable()
-			.optional()
-			.describe("待移动的单个文件夹名称（单文件夹场景）"),
-		folderNames: z
-			.array(z.string())
-			.nullable()
-			.optional()
-			.describe(
-				"待批量移动的文件夹名称数组。当需要将多个文件夹同时移入同一父文件夹或分类时必须使用此字段，严禁重复多次单步调用",
-			),
-		targetCategory: z
-			.string()
-			.nullable()
-			.optional()
-			.describe(
-				"目标分类名称（例如「工作台」、「创作」、「电商」、「学习」等）。当希望将文件夹移动到导航分类（特别是移到「工作台」开始工作，或批量归类）时传入",
-			),
-		targetParentFolderName: z
-			.string()
-			.nullable()
-			.optional()
-			.describe(
-				"目标父文件夹名称。传 null、空字符串或「顶层」表示移动到分类顶层（不再嵌套）",
-			),
-	})
-	.passthrough();
+export const moveFolderInputSchema = z.object({
+	folderName: z
+		.string()
+		.nullable()
+		.optional()
+		.describe("待移动的单个文件夹名称（单文件夹场景）"),
+	folderNames: z
+		.array(z.string())
+		.nullable()
+		.optional()
+		.describe(
+			"待批量移动的文件夹名称数组。当需要将多个文件夹同时移入同一父文件夹或分类时必须使用此字段，严禁重复多次单步调用",
+		),
+	targetCategory: z
+		.string()
+		.nullable()
+		.optional()
+		.describe(
+			"目标分类名称（例如「工作台」、「创作」、「电商」、「学习」等）。当希望将文件夹移动到导航分类（特别是移到「工作台」开始工作，或批量归类）时传入",
+		),
+	targetParentFolderName: z
+		.string()
+		.nullable()
+		.optional()
+		.describe(
+			"目标父文件夹名称。传 null、空字符串或「顶层」表示移动到分类顶层（不再嵌套）",
+		),
+});
 
 export type MoveFolderInput = z.infer<typeof moveFolderInputSchema>;
 

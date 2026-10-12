@@ -10,25 +10,23 @@ import {
 	resolveUserPath,
 } from "./fsSafety.ts";
 
-export const listDirectoryInputSchema = z
-	.object({
-		path: z
-			.string()
-			.describe(
-				"要列出的目录绝对路径，支持 ~ 开头（如 ~/Desktop、~/Documents/projects）",
-			),
-		depth: z
-			.number()
-			.nullable()
-			.optional()
-			.describe(`递归深度，默认 ${DEFAULT_LIST_DEPTH}，最大 ${MAX_LIST_DEPTH}`),
-		showHidden: z
-			.boolean()
-			.nullable()
-			.optional()
-			.describe("是否显示 . 开头的隐藏文件，默认 false"),
-	})
-	.passthrough();
+export const listDirectoryInputSchema = z.object({
+	path: z
+		.string()
+		.describe(
+			"要列出的目录绝对路径，支持 ~ 开头（如 ~/Desktop、~/Documents/projects）",
+		),
+	depth: z
+		.number()
+		.nullable()
+		.optional()
+		.describe(`递归深度，默认 ${DEFAULT_LIST_DEPTH}，最大 ${MAX_LIST_DEPTH}`),
+	showHidden: z
+		.boolean()
+		.nullable()
+		.optional()
+		.describe("是否显示 . 开头的隐藏文件，默认 false"),
+});
 
 export type ListDirectoryInput = z.infer<typeof listDirectoryInputSchema>;
 

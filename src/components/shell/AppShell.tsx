@@ -193,25 +193,9 @@ export function AppShell({
 	const { panelWidth, isResizing, handleResizeStart } = useAiPanelResize();
 
 	const pathname = useRouterState({ select: (s) => s.location.pathname });
-	const searchTab = useRouterState({
-		select: (s) => (s.location.search as { tab?: string }).tab,
-	});
 	const activeModule = getModuleByRoute(pathname)?.code ?? "workbench";
 
-	// 富文本编辑面：创作「创作台」/creator/studio（editor 已并入 creator）
-	const isEditorSurface =
-		pathname.startsWith("/creator/studio") ||
-		(pathname.startsWith("/creator") && searchTab === "studio");
-	const [isCollapsed, setIsCollapsed] = useState<boolean>(
-		() => isEditorSurface,
-	);
-
-	// Automatically collapse global AI panel when entering editor to release 100% canvas width
-	useEffect(() => {
-		if (isEditorSurface) {
-			setIsCollapsed(true);
-		}
-	}, [isEditorSurface]);
+	const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
 
 	// Synchronize Electron window size mode with user authentication status
 	useEffect(() => {

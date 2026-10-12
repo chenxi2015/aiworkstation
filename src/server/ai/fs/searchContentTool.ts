@@ -13,40 +13,38 @@ import {
 	resolveUserPath,
 } from "./fsSafety.ts";
 
-export const searchContentInputSchema = z
-	.object({
-		query: z
-			.string()
-			.describe(
-				"要搜索的文本内容（普通字符串，不区分大小写；useRegex 为 true 时按正则处理）",
-			),
-		path: z
-			.string()
-			.nullable()
-			.optional()
-			.describe(
-				"搜索的起始目录，支持 ~ 开头。不传则全局搜索用户常用目录（桌面/文稿/下载/主目录）",
-			),
-		filePattern: z
-			.string()
-			.nullable()
-			.optional()
-			.describe(
-				"限定文件名模式（支持 * 通配符，如 *.md、*.txt），默认搜索所有文本文件",
-			),
-		useRegex: z
-			.boolean()
-			.nullable()
-			.optional()
-			.describe("query 是否按正则表达式处理，默认 false（普通文本匹配）"),
-		caseSensitive: z
-			.boolean()
-			.nullable()
-			.optional()
-			.describe("是否区分大小写，默认 false"),
-		maxDepth: z.number().nullable().optional().describe("最大递归深度，默认 4"),
-	})
-	.passthrough();
+export const searchContentInputSchema = z.object({
+	query: z
+		.string()
+		.describe(
+			"要搜索的文本内容（普通字符串，不区分大小写；useRegex 为 true 时按正则处理）",
+		),
+	path: z
+		.string()
+		.nullable()
+		.optional()
+		.describe(
+			"搜索的起始目录，支持 ~ 开头。不传则全局搜索用户常用目录（桌面/文稿/下载/主目录）",
+		),
+	filePattern: z
+		.string()
+		.nullable()
+		.optional()
+		.describe(
+			"限定文件名模式（支持 * 通配符，如 *.md、*.txt），默认搜索所有文本文件",
+		),
+	useRegex: z
+		.boolean()
+		.nullable()
+		.optional()
+		.describe("query 是否按正则表达式处理，默认 false（普通文本匹配）"),
+	caseSensitive: z
+		.boolean()
+		.nullable()
+		.optional()
+		.describe("是否区分大小写，默认 false"),
+	maxDepth: z.number().nullable().optional().describe("最大递归深度，默认 4"),
+});
 
 export type SearchContentInput = z.infer<typeof searchContentInputSchema>;
 

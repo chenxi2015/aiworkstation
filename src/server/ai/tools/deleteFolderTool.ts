@@ -3,29 +3,27 @@ import { z } from "zod";
 import { workbenchDb } from "../../db/sqlite.ts";
 import type { ToolExecutionResult } from "./types.ts";
 
-export const deleteFolderInputSchema = z
-	.object({
-		folderName: z
-			.string()
-			.nullable()
-			.optional()
-			.describe("待删除的单个文件夹名称（单文件夹场景）"),
-		folderNames: z
-			.array(z.string())
-			.nullable()
-			.optional()
-			.describe(
-				"待批量删除的文件夹名称数组。当需要删除多个文件夹时必须使用此字段，一次性完成，严禁拆为多次单步调用",
-			),
-		deleteBookmarks: z
-			.boolean()
-			.nullable()
-			.optional()
-			.describe(
-				"是否连同文件夹内的书签一起删除。默认 false：书签移回未分类池，子文件夹提升到顶层",
-			),
-	})
-	.passthrough();
+export const deleteFolderInputSchema = z.object({
+	folderName: z
+		.string()
+		.nullable()
+		.optional()
+		.describe("待删除的单个文件夹名称（单文件夹场景）"),
+	folderNames: z
+		.array(z.string())
+		.nullable()
+		.optional()
+		.describe(
+			"待批量删除的文件夹名称数组。当需要删除多个文件夹时必须使用此字段，一次性完成，严禁拆为多次单步调用",
+		),
+	deleteBookmarks: z
+		.boolean()
+		.nullable()
+		.optional()
+		.describe(
+			"是否连同文件夹内的书签一起删除。默认 false：书签移回未分类池，子文件夹提升到顶层",
+		),
+});
 
 export type DeleteFolderInput = z.infer<typeof deleteFolderInputSchema>;
 

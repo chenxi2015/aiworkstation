@@ -7,6 +7,7 @@ import {
 	WorkbenchStorageService,
 } from "../../services/workbenchStorage";
 import { workbenchContextStore } from "../../stores/workbenchContextStore";
+import type { AgentStepNavigation } from "../../types/agent.ts";
 import type { ChatContextItem } from "../../types/chatContext";
 import {
 	type ChatItem,
@@ -41,6 +42,7 @@ export interface UseAiChatOptions {
 			| "excalidraw_clear_canvas"
 			| "excalidraw_center_view",
 		args: any,
+		navigation?: AgentStepNavigation,
 	) => void;
 }
 
@@ -371,21 +373,28 @@ export function useAiChat(options?: UseAiChatOptions) {
 					{
 						onStepStart: (step) => {
 							if (step.toolName === "trigger_document_create") {
-								const title =
-									typeof step.args?.title === "string"
-										? step.args.title
-										: "未命名文档";
-								const prompt =
-									typeof step.args?.prompt === "string" ? step.args.prompt : "";
-								const stylePreset =
-									typeof step.args?.stylePreset === "string"
-										? step.args.stylePreset
-										: undefined;
-								options?.onTriggerCreateDocumentPipeline?.({
-									title,
-									prompt,
-									stylePreset,
-								});
+								// Headless path: the server already generated and persisted
+								// the document (navigation payload present) — skip the
+								// studio's interactive pipeline.
+								if (!step.navigation) {
+									const title =
+										typeof step.args?.title === "string"
+											? step.args.title
+											: "未命名文档";
+									const prompt =
+										typeof step.args?.prompt === "string"
+											? step.args.prompt
+											: "";
+									const stylePreset =
+										typeof step.args?.stylePreset === "string"
+											? step.args.stylePreset
+											: undefined;
+									options?.onTriggerCreateDocumentPipeline?.({
+										title,
+										prompt,
+										stylePreset,
+									});
+								}
 							}
 							if (step.toolName === "trigger_paragraph_rewrite") {
 								const instruction =
@@ -407,7 +416,26 @@ export function useAiChat(options?: UseAiChatOptions) {
 								step.toolName === "excalidraw_clear_canvas" ||
 								step.toolName === "excalidraw_center_view"
 							) {
-								options?.onCanvasAction?.(step.toolName as any, step.args);
+								// Draw calls executed headlessly server-side when the target
+								// board is not the currently open file; the bridge would only
+								// paint into a different open board, so skip it in that case.
+								const isDrawCall =
+									step.toolName === "excalidraw_draw_elements" ||
+									step.toolName === "canvas_create_elements";
+								const activePath =
+									workbenchContextStore.state.activeNote?.path ?? undefined;
+								const expectedExt =
+									step.toolName === "excalidraw_draw_elements"
+										? ".excalidraw"
+										: ".canvas";
+								if (isDrawCall && !activePath?.endsWith(expectedExt)) {
+									return;
+								}
+								options?.onCanvasAction?.(
+									step.toolName as any,
+									step.args,
+									step.navigation,
+								);
 							}
 							setMessages((prev) => {
 								const last = prev[prev.length - 1];

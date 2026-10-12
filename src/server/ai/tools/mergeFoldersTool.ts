@@ -3,32 +3,28 @@ import { z } from "zod";
 import { workbenchDb } from "../../db/sqlite.ts";
 import type { ToolExecutionResult } from "./types.ts";
 
-export const mergeFoldersInputSchema = z
-	.object({
-		sourceFolderNames: z
-			.array(z.string())
-			.describe(
-				"待合并归集的源文件夹名称列表（例如：['React组件库', '重要的react组件库', '前端学习']）",
-			),
-		targetFolderName: z
-			.string()
-			.describe("合并汇集的目标文件夹名称（例如：'前端生态大全'）"),
-		targetCategory: z
-			.string()
-			.nullable()
-			.optional()
-			.describe(
-				"目标文件夹所属大分类（若目标文件夹尚不存在需自动创建时生效，默认'工作台'）",
-			),
-		deleteSourceFolders: z
-			.boolean()
-			.nullable()
-			.optional()
-			.describe(
-				"合并完成后是否自动删除源文件夹（避免留下空壳目录）。默认 true",
-			),
-	})
-	.passthrough();
+export const mergeFoldersInputSchema = z.object({
+	sourceFolderNames: z
+		.array(z.string())
+		.describe(
+			"待合并归集的源文件夹名称列表（例如：['React组件库', '重要的react组件库', '前端学习']）",
+		),
+	targetFolderName: z
+		.string()
+		.describe("合并汇集的目标文件夹名称（例如：'前端生态大全'）"),
+	targetCategory: z
+		.string()
+		.nullable()
+		.optional()
+		.describe(
+			"目标文件夹所属大分类（若目标文件夹尚不存在需自动创建时生效，默认'工作台'）",
+		),
+	deleteSourceFolders: z
+		.boolean()
+		.nullable()
+		.optional()
+		.describe("合并完成后是否自动删除源文件夹（避免留下空壳目录）。默认 true"),
+});
 
 export type MergeFoldersInput = z.infer<typeof mergeFoldersInputSchema>;
 

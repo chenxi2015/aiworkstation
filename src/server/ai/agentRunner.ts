@@ -8,6 +8,7 @@ import type {
 } from "./agentTypes.ts";
 import { createBookmarkServerTools } from "./bookmarkTools.ts";
 import {
+	createDocumentCreateTool,
 	createEditorServerTools,
 	createRewritePipelineTool,
 } from "./editorTools.ts";
@@ -75,7 +76,7 @@ export async function runAgentStream(
 			activeSteps.set(toolName, step);
 			emit({ type: "step_start", step });
 		},
-		onToolEnd: (toolName, summary, ok, durationMs) => {
+		onToolEnd: (toolName, summary, ok, durationMs, navigation) => {
 			const existing = activeSteps.get(toolName);
 			if (ok && summary) {
 				completedStepSummaries.push(`【${toolName}】\n${summary}`);
@@ -90,6 +91,7 @@ export async function runAgentStream(
 				summary,
 				durationMs,
 				timestamp: new Date().toLocaleTimeString(),
+				...(navigation ? { navigation } : {}),
 			};
 			activeSteps.delete(toolName);
 			emit({ type: "step_end", step });
@@ -118,41 +120,84 @@ export async function runAgentStream(
 		...createBookmarkServerTools(toolHooks, activeSkillDir),
 		...(shouldIncludeFsTools ? createFsServerTools(toolHooks) : []),
 		...(module === "editor" || Boolean(activeDocumentId)
-			? createEditorServerTools(toolHooks, activeDocumentId)
-			: []),
+			? createEditorServerTools(toolHooks, activeDocumentId, { module })
+			: // trigger_document_create is globally available (headless generation
+				// from any module); the full editor tool set stays module-scoped.
+				[createDocumentCreateTool(toolHooks, { module })]),
 		...(module === "obsidian" || Boolean(activeNotePath)
 			? [createRewritePipelineTool(toolHooks)]
 			: []),
-		...(module === "obsidian" || activeNotePath?.endsWith(".canvas")
-			? createCanvasServerTools(toolHooks)
-			: []),
-		...(module === "obsidian" || activeNotePath?.endsWith(".excalidraw")
-			? createExcalidrawServerTools(toolHooks)
-			: []),
+		// Canvas / Excalidraw tools are registered globally: create + draw run
+		// headlessly on the server (no page bridge required), while view-state
+		// tools (center / tidy / update) degrade gracefully when no board is open.
+		...createCanvasServerTools(toolHooks, { activeNotePath }),
+		...createExcalidrawServerTools(toolHooks, { activeNotePath }),
 	];
 	const tools = Array.from(
 		new Map(allTools.map((tool) => [(tool as any).name, tool])).values(),
 	);
+	// Module contributions now act as a soft prioritization layer: declared tools
+	// are promoted to the front of the LLM tool list, but no tool is excluded.
+	// Intent-routed tools remain callable across modules (headless-capable ones
+	// execute server-side without a page bridge).
 	const declaredTools = module ? getAiContribution(module).tools : undefined;
+	const promoted = new Set(declaredTools ?? []);
 	const effectiveTools = declaredTools?.length
-		? tools.filter((tool) => {
-				const name = (tool as { name?: string }).name ?? "";
-				if (name === "read_skill_resource" && !activeSkillDir) return false;
-				if (declaredTools.includes(name)) return true;
-				if (hasFileAttachment && name.startsWith("fs_")) return true;
-				if (activeSkillDir && name === "read_skill_resource") return true;
-				return false;
+		? [...tools].sort((a, b) => {
+				const an = (a as { name?: string }).name ?? "";
+				const bn = (b as { name?: string }).name ?? "";
+				return Number(promoted.has(bn)) - Number(promoted.has(an));
 			})
 		: tools;
 	const availableToolNames = new Set(
 		effectiveTools.map((tool) => (tool as { name?: string }).name ?? ""),
 	);
+	// View-state tools are module-locked: when the intent router wants a
+	// context-dependent action but its target view is not open, short-circuit
+	// with a navigation hint instead of letting the LLM flail or no-op.
+	const CONTEXT_DEPENDENT_HINTS: Record<string, string> = {
+		canvas_tidy_layout:
+			"规整白板排版需要目标白板正处于打开状态。请先跳转到「笔记」模块打开对应 .canvas 白板，再发起规整请求。",
+		canvas_center_view:
+			"居中白板视野需要目标白板正处于打开状态。请先跳转到「笔记」模块打开对应 .canvas 白板。",
+		canvas_update_node:
+			"更新白板节点需要目标白板正处于打开状态。请先跳转到「笔记」模块打开对应 .canvas 白板。",
+		canvas_create_group:
+			"创建分组框需要目标白板正处于打开状态。请先跳转到「笔记」模块打开对应 .canvas 白板。",
+		excalidraw_center_view:
+			"居中画板视野需要目标画板正处于打开状态。请先跳转到「笔记」模块打开对应 .excalidraw 画板。",
+		excalidraw_update_element:
+			"更新画板元素需要目标画板正处于打开状态。请先跳转到「笔记」模块打开对应 .excalidraw 画板。",
+		excalidraw_clear_canvas:
+			"清空画板需要目标画板正处于打开状态。请先跳转到「笔记」模块打开对应 .excalidraw 画板。",
+	};
+	const isViewOpenFor = (toolName: string): boolean => {
+		if (toolName.startsWith("excalidraw_"))
+			return Boolean(activeNotePath?.endsWith(".excalidraw"));
+		if (toolName.startsWith("canvas_"))
+			return Boolean(activeNotePath?.endsWith(".canvas"));
+		return true;
+	};
+
 	const requiredToolIntent = resolveRequiredToolIntent({
 		question: q,
 		module,
 		activeNotePath,
 		availableToolNames,
 	});
+	if (
+		requiredToolIntent &&
+		CONTEXT_DEPENDENT_HINTS[requiredToolIntent.toolName] &&
+		!isViewOpenFor(requiredToolIntent.toolName)
+	) {
+		emit({
+			type: "run_end",
+			answer: CONTEXT_DEPENDENT_HINTS[requiredToolIntent.toolName],
+			dbMutated: false,
+			timestamp: new Date().toLocaleTimeString(),
+		});
+		return;
+	}
 	const requiredTool = requiredToolIntent
 		? effectiveTools.find(
 				(tool) =>
@@ -211,6 +256,7 @@ export async function runAgentStream(
 	const adapter = openaiCompatibleText(model, {
 		baseURL: baseUrl,
 		apiKey,
+		strictFallbackWarning: false,
 	});
 
 	// 4. Prepare message history with multimodal image support

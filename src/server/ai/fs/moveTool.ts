@@ -12,21 +12,19 @@ import { z } from "zod";
 import type { ToolExecutionResult } from "../tools/types.ts";
 import { assertWritablePath, resolveUserPath } from "./fsSafety.ts";
 
-export const moveInputSchema = z
-	.object({
-		sourcePath: z.string().describe("源文件或目录路径，支持 ~ 开头"),
-		targetPath: z
-			.string()
-			.describe(
-				"目标路径（移动或重命名后的完整新路径），支持 ~ 开头。父目录不存在时自动创建",
-			),
-		overwrite: z
-			.boolean()
-			.nullable()
-			.optional()
-			.describe("目标已存在时是否覆盖，默认 false（报错保护）"),
-	})
-	.passthrough();
+export const moveInputSchema = z.object({
+	sourcePath: z.string().describe("源文件或目录路径，支持 ~ 开头"),
+	targetPath: z
+		.string()
+		.describe(
+			"目标路径（移动或重命名后的完整新路径），支持 ~ 开头。父目录不存在时自动创建",
+		),
+	overwrite: z
+		.boolean()
+		.nullable()
+		.optional()
+		.describe("目标已存在时是否覆盖，默认 false（报错保护）"),
+});
 
 export type MoveInput = z.infer<typeof moveInputSchema>;
 

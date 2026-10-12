@@ -215,8 +215,22 @@ export const ChatWithBookmarksPanel = forwardRef<
 				void createAct.onAction(JSON.stringify(params));
 			}
 		},
-		onCanvasAction: (toolName, args) => {
+		onCanvasAction: (toolName, args, navigation) => {
 			// console.log("[ChatPanel onCanvasAction]", toolName, args);
+			// Creation already ran headlessly on the server (Vault file written).
+			// The obsidian bridge action only needs to open the created file in
+			// the view when the user is already in that module; skip otherwise.
+			if (
+				toolName === "excalidraw_create_board" ||
+				toolName === "canvas_create_board"
+			) {
+				if (pageBridge?.module !== "obsidian") return;
+				// Pass the headless-created path so the bridge opens that exact
+				// file instead of creating a duplicate with an auto-suffixed name.
+				if (navigation?.searchParams?.note) {
+					args = { ...(args ?? {}), openPath: navigation.searchParams.note };
+				}
+			}
 			const act = pageBridge?.actions.find((a) => a.id === toolName);
 			if (act) {
 				void act.onAction(
@@ -230,7 +244,6 @@ export const ChatWithBookmarksPanel = forwardRef<
 			}
 		},
 	});
-
 
 	// Helper to send prompts with active scope options
 	const handleSendPrompt = async (

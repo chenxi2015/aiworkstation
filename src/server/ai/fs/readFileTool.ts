@@ -11,23 +11,21 @@ import {
 	resolveUserPath,
 } from "./fsSafety.ts";
 
-export const readFileInputSchema = z
-	.object({
-		path: z
-			.string()
-			.describe("要读取的文件绝对路径，支持 ~ 开头（如 ~/Desktop/notes.md）"),
-		startLine: z
-			.number()
-			.nullable()
-			.optional()
-			.describe("起始行号（从 1 开始），默认 1"),
-		endLine: z
-			.number()
-			.nullable()
-			.optional()
-			.describe("结束行号（含），默认读到上限"),
-	})
-	.passthrough();
+export const readFileInputSchema = z.object({
+	path: z
+		.string()
+		.describe("要读取的文件绝对路径，支持 ~ 开头（如 ~/Desktop/notes.md）"),
+	startLine: z
+		.number()
+		.nullable()
+		.optional()
+		.describe("起始行号（从 1 开始），默认 1"),
+	endLine: z
+		.number()
+		.nullable()
+		.optional()
+		.describe("结束行号（含），默认读到上限"),
+});
 
 export type ReadFileInput = z.infer<typeof readFileInputSchema>;
 

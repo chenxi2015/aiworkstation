@@ -4,42 +4,38 @@ import type { SearchResultItem } from "../../../components/workbench/types.ts";
 import { workbenchDb } from "../../db/sqlite.ts";
 import type { ToolExecutionResult } from "./types.ts";
 
-export const addTagsToBookmarksInputSchema = z
-	.object({
-		bookmarkIds: z
-			.array(z.string())
-			.nullable()
-			.optional()
-			.describe("目标书签 ID 数组（精确匹配，优先使用）"),
-		itemNamesOrUrls: z
-			.array(z.string())
-			.nullable()
-			.optional()
-			.describe(
-				"书签标题或 URL 关键词数组（模糊匹配，与 query_bookmarks 的匹配逻辑保持一致）",
-			),
-		tags: z
-			.array(z.string())
-			.nullable()
-			.optional()
-			.describe(
-				"要追加的标签名称数组，如 ['并发', 'JVM']。不存在的标签自动创建",
-			),
-		plans: z
-			.array(
-				z.object({
-					itemNamesOrUrls: z.array(z.string()).nullable().optional(),
-					bookmarkIds: z.array(z.string()).nullable().optional(),
-					tags: z.array(z.string()),
-				}),
-			)
-			.nullable()
-			.optional()
-			.describe(
-				"批量打标计划。当需要给不同书签分别打不同标签时必须使用此字段一次性提交，严禁拆为多次单步调用",
-			),
-	})
-	.passthrough();
+export const addTagsToBookmarksInputSchema = z.object({
+	bookmarkIds: z
+		.array(z.string())
+		.nullable()
+		.optional()
+		.describe("目标书签 ID 数组（精确匹配，优先使用）"),
+	itemNamesOrUrls: z
+		.array(z.string())
+		.nullable()
+		.optional()
+		.describe(
+			"书签标题或 URL 关键词数组（模糊匹配，与 query_bookmarks 的匹配逻辑保持一致）",
+		),
+	tags: z
+		.array(z.string())
+		.nullable()
+		.optional()
+		.describe("要追加的标签名称数组，如 ['并发', 'JVM']。不存在的标签自动创建"),
+	plans: z
+		.array(
+			z.object({
+				itemNamesOrUrls: z.array(z.string()).nullable().optional(),
+				bookmarkIds: z.array(z.string()).nullable().optional(),
+				tags: z.array(z.string()),
+			}),
+		)
+		.nullable()
+		.optional()
+		.describe(
+			"批量打标计划。当需要给不同书签分别打不同标签时必须使用此字段一次性提交，严禁拆为多次单步调用",
+		),
+});
 
 export type AddTagsToBookmarksInput = z.infer<
 	typeof addTagsToBookmarksInputSchema
@@ -64,7 +60,9 @@ export function executeAddTagsToBookmarks(
 	let summaryMsg = "";
 	if (affectedCount === 0) {
 		const skippedDesc =
-			result.skipped.length > 0 ? `（未匹配关键词: ${result.skipped.join("、")}）` : "";
+			result.skipped.length > 0
+				? `（未匹配关键词: ${result.skipped.join("、")}）`
+				: "";
 		summaryMsg = `未找到符合条件的目标书签进行打标${skippedDesc}。`;
 	} else {
 		const tagCreatedDesc =
@@ -72,7 +70,9 @@ export function executeAddTagsToBookmarks(
 				? `，自动新建了 ${createdTagsCount} 个标签（${result.createdTags.join("、")}）`
 				: "";
 		const skippedDesc =
-			result.skipped.length > 0 ? `，部分未匹配项已跳过（${result.skipped.join("、")}）` : "";
+			result.skipped.length > 0
+				? `，部分未匹配项已跳过（${result.skipped.join("、")}）`
+				: "";
 		summaryMsg = `成功为 ${affectedCount} 条书签完成打标${tagCreatedDesc}${skippedDesc}。`;
 	}
 

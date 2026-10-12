@@ -1,49 +1,26 @@
-import { GeneralSearchProvider } from "./generalSearchProvider.ts";
-import { TavilySearchProvider } from "./tavilyProvider.ts";
-import type { SearchOptions, SearchProvider, SearchResult } from "./types.ts";
+import { readSearchConfig } from "./configLoader.ts";
+import { SearchOrchestrator } from "./orchestrator.ts";
+import type { SearchProvider } from "./types.ts";
 
 export * from "./types.ts";
+export * from "./registry.ts";
+export { SearchOrchestrator } from "./orchestrator.ts";
+export type { SearchAttempt, SearchTrace } from "./orchestrator.ts";
 
-/**
- * Composite search provider with automatic fallback
- */
-class CompositeSearchProvider implements SearchProvider {
-	name = "composite";
-	private primary?: SearchProvider;
-	private fallback: SearchProvider;
-
-	constructor() {
-		const tavilyKey = process.env.TAVILY_API_KEY?.trim();
-		if (tavilyKey) {
-			this.primary = new TavilySearchProvider(tavilyKey);
-		}
-		this.fallback = new GeneralSearchProvider();
-	}
-
-	async search(
-		query: string,
-		options?: SearchOptions,
-	): Promise<SearchResult[]> {
-		if (this.primary) {
-			try {
-				const results = await this.primary.search(query, options);
-				if (results.length > 0) return results;
-			} catch (err) {
-				console.warn(
-					`[SearchProvider] Primary provider (${this.primary.name}) failed, falling back to general:`,
-					err,
-				);
-			}
-		}
-		return this.fallback.search(query, options);
-	}
-}
-
-let instance: SearchProvider | null = null;
+let instance: SearchOrchestrator | null = null;
 
 export function getSearchProvider(): SearchProvider {
 	if (!instance) {
-		instance = new CompositeSearchProvider();
+		// better-sqlite3 is synchronous — reads are cheap enough to run on
+		// every search call, so settings changes take effect immediately.
+		instance = new SearchOrchestrator(readSearchConfig);
 	}
 	return instance;
+}
+
+/**
+ * Expose the orchestrator's last search trace for tool-level reporting.
+ */
+export function getLastSearchTrace() {
+	return instance?.getLastTrace() ?? null;
 }

@@ -80,6 +80,17 @@ export function resolveRequiredToolIntent(
 		}
 	}
 
+	// Explicit request to author a new long-form document (global: headless
+	// server-side generation when the studio is not mounted)
+	if (
+		/(?:新建|创建|写|起草|撰写|生成).{0,12}(?:文档|文章|稿件|长文|推文|文案)|(?:以|围绕).{2,30}(?:为主题|为题).{0,12}(?:写|创作|生成)/i.test(
+			question,
+		)
+	) {
+		const intent = required("trigger_document_create", "create_document");
+		if (intent) return intent;
+	}
+
 	if (/(?:统计|盘点|总量|规模|健康度|资产全景|有多少)/i.test(question)) {
 		const intent = required("get_stats", "bookmark_statistics");
 		if (intent) return intent;

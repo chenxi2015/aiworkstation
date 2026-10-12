@@ -16,25 +16,23 @@ import { assertWritablePath, resolveUserPath } from "./fsSafety.ts";
 
 const TRASH_DIR = join(homedir(), ".aiworkstation", ".trash");
 
-export const deleteInputSchema = z
-	.object({
-		path: z
-			.string()
-			.describe(
-				"要删除的文件或目录路径，支持 ~ 开头。删除前会优先移入回收目录 ~/.aiworkstation/.trash/，可恢复",
-			),
-		recursive: z
-			.boolean()
-			.nullable()
-			.optional()
-			.describe("删除非空目录时必须显式设为 true"),
-		permanent: z
-			.boolean()
-			.nullable()
-			.optional()
-			.describe("true 表示彻底删除（不进回收目录，不可恢复），默认 false"),
-	})
-	.passthrough();
+export const deleteInputSchema = z.object({
+	path: z
+		.string()
+		.describe(
+			"要删除的文件或目录路径，支持 ~ 开头。删除前会优先移入回收目录 ~/.aiworkstation/.trash/，可恢复",
+		),
+	recursive: z
+		.boolean()
+		.nullable()
+		.optional()
+		.describe("删除非空目录时必须显式设为 true"),
+	permanent: z
+		.boolean()
+		.nullable()
+		.optional()
+		.describe("true 表示彻底删除（不进回收目录，不可恢复），默认 false"),
+});
 
 export type DeleteInput = z.infer<typeof deleteInputSchema>;
 

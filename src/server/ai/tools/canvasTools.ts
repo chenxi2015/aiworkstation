@@ -1,7 +1,29 @@
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
+import { headlessCreateCanvasElements } from "./headlessCanvas.ts";
+import { headlessCreateCanvasBoard } from "./headlessExcalidraw.ts";
 import { wrapExecution } from "./index.ts";
-import type { BookmarkToolHooks, ToolExecutionResult } from "./types.ts";
+import type {
+	BookmarkToolHooks,
+	ToolExecutionClass,
+	ToolExecutionResult,
+} from "./types.ts";
+
+/** Execution dependency metadata, keyed by tool name */
+export const CANVAS_TOOL_CLASSES: Record<string, ToolExecutionClass> = {
+	canvas_create_board: "global-headless",
+	canvas_create_elements: "content-generating",
+	canvas_create_group: "context-dependent",
+	canvas_update_node: "context-dependent",
+	canvas_tidy_layout: "context-dependent",
+	canvas_center_view: "context-dependent",
+};
+
+/** Runtime context for dual-path execution decisions */
+export interface CanvasToolRuntime {
+	/** Currently open note path in the obsidian module, if any */
+	activeNotePath?: string;
+}
 
 export const canvasNodeSchema = z.object({
 	id: z
@@ -299,13 +321,20 @@ export const canvasCreateBoardToolDef = toolDefinition({
 	inputSchema: canvasCreateBoardInputSchema,
 });
 
-export function createCanvasServerTools(hooks?: BookmarkToolHooks) {
+export function createCanvasServerTools(
+	hooks?: BookmarkToolHooks,
+	runtime?: CanvasToolRuntime,
+) {
+	const activeNotePath = runtime?.activeNotePath;
+	const boardOpen = Boolean(activeNotePath?.endsWith(".canvas"));
+
 	return [
 		canvasCreateBoardToolDef.server((args) =>
 			wrapExecution(
 				"canvas_create_board",
 				args,
-				() => executeCanvasCreateBoard(args),
+				// Creation is always headless (atomic Vault file write)
+				() => headlessCreateCanvasBoard(args),
 				hooks,
 			),
 		),
@@ -313,7 +342,13 @@ export function createCanvasServerTools(hooks?: BookmarkToolHooks) {
 			wrapExecution(
 				"canvas_create_elements",
 				args,
-				() => executeCanvasCreateElements(args),
+				async () => {
+					if (boardOpen) {
+						// Live path: frontend bridge renders with animation via streamed step.
+						return executeCanvasCreateElements(args);
+					}
+					return headlessCreateCanvasElements(args, activeNotePath);
+				},
 				hooks,
 			),
 		),
@@ -321,7 +356,14 @@ export function createCanvasServerTools(hooks?: BookmarkToolHooks) {
 			wrapExecution(
 				"canvas_create_group",
 				args,
-				() => executeCanvasCreateGroup(args),
+				() => {
+					if (!boardOpen) {
+						throw new Error(
+							"该操作需要目标白板正处于打开状态。请先跳转到笔记模块打开对应白板，再执行此操作。",
+						);
+					}
+					return executeCanvasCreateGroup(args);
+				},
 				hooks,
 			),
 		),
@@ -329,7 +371,14 @@ export function createCanvasServerTools(hooks?: BookmarkToolHooks) {
 			wrapExecution(
 				"canvas_update_node",
 				args,
-				() => executeCanvasUpdateNode(args),
+				() => {
+					if (!boardOpen) {
+						throw new Error(
+							"该操作需要目标白板正处于打开状态。请先跳转到笔记模块打开对应白板，再执行此操作。",
+						);
+					}
+					return executeCanvasUpdateNode(args);
+				},
 				hooks,
 			),
 		),
@@ -337,7 +386,14 @@ export function createCanvasServerTools(hooks?: BookmarkToolHooks) {
 			wrapExecution(
 				"canvas_tidy_layout",
 				args,
-				() => executeCanvasTidyLayout(args),
+				() => {
+					if (!boardOpen) {
+						throw new Error(
+							"该操作需要目标白板正处于打开状态。请先跳转到笔记模块打开对应白板，再执行此操作。",
+						);
+					}
+					return executeCanvasTidyLayout(args);
+				},
 				hooks,
 			),
 		),
@@ -345,7 +401,14 @@ export function createCanvasServerTools(hooks?: BookmarkToolHooks) {
 			wrapExecution(
 				"canvas_center_view",
 				args,
-				() => executeCanvasCenterView(args),
+				() => {
+					if (!boardOpen) {
+						throw new Error(
+							"该操作需要目标白板正处于打开状态。请先跳转到笔记模块打开对应白板，再执行此操作。",
+						);
+					}
+					return executeCanvasCenterView(args);
+				},
 				hooks,
 			),
 		),

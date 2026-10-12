@@ -70,6 +70,8 @@ export interface UseObsidianAiBridgeOptions {
 	noteApiRef: React.RefObject<ObsidianNoteApi | null>;
 	/** 当前选中笔记路径（用于空态标题/上下文展示） */
 	selectedNotePath: string | null;
+	/** 按相对路径直接打开 Vault 条目（用于无头创建后跳转查看） */
+	onOpenPath?: (relPath: string) => void;
 	/** 创建新白板回调（来自 useVaultOperations） */
 	onCreateCanvas?: (
 		dir?: string,
@@ -92,6 +94,7 @@ export interface UseObsidianAiBridgeOptions {
 export function useObsidianAiBridge({
 	noteApiRef,
 	selectedNotePath,
+	onOpenPath,
 	onCreateCanvas,
 	onCreateExcalidraw,
 }: UseObsidianAiBridgeOptions) {
@@ -338,6 +341,12 @@ export function useObsidianAiBridge({
 									? JSON.parse(payload)
 									: payload
 								: {};
+							// Headless creation already wrote the file: just open it
+							if (typeof data.openPath === "string" && data.openPath) {
+								onOpenPath?.(data.openPath);
+								toast.success("已打开 AI 创建的白板");
+								return;
+							}
 							const name = data.name || "未命名白板";
 							const dir = data.dir || undefined;
 							const res = await onCreateCanvas(dir, name, false);
@@ -489,11 +498,19 @@ export function useObsidianAiBridge({
 									? JSON.parse(payload)
 									: payload
 								: {};
+							// Headless creation already wrote the file: just open it
+							if (typeof data.openPath === "string" && data.openPath) {
+								onOpenPath?.(data.openPath);
+								toast.success("已打开 AI 创建的画板");
+								return;
+							}
 							const name = data.name
 								? String(data.name).replace(/\.excalidraw$/i, "")
 								: "未命名画板";
 							const dir = data.dir ? String(data.dir) : undefined;
 							if (onCreateExcalidraw) {
+								// The server already wrote the file headlessly; this call
+								// resolves the same path and switches the view to open it.
 								const res = await onCreateExcalidraw(dir, name, false);
 								if (res.success) {
 									toast.success(`AI 已创建并打开画板「${name}」`);
@@ -650,6 +667,7 @@ export function useObsidianAiBridge({
 		noteApiRef,
 		noteTitle,
 		selectedNotePath,
+		onOpenPath,
 		onCreateCanvas,
 		onCreateExcalidraw,
 	]);

@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { chat } from "@tanstack/ai";
 import { openaiCompatibleText } from "@tanstack/ai-openai/compatible";
+import { stripMetaChatter } from "../../ai/documentGeneration.ts";
 import { resolveEditorPresetPrompt } from "../../ai/editorPresets.ts";
 import { resolveLlmConfig } from "../../ai/ragContext.ts";
 import { readJsonBody, sendJson } from "../utils.ts";
@@ -15,25 +16,6 @@ export interface EditorRewriteStreamParams {
 	totalParagraphs?: number;
 	precedingText?: string;
 	followingText?: string;
-}
-
-/**
- * Strips accidental LLM meta-chatter or explanation lines
- */
-function stripMetaChatter(text: string): string {
-	let cleaned = text.trim();
-	// Remove leading common AI preambles
-	cleaned = cleaned
-		.replace(
-			/^(好的[，,！!]?|好的，我来为你.*?[：:\n]|根据你的要求[，,].*?[：:\n]|为您润色如下[：:\n]|你未附完整现稿.*?[：:\n]|我先按.*?压缩如下[：:\n])/i,
-			"",
-		)
-		.trim();
-	// Remove trailing meta notes like "如需全篇...请发来"
-	cleaned = cleaned
-		.replace(/(\n\s*(如需全篇|若需更多|以上是针对|如有其他需求).*$)/s, "")
-		.trim();
-	return cleaned;
 }
 
 /**

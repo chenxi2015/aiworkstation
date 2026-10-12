@@ -3,23 +3,19 @@ import { z } from "zod";
 import { workbenchDb } from "../../db/sqlite.ts";
 import type { ToolExecutionResult } from "./types.ts";
 
-export const removeTagsInputSchema = z
-	.object({
-		bookmarkIds: z
-			.array(z.string())
-			.nullable()
-			.optional()
-			.describe("要从哪些书签上摘除标签（不传则视为全局操作）"),
-		tags: z
-			.array(z.string())
-			.describe("要移除的标签名称数组"),
-		deleteGlobal: z
-			.boolean()
-			.nullable()
-			.optional()
-			.describe("是否从全库彻底删除标签（含所有书签上的关联），默认 false"),
-	})
-	.passthrough();
+export const removeTagsInputSchema = z.object({
+	bookmarkIds: z
+		.array(z.string())
+		.nullable()
+		.optional()
+		.describe("要从哪些书签上摘除标签（不传则视为全局操作）"),
+	tags: z.array(z.string()).describe("要移除的标签名称数组"),
+	deleteGlobal: z
+		.boolean()
+		.nullable()
+		.optional()
+		.describe("是否从全库彻底删除标签（含所有书签上的关联），默认 false"),
+});
 
 export type RemoveTagsInput = z.infer<typeof removeTagsInputSchema>;
 

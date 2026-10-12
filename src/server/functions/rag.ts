@@ -4,8 +4,8 @@ import { createServerFn } from "@tanstack/react-start";
 import type { SearchResultItem } from "../../components/workbench/types";
 import type { EmbeddingConfig } from "../../services/embeddingService";
 import { createBookmarkServerTools } from "../ai/bookmarkTools";
-import { workbenchDb } from "../db/sqlite.ts";
 import { prepareRagAgentContext, resolveLlmConfig } from "../ai/ragContext.ts";
+import { workbenchDb } from "../db/sqlite.ts";
 
 export interface ChatMessage {
 	role: "user" | "assistant" | "system" | "tool";
@@ -110,6 +110,7 @@ export const chatWithBookmarks = createServerFn({ method: "POST" })
 		const adapter = openaiCompatibleText(model, {
 			baseURL: baseUrl,
 			apiKey,
+			strictFallbackWarning: false,
 		});
 
 		// 5. Prepare message history (excluding system prompt from messages array)
@@ -133,13 +134,14 @@ export const chatWithBookmarks = createServerFn({ method: "POST" })
 		// 6. Execute TanStack AI agent loop
 		let answer = "";
 		try {
-			answer = await chat({
+			const res = await chat({
 				adapter,
 				systemPrompts: [prepared.systemPrompt],
 				messages,
 				tools,
 				stream: false,
 			});
+			answer = res.text;
 		} catch (error: unknown) {
 			console.error("[chatWithBookmarks] TanStack AI chat error:", error);
 			const errMsg =
@@ -220,11 +222,12 @@ export const generateFolderDossier = createServerFn({ method: "POST" })
 		const adapter = openaiCompatibleText(model, {
 			baseURL: baseUrl,
 			apiKey,
+			strictFallbackWarning: false,
 		});
 
 		let markdown = "";
 		try {
-			markdown = await chat({
+			const res = await chat({
 				adapter,
 				systemPrompts: [systemPrompt],
 				messages: [
@@ -235,6 +238,7 @@ export const generateFolderDossier = createServerFn({ method: "POST" })
 				],
 				stream: false,
 			});
+			markdown = res.text;
 		} catch (error: unknown) {
 			console.error("[generateFolderDossier] TanStack AI chat error:", error);
 			const errMsg =

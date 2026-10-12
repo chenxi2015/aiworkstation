@@ -12,40 +12,38 @@ import { DB_DIR } from "../../db/connection.ts";
 import { executeReadWebpage } from "./readWebpageTool.ts";
 import type { ToolExecutionResult } from "./types.ts";
 
-export const crawlWebpageViaExtensionInputSchema = z
-	.object({
-		url: z.string().describe("需要抓取的完整网页 URL 地址"),
-		selector: z
-			.string()
-			.nullable()
-			.optional()
-			.describe(
-				"可选 CSS 选择器，精准提取目标选区（例如 article.main、#content），匹配多个元素时自动合并全部匹配内容，支持「h2:nth-of-type(2) ~ *」这类兄弟选择器做分段提取。缺省时自动识别正文区域",
-			),
-		waitMs: z
-			.number()
-			.int()
-			.min(0)
-			.max(10_000)
-			.nullable()
-			.optional()
-			.describe("页面加载完成后的额外渲染等待毫秒数（SPA 场景），默认 1500"),
-		mode: z
-			.enum(["content", "skeleton"])
-			.nullable()
-			.optional()
-			.describe(
-				"抓取模式：content（默认，直接返回正文 Markdown）；skeleton（只返回页面候选内容区块的结构骨架，不返回正文，用于让 AI 先分析页面结构再决定精准提取哪些区域）",
-			),
-		fullPage: z
-			.boolean()
-			.nullable()
-			.optional()
-			.describe(
-				"完整正文落盘模式：抓取完整正文并保存为本地 Markdown 文件，工具只返回文件路径和内容预览（不占用 AI 上下文）。当用户要求「完整全文/不加工的原始内容/保存网页」时务必使用本模式，而不是在 content 模式下反复分段抓取",
-			),
-	})
-	.passthrough();
+export const crawlWebpageViaExtensionInputSchema = z.object({
+	url: z.string().describe("需要抓取的完整网页 URL 地址"),
+	selector: z
+		.string()
+		.nullable()
+		.optional()
+		.describe(
+			"可选 CSS 选择器，精准提取目标选区（例如 article.main、#content），匹配多个元素时自动合并全部匹配内容，支持「h2:nth-of-type(2) ~ *」这类兄弟选择器做分段提取。缺省时自动识别正文区域",
+		),
+	waitMs: z
+		.number()
+		.int()
+		.min(0)
+		.max(10_000)
+		.nullable()
+		.optional()
+		.describe("页面加载完成后的额外渲染等待毫秒数（SPA 场景），默认 1500"),
+	mode: z
+		.enum(["content", "skeleton"])
+		.nullable()
+		.optional()
+		.describe(
+			"抓取模式：content（默认，直接返回正文 Markdown）；skeleton（只返回页面候选内容区块的结构骨架，不返回正文，用于让 AI 先分析页面结构再决定精准提取哪些区域）",
+		),
+	fullPage: z
+		.boolean()
+		.nullable()
+		.optional()
+		.describe(
+			"完整正文落盘模式：抓取完整正文并保存为本地 Markdown 文件，工具只返回文件路径和内容预览（不占用 AI 上下文）。当用户要求「完整全文/不加工的原始内容/保存网页」时务必使用本模式，而不是在 content 模式下反复分段抓取",
+		),
+});
 
 export type CrawlWebpageViaExtensionInput = z.infer<
 	typeof crawlWebpageViaExtensionInputSchema

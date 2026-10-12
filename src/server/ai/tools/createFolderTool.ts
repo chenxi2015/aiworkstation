@@ -3,69 +3,61 @@ import { z } from "zod";
 import { workbenchDb } from "../../db/sqlite.ts";
 import type { ToolExecutionResult } from "./types.ts";
 
-export const createFolderInputSchema = z
-	.object({
-		name: z
-			.string()
-			.nullable()
-			.optional()
-			.describe("文件夹名称（单文件夹场景），例如：'AI 剪辑工具库'、'小红书爆款文案'"),
-		folderName: z
-			.string()
-			.nullable()
-			.optional()
-			.describe("文件夹名称别名（与 name 作用相同）"),
-		category: z
-			.string()
-			.nullable()
-			.optional()
-			.describe(
-				"所属工作台大分类（如：工作台、创作、技能、电商、收藏等），默认'工作台'",
-			),
-		desc: z
-			.string()
-			.nullable()
-			.optional()
-			.describe("文件夹主题说明或使用场景描述"),
-		description: z
-			.string()
-			.nullable()
-			.optional()
-			.describe("描述别名（与 desc 作用相同）"),
-		color: z
-			.string()
-			.nullable()
-			.optional()
-			.describe("文件夹主题颜色 Hex 代码，例如 '#4f46e5'"),
-		folders: z
-			.array(
-				z.object({
-					name: z.string().describe("文件夹名称"),
-					category: z
-						.string()
-						.nullable()
-						.optional()
-						.describe("所属大分类，默认'工作台'"),
-					desc: z
-						.string()
-						.nullable()
-						.optional()
-						.describe("主题说明或用途描述"),
-					description: z
-						.string()
-						.nullable()
-						.optional()
-						.describe("描述别名"),
-					color: z.string().nullable().optional().describe("颜色标识"),
-				}),
-			)
-			.nullable()
-			.optional()
-			.describe(
-				"批量创建文件夹列表。当需要一次性创建多个文件夹时必须优先使用此字段，严禁拆为多次单步调用",
-			),
-	})
-	.passthrough();
+export const createFolderInputSchema = z.object({
+	name: z
+		.string()
+		.nullable()
+		.optional()
+		.describe(
+			"文件夹名称（单文件夹场景），例如：'AI 剪辑工具库'、'小红书爆款文案'",
+		),
+	folderName: z
+		.string()
+		.nullable()
+		.optional()
+		.describe("文件夹名称别名（与 name 作用相同）"),
+	category: z
+		.string()
+		.nullable()
+		.optional()
+		.describe(
+			"所属工作台大分类（如：工作台、创作、技能、电商、收藏等），默认'工作台'",
+		),
+	desc: z
+		.string()
+		.nullable()
+		.optional()
+		.describe("文件夹主题说明或使用场景描述"),
+	description: z
+		.string()
+		.nullable()
+		.optional()
+		.describe("描述别名（与 desc 作用相同）"),
+	color: z
+		.string()
+		.nullable()
+		.optional()
+		.describe("文件夹主题颜色 Hex 代码，例如 '#4f46e5'"),
+	folders: z
+		.array(
+			z.object({
+				name: z.string().describe("文件夹名称"),
+				category: z
+					.string()
+					.nullable()
+					.optional()
+					.describe("所属大分类，默认'工作台'"),
+				desc: z.string().nullable().optional().describe("主题说明或用途描述"),
+				description: z.string().nullable().optional().describe("描述别名"),
+				color: z.string().nullable().optional().describe("颜色标识"),
+			}),
+		)
+		.nullable()
+		.optional()
+		.describe(
+			"批量创建文件夹列表。当需要一次性创建多个文件夹时必须优先使用此字段，严禁拆为多次单步调用",
+		),
+});
 
 export type CreateFolderInput = z.infer<typeof createFolderInputSchema>;
 
@@ -100,7 +92,10 @@ export function executeCreateFolder(
 	}
 
 	const singleName = (args.name || args.folderName || "").trim();
-	if (singleName && !specs.some((s) => s.name.toLowerCase() === singleName.toLowerCase())) {
+	if (
+		singleName &&
+		!specs.some((s) => s.name.toLowerCase() === singleName.toLowerCase())
+	) {
 		const singleCat =
 			args.category && args.category !== "null" && args.category !== "undefined"
 				? args.category.trim()
@@ -174,7 +169,9 @@ export function executeCreateFolder(
 		const c = createdList[0];
 		summary = `成功在 SQLite 数据库中创建新文件夹「${c.name}」（所属分类：${c.category}，ID：${c.id}）。`;
 	} else {
-		const names = createdList.map((c) => `「${c.name}」(${c.category})`).join("、");
+		const names = createdList
+			.map((c) => `「${c.name}」(${c.category})`)
+			.join("、");
 		summary = `成功批量创建 ${createdList.length} 个文件夹：${names}。`;
 		if (existedList.length > 0) {
 			summary += `（另有 ${existedList.length} 个已存在略过：${existedList.map((e) => `「${e.name}」`).join("、")}）`;

@@ -127,6 +127,7 @@ export function ObsidianApp({
 	useObsidianAiBridge({
 		noteApiRef,
 		selectedNotePath,
+		onOpenPath: openNote,
 		onCreateCanvas: handleCreateCanvas,
 		onCreateExcalidraw: handleCreateExcalidraw,
 	});

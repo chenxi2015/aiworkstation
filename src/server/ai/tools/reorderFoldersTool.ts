@@ -4,34 +4,32 @@ import type { Folder } from "../../../components/workbench/types.ts";
 import { workbenchDb } from "../../db/sqlite.ts";
 import type { ToolExecutionResult } from "./types.ts";
 
-export const reorderFoldersInputSchema = z
-	.object({
-		orderedFolderNames: z
-			.array(z.string())
-			.nullable()
-			.optional()
-			.describe(
-				"期望的文件夹名称顺序（同一层级内）。未列出的同级文件夹会保持原顺序排在最后",
-			),
-		sortBy: z
-			.enum(["name", "items", "created"])
-			.nullable()
-			.optional()
-			.describe(
-				"快捷排序规则：name=按名称，items=按内容数量（多到少），created=按创建时间（新到旧）。与 orderedFolderNames 二选一",
-			),
-		parentFolderName: z
-			.string()
-			.nullable()
-			.optional()
-			.describe("要排序的子层级所属父文件夹名称；不传表示排序分类顶层的文件夹"),
-		category: z
-			.string()
-			.nullable()
-			.optional()
-			.describe("要排序的分类名称（仅顶层排序时生效），默认「工作台」"),
-	})
-	.passthrough();
+export const reorderFoldersInputSchema = z.object({
+	orderedFolderNames: z
+		.array(z.string())
+		.nullable()
+		.optional()
+		.describe(
+			"期望的文件夹名称顺序（同一层级内）。未列出的同级文件夹会保持原顺序排在最后",
+		),
+	sortBy: z
+		.enum(["name", "items", "created"])
+		.nullable()
+		.optional()
+		.describe(
+			"快捷排序规则：name=按名称，items=按内容数量（多到少），created=按创建时间（新到旧）。与 orderedFolderNames 二选一",
+		),
+	parentFolderName: z
+		.string()
+		.nullable()
+		.optional()
+		.describe("要排序的子层级所属父文件夹名称；不传表示排序分类顶层的文件夹"),
+	category: z
+		.string()
+		.nullable()
+		.optional()
+		.describe("要排序的分类名称（仅顶层排序时生效），默认「工作台」"),
+});
 
 export type ReorderFoldersInput = z.infer<typeof reorderFoldersInputSchema>;
 

@@ -5,6 +5,15 @@ import type { ChatContextItem } from "./chatContext";
 /**
  * Individual step representing a tool invocation during the Agent ReAct loop
  */
+export interface AgentStepNavigation {
+	/** Target app route (e.g. "/obsidian") */
+	route: string;
+	/** Route search params (e.g. { note: "path/to/file.excalidraw" }) */
+	searchParams?: Record<string, string>;
+	/** CTA label (e.g. "打开画板") */
+	label: string;
+}
+
 export interface AgentStep {
 	id: string;
 	toolName: string;
@@ -13,6 +22,8 @@ export interface AgentStep {
 	summary?: string;
 	durationMs?: number;
 	timestamp?: string;
+	/** Optional artifact navigation, rendered as a clickable result card */
+	navigation?: AgentStepNavigation;
 }
 
 /**

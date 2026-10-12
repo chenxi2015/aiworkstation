@@ -10,19 +10,17 @@ import {
 	writeTextAtomicSync,
 } from "./fsSafety.ts";
 
-export const writeFileInputSchema = z
-	.object({
-		path: z
-			.string()
-			.describe("目标文件绝对路径，支持 ~ 开头。父目录不存在时会自动创建"),
-		content: z.string().describe("要写入的完整文本内容"),
-		append: z
-			.boolean()
-			.nullable()
-			.optional()
-			.describe("true 表示追加到文件末尾，默认 false（覆盖写入）"),
-	})
-	.passthrough();
+export const writeFileInputSchema = z.object({
+	path: z
+		.string()
+		.describe("目标文件绝对路径，支持 ~ 开头。父目录不存在时会自动创建"),
+	content: z.string().describe("要写入的完整文本内容"),
+	append: z
+		.boolean()
+		.nullable()
+		.optional()
+		.describe("true 表示追加到文件末尾，默认 false（覆盖写入）"),
+});
 
 export type WriteFileInput = z.infer<typeof writeFileInputSchema>;
 

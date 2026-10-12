@@ -23,12 +23,38 @@ import {
 	triggerParagraphRewriteToolDef,
 	updateDocumentTitleToolDef,
 } from "./tools/documentTools.ts";
+import { headlessCreateDocument } from "./tools/headlessDocument.ts";
 import { wrapExecution } from "./tools/index.ts";
 import {
 	executeGenerateMermaidDiagram,
 	generateMermaidDiagramToolDef,
 } from "./tools/mermaidTool.ts";
-import type { BookmarkToolHooks } from "./tools/types.ts";
+import type {
+	BookmarkToolHooks,
+	ToolExecutionClass,
+	ToolExecutionResult,
+} from "./tools/types.ts";
+
+/** Execution dependency metadata, keyed by tool name */
+export const EDITOR_TOOL_CLASSES: Record<string, ToolExecutionClass> = {
+	trigger_document_create: "content-generating",
+	trigger_paragraph_rewrite: "context-dependent",
+	read_document: "global-headless",
+	list_documents: "global-headless",
+	update_document_title: "global-headless",
+	insert_document_block: "content-generating",
+	edit_document_paragraph: "content-generating",
+	generate_mermaid_diagram: "content-generating",
+	generate_data_chart: "content-generating",
+};
+
+/** Runtime context for dual-path execution decisions */
+export interface EditorToolRuntime {
+	/** Module the user is currently in (from route) */
+	module?: string;
+	/** Active document id when the editor page is mounted */
+	activeDocumentId?: number;
+}
 
 export * from "./tools/chartTool.ts";
 export * from "./tools/documentTools.ts";
@@ -43,6 +69,7 @@ export * from "./tools/mermaidTool.ts";
 export function createEditorServerTools(
 	hooks?: BookmarkToolHooks,
 	activeDocumentId?: number,
+	runtime?: EditorToolRuntime,
 ) {
 	return [
 		readDocumentToolDef.server((args) =>
@@ -69,15 +96,9 @@ export function createEditorServerTools(
 				hooks,
 			),
 		),
-		// Trigger client-side full-article streaming creation pipeline in single Tiptap rich-text editor
-		triggerDocumentCreateToolDef.server((args) =>
-			wrapExecution(
-				"trigger_document_create",
-				args,
-				() => executeTriggerDocumentCreate(args),
-				hooks,
-			),
-		),
+		// Dual-path: studio mounted → live streaming pipeline in the editor;
+		// otherwise headless server-side generation directly into the documents table.
+		createDocumentCreateTool(hooks, runtime),
 		// Trigger client-side paragraph streaming rewrite pipeline in Tiptap editor (split comparison view)
 		// Saves document changes in editor natively with rich diffs, never overwriting DB directly.
 		triggerParagraphRewriteToolDef.server((args) =>
@@ -125,6 +146,32 @@ export function createEditorServerTools(
 			),
 		),
 	];
+}
+
+/**
+ * Standalone document-creation tool for global registration. Dual-path:
+ * live streaming pipeline when the studio is mounted, headless server-side
+ * generation otherwise.
+ */
+export function createDocumentCreateTool(
+	hooks?: BookmarkToolHooks,
+	runtime?: EditorToolRuntime,
+) {
+	const studioMounted =
+		runtime?.module === "editor" || runtime?.module === "creator";
+	return triggerDocumentCreateToolDef.server((args) =>
+		wrapExecution(
+			"trigger_document_create",
+			args,
+			async (): Promise<ToolExecutionResult> => {
+				if (studioMounted) {
+					return executeTriggerDocumentCreate(args);
+				}
+				return headlessCreateDocument(args);
+			},
+			hooks,
+		),
+	);
 }
 
 /**

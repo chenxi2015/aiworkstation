@@ -10,41 +10,39 @@ import {
 	resolveUserPath,
 } from "./fsSafety.ts";
 
-export const searchFilesInputSchema = z
-	.object({
-		path: z
-			.string()
-			.nullable()
-			.optional()
-			.describe(
-				"搜索的起始目录，支持 ~ 开头（如 ~/Documents）。不传则全局搜索用户常用目录（桌面/文稿/下载/主目录）",
-			),
-		pattern: z
-			.string()
-			.describe(
-				"名称匹配模式，支持 * 通配符（如 *.md、report*、*.png）。不区分大小写",
-			),
-		type: z
-			.enum(["file", "directory", "both"])
-			.nullable()
-			.optional()
-			.describe(
-				"搜索目标类型：file 仅文件、directory 仅文件夹、both 两者都搜，默认 both",
-			),
-		maxDepth: z
-			.number()
-			.nullable()
-			.optional()
-			.describe("最大递归深度，默认 5（全局搜索时默认 4）"),
-		includeHidden: z
-			.boolean()
-			.nullable()
-			.optional()
-			.describe(
-				"是否包含 . 开头的隐藏文件/目录，默认 false（path 本身指向隐藏目录时自动视为 true）",
-			),
-	})
-	.passthrough();
+export const searchFilesInputSchema = z.object({
+	path: z
+		.string()
+		.nullable()
+		.optional()
+		.describe(
+			"搜索的起始目录，支持 ~ 开头（如 ~/Documents）。不传则全局搜索用户常用目录（桌面/文稿/下载/主目录）",
+		),
+	pattern: z
+		.string()
+		.describe(
+			"名称匹配模式，支持 * 通配符（如 *.md、report*、*.png）。不区分大小写",
+		),
+	type: z
+		.enum(["file", "directory", "both"])
+		.nullable()
+		.optional()
+		.describe(
+			"搜索目标类型：file 仅文件、directory 仅文件夹、both 两者都搜，默认 both",
+		),
+	maxDepth: z
+		.number()
+		.nullable()
+		.optional()
+		.describe("最大递归深度，默认 5（全局搜索时默认 4）"),
+	includeHidden: z
+		.boolean()
+		.nullable()
+		.optional()
+		.describe(
+			"是否包含 . 开头的隐藏文件/目录，默认 false（path 本身指向隐藏目录时自动视为 true）",
+		),
+});
 
 export type SearchFilesInput = z.infer<typeof searchFilesInputSchema>;
 

@@ -1,7 +1,30 @@
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
+import {
+	headlessCreateExcalidrawBoard,
+	headlessDrawExcalidrawElements,
+} from "./headlessExcalidraw.ts";
 import { wrapExecution } from "./index.ts";
-import type { BookmarkToolHooks, ToolExecutionResult } from "./types.ts";
+import type {
+	BookmarkToolHooks,
+	ToolExecutionClass,
+	ToolExecutionResult,
+} from "./types.ts";
+
+/** Execution dependency metadata, keyed by tool name */
+export const EXCALIDRAW_TOOL_CLASSES: Record<string, ToolExecutionClass> = {
+	excalidraw_create_board: "global-headless",
+	excalidraw_draw_elements: "content-generating",
+	excalidraw_update_element: "context-dependent",
+	excalidraw_clear_canvas: "context-dependent",
+	excalidraw_center_view: "context-dependent",
+};
+
+/** Runtime context for dual-path execution decisions */
+export interface ExcalidrawToolRuntime {
+	/** Currently open note path in the obsidian module, if any */
+	activeNotePath?: string;
+}
 
 export const excalidrawElementSchema = z.object({
 	id: z.string().describe("Unique identifier for this element"),
@@ -209,13 +232,24 @@ export const excalidrawCenterViewToolDef = toolDefinition({
 	inputSchema: excalidrawCenterViewInputSchema,
 });
 
-export function createExcalidrawServerTools(hooks?: BookmarkToolHooks) {
+export function createExcalidrawServerTools(
+	hooks?: BookmarkToolHooks,
+	runtime?: ExcalidrawToolRuntime,
+) {
+	const activeNotePath = runtime?.activeNotePath;
+	// Board is open in the view only when the obsidian module has it active;
+	// in that case the frontend bridge handles rendering. Otherwise headless.
+	const boardOpen = Boolean(activeNotePath?.endsWith(".excalidraw"));
+
 	return [
 		excalidrawCreateBoardToolDef.server((args) =>
 			wrapExecution(
 				"excalidraw_create_board",
 				args,
-				() => executeExcalidrawCreateBoard(args),
+				// Creation is always headless (atomic Vault file write); when the
+				// obsidian module is active the frontend additionally opens the file
+				// via the bridge action triggered from the streamed step.
+				() => headlessCreateExcalidrawBoard(args),
 				hooks,
 			),
 		),
@@ -223,7 +257,13 @@ export function createExcalidrawServerTools(hooks?: BookmarkToolHooks) {
 			wrapExecution(
 				"excalidraw_draw_elements",
 				args,
-				() => executeExcalidrawDrawElements(args),
+				async () => {
+					if (boardOpen) {
+						// Live path: frontend bridge renders with animation via streamed step.
+						return executeExcalidrawDrawElements(args);
+					}
+					return headlessDrawExcalidrawElements(args, activeNotePath);
+				},
 				hooks,
 			),
 		),
@@ -231,7 +271,14 @@ export function createExcalidrawServerTools(hooks?: BookmarkToolHooks) {
 			wrapExecution(
 				"excalidraw_update_element",
 				args,
-				() => executeExcalidrawUpdateElement(args),
+				() => {
+					if (!boardOpen) {
+						throw new Error(
+							"该操作需要目标画板正处于打开状态。请先跳转到笔记模块打开对应画板，再执行此操作。",
+						);
+					}
+					return executeExcalidrawUpdateElement(args);
+				},
 				hooks,
 			),
 		),
@@ -239,7 +286,14 @@ export function createExcalidrawServerTools(hooks?: BookmarkToolHooks) {
 			wrapExecution(
 				"excalidraw_clear_canvas",
 				args,
-				() => executeExcalidrawClearCanvas(),
+				() => {
+					if (!boardOpen) {
+						throw new Error(
+							"该操作需要目标画板正处于打开状态。请先跳转到笔记模块打开对应画板，再执行此操作。",
+						);
+					}
+					return executeExcalidrawClearCanvas();
+				},
 				hooks,
 			),
 		),
@@ -247,7 +301,14 @@ export function createExcalidrawServerTools(hooks?: BookmarkToolHooks) {
 			wrapExecution(
 				"excalidraw_center_view",
 				args,
-				() => executeExcalidrawCenterView(args),
+				() => {
+					if (!boardOpen) {
+						throw new Error(
+							"该操作需要目标画板正处于打开状态。请先跳转到笔记模块打开对应画板，再执行此操作。",
+						);
+					}
+					return executeExcalidrawCenterView(args);
+				},
 				hooks,
 			),
 		),

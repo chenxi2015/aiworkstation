@@ -3,17 +3,15 @@ import { z } from "zod";
 import { workbenchDb } from "../../db/sqlite.ts";
 import type { ToolExecutionResult } from "./types.ts";
 
-export const getStatsInputSchema = z
-	.object({
-		focus: z
-			.enum(["all", "categories", "folders", "tags", "health"])
-			.nullable()
-			.optional()
-			.describe(
-				"统计聚焦点：'categories'（分类分布及下属文件夹，特别推荐用于分类治理、合并重构与宏观规划），'folders'（文件夹规模与内容量），'tags'（常用标签词频统计），'health'（空文件夹与超大文件夹等健康诊断），'all'（全量概览，默认）",
-			),
-	})
-	.passthrough();
+export const getStatsInputSchema = z.object({
+	focus: z
+		.enum(["all", "categories", "folders", "tags", "health"])
+		.nullable()
+		.optional()
+		.describe(
+			"统计聚焦点：'categories'（分类分布及下属文件夹，特别推荐用于分类治理、合并重构与宏观规划），'folders'（文件夹规模与内容量），'tags'（常用标签词频统计），'health'（空文件夹与超大文件夹等健康诊断），'all'（全量概览，默认）",
+		),
+});
 
 export type GetStatsInput = z.infer<typeof getStatsInputSchema>;
 
@@ -146,7 +144,9 @@ export function executeGetStats(args: GetStatsInput): ToolExecutionResult {
 	if (focus === "all" || focus === "health") {
 		lines.push("\n#### 🩺 结构健康状态:");
 		if (emptyFolders.length > 0) {
-			lines.push(`  - 空文件夹 (${emptyFolders.length}个): ${emptyFolders.join("、")}`);
+			lines.push(
+				`  - 空文件夹 (${emptyFolders.length}个): ${emptyFolders.join("、")}`,
+			);
 		} else {
 			lines.push(`  - 空文件夹: 无`);
 		}

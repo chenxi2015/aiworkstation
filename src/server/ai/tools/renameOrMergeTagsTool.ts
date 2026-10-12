@@ -3,14 +3,12 @@ import { z } from "zod";
 import { workbenchDb } from "../../db/sqlite.ts";
 import type { ToolExecutionResult } from "./types.ts";
 
-export const renameOrMergeTagsInputSchema = z
-	.object({
-		sourceTags: z
-			.array(z.string())
-			.describe("待重命名/合并的源标签名称数组，如 ['jvm', 'JVM虚拟机']"),
-		targetTag: z.string().describe("目标标签名称，不存在则自动创建"),
-	})
-	.passthrough();
+export const renameOrMergeTagsInputSchema = z.object({
+	sourceTags: z
+		.array(z.string())
+		.describe("待重命名/合并的源标签名称数组，如 ['jvm', 'JVM虚拟机']"),
+	targetTag: z.string().describe("目标标签名称，不存在则自动创建"),
+});
 
 export type RenameOrMergeTagsInput = z.infer<
 	typeof renameOrMergeTagsInputSchema

@@ -149,6 +149,11 @@ export const ChatReferenceCard = memo(function ChatReferenceCard({
 							{reference.category}
 						</span>
 					)}
+					{reference.matchReason && (
+						<span className="px-1 py-0.2 rounded bg-surface-secondary text-muted border border-border/40">
+							{reference.matchReason}
+						</span>
+					)}
 				</div>
 			</div>
 

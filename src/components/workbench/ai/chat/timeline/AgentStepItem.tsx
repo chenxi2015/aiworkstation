@@ -1,7 +1,9 @@
-﻿import {
+﻿import { useNavigate } from "@tanstack/react-router";
+import {
 	ChevronDown,
 	ChevronRight,
 	Loader2,
+	SquareArrowOutUpRight,
 } from "lucide-react";
 import { memo } from "react";
 import { formatDurationMs } from "../../../../../lib/utils.ts";
@@ -19,6 +21,8 @@ export const AgentStepItem = memo(function AgentStepItem({
 }: AgentStepItemProps) {
 	const meta = formatStepAction(step);
 	const diffStat = extractDiffStat(step.args, step.summary);
+	const navigate = useNavigate();
+	const navigation = step.status === "completed" ? step.navigation : undefined;
 
 	return (
 		<div className="group/item">
@@ -100,6 +104,29 @@ export const AgentStepItem = memo(function AgentStepItem({
 								<AiMarkdownRenderer content={step.summary} compact={true} />
 							</div>
 						</div>
+					)}
+
+					{/* Artifact navigation card (headless/cross-module results) */}
+					{navigation && (
+						<button
+							type="button"
+							onClick={(e) => {
+								e.stopPropagation();
+								void navigate({
+									to: navigation.route,
+									search: navigation.searchParams,
+								});
+							}}
+							className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg border border-accent/40 bg-accent-soft/20 hover:bg-accent-soft/40 hover:border-accent/70 transition-colors text-left cursor-pointer group/nav"
+						>
+							<SquareArrowOutUpRight className="w-3.5 h-3.5 text-accent shrink-0" />
+							<span className="flex-1 min-w-0 text-[12px] text-neutral-700 dark:text-neutral-200 truncate font-medium">
+								{navigation.searchParams?.note ?? navigation.route}
+							</span>
+							<span className="text-[11px] text-accent font-medium shrink-0 group-hover/nav:underline underline-offset-2">
+								{navigation.label} →
+							</span>
+						</button>
 					)}
 				</div>
 			)}

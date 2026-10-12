@@ -2,7 +2,7 @@ import {
 	type CanvasEdge,
 	type CanvasNode,
 	guessSides,
-} from "./canvasUtils";
+} from "./canvasUtils.ts";
 
 export interface AiNodeInput {
 	id: string;

@@ -6,21 +6,17 @@ import {
 } from "../../services/skills/index.ts";
 import type { ToolExecutionResult } from "./types.ts";
 
-export const readSkillResourceInputSchema = z
-	.object({
-		relativePath: z
-			.string()
-			.describe(
-				"技能目录下的相对文件路径（例如：references/theme-red-white.md、references/theme-index.md、references/common-components.md）",
-			),
-		skillName: z
-			.string()
-			.optional()
-			.describe(
-				"技能名称或目录名（例如：gzh-design，若省略则自动匹配当前技能）",
-			),
-	})
-	.passthrough();
+export const readSkillResourceInputSchema = z.object({
+	relativePath: z
+		.string()
+		.describe(
+			"技能目录下的相对文件路径（例如：references/theme-red-white.md、references/theme-index.md、references/common-components.md）",
+		),
+	skillName: z
+		.string()
+		.optional()
+		.describe("技能名称或目录名（例如：gzh-design，若省略则自动匹配当前技能）"),
+});
 
 export type ReadSkillResourceInput = z.infer<
 	typeof readSkillResourceInputSchema

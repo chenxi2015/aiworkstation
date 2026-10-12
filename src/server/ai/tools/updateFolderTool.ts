@@ -3,23 +3,17 @@ import { z } from "zod";
 import { workbenchDb } from "../../db/sqlite.ts";
 import type { ToolExecutionResult } from "./types.ts";
 
-export const updateFolderInputSchema = z
-	.object({
-		folderName: z.string().describe("当前待修改的文件夹名称"),
-		newName: z.string().nullable().optional().describe("修改后的新文件夹名称"),
-		newCategory: z
-			.string()
-			.nullable()
-			.optional()
-			.describe("修改后的新所属分类"),
-		newDesc: z.string().nullable().optional().describe("修改后的新描述"),
-		newColor: z
-			.string()
-			.nullable()
-			.optional()
-			.describe("修改后的新主题颜色 Hex 代码，例如 '#4f46e5'"),
-	})
-	.passthrough();
+export const updateFolderInputSchema = z.object({
+	folderName: z.string().describe("当前待修改的文件夹名称"),
+	newName: z.string().nullable().optional().describe("修改后的新文件夹名称"),
+	newCategory: z.string().nullable().optional().describe("修改后的新所属分类"),
+	newDesc: z.string().nullable().optional().describe("修改后的新描述"),
+	newColor: z
+		.string()
+		.nullable()
+		.optional()
+		.describe("修改后的新主题颜色 Hex 代码，例如 '#4f46e5'"),
+});
 
 export type UpdateFolderInput = z.infer<typeof updateFolderInputSchema>;
 

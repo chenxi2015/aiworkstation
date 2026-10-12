@@ -4,26 +4,24 @@ import type { WorkbenchItem } from "../../../components/workbench/types.ts";
 import { workbenchDb } from "../../db/sqlite.ts";
 import type { ToolExecutionResult } from "./types.ts";
 
-export const removeBookmarksInputSchema = z
-	.object({
-		folderName: z.string().describe("要从中移出书签的文件夹名称"),
-		itemIds: z
-			.array(z.string())
-			.nullable()
-			.optional()
-			.describe("待移出的书签 ID 数组（如果有准确 ID）"),
-		itemNamesOrUrls: z
-			.array(z.string())
-			.nullable()
-			.optional()
-			.describe("待移出的书签标题或 URL 关键词数组（模糊匹配）"),
-		removeAll: z
-			.boolean()
-			.nullable()
-			.optional()
-			.describe("是否移出该文件夹的全部书签，默认 false"),
-	})
-	.passthrough();
+export const removeBookmarksInputSchema = z.object({
+	folderName: z.string().describe("要从中移出书签的文件夹名称"),
+	itemIds: z
+		.array(z.string())
+		.nullable()
+		.optional()
+		.describe("待移出的书签 ID 数组（如果有准确 ID）"),
+	itemNamesOrUrls: z
+		.array(z.string())
+		.nullable()
+		.optional()
+		.describe("待移出的书签标题或 URL 关键词数组（模糊匹配）"),
+	removeAll: z
+		.boolean()
+		.nullable()
+		.optional()
+		.describe("是否移出该文件夹的全部书签，默认 false"),
+});
 
 export type RemoveBookmarksInput = z.infer<typeof removeBookmarksInputSchema>;
 

@@ -4,11 +4,9 @@ import { z } from "zod";
 import type { ToolExecutionResult } from "../tools/types.ts";
 import { formatBytes, resolveUserPath } from "./fsSafety.ts";
 
-export const getFileInfoInputSchema = z
-	.object({
-		path: z.string().describe("要查询的文件或目录路径，支持 ~ 开头"),
-	})
-	.passthrough();
+export const getFileInfoInputSchema = z.object({
+	path: z.string().describe("要查询的文件或目录路径，支持 ~ 开头"),
+});
 
 export type GetFileInfoInput = z.infer<typeof getFileInfoInputSchema>;
 

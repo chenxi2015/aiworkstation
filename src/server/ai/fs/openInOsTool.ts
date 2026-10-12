@@ -4,19 +4,17 @@ import { openInOs } from "../../services/systemOpener.ts";
 import type { ToolExecutionResult } from "../tools/types.ts";
 import { resolveUserPath } from "./fsSafety.ts";
 
-export const openInOsInputSchema = z
-	.object({
-		path: z
-			.string()
-			.describe(
-				"要在系统文件管理器（访达/资源管理器）中打开的本地文件或文件夹路径，支持 ~ 开头",
-			),
-		reveal: z
-			.boolean()
-			.optional()
-			.describe("若目标为文件，是否在文件管理器中定位高亮该文件。默认为 true"),
-	})
-	.passthrough();
+export const openInOsInputSchema = z.object({
+	path: z
+		.string()
+		.describe(
+			"要在系统文件管理器（访达/资源管理器）中打开的本地文件或文件夹路径，支持 ~ 开头",
+		),
+	reveal: z
+		.boolean()
+		.optional()
+		.describe("若目标为文件，是否在文件管理器中定位高亮该文件。默认为 true"),
+});
 
 export type OpenInOsInput = z.infer<typeof openInOsInputSchema>;
 

@@ -3,6 +3,7 @@ import {
 	Bot,
 	Brain,
 	Database,
+	Globe,
 	RotateCcw,
 	Save,
 	Send,
@@ -14,6 +15,10 @@ import {
 	DEFAULT_SETTINGS,
 	WorkbenchStorageService,
 } from "../../services/workbenchStorage";
+import {
+	getSearchConfig,
+	saveSearchConfig,
+} from "../../server/functions/searchSettings";
 import {
 	EMBEDDING_PROVIDERS,
 	FALLBACK_EMBEDDING_MODELS,
@@ -28,12 +33,20 @@ import { GeneralSettingsTab } from "./settings/GeneralSettingsTab";
 import { LlmSettingsTab } from "./settings/LlmSettingsTab";
 import type { ModelSettingsFormData } from "./settings/ModelSettingsTab";
 import { PublishAccountsTab } from "./settings/PublishAccountsTab";
+import {
+	formDataToSearchConfig,
+	INITIAL_SEARCH_FORM_DATA,
+	SearchSettingsTab,
+	type SearchSettingsFormData,
+	searchConfigToFormData,
+} from "./settings/SearchSettingsTab";
 import type { WorkbenchSettings } from "./types";
 
 export type SettingTabId =
 	| "general"
 	| "llm"
 	| "embedding"
+	| "search"
 	| "publish"
 	| "data"
 	| "danger";
@@ -64,6 +77,13 @@ const SETTING_TABS: SettingTabItem[] = [
 		label: "向量检索模型",
 		description: "配置全局语义检索与知识库 (RAG) 向量嵌入模型 (Embedding)",
 		icon: Brain,
+	},
+	{
+		id: "search",
+		label: "联网搜索",
+		description:
+			"管理 web_search / web_fetch 的搜索引擎密钥、级联优先级与超时",
+		icon: Globe,
 	},
 	{
 		id: "publish",
@@ -118,6 +138,9 @@ export function SettingsModal({
 	const [activeTab, setActiveTab] = useState<SettingTabId>("general");
 	const [formData, setFormData] =
 		useState<ModelSettingsFormData>(INITIAL_FORM_DATA);
+	const [searchFormData, setSearchFormData] = useState<SearchSettingsFormData>(
+		INITIAL_SEARCH_FORM_DATA,
+	);
 	const [filesRootDir, setFilesRootDir] = useState("");
 	const [llmModelList, setLlmModelList] = useState<string[]>(
 		LLM_PROVIDERS[0].models,
@@ -131,6 +154,13 @@ export function SettingsModal({
 		value: ModelSettingsFormData[K],
 	) => {
 		setFormData((prev) => ({ ...prev, [key]: value }));
+	};
+
+	const handleSearchFormChange = <K extends keyof SearchSettingsFormData>(
+		key: K,
+		value: SearchSettingsFormData[K],
+	) => {
+		setSearchFormData((prev) => ({ ...prev, [key]: value }));
 	};
 
 	const applySettingsToForm = useCallback((settings: WorkbenchSettings) => {
@@ -211,10 +241,19 @@ export function SettingsModal({
 			WorkbenchStorageService.fetchSettingsFromDb().then((dbSettings) => {
 				applySettingsToForm(dbSettings);
 			});
+
+			// 联网搜索配置独立于 WorkbenchSettings，单独加载
+			getSearchConfig()
+				.then((cfg) => {
+					setSearchFormData(searchConfigToFormData(cfg));
+				})
+				.catch((err) => {
+					console.warn("[SettingsModal] load searchConfig failed:", err);
+				});
 		}
 	}, [isOpen, applySettingsToForm]);
 
-	const handleSubmit = (e: FormEvent) => {
+	const handleSubmit = async (e: FormEvent) => {
 		e.preventDefault();
 		const existing = WorkbenchStorageService.getSettings();
 		const finalApiKey = formData.apiKey.trim() || DEFAULT_SETTINGS.apiKey || "";
@@ -249,6 +288,18 @@ export function SettingsModal({
 		};
 
 		WorkbenchStorageService.saveSettings(updated);
+
+		// 联网搜索配置一并保存（独立 settings key，互不干扰）
+		try {
+			await saveSearchConfig({
+				data: formDataToSearchConfig(searchFormData),
+			});
+		} catch (err) {
+			console.error("[SettingsModal] save searchConfig failed:", err);
+			toast.danger("搜索配置保存失败，请重试");
+			return;
+		}
+
 		onSettingsUpdated?.(updated);
 		toast.success("配置已保存");
 		onClose();
@@ -257,6 +308,13 @@ export function SettingsModal({
 	const handleResetToSaved = () => {
 		const saved = WorkbenchStorageService.getSettings();
 		applySettingsToForm(saved);
+		getSearchConfig()
+			.then((cfg) => {
+				setSearchFormData(searchConfigToFormData(cfg));
+			})
+			.catch(() => {
+				/* 保持当前搜索表单状态 */
+			});
 		toast.info("已重置为上次保存的配置");
 	};
 
@@ -347,6 +405,13 @@ export function SettingsModal({
 											onChange={handleFormChange}
 											embeddingModelList={embeddingModelList}
 											setEmbeddingModelList={setEmbeddingModelList}
+										/>
+									</Tabs.Panel>
+
+									<Tabs.Panel id="search" className="outline-none">
+										<SearchSettingsTab
+											data={searchFormData}
+											onChange={handleSearchFormChange}
 										/>
 									</Tabs.Panel>
 

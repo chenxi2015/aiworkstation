@@ -5,6 +5,7 @@ import type { PageBridge } from "../../../../../types/pageBridge";
 import type { Category, Folder, SearchResultItem } from "../../../types";
 import { AiMarkdownRenderer } from "../../shared/AiMarkdownRenderer";
 import { AgentStepTimeline } from "../AgentStepTimeline";
+import { ArtifactCardList } from "./ArtifactCardList";
 import { AssistantActionBar } from "./AssistantActionBar";
 import { MessageReferencesPanel } from "./MessageReferencesPanel";
 
@@ -140,6 +141,9 @@ export const AssistantMessageBubble = memo(function AssistantMessageBubble({
 						<span className="text-xs">Agent 正在思考规划...</span>
 					</div>
 				)}
+
+			{/* Artifact result cards (headless creations) — prominent entry at message level */}
+			{!msg.isStreaming && <ArtifactCardList steps={msg.steps} />}
 
 			{/* Bottom Action Bar (Modular page actions, copy, regenerate, delete) */}
 			{!msg.isStreaming && (

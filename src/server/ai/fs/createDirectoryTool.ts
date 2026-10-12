@@ -4,13 +4,11 @@ import { z } from "zod";
 import type { ToolExecutionResult } from "../tools/types.ts";
 import { assertWritablePath, resolveUserPath } from "./fsSafety.ts";
 
-export const createDirectoryInputSchema = z
-	.object({
-		path: z
-			.string()
-			.describe("要创建的目录路径，支持 ~ 开头。不存在的父目录会自动创建"),
-	})
-	.passthrough();
+export const createDirectoryInputSchema = z.object({
+	path: z
+		.string()
+		.describe("要创建的目录路径，支持 ~ 开头。不存在的父目录会自动创建"),
+});
 
 export type CreateDirectoryInput = z.infer<typeof createDirectoryInputSchema>;
 

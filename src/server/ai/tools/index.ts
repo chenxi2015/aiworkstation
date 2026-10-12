@@ -86,6 +86,11 @@ import {
 	updateFolderToolDef,
 } from "./updateFolderTool.ts";
 import {
+	executeWebFetch,
+	webFetchInputSchema,
+	webFetchToolDef,
+} from "./webFetchTool.ts";
+import {
 	executeWebSearch,
 	webSearchInputSchema,
 	webSearchToolDef,
@@ -112,6 +117,7 @@ export * from "./timeResolver.ts";
 // Re-export all tool definitions and helpers
 export * from "./types.ts";
 export * from "./updateFolderTool.ts";
+export * from "./webFetchTool.ts";
 export * from "./webSearchTool.ts";
 
 /**
@@ -134,7 +140,7 @@ export async function wrapExecution<TArgs>(
 			hooks?.onReferencesFound?.(res.references);
 		}
 		const durationMs = Date.now() - start;
-		hooks?.onToolEnd?.(toolName, res.summary, true, durationMs);
+		hooks?.onToolEnd?.(toolName, res.summary, true, durationMs, res.navigation);
 		return res.summary;
 	} catch (err: unknown) {
 		const durationMs = Date.now() - start;
@@ -276,6 +282,9 @@ export function createBookmarkServerTools(
 		webSearchToolDef.server((args) =>
 			wrapExecution("web_search", args, () => executeWebSearch(args), hooks),
 		),
+		webFetchToolDef.server((args) =>
+			wrapExecution("web_fetch", args, () => executeWebFetch(args), hooks),
+		),
 	];
 }
 
@@ -371,6 +380,9 @@ export async function executeBookmarkToolCall(
 			break;
 		case "web_search":
 			result = await executeWebSearch(webSearchInputSchema.parse(parsedArgs));
+			break;
+		case "web_fetch":
+			result = await executeWebFetch(webFetchInputSchema.parse(parsedArgs));
 			break;
 		default:
 			result = {
