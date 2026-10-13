@@ -1,4 +1,6 @@
+import { AnySearchProvider } from "./anysearchProvider.ts";
 import { BraveSearchProvider } from "./braveProvider.ts";
+import { DuckDuckGoSearchProvider } from "./duckduckgoProvider.ts";
 import { ExaSearchProvider } from "./exaProvider.ts";
 import { JinaSearchProvider } from "./jinaProvider.ts";
 import {
@@ -36,6 +38,9 @@ function buildProvider(
 	// Settings-stored key wins over env var; both are trimmed.
 	const keyFromSettings = configuredKeys?.[id]?.trim() || undefined;
 	switch (id) {
+		case "duckduckgo": {
+			return new DuckDuckGoSearchProvider({ timeoutMs });
+		}
 		case "tavily": {
 			const key = keyFromSettings ?? process.env.TAVILY_API_KEY?.trim();
 			if (!key) return null;
@@ -52,8 +57,14 @@ function buildProvider(
 			return new BraveSearchProvider(key, { timeoutMs });
 		}
 		case "jina": {
-			const key = keyFromSettings ?? (process.env.JINA_API_KEY?.trim() || undefined);
+			const key =
+				keyFromSettings ?? (process.env.JINA_API_KEY?.trim() || undefined);
 			return new JinaSearchProvider(key, { timeoutMs });
+		}
+		case "anysearch": {
+			const key =
+				keyFromSettings ?? (process.env.ANYSEARCH_API_KEY?.trim() || undefined);
+			return new AnySearchProvider(key, { timeoutMs });
 		}
 	}
 }

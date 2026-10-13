@@ -24,7 +24,8 @@ export const ArtifactCardList = memo(function ArtifactCardList({
 	const navigate = useNavigate();
 
 	const cards = (steps ?? []).filter(
-		(s) => s.status === "completed" && s.navigation,
+		(s) =>
+			s.status === "completed" && s.navigation && Boolean(s.navigation.route),
 	);
 	if (cards.length === 0) return null;
 

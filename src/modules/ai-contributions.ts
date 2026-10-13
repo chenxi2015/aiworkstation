@@ -164,7 +164,7 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 			"read_document",
 			"list_documents",
 			"update_document_title",
-			"trigger_document_create",
+			"draft_article",
 			"trigger_paragraph_rewrite",
 			"insert_document_block",
 			"edit_document_paragraph",

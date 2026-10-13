@@ -13,17 +13,18 @@ import {
 	executeInsertDocumentBlock,
 	executeListDocuments,
 	executeReadDocument,
-	executeTriggerDocumentCreate,
 	executeTriggerParagraphRewrite,
 	executeUpdateDocumentTitle,
 	insertDocumentBlockToolDef,
 	listDocumentsToolDef,
 	readDocumentToolDef,
-	triggerDocumentCreateToolDef,
 	triggerParagraphRewriteToolDef,
 	updateDocumentTitleToolDef,
 } from "./tools/documentTools.ts";
-import { headlessCreateDocument } from "./tools/headlessDocument.ts";
+import {
+	draftArticleToolDef,
+	executeDraftArticle,
+} from "./tools/draftArticleTool.ts";
 import { wrapExecution } from "./tools/index.ts";
 import {
 	executeGenerateMermaidDiagram,
@@ -32,12 +33,11 @@ import {
 import type {
 	BookmarkToolHooks,
 	ToolExecutionClass,
-	ToolExecutionResult,
 } from "./tools/types.ts";
 
 /** Execution dependency metadata, keyed by tool name */
 export const EDITOR_TOOL_CLASSES: Record<string, ToolExecutionClass> = {
-	trigger_document_create: "content-generating",
+	draft_article: "content-generating",
 	trigger_paragraph_rewrite: "context-dependent",
 	read_document: "global-headless",
 	list_documents: "global-headless",
@@ -69,7 +69,7 @@ export * from "./tools/mermaidTool.ts";
 export function createEditorServerTools(
 	hooks?: BookmarkToolHooks,
 	activeDocumentId?: number,
-	runtime?: EditorToolRuntime,
+	_runtime?: EditorToolRuntime,
 ) {
 	return [
 		readDocumentToolDef.server((args) =>
@@ -96,9 +96,9 @@ export function createEditorServerTools(
 				hooks,
 			),
 		),
-		// Dual-path: studio mounted → live streaming pipeline in the editor;
-		// otherwise headless server-side generation directly into the documents table.
-		createDocumentCreateTool(hooks, runtime),
+		// From-scratch creation: delivers a decoupled draft to ~/.aiworkstation/drafts/
+		// for explicit user destination confirmation.
+		createDraftArticleTool(hooks),
 		// Trigger client-side paragraph streaming rewrite pipeline in Tiptap editor (split comparison view)
 		// Saves document changes in editor natively with rich diffs, never overwriting DB directly.
 		triggerParagraphRewriteToolDef.server((args) =>
@@ -148,40 +148,23 @@ export function createEditorServerTools(
 	];
 }
 
+export * from "./tools/draftArticleTool.ts";
+
 /**
- * Standalone document-creation tool for global registration. Dual-path:
- * live streaming pipeline when the studio is mounted, headless server-side
- * generation otherwise.
+ * Standalone draft creation tool for global registration.
+ * Writes generated content to local drafts area, delivers via delivery card,
+ * and leaves destination selection to the user.
  */
-export function createDocumentCreateTool(
+export function createDraftArticleTool(
 	hooks?: BookmarkToolHooks,
-	runtime?: EditorToolRuntime,
+	options?: { sessionId?: string },
 ) {
-	const studioMounted =
-		runtime?.module === "editor" || runtime?.module === "creator";
-	// 关键：创建路径（headless 服务端直写 vs 创作台交互式流水线）必须在
-	// step_start 时就对客户端可见——否则客户端只能靠 step_end 的 navigation
-	// 猜测，headless 场景下会再触发一次交互式创建，导致同一次对话产生两篇文档。
-	const executionMode = studioMounted ? "interactive" : "headless";
-	const stampedHooks: BookmarkToolHooks = {
-		...hooks,
-		onToolStart: (toolName, args) =>
-			hooks?.onToolStart?.(toolName, {
-				...args,
-				execution: executionMode,
-			}),
-	};
-	return triggerDocumentCreateToolDef.server((args) =>
+	return draftArticleToolDef.server((args) =>
 		wrapExecution(
-			"trigger_document_create",
+			"draft_article",
 			args,
-			async (): Promise<ToolExecutionResult> => {
-				if (studioMounted) {
-					return executeTriggerDocumentCreate(args);
-				}
-				return headlessCreateDocument(args);
-			},
-			stampedHooks,
+			() => executeDraftArticle(args, options),
+			hooks,
 		),
 	);
 }

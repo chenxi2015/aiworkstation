@@ -31,6 +31,17 @@ export interface ChatProposal {
 	status: "pending" | "confirmed" | "dismissed";
 }
 
+export interface ChatDraftPayload {
+	draftId: string;
+	title: string;
+	wordCount: number;
+	status: "pending" | "archived" | "expired";
+	archivedTo?: {
+		kind: "document" | "note";
+		ref: string;
+	};
+}
+
 export interface ChatItem {
 	role: "user" | "assistant";
 	content: string;
@@ -41,6 +52,7 @@ export interface ChatItem {
 	isStreaming?: boolean;
 	timestamp?: string;
 	proposal?: ChatProposal;
+	draft?: ChatDraftPayload;
 }
 
 export interface UseChatMessagesProps {

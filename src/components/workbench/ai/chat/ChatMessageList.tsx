@@ -8,6 +8,7 @@ import {
 	useState,
 } from "react";
 import type { ChatItem } from "../../../../hooks/ai/useAiChat";
+import type { ChatDraftPayload } from "../../../../hooks/ai/useChatMessages";
 import type { PageBridge } from "../../../../types/pageBridge";
 import type { Category, Folder, SearchResultItem } from "../../types";
 import { ChatEmptyState } from "./ChatEmptyState";
@@ -48,6 +49,7 @@ export interface ChatMessageListProps {
 	) => void;
 	onConfirmProposal?: (index: number) => void;
 	onDismissProposal?: (index: number) => void;
+	onDraftStatusChange?: (index: number, updated: ChatDraftPayload) => void;
 }
 
 /**
@@ -78,6 +80,7 @@ export function ChatMessageList({
 	onNavigateToFolder,
 	onConfirmProposal,
 	onDismissProposal,
+	onDraftStatusChange,
 }: ChatMessageListProps) {
 	const [isSelectMode, setIsSelectMode] = useState(false);
 	const [selectedIndices, setSelectedIndices] = useState<Set<number>>(
@@ -254,6 +257,7 @@ export function ChatMessageList({
 						onNavigateToFolder={onNavigateToFolder}
 						onConfirmProposal={onConfirmProposal}
 						onDismissProposal={onDismissProposal}
+						onDraftStatusChange={onDraftStatusChange}
 					/>
 				))}
 

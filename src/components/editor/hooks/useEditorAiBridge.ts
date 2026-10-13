@@ -68,25 +68,6 @@ export function useEditorAiBridge({
 			},
 			actions: [
 				{
-					id: "stream_create_document",
-					label: "新建长文创作",
-					icon: Sparkles,
-					variant: "accent" as const,
-					tooltip: "在单栏富文本中根据主题与大纲流式动态创作新长文",
-					onAction: async (payload?: string) => {
-						if (!payload) return;
-						try {
-							const parsed = JSON.parse(payload);
-							return await onStartCreatePipelineRef.current?.(parsed);
-						} catch {
-							return await onStartCreatePipelineRef.current?.({
-								title: "新建文档",
-								prompt: payload,
-							});
-						}
-					},
-				},
-				{
 					id: "stream_spin_rewrite",
 					label: "二创洗稿重构",
 					icon: Shuffle,

@@ -227,6 +227,11 @@ export function invalidateVaultNoteCache(relPath?: string): void {
 	}
 }
 
+/** 清除客户端 Vault 目录树内存缓存 */
+export function invalidateObsidianTreeCache(): void {
+	lastObsidianTree = null;
+}
+
 /** 读取单篇笔记全文（含 mtime 冲突检测基线，自动回填内存缓存） */
 export async function fetchVaultNote(
 	relPath: string,

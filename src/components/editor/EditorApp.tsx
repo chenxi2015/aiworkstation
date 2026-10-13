@@ -211,13 +211,42 @@ export function EditorApp({ initialDocId }: EditorAppProps = {}) {
 	// 响应外部 URL 深链或浏览器前进/后退（popstate）变更
 	useEffect(() => {
 		if (!initialDocId || loading) return;
-		if (
-			initialDocId !== activeId &&
-			documents.some((d) => d.id === initialDocId)
-		) {
-			void switchDocument(initialDocId);
+		if (initialDocId !== activeId) {
+			const target = documents.find((d) => d.id === initialDocId);
+			if (target) {
+				if (
+					activeFolderId !== "all" &&
+					target.folderId !== activeFolderId
+				) {
+					setActiveFolderId(target.folderId ?? "all");
+				}
+				void switchDocument(initialDocId);
+			} else {
+				// 文档可能刚刚由 AI 助手或其它模块创建，主动重新加载列表以确保同步
+				void reloadDocuments().then((latestDocs) => {
+					const latestTarget = latestDocs.find((d) => d.id === initialDocId);
+					if (latestTarget) {
+						if (
+							activeFolderId !== "all" &&
+							latestTarget.folderId !== activeFolderId
+						) {
+							setActiveFolderId(latestTarget.folderId ?? "all");
+						}
+						void switchDocument(initialDocId);
+					}
+				});
+			}
 		}
-	}, [initialDocId, activeId, loading, documents, switchDocument]);
+	}, [
+		initialDocId,
+		activeId,
+		loading,
+		documents,
+		activeFolderId,
+		setActiveFolderId,
+		switchDocument,
+		reloadDocuments,
+	]);
 
 	// Support switching an audio/video asset to rich-text document editing mode
 	const [forceDocModeId, setForceDocModeId] = useState<number | null>(null);

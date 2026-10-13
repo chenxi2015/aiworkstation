@@ -93,7 +93,10 @@ const config = defineConfig(({ command, mode }) => {
 		server: {
 			port: 3888,
 		},
-		resolve: { tsconfigPaths: true },
+		resolve: {
+			dedupe: ["react", "react-dom"],
+			tsconfigPaths: true,
+		},
 		optimizeDeps: {
 			exclude: ["better-sqlite3"],
 		},

@@ -24,7 +24,10 @@ export const AgentStepItem = memo(function AgentStepItem({
 	const meta = formatStepAction(step);
 	const diffStat = extractDiffStat(step.args, step.summary);
 	const navigate = useNavigate();
-	const navigation = step.status === "completed" ? step.navigation : undefined;
+	const navigation =
+		step.status === "completed" && Boolean(step.navigation?.route)
+			? step.navigation
+			: undefined;
 	const activeKey = stepKey || step.id || "step";
 
 	const hasDetails =

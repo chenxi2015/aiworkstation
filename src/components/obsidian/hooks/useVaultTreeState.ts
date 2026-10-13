@@ -63,6 +63,18 @@ export function useVaultTreeState({
 		}
 	}, [load, enabled]);
 
+	// Listen for external vault change events (e.g. saving drafts from chat cards)
+	useEffect(() => {
+		if (!enabled) return;
+		const handleVaultChanged = () => {
+			void load(true);
+		};
+		window.addEventListener("obsidian:vault-changed", handleVaultChanged);
+		return () => {
+			window.removeEventListener("obsidian:vault-changed", handleVaultChanged);
+		};
+	}, [enabled, load]);
+
 	const handleQueryChange = useCallback((value: string) => {
 		setQuery(value);
 		if (debounceRef.current) clearTimeout(debounceRef.current);

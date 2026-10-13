@@ -12,6 +12,10 @@ export interface AgentStepNavigation {
 	searchParams?: Record<string, string>;
 	/** CTA label (e.g. "打开画板") */
 	label: string;
+	/** Optional draft metadata for content delivery decoupling */
+	draftId?: string;
+	title?: string;
+	wordCount?: number;
 }
 
 export interface AgentStep {
@@ -64,4 +68,6 @@ export interface AgentChatParams {
 	activeMaterialId?: number;
 	/** obsidian 模块：当前活跃笔记相对路径（供服务端注入笔记全文上下文） */
 	activeNotePath?: string;
+	/** 当前会话 ID（可选） */
+	sessionId?: string;
 }

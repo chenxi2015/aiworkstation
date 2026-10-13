@@ -10,6 +10,7 @@ import {
 	restoreLineEndings,
 	writeTextAtomicSync,
 } from "./fsSafety.ts";
+import { syncDraftFileToIndex } from "../drafts/draftStore.ts";
 
 export const patchFileInputSchema = z.object({
 	path: z.string().describe("要修改的文件路径，支持 ~ 开头"),
@@ -61,6 +62,7 @@ export function executePatchFile(args: PatchFileInput): ToolExecutionResult {
 		: content.replace(oldText, newText);
 	// 原子写：崩溃/中断不会留下写了一半的文件
 	writeTextAtomicSync(filePath, restoreLineEndings(edited, lineEndings));
+	syncDraftFileToIndex(filePath);
 
 	return {
 		toolName: "fs_patch_file",

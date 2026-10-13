@@ -23,11 +23,6 @@ export interface UseAiChatOptions {
 	onResponseReceived?: () => void;
 	onDataMutated?: () => void;
 	onTriggerRewritePipeline?: (instruction?: string) => void;
-	onTriggerCreateDocumentPipeline?: (params: {
-		title: string;
-		prompt: string;
-		stylePreset?: string;
-	}) => Promise<{ documentId?: number } | void> | void;
 	onCanvasAction?: (
 		toolName:
 			| "canvas_create_board"
@@ -54,13 +49,6 @@ export function useAiChat(options?: UseAiChatOptions) {
 	const [contextItems, setContextItems] = useState<ChatContextItem[]>([]);
 	const [isLoading, setIsLoading] = useState<boolean>(false);
 	const abortControllerRef = useRef<AbortController | null>(null);
-	// Document id produced by the interactive studio pipeline for the in-flight
-	// trigger_document_create step, backfilled into the step's navigation on
-	// step_end so the artifact card always renders.
-	const pendingCreateDocRef = useRef<number | null>(null);
-	// 已触发过本地创建流水线的 step id：防止流式重发/step 重放导致同一篇
-	// 文档被重复创建（一次对话产生两篇同题文档的根因之一）。
-	const triggeredCreateStepsRef = useRef<Set<string>>(new Set());
 
 	const addContextItem = useCallback((item: ChatContextItem) => {
 		setContextItems((prev) => {
@@ -305,7 +293,6 @@ export function useAiChat(options?: UseAiChatOptions) {
 
 			const controller = new AbortController();
 			abortControllerRef.current = controller;
-			triggeredCreateStepsRef.current.clear();
 
 			try {
 				const history: ChatMessage[] = isNewChat
@@ -380,53 +367,6 @@ export function useAiChat(options?: UseAiChatOptions) {
 					},
 					{
 						onStepStart: (step) => {
-							if (step.toolName === "trigger_document_create") {
-								// 服务端在 step_start 的 args 里显式标记执行路径：
-								// - headless：服务端已生成全文并落库，客户端不得再触发
-								//   本地流水线（否则同一次请求双写两篇文档）；
-								// - interactive：创作台已挂载，由本地流水线流式创建。
-								// 老服务端无标记时回退到 navigation 猜测。
-								const execution =
-									typeof step.args?.execution === "string"
-										? step.args.execution
-										: step.navigation
-											? "headless"
-											: "interactive";
-								const alreadyTriggered = triggeredCreateStepsRef.current.has(
-									step.id,
-								);
-								if (execution === "interactive" && !alreadyTriggered) {
-									triggeredCreateStepsRef.current.add(step.id);
-									pendingCreateDocRef.current = null;
-									const title =
-										typeof step.args?.title === "string"
-											? step.args.title
-											: "未命名文档";
-									const prompt =
-										typeof step.args?.prompt === "string"
-											? step.args.prompt
-											: "";
-									const stylePreset =
-										typeof step.args?.stylePreset === "string"
-											? step.args.stylePreset
-											: undefined;
-									void Promise.resolve(
-										options?.onTriggerCreateDocumentPipeline?.({
-											title,
-											prompt,
-											stylePreset,
-										}),
-									)
-										.then((result) => {
-											if (result?.documentId != null) {
-												pendingCreateDocRef.current = result.documentId;
-											}
-										})
-										.catch(() => {
-											/* pipeline callback failures surface via toast */
-										});
-								}
-							}
 							if (step.toolName === "trigger_paragraph_rewrite") {
 								const instruction =
 									typeof step.args?.instruction === "string"
@@ -507,25 +447,7 @@ export function useAiChat(options?: UseAiChatOptions) {
 								];
 							});
 						},
-						onStepEnd: (rawStep) => {
-							// trigger_document_create via the interactive studio pipeline has
-							// no server-side navigation; backfill it from the document id the
-							// pipeline reported so the artifact card always renders.
-							let step = rawStep;
-							if (
-								step.toolName === "trigger_document_create" &&
-								!step.navigation &&
-								pendingCreateDocRef.current != null
-							) {
-								const docId = pendingCreateDocRef.current;
-								pendingCreateDocRef.current = null;
-								const navigation: AgentStepNavigation = {
-									route: "/creator/studio",
-									searchParams: { doc: String(docId), mode: "doc" },
-									label: "打开文档",
-								};
-								step = { ...step, navigation };
-							}
+						onStepEnd: (step) => {
 							setMessages((prev) => {
 								const last = prev[prev.length - 1];
 								if (!last || last.role !== "assistant") return prev;
@@ -594,12 +516,23 @@ export function useAiChat(options?: UseAiChatOptions) {
 											});
 										})();
 
+								const draftPayload =
+									step.toolName === "draft_article" && step.navigation?.draftId
+										? {
+												draftId: step.navigation.draftId,
+												title: step.navigation.title || "未命名草稿",
+												wordCount: step.navigation.wordCount || 0,
+												status: "pending" as const,
+											}
+										: last.draft;
+
 								return [
 									...prev.slice(0, -1),
 									{
 										...last,
 										steps: finalSteps,
 										parts: finalParts,
+										...(draftPayload ? { draft: draftPayload } : {}),
 									},
 								];
 							});

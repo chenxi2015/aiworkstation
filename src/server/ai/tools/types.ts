@@ -25,6 +25,10 @@ export interface ToolNavigation {
 	searchParams?: Record<string, string>;
 	/** CTA label on the card (e.g. "打开画板") */
 	label: string;
+	/** Optional draft metadata for content delivery decoupling */
+	draftId?: string;
+	title?: string;
+	wordCount?: number;
 }
 
 /**

@@ -56,7 +56,7 @@ export const AssistantMessageBubble = memo(function AssistantMessageBubble({
 	const currentReferences = msg.references || [];
 
 	return (
-		<div className="w-full flex flex-col gap-1.5 group relative pt-1 pb-4 my-2">
+		<div className="w-full flex flex-col gap-1.5 group relative pt-1 my-2">
 			{/* Assistant brand header */}
 			<div className="flex items-center gap-1.5 text-xs font-semibold text-neutral-800 dark:text-neutral-200 select-none pb-0.5">
 				<div className="w-4 h-4 rounded-full bg-gradient-to-tr from-accent to-primary flex items-center justify-center text-white text-[9px] shadow-2xs shrink-0">

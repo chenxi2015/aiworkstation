@@ -1,9 +1,11 @@
 import { Check } from "lucide-react";
-import { memo } from "react";
+import { memo, useCallback } from "react";
 import type { ChatItem } from "../../../../hooks/ai/useAiChat";
+import type { ChatDraftPayload } from "../../../../hooks/ai/useChatMessages";
 import type { PageBridge } from "../../../../types/pageBridge";
 import type { Category, Folder, SearchResultItem } from "../../types";
 import { UrlLinkifiedText } from "../shared/UrlLinkifiedText";
+import { DraftDeliveryCard } from "./draft/DraftDeliveryCard";
 import { AssistantMessageBubble } from "./message/AssistantMessageBubble";
 import { UserMessageBubble } from "./message/UserMessageBubble";
 import { ActionProposalCard } from "./proposal/ActionProposalCard";
@@ -38,6 +40,7 @@ export interface ChatMessageItemProps {
 	) => void;
 	onConfirmProposal?: (index: number) => void;
 	onDismissProposal?: (index: number) => void;
+	onDraftStatusChange?: (index: number, updated: ChatDraftPayload) => void;
 }
 
 /**
@@ -65,6 +68,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
 	onNavigateToFolder,
 	onConfirmProposal,
 	onDismissProposal,
+	onDraftStatusChange,
 }: ChatMessageItemProps) {
 	// 0. Action proposal card (first-class message item in the transcript)
 	if (msg.proposal) {
@@ -78,6 +82,23 @@ export const ChatMessageItem = memo(function ChatMessageItem({
 				status={proposal.status}
 				onConfirm={() => onConfirmProposal?.(index)}
 				onDismiss={() => onDismissProposal?.(index)}
+			/>
+		);
+	}
+
+	const handleDraftStatusChange = useCallback(
+		(updated: ChatDraftPayload) => {
+			onDraftStatusChange?.(index, updated);
+		},
+		[index, onDraftStatusChange],
+	);
+
+	// 0.5 Standalone draft delivery card
+	if (msg.draft && !msg.content && !msg.steps?.length) {
+		return (
+			<DraftDeliveryCard
+				draft={msg.draft}
+				onDraftStatusChange={handleDraftStatusChange}
 			/>
 		);
 	}
@@ -146,21 +167,29 @@ export const ChatMessageItem = memo(function ChatMessageItem({
 
 	// 3. Assistant response bubble
 	return (
-		<AssistantMessageBubble
-			msg={msg}
-			index={index}
-			isLoading={isLoading}
-			pageBridge={pageBridge}
-			folders={folders}
-			selectedRefKeys={selectedRefKeys}
-			onResend={onResend}
-			onDelete={onDelete}
-			onStartSelectDelete={onStartSelectDelete}
-			onToggleRefCheck={onToggleRefCheck}
-			onToggleSelectGroup={onToggleSelectGroup}
-			onOpenAssignSingle={onOpenAssignSingle}
-			onOpenAssignMultiple={onOpenAssignMultiple}
-			onNavigateToFolder={onNavigateToFolder}
-		/>
+		<div className="space-y-2">
+			<AssistantMessageBubble
+				msg={msg}
+				index={index}
+				isLoading={isLoading}
+				pageBridge={pageBridge}
+				folders={folders}
+				selectedRefKeys={selectedRefKeys}
+				onResend={onResend}
+				onDelete={onDelete}
+				onStartSelectDelete={onStartSelectDelete}
+				onToggleRefCheck={onToggleRefCheck}
+				onToggleSelectGroup={onToggleSelectGroup}
+				onOpenAssignSingle={onOpenAssignSingle}
+				onOpenAssignMultiple={onOpenAssignMultiple}
+				onNavigateToFolder={onNavigateToFolder}
+			/>
+			{msg.draft && (
+				<DraftDeliveryCard
+					draft={msg.draft}
+					onDraftStatusChange={handleDraftStatusChange}
+				/>
+			)}
+		</div>
 	);
 });

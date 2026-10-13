@@ -83,11 +83,11 @@ export function resolveRequiredToolIntent(
 	// Explicit request to author a new long-form document (global: headless
 	// server-side generation when the studio is not mounted)
 	if (
-		/(?:新建|创建|写|起草|撰写|生成).{0,12}(?:文档|文章|稿件|长文|推文|文案)|(?:以|围绕).{2,30}(?:为主题|为题).{0,12}(?:写|创作|生成)/i.test(
+		/(?:新建|创建|写|起草|撰写|生成|整理|汇总|总结|转成|转为|做成|保存为|存为|沉淀为).{0,12}(?:文档|文章|稿件|长文|推文|文案|简报|草稿)|(?:以|围绕).{2,30}(?:为主题|为题).{0,12}(?:写|创作|生成|整理)/i.test(
 			question,
 		)
 	) {
-		const intent = required("trigger_document_create", "create_document");
+		const intent = required("draft_article", "create_draft");
 		if (intent) return intent;
 	}
 

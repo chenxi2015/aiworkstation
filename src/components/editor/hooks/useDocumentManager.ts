@@ -483,6 +483,18 @@ export function useDocumentManager(): UseDocumentManagerReturn {
 		};
 	}, [flushSave]);
 
+	// Listen for external document changes (e.g. drafts archived to documents from AI chat)
+	useEffect(() => {
+		const handleDocsChanged = () => {
+			void reloadDocuments();
+			void reloadFolders();
+		};
+		window.addEventListener("editor:documents-changed", handleDocsChanged);
+		return () => {
+			window.removeEventListener("editor:documents-changed", handleDocsChanged);
+		};
+	}, [reloadDocuments, reloadFolders]);
+
 	const handleCreate = useCallback(async () => {
 		await switchDocument(null);
 		// 在文件夹视图下新建的文档直接落入该文件夹

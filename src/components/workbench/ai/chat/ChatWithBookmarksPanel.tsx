@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { History, MessageSquarePlus, PanelRightClose } from "lucide-react";
 import {
 	forwardRef,
+	useCallback,
 	useEffect,
 	useImperativeHandle,
 	useRef,
@@ -13,7 +14,6 @@ import { useChatScope } from "../../../../hooks/ai/useChatScope";
 import { useItemFolderAssign } from "../../../../hooks/ai/useItemFolderAssign";
 import { getAiContribution } from "../../../../modules/ai-contributions";
 import { getModuleByCode } from "../../../../modules/registry";
-import { createDocumentHeadlessRpc } from "../../../../services/api/editorClient";
 import { fetchSkillDetail } from "../../../../services/api/skillsClient";
 import {
 	workbenchContextActions,
@@ -41,6 +41,7 @@ import {
 	REWRITE_ACTION_LABELS,
 	type RewriteIntent,
 } from "./rewriteIntent";
+import type { ChatDraftPayload } from "../../../../hooks/ai/useChatMessages";
 
 export interface ChatWithBookmarksPanelRef {
 	sendPrompt: (
@@ -254,33 +255,6 @@ export const ChatWithBookmarksPanel = forwardRef<
 				? (matchRewritePipelineIntent(instruction) ?? "polish")
 				: "polish";
 			runBridgeRewriteAction(intent, instruction);
-		},
-		onTriggerCreateDocumentPipeline: async (params) => {
-			const createAct = pageBridge?.actions.find(
-				(a) => a.id === "stream_create_document",
-			);
-			if (createAct) {
-				// Studio pipeline path: returns the created document id so the chat
-				// can backfill a navigation payload onto the step and render the
-				// "打开文档" artifact card.
-				const result = (await createAct.onAction(JSON.stringify(params))) as {
-					documentId?: number;
-				} | void;
-				return { documentId: result?.documentId };
-			}
-
-			// 创作台未挂载：headless 兜底直接服务端生成并入库
-			toast.info("创作台未打开，正在后台静默生成文档…");
-			try {
-				const doc = await createDocumentHeadlessRpc(params);
-				toast.success(`文档《${doc.title}》已生成并入库`);
-				onDataChanged?.();
-				return { documentId: doc.id };
-			} catch (err) {
-				console.error("[ChatPanel] headless create document failed:", err);
-				toast.danger("文档后台生成失败，请重试或手动打开创作台");
-				return undefined;
-			}
 		},
 		onCanvasAction: (toolName, args, navigation) => {
 			// console.log("[ChatPanel onCanvasAction]", toolName, args);
@@ -528,6 +502,18 @@ export const ChatWithBookmarksPanel = forwardRef<
 		);
 	};
 
+	/** 草稿卡片状态更新：更新指定消息的 draft 负载 */
+	const handleDraftStatusChange = useCallback(
+		(index: number, updated: ChatDraftPayload) => {
+			setMessages((prev) =>
+				prev.map((m, i) =>
+					i === index ? { ...m, draft: updated } : m,
+				),
+			);
+		},
+		[setMessages],
+	);
+
 	/** 在当前页面消费 pending action（确认后目标已在当前页面时） */
 	const consumePendingActionOnPage = () => {
 		const pending = workbenchContextActions.consumePendingAction();
@@ -717,6 +703,7 @@ export const ChatWithBookmarksPanel = forwardRef<
 						onNavigateToFolder={onNavigateToFolder}
 						onConfirmProposal={handleConfirmProposal}
 						onDismissProposal={handleDismissProposal}
+						onDraftStatusChange={handleDraftStatusChange}
 					/>
 
 					{/* Shared In-Place Folder Assignment Drawer */}

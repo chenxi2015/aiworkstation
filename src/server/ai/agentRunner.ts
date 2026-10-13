@@ -8,7 +8,7 @@ import type {
 } from "./agentTypes.ts";
 import { createBookmarkServerTools } from "./bookmarkTools.ts";
 import {
-	createDocumentCreateTool,
+	createDraftArticleTool,
 	createEditorServerTools,
 	createRewritePipelineTool,
 } from "./editorTools.ts";
@@ -103,10 +103,6 @@ export async function runAgentStream(
 
 	// 1. Instantiate module tools before retrieval so explicit actions still work
 	// when the bookmark database is empty.
-	const hasFileAttachment = (params.contextItems || []).some(
-		(item) => item.type === "file",
-	);
-	const shouldIncludeFsTools = module !== "editor" || hasFileAttachment;
 	const activeSkillItem = (params.contextItems || []).find(
 		(item) =>
 			(item.type as string) === "skill" ||
@@ -121,12 +117,12 @@ export async function runAgentStream(
 
 	const allTools = [
 		...createBookmarkServerTools(toolHooks, activeSkillDir),
-		...(shouldIncludeFsTools ? createFsServerTools(toolHooks) : []),
+		...createFsServerTools(toolHooks),
+		// draft_article is globally available from any module: generates decoupled drafts
+		createDraftArticleTool(toolHooks, { sessionId: params.sessionId }),
 		...(module === "editor" || Boolean(activeDocumentId)
 			? createEditorServerTools(toolHooks, activeDocumentId, { module })
-			: // trigger_document_create is globally available (headless generation
-				// from any module); the full editor tool set stays module-scoped.
-				[createDocumentCreateTool(toolHooks, { module })]),
+			: []),
 		...(module === "obsidian" || Boolean(activeNotePath)
 			? [createRewritePipelineTool(toolHooks)]
 			: []),

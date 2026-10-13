@@ -1,12 +1,6 @@
 import { DragDropProvider, type DragEndEvent } from "@dnd-kit/react";
 import { isSortable, useSortable } from "@dnd-kit/react/sortable";
-import {
-	Button,
-	Input,
-	InputGroup,
-	Label,
-	TextField,
-} from "@heroui/react";
+import { Button, InputGroup, Label, TextField } from "@heroui/react";
 import {
 	Clock,
 	ExternalLink,
@@ -93,6 +87,16 @@ interface EngineMeta {
 }
 
 const ENGINE_META: Record<SearchEngineId, EngineMeta> = {
+	duckduckgo: {
+		id: "duckduckgo",
+		name: "DuckDuckGo",
+		description: "全球注重隐私的搜索引擎，零配置免 Key 直接使用",
+		requiresKey: false,
+		keyEnv: null,
+		keyUrl: "https://duckduckgo.com",
+		keyPlaceholder: "无需配置 API Key",
+		keyHint: "完全免配置，开箱即用（支持中文与全球网页检索）",
+	},
 	tavily: {
 		id: "tavily",
 		name: "Tavily",
@@ -132,6 +136,16 @@ const ENGINE_META: Record<SearchEngineId, EngineMeta> = {
 		keyUrl: "https://jina.ai/api-dashboard",
 		keyPlaceholder: "jina_xxxxxxxxxxxxxxxxx",
 		keyHint: "可选，不配置也能用（限速更严）",
+	},
+	anysearch: {
+		id: "anysearch",
+		name: "AnySearch",
+		description: "面向 AI Agent 的联网检索平台，支持免 Key 查询",
+		requiresKey: false,
+		keyEnv: "ANYSEARCH_API_KEY",
+		keyUrl: "https://anysearch.com",
+		keyPlaceholder: "as-xxxxxxxxxxxxxxxxx",
+		keyHint: "可选，不配置也能用（配置可提升每日额度与并发）",
 	},
 };
 
@@ -231,51 +245,56 @@ function EngineRow({
 				</Button>
 			</div>
 
-			{/* API Key input */}
-			<div className="px-3 py-3">
-				<TextField
-					value={apiKey}
-					onChange={(val) => onChangeKey(id, val)}
-					isDisabled={disabled}
-				>
-					<Label className="text-xs font-medium text-foreground flex items-center justify-between">
-						<span>{meta.name} API Key</span>
-						{meta.keyEnv && (
+			{/* API Key input or Keyless banner */}
+			{meta.keyEnv ? (
+				<div className="px-3 py-3">
+					<TextField
+						value={apiKey}
+						onChange={(val) => onChangeKey(id, val)}
+						isDisabled={disabled}
+					>
+						<Label className="text-xs font-medium text-foreground flex items-center justify-between">
+							<span>{meta.name} API Key</span>
 							<span className="text-[10px] text-muted font-normal">
 								留空回退到 <code className="font-mono">{meta.keyEnv}</code>
 							</span>
-						)}
-					</Label>
-					<InputGroup className="bg-transparent border border-border/80 hover:border-foreground/40 focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/20 rounded-lg shadow-none">
-						<InputGroup.Prefix className="pl-3">
-							<KeyRound className="w-3.5 h-3.5 text-muted" />
-						</InputGroup.Prefix>
-						<InputGroup.Input
-							type={showKey ? "text" : "password"}
-							placeholder={meta.keyPlaceholder}
-							className="bg-transparent font-mono text-xs"
-						/>
-						<InputGroup.Suffix className="pr-1.5">
-							<Button
-								type="button"
-								variant="ghost"
-								size="sm"
-								isIconOnly
-								className="rounded-md"
-								onPress={() => onToggleShowKey(id)}
-								aria-label={showKey ? "隐藏密钥" : "显示密钥"}
-							>
-								{showKey ? (
-									<EyeOff className="w-3.5 h-3.5" />
-								) : (
-									<Eye className="w-3.5 h-3.5" />
-								)}
-							</Button>
-						</InputGroup.Suffix>
-					</InputGroup>
-					<p className="text-[10px] text-muted mt-1">{meta.keyHint}</p>
-				</TextField>
-			</div>
+						</Label>
+						<InputGroup className="bg-transparent border border-border/80 hover:border-foreground/40 focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/20 rounded-lg shadow-none">
+							<InputGroup.Prefix className="pl-3">
+								<KeyRound className="w-3.5 h-3.5 text-muted" />
+							</InputGroup.Prefix>
+							<InputGroup.Input
+								type={showKey ? "text" : "password"}
+								placeholder={meta.keyPlaceholder}
+								className="bg-transparent font-mono text-xs"
+							/>
+							<InputGroup.Suffix className="pr-1.5">
+								<Button
+									type="button"
+									variant="ghost"
+									size="sm"
+									isIconOnly
+									className="rounded-md"
+									onPress={() => onToggleShowKey(id)}
+									aria-label={showKey ? "隐藏密钥" : "显示密钥"}
+								>
+									{showKey ? (
+										<EyeOff className="w-3.5 h-3.5" />
+									) : (
+										<Eye className="w-3.5 h-3.5" />
+									)}
+								</Button>
+							</InputGroup.Suffix>
+						</InputGroup>
+						<p className="text-[10px] text-muted mt-1">{meta.keyHint}</p>
+					</TextField>
+				</div>
+			) : (
+				<div className="px-3 py-2.5 text-[11px] text-muted flex items-center gap-2">
+					<span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+					<span>{meta.keyHint}</span>
+				</div>
+			)}
 		</div>
 	);
 }
@@ -299,18 +318,18 @@ export function SearchSettingsTab({ data, onChange }: SearchSettingsTabProps) {
 
 	const { engineOrder, excludedEngines, apiKeys, timeoutMs } = data;
 
-	const handleDragEnd = useCallback((event: DragEndEvent) => {
-		if (event.canceled) return;
-		const { source } = event.operation;
-		if (!source || !isSortable(source)) return;
-		const { initialIndex, index } = source.sortable;
-		if (initialIndex === index) return;
-		if (!Number.isInteger(initialIndex) || !Number.isInteger(index)) return;
-		onChange(
-			"engineOrder",
-			arrayMove(engineOrder, initialIndex, index),
-		);
-	}, [engineOrder, onChange]);
+	const handleDragEnd = useCallback(
+		(event: DragEndEvent) => {
+			if (event.canceled) return;
+			const { source } = event.operation;
+			if (!source || !isSortable(source)) return;
+			const { initialIndex, index } = source.sortable;
+			if (initialIndex === index) return;
+			if (!Number.isInteger(initialIndex) || !Number.isInteger(index)) return;
+			onChange("engineOrder", arrayMove(engineOrder, initialIndex, index));
+		},
+		[engineOrder, onChange],
+	);
 
 	const handleToggleExcluded = (id: SearchEngineId, excluded: boolean) => {
 		onChange(

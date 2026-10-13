@@ -1,8 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import type {
-	SearchConfig,
-	SearchEngineId,
-} from "../ai/search/registry.ts";
+import type { SearchConfig, SearchEngineId } from "../ai/search/registry.ts";
 import { workbenchDb } from "../db/sqlite.ts";
 
 const SETTINGS_KEY = "searchConfig";
@@ -25,18 +22,26 @@ export const saveSearchConfig = createServerFn({ method: "POST" })
 	.handler(async ({ data: config }): Promise<{ success: boolean }> => {
 		// Basic shape validation
 		const sanitized: SearchConfig = {};
+		const allowedEngines: readonly SearchEngineId[] = [
+			"duckduckgo",
+			"tavily",
+			"exa",
+			"brave",
+			"jina",
+			"anysearch",
+		];
 		if (Array.isArray(config.engineOrder)) {
 			sanitized.engineOrder = config.engineOrder.filter(
 				(id): id is SearchEngineId =>
 					typeof id === "string" &&
-					["tavily", "exa", "brave", "jina"].includes(id),
+					allowedEngines.includes(id as SearchEngineId),
 			);
 		}
 		if (Array.isArray(config.excludedEngines)) {
 			sanitized.excludedEngines = config.excludedEngines.filter(
 				(id): id is SearchEngineId =>
 					typeof id === "string" &&
-					["tavily", "exa", "brave", "jina"].includes(id),
+					allowedEngines.includes(id as SearchEngineId),
 			);
 		}
 		if (
@@ -48,7 +53,7 @@ export const saveSearchConfig = createServerFn({ method: "POST" })
 		}
 		if (config.apiKeys && typeof config.apiKeys === "object") {
 			const keys: Partial<Record<SearchEngineId, string>> = {};
-			for (const id of ["tavily", "exa", "brave", "jina"] as const) {
+			for (const id of allowedEngines) {
 				const value = config.apiKeys[id];
 				if (typeof value === "string" && value.trim()) {
 					keys[id] = value.trim();

@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
+import { runStartupDraftSweep } from "../ai/drafts/draftStore.ts";
 import { initSchema } from "./schema.ts";
 import type { SqliteDatabase } from "./types.ts";
 
@@ -90,6 +91,7 @@ function ensureDataDirAndMigrate(): void {
 }
 
 ensureDataDirAndMigrate();
+runStartupDraftSweep();
 export const DB_PATH = path.join(DB_DIR, "workbench.db");
 
 let dbInstance: SqliteDatabase | null = null;

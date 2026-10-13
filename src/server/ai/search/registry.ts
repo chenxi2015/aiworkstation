@@ -1,6 +1,12 @@
 import type { SearchProvider } from "./types.ts";
 
-export type SearchEngineId = "tavily" | "exa" | "brave" | "jina";
+export type SearchEngineId =
+	| "duckduckgo"
+	| "tavily"
+	| "exa"
+	| "brave"
+	| "jina"
+	| "anysearch";
 
 export interface ProviderDescriptor {
 	id: SearchEngineId;
@@ -16,6 +22,12 @@ export interface ProviderDescriptor {
  * orchestrator to avoid circular imports.
  */
 export const SEARCH_ENGINE_REGISTRY: readonly ProviderDescriptor[] = [
+	{
+		id: "duckduckgo",
+		label: "DuckDuckGo",
+		keyEnv: null,
+		requiresKey: false,
+	},
 	{
 		id: "tavily",
 		label: "Tavily",
@@ -40,13 +52,21 @@ export const SEARCH_ENGINE_REGISTRY: readonly ProviderDescriptor[] = [
 		keyEnv: "JINA_API_KEY",
 		requiresKey: false,
 	},
+	{
+		id: "anysearch",
+		label: "AnySearch",
+		keyEnv: "ANYSEARCH_API_KEY",
+		requiresKey: false,
+	},
 ] as const;
 
 export const DEFAULT_ENGINE_ORDER: readonly SearchEngineId[] = [
+	"duckduckgo",
 	"tavily",
 	"exa",
 	"brave",
 	"jina",
+	"anysearch",
 ] as const;
 
 export interface SearchConfig {
