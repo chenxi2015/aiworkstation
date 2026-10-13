@@ -253,9 +253,28 @@ export type TriggerDocumentCreateInput = z.infer<
 export function executeTriggerDocumentCreate(
 	args: TriggerDocumentCreateInput,
 ): ToolExecutionResult {
+	// 交互式路径：创作台已挂载，前端会用同名标题新建文档并流式写入。
+	// 服务端按标题反查文档 id，让导航卡片始终指向真实文档（没有 id 的
+	// 卡片无法跳转定位，且客户端无法区分 headless/interactive，曾导致
+	// 同一次请求被双写）。极端时序下查不到则省略 id，由客户端在
+	// step_end 用流水线回传的 documentId 回填。
+	let documentId: number | undefined;
+	try {
+		const found = workbenchDb
+			.listDocuments()
+			.find((d) => d.title === args.title);
+		documentId = found?.id;
+	} catch {
+		// 忽略反查失败，不影响创建流程
+	}
 	const navigation: ToolNavigation = {
 		route: "/creator/studio",
-		searchParams: { mode: "doc", title: args.title },
+		searchParams: {
+			mode: "doc",
+			...(documentId != null
+				? { doc: String(documentId) }
+				: { title: args.title }),
+		},
 		label: "打开文档",
 	};
 	return {

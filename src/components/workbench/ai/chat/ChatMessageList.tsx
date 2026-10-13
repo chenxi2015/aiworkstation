@@ -46,6 +46,8 @@ export interface ChatMessageListProps {
 		category?: Category,
 		targetItemId?: string | number,
 	) => void;
+	onConfirmProposal?: (index: number) => void;
+	onDismissProposal?: (index: number) => void;
 }
 
 /**
@@ -74,6 +76,8 @@ export function ChatMessageList({
 	activeModule,
 	modulePrompts,
 	onNavigateToFolder,
+	onConfirmProposal,
+	onDismissProposal,
 }: ChatMessageListProps) {
 	const [isSelectMode, setIsSelectMode] = useState(false);
 	const [selectedIndices, setSelectedIndices] = useState<Set<number>>(
@@ -248,6 +252,8 @@ export function ChatMessageList({
 						onOpenAssignMultiple={onOpenAssignMultiple}
 						folders={folders}
 						onNavigateToFolder={onNavigateToFolder}
+						onConfirmProposal={onConfirmProposal}
+						onDismissProposal={onDismissProposal}
 					/>
 				))}
 

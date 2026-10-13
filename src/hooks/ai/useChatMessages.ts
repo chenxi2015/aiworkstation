@@ -1,5 +1,6 @@
 import { toast } from "@heroui/react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { ActionTargetObject } from "../../components/workbench/ai/chat/proposal/resolveActionTarget";
 import type {
 	Category,
 	Folder,
@@ -17,6 +18,19 @@ export type ChatMessagePart =
 	| { type: "text"; text: string }
 	| { type: "step_group"; steps: AgentStep[] };
 
+/** 提议-确认卡片消息负载（persisted in the session transcript） */
+export interface ChatProposal {
+	id: string;
+	target: ActionTargetObject;
+	actionId: string;
+	executionForm: string;
+	actionLabel?: string;
+	instruction?: string;
+	skillGuidance?: string;
+	/** 确认或忽略后进入惰性态 */
+	status: "pending" | "confirmed" | "dismissed";
+}
+
 export interface ChatItem {
 	role: "user" | "assistant";
 	content: string;
@@ -26,6 +40,7 @@ export interface ChatItem {
 	contextItems?: ChatContextItem[];
 	isStreaming?: boolean;
 	timestamp?: string;
+	proposal?: ChatProposal;
 }
 
 export interface UseChatMessagesProps {

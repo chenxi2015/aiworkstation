@@ -20,6 +20,22 @@ export interface ActiveNoteContext {
 	title: string;
 }
 
+/** 提议卡片确认后的跨页面待执行动作（单槽、一次性消费、60s TTL） */
+export interface PendingWorkbenchAction {
+	targetObject: {
+		kind: "document" | "note";
+		module: string;
+		documentId?: number;
+		notePath?: string;
+		title: string;
+	};
+	actionId: string;
+	/** 传给 bridge action 的 payload（通常是改写 instruction） */
+	payload?: string;
+	/** Unix ms，到期未消费则失效 */
+	expiresAt: number;
+}
+
 export interface WorkbenchContextState {
 	/** Current active module code, e.g. 'editor', 'creator', 'bookmarks' */
 	activeModule: string;
@@ -37,6 +53,8 @@ export interface WorkbenchContextState {
 	detachedMaterialId: number | null;
 	/** When set to a note path, this note is detached from the chat prompt context */
 	detachedNotePath: string | null;
+	/** Single-slot pending action written by a confirmed proposal card */
+	pendingAction: PendingWorkbenchAction | null;
 }
 
 const initialState: WorkbenchContextState = {
@@ -48,7 +66,10 @@ const initialState: WorkbenchContextState = {
 	detachedDocumentId: null,
 	detachedMaterialId: null,
 	detachedNotePath: null,
+	pendingAction: null,
 };
+
+const PENDING_ACTION_TTL_MS = 60_000;
 
 /**
  * Global synchronous store for active workbench context.
@@ -150,5 +171,44 @@ export const workbenchContextActions = {
 			...prev,
 			activeFolder: folder,
 		}));
+	},
+
+	/** Write the single-slot pending action with a fresh 60s TTL */
+	setPendingAction(action: Omit<PendingWorkbenchAction, "expiresAt"> | null) {
+		workbenchContextStore.setState((prev) => ({
+			...prev,
+			pendingAction: action
+				? { ...action, expiresAt: Date.now() + PENDING_ACTION_TTL_MS }
+				: null,
+		}));
+	},
+
+	/**
+	 * One-time consume: returns the pending action only when it has not
+	 * expired; expired or absent actions clear the slot and return null.
+	 */
+	consumePendingAction(): PendingWorkbenchAction | null {
+		const action = workbenchContextStore.state.pendingAction;
+		if (!action) return null;
+		workbenchContextStore.setState((prev) => ({
+			...prev,
+			pendingAction: null,
+		}));
+		if (Date.now() > action.expiresAt) return null;
+		return action;
+	},
+
+	/** Peek at the current pending action without consuming it */
+	getPendingAction(): PendingWorkbenchAction | null {
+		const action = workbenchContextStore.state.pendingAction;
+		if (!action) return null;
+		if (Date.now() > action.expiresAt) {
+			workbenchContextStore.setState((prev) => ({
+				...prev,
+				pendingAction: null,
+			}));
+			return null;
+		}
+		return action;
 	},
 };

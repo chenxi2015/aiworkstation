@@ -58,6 +58,9 @@ export function useAiChat(options?: UseAiChatOptions) {
 	// trigger_document_create step, backfilled into the step's navigation on
 	// step_end so the artifact card always renders.
 	const pendingCreateDocRef = useRef<number | null>(null);
+	// 已触发过本地创建流水线的 step id：防止流式重发/step 重放导致同一篇
+	// 文档被重复创建（一次对话产生两篇同题文档的根因之一）。
+	const triggeredCreateStepsRef = useRef<Set<string>>(new Set());
 
 	const addContextItem = useCallback((item: ChatContextItem) => {
 		setContextItems((prev) => {
@@ -302,6 +305,7 @@ export function useAiChat(options?: UseAiChatOptions) {
 
 			const controller = new AbortController();
 			abortControllerRef.current = controller;
+			triggeredCreateStepsRef.current.clear();
 
 			try {
 				const history: ChatMessage[] = isNewChat
@@ -377,10 +381,22 @@ export function useAiChat(options?: UseAiChatOptions) {
 					{
 						onStepStart: (step) => {
 							if (step.toolName === "trigger_document_create") {
-								// Headless path: the server already generated and persisted
-								// the document (navigation payload present) — skip the
-								// studio's interactive pipeline.
-								if (!step.navigation) {
+								// 服务端在 step_start 的 args 里显式标记执行路径：
+								// - headless：服务端已生成全文并落库，客户端不得再触发
+								//   本地流水线（否则同一次请求双写两篇文档）；
+								// - interactive：创作台已挂载，由本地流水线流式创建。
+								// 老服务端无标记时回退到 navigation 猜测。
+								const execution =
+									typeof step.args?.execution === "string"
+										? step.args.execution
+										: step.navigation
+											? "headless"
+											: "interactive";
+								const alreadyTriggered = triggeredCreateStepsRef.current.has(
+									step.id,
+								);
+								if (execution === "interactive" && !alreadyTriggered) {
+									triggeredCreateStepsRef.current.add(step.id);
 									pendingCreateDocRef.current = null;
 									const title =
 										typeof step.args?.title === "string"

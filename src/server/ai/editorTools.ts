@@ -159,6 +159,18 @@ export function createDocumentCreateTool(
 ) {
 	const studioMounted =
 		runtime?.module === "editor" || runtime?.module === "creator";
+	// 关键：创建路径（headless 服务端直写 vs 创作台交互式流水线）必须在
+	// step_start 时就对客户端可见——否则客户端只能靠 step_end 的 navigation
+	// 猜测，headless 场景下会再触发一次交互式创建，导致同一次对话产生两篇文档。
+	const executionMode = studioMounted ? "interactive" : "headless";
+	const stampedHooks: BookmarkToolHooks = {
+		...hooks,
+		onToolStart: (toolName, args) =>
+			hooks?.onToolStart?.(toolName, {
+				...args,
+				execution: executionMode,
+			}),
+	};
 	return triggerDocumentCreateToolDef.server((args) =>
 		wrapExecution(
 			"trigger_document_create",
@@ -169,7 +181,7 @@ export function createDocumentCreateTool(
 				}
 				return headlessCreateDocument(args);
 			},
-			hooks,
+			stampedHooks,
 		),
 	);
 }

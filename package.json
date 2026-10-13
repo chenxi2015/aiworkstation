@@ -164,6 +164,7 @@
     "nitro": "npm:nitro-nightly@3.0.1-20260907-125141-8baa894b",
     "typescript": "^6.0.2",
     "vite": "^8.0.0",
+    "vitest": "^5.0.4",
     "wrangler": "^4.70.0"
   }
 }

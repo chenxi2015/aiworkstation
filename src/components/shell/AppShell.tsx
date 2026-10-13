@@ -234,7 +234,12 @@ export function AppShell({
 
 	// Clear active page bridge if navigation moved to a different module
 	useEffect(() => {
-		if (pageBridge && pageBridge.module !== activeModule) {
+		// editor 模块已并入 creator（导航定案），创作台桥接的 module code
+		// 仍为 "editor"，两者视为同一归属，避免桥接被误清
+		const sameOwner =
+			pageBridge?.module === activeModule ||
+			(pageBridge?.module === "editor" && activeModule === "creator");
+		if (pageBridge && !sameOwner) {
 			setPageBridge(null);
 		}
 	}, [activeModule, pageBridge]);

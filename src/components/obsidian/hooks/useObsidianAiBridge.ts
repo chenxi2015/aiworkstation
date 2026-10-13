@@ -262,6 +262,11 @@ export function useObsidianAiBridge({
 							label: "二创洗稿重构",
 							icon: Shuffle,
 							variant: "accent" as const,
+							target: {
+								kind: "note" as const,
+								module: "obsidian",
+								executionForm: "双栏比对改写",
+							},
 							tooltip:
 								"基于当前笔记事实进行深度二创与结构重组，在双栏视图中实时 Diff 审阅",
 							onAction: async (payload?: string) => {
@@ -279,6 +284,11 @@ export function useObsidianAiBridge({
 							label: "双栏全文润色",
 							icon: Sparkles,
 							variant: "default" as const,
+							target: {
+								kind: "note" as const,
+								module: "obsidian",
+								executionForm: "双栏比对改写",
+							},
 							tooltip: "在双栏中逐句润色语言表达、排版结构，红绿 Diff 直观对比",
 							onAction: async (payload?: string) => {
 								const api = noteApiRef.current;
@@ -294,6 +304,11 @@ export function useObsidianAiBridge({
 							id: "stream_structure_rewrite",
 							label: "结构化整理",
 							icon: ListTree,
+							target: {
+								kind: "note" as const,
+								module: "obsidian",
+								executionForm: "双栏比对改写",
+							},
 							tooltip: "将凌乱速记重新梳理为层级规范、要点清晰的知识笔记",
 							onAction: async (payload?: string) => {
 								const api = noteApiRef.current;
@@ -671,4 +686,44 @@ export function useObsidianAiBridge({
 		onCreateCanvas,
 		onCreateExcalidraw,
 	]);
+
+	// Consume cross-module pending actions after PageBridge registration:
+	// a confirmed proposal card navigates here (note opened via ?note= search
+	// param) and expects the action to run once the note panel is ready
+	// (single-slot, one-time consume, 60s TTL).
+	useEffect(() => {
+		if (!selectedNotePath) return;
+		if (
+			selectedNotePath.endsWith(".canvas") ||
+			selectedNotePath.endsWith(".excalidraw")
+		) {
+			return;
+		}
+		const pending = workbenchContextActions.getPendingAction();
+		if (!pending || pending.targetObject.kind !== "note") return;
+		if (pending.targetObject.notePath !== selectedNotePath) return;
+
+		let cancelled = false;
+		const attempt = async (retries: number): Promise<void> => {
+			if (cancelled) return;
+			const api = noteApiRef.current;
+			if (api?.hasNote() && api.onStartRewritePipeline) {
+				const consumed = workbenchContextActions.consumePendingAction();
+				if (!consumed) return;
+				await api.flushSave();
+				await api.onStartRewritePipeline(
+					consumed.payload || undefined,
+					"双栏比对改写",
+				);
+				return;
+			}
+			if (retries > 0) {
+				setTimeout(() => void attempt(retries - 1), 120);
+			}
+		};
+		void attempt(25);
+		return () => {
+			cancelled = true;
+		};
+	}, [selectedNotePath, noteApiRef]);
 }

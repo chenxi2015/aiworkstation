@@ -6,6 +6,7 @@ import type { Category, Folder, SearchResultItem } from "../../types";
 import { UrlLinkifiedText } from "../shared/UrlLinkifiedText";
 import { AssistantMessageBubble } from "./message/AssistantMessageBubble";
 import { UserMessageBubble } from "./message/UserMessageBubble";
+import { ActionProposalCard } from "./proposal/ActionProposalCard";
 
 export interface ChatMessageItemProps {
 	msg: ChatItem;
@@ -35,6 +36,8 @@ export interface ChatMessageItemProps {
 		category?: Category,
 		targetItemId?: string | number,
 	) => void;
+	onConfirmProposal?: (index: number) => void;
+	onDismissProposal?: (index: number) => void;
 }
 
 /**
@@ -60,7 +63,25 @@ export const ChatMessageItem = memo(function ChatMessageItem({
 	onOpenAssignMultiple,
 	folders,
 	onNavigateToFolder,
+	onConfirmProposal,
+	onDismissProposal,
 }: ChatMessageItemProps) {
+	// 0. Action proposal card (first-class message item in the transcript)
+	if (msg.proposal) {
+		const proposal = msg.proposal;
+		return (
+			<ActionProposalCard
+				target={proposal.target}
+				executionForm={proposal.executionForm}
+				actionLabel={proposal.actionLabel}
+				skillGuidance={proposal.skillGuidance}
+				status={proposal.status}
+				onConfirm={() => onConfirmProposal?.(index)}
+				onDismiss={() => onDismissProposal?.(index)}
+			/>
+		);
+	}
+
 	// 1. Bulk selection deletion mode item
 	if (isSelectMode) {
 		const refCount = msg.references?.length ?? 0;

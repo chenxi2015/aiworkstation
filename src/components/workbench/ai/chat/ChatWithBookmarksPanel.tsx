@@ -1,6 +1,13 @@
 import { Button, Tooltip, toast } from "@heroui/react";
+import { useNavigate } from "@tanstack/react-router";
 import { History, MessageSquarePlus, PanelRightClose } from "lucide-react";
-import { forwardRef, useImperativeHandle, useRef, useState } from "react";
+import {
+	forwardRef,
+	useEffect,
+	useImperativeHandle,
+	useRef,
+	useState,
+} from "react";
 import { type ChatItem, useAiChat } from "../../../../hooks/ai/useAiChat";
 import { useChatScope } from "../../../../hooks/ai/useChatScope";
 import { useItemFolderAssign } from "../../../../hooks/ai/useItemFolderAssign";
@@ -8,7 +15,10 @@ import { getAiContribution } from "../../../../modules/ai-contributions";
 import { getModuleByCode } from "../../../../modules/registry";
 import { createDocumentHeadlessRpc } from "../../../../services/api/editorClient";
 import { fetchSkillDetail } from "../../../../services/api/skillsClient";
-import { workbenchContextStore } from "../../../../stores/workbenchContextStore";
+import {
+	workbenchContextActions,
+	workbenchContextStore,
+} from "../../../../stores/workbenchContextStore";
 import type { ChatContextItem } from "../../../../types/chatContext";
 import type { PageBridge } from "../../../../types/pageBridge";
 import { AiAssistantLogoIcon } from "../../Icons";
@@ -24,9 +34,11 @@ import { ItemFolderAssignPopover } from "../shared/ItemFolderAssignPopover";
 import { ChatHistoryDrawer } from "./ChatHistoryDrawer";
 import { ChatInputArea } from "./ChatInputArea";
 import { ChatMessageList } from "./ChatMessageList";
+import { resolveActionTarget } from "./proposal/resolveActionTarget";
 import {
 	matchRewritePipelineIntent,
 	REWRITE_ACTION_IDS,
+	REWRITE_ACTION_LABELS,
 	type RewriteIntent,
 } from "./rewriteIntent";
 
@@ -134,6 +146,30 @@ export const ChatWithBookmarksPanel = forwardRef<
 	const messagesEndRef = useRef<HTMLDivElement | null>(null);
 	const inputRef = useRef<HTMLTextAreaElement | null>(null);
 	const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
+	const navigate = useNavigate();
+	// 跨模块确认后的过期提醒计时器（pending action 未被目标页面消费时）
+	const pendingActionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+		null,
+	);
+	// pending action 被目标页面消费时清除过期提醒计时器；卸载时兜底清理
+	useEffect(() => {
+		const subscription = workbenchContextStore.subscribe(() => {
+			if (
+				!workbenchContextStore.state.pendingAction &&
+				pendingActionTimerRef.current
+			) {
+				clearTimeout(pendingActionTimerRef.current);
+				pendingActionTimerRef.current = null;
+			}
+		});
+		return () => {
+			subscription.unsubscribe();
+			if (pendingActionTimerRef.current) {
+				clearTimeout(pendingActionTimerRef.current);
+				pendingActionTimerRef.current = null;
+			}
+		};
+	}, []);
 
 	// Contextual scope management (global ⇄ scoped folder / document / material)
 	const {
@@ -156,10 +192,12 @@ export const ChatWithBookmarksPanel = forwardRef<
 	/**
 	 * 通过 PageBridge 直接启动页面的双栏比对流式改写流水线。
 	 * 返回 false 表示当前页面未注册改写动作（调用方应回落到通用 Agent）。
+	 * skillGuidance 会作为补充要求段拼入改写 instruction（design D3）。
 	 */
 	const runBridgeRewriteAction = (
 		intent: RewriteIntent,
 		instruction?: string,
+		skillGuidance?: string,
 	): boolean => {
 		const actions = pageBridge?.actions ?? [];
 		const rewriteAct =
@@ -167,7 +205,15 @@ export const ChatWithBookmarksPanel = forwardRef<
 			actions.find((a) => a.id === "stream_full_rewrite") ??
 			actions.find((a) => a.id === "stream_spin_rewrite");
 		if (!rewriteAct) return false;
-		void rewriteAct.onAction(instruction ?? "");
+		const trimmed = instruction?.trim();
+		const guidance = skillGuidance?.trim();
+		const payload =
+			trimmed && guidance
+				? `${trimmed}\n补充要求（Skill 指南）：\n${guidance}`
+				: guidance && !trimmed
+					? `补充要求（Skill 指南）：\n${guidance}`
+					: (trimmed ?? "");
+		void rewriteAct.onAction(payload);
 		return true;
 	};
 
@@ -194,6 +240,7 @@ export const ChatWithBookmarksPanel = forwardRef<
 		exportSessionToJson,
 		clearHistory,
 		updateMessageReferences,
+		setMessages,
 		contextItems,
 		addContextItem,
 		removeContextItem,
@@ -279,31 +326,68 @@ export const ChatWithBookmarksPanel = forwardRef<
 			activeNotePath?: string | null;
 		},
 	) => {
-		// 改写类意图短路：笔记模块下整篇改写直达双栏流式流水线，
-		// 不走通用 Agent（避免工具链徘徊导致的长时间空等）。
-		// 附加了 Skill/文件上下文时仍走 Agent（直达流水线无法消费这些上下文）。
-		// 注意：输入框提交时 prompt 为 undefined，真实文本在 input state 里
+		// 统一动作提议解析层（design D1/D2）：改写类意图先经过目标对象解析，
+		// 产出「直达 / 提议卡片 / 通用 Agent」三种结果之一。
+		// 直达只发生在「目标对象就是当前页面打开的对象」的场景；
+		// 跨对象、跨模块或携带 skill 时渲染确认卡片，由用户决定。
 		const effectivePrompt = (prompt ?? input).trim();
-		if (
-			effectivePrompt &&
-			pageBridge?.module === "obsidian" &&
-			pageBridge.activeNotePath
-		) {
-			const hasSkillOrFileContext =
-				contextItems.some((i) => i.type === "skill" || i.type === "file") ||
-				Boolean(
-					options?.contextItems?.some(
-						(i) => i.type === "skill" || i.type === "file",
-					),
-				);
-			if (!hasSkillOrFileContext) {
-				const intent = matchRewritePipelineIntent(effectivePrompt);
-				if (intent && runBridgeRewriteAction(intent, effectivePrompt)) {
+		if (effectivePrompt) {
+			const mergedContextItems =
+				options?.contextItems !== undefined
+					? options.contextItems
+					: contextItems;
+			const skillItems = mergedContextItems.filter((i) => i.type === "skill");
+			const resolution = resolveActionTarget({
+				prompt: effectivePrompt,
+				skillContextItems: skillItems,
+				pageBridge,
+				contextItems: mergedContextItems.filter((i) => i.type !== "skill"),
+			});
+			if (resolution.kind === "direct") {
+				const intent = matchRewritePipelineIntent(effectivePrompt) ?? "polish";
+				if (runBridgeRewriteAction(intent, effectivePrompt)) {
 					setInput("");
 					toast.success("已启动双栏比对流水线，右栏实时生成中…");
 					return;
 				}
+			} else if (resolution.kind === "proposal") {
+				const intent = matchRewritePipelineIntent(effectivePrompt) ?? "polish";
+				const timeStr = new Date().toLocaleTimeString([], {
+					hour: "2-digit",
+					minute: "2-digit",
+				});
+				setMessages((prev) => [
+					...prev,
+					{
+						role: "user",
+						content: effectivePrompt,
+						contextItems:
+							mergedContextItems.length > 0 ? mergedContextItems : undefined,
+						timestamp: timeStr,
+					},
+					{
+						role: "assistant",
+						content: "",
+						timestamp: timeStr,
+						proposal: {
+							id: `proposal_${Date.now()}`,
+							target: resolution.target,
+							actionId: resolution.actionId,
+							executionForm: resolution.executionForm,
+							actionLabel: REWRITE_ACTION_LABELS[intent],
+							instruction: effectivePrompt,
+							skillGuidance: resolution.skillGuidance,
+							status: "pending",
+						},
+					},
+				]);
+				setInput("");
+				if (options?.contextItems === undefined) {
+					clearContextItems();
+				}
+				return;
 			}
+			// kind === "agent"：无可写目标，落入下方通用 Agent 流程
 		}
 
 		// Flush any pending unsaved document changes so AI reads full up-to-date text
@@ -355,6 +439,105 @@ export const ChatWithBookmarksPanel = forwardRef<
 			activeNotePath: effectiveNotePath,
 			...options,
 		});
+	};
+
+	/** 提议卡片确认：写入 pending action → 标记卡片 confirmed → 导航到目标模块（task 3.2 / design D4） */
+	const handleConfirmProposal = (index: number) => {
+		const msg = messages[index];
+		const proposal = msg?.proposal;
+		if (!proposal || proposal.status !== "pending") return;
+
+		// 目标就是当前页面打开的对象：无需导航，直接执行
+		const bridgeTargetPath =
+			proposal.target.kind === "note"
+				? pageBridge?.activeNotePath
+				: pageBridge?.activeDocumentId;
+		const proposalTargetId =
+			proposal.target.kind === "note"
+				? proposal.target.notePath
+				: proposal.target.documentId;
+		const bridgeModuleOwnsTarget =
+			pageBridge?.module === proposal.target.module ||
+			(pageBridge?.module === "editor" && proposal.target.module === "creator");
+
+		workbenchContextActions.setPendingAction({
+			targetObject: proposal.target,
+			actionId: proposal.actionId,
+			payload: proposal.skillGuidance
+				? `${proposal.instruction ?? ""}\n补充要求（Skill 指南）：\n${proposal.skillGuidance}`
+				: proposal.instruction,
+		});
+
+		setMessages((prev) =>
+			prev.map((m, i) =>
+				i === index && m.proposal
+					? { ...m, proposal: { ...m.proposal, status: "confirmed" } }
+					: m,
+			),
+		);
+
+		if (
+			bridgeModuleOwnsTarget &&
+			bridgeTargetPath != null &&
+			bridgeTargetPath === proposalTargetId
+		) {
+			consumePendingActionOnPage();
+			toast.success("已启动双栏比对流水线，右栏实时生成中…");
+			return;
+		}
+
+		// 跨模块导航：目标页面挂载后消费 pending action（含打开目标对象）。
+		// 过期提醒由 store 的 subscribe 监听驱动：pending action 被消费时
+		// 自动清除；60s 后仍未消费则 toast 提醒（store 侧 TTL 会使其失效）。
+		if (pendingActionTimerRef.current) {
+			clearTimeout(pendingActionTimerRef.current);
+		}
+		pendingActionTimerRef.current = setTimeout(() => {
+			pendingActionTimerRef.current = null;
+			// 仍在槽位里且已过期 → 目标页面未及时消费
+			if (workbenchContextStore.state.pendingAction) {
+				workbenchContextActions.setPendingAction(null);
+				toast.warning("目标页面未及时响应，动作未能启动，请重试");
+			}
+		}, 60_000);
+
+		if (proposal.target.kind === "note") {
+			void navigate({
+				to: "/obsidian",
+				search: { note: proposal.target.notePath },
+			});
+		} else {
+			void navigate({
+				to: "/creator/studio",
+				search: {
+					mode: "doc",
+					doc: proposal.target.documentId,
+				},
+			});
+		}
+	};
+
+	/** 提议卡片忽略：仅标记惰性态，不执行、不导航 */
+	const handleDismissProposal = (index: number) => {
+		setMessages((prev) =>
+			prev.map((m, i) =>
+				i === index && m.proposal
+					? { ...m, proposal: { ...m.proposal, status: "dismissed" } }
+					: m,
+			),
+		);
+	};
+
+	/** 在当前页面消费 pending action（确认后目标已在当前页面时） */
+	const consumePendingActionOnPage = () => {
+		const pending = workbenchContextActions.consumePendingAction();
+		if (!pending) return;
+		const act = pageBridge?.actions.find((a) => a.id === pending.actionId);
+		if (act) {
+			void act.onAction(pending.payload ?? "");
+		} else {
+			toast.warning("当前页面未注册对应的改写动作");
+		}
 	};
 
 	// 当前模块的 AI 贡献包：切换导航时更新推荐提问与（服务端）模块视角
@@ -532,6 +715,8 @@ export const ChatWithBookmarksPanel = forwardRef<
 						onSelectPrompt={(p) => handleSendPrompt(p)}
 						folders={folders}
 						onNavigateToFolder={onNavigateToFolder}
+						onConfirmProposal={handleConfirmProposal}
+						onDismissProposal={handleDismissProposal}
 					/>
 
 					{/* Shared In-Place Folder Assignment Drawer */}

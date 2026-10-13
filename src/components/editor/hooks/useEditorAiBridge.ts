@@ -1,7 +1,9 @@
+import { toast } from "@heroui/react";
 import type { Editor } from "@tiptap/react";
 import { Shuffle, Sparkles } from "lucide-react";
 import type React from "react";
 import { useEffect, useRef } from "react";
+import { workbenchContextActions } from "../../../stores/workbenchContextStore";
 import { useAiPanel } from "../../shell/AppShell";
 import type { EditorDocument } from "../types";
 
@@ -89,6 +91,11 @@ export function useEditorAiBridge({
 					label: "二创洗稿重构",
 					icon: Shuffle,
 					variant: "accent" as const,
+					target: {
+						kind: "document" as const,
+						module: "creator",
+						executionForm: "双栏比对改写",
+					},
 					tooltip:
 						"基于原文事实进行深度二创与去重洗稿，彻底打破原有句式和篇章结构（保留多媒体）",
 					onAction: async (aiContent?: string) => {
@@ -109,6 +116,11 @@ export function useEditorAiBridge({
 					label: "逐段流式改写",
 					icon: Sparkles,
 					variant: "default" as const,
+					target: {
+						kind: "document" as const,
+						module: "creator",
+						executionForm: "双栏比对改写",
+					},
 					tooltip:
 						"在正文中逐段流式优化改写（绝不丢失任何图片视频，实时对照审阅）",
 					onAction: async (aiContent: string) => {
@@ -129,7 +141,27 @@ export function useEditorAiBridge({
 		};
 	}, [activeDocId, activeDocTitle, registerPageBridge]);
 
-	// 2. Sync when AI tools execute backend mutations
+	// 2. Consume cross-module pending actions after PageBridge registration:
+	// a confirmed proposal card navigates here and expects the action to run
+	// once the target document is open (single-slot, one-time consume, 60s TTL).
+	useEffect(() => {
+		if (activeDocId == null) return;
+		const pending = workbenchContextActions.consumePendingAction();
+		if (!pending) return;
+		if (
+			pending.targetObject.kind !== "document" ||
+			pending.targetObject.documentId !== activeDocId
+		) {
+			toast.warning("目标文档已切换或不存在，动作已取消");
+			return;
+		}
+		void onStartRewritePipelineRef.current?.(
+			pending.payload || undefined,
+			"双栏比对改写",
+		);
+	}, [activeDocId]);
+
+	// 3. Sync when AI tools execute backend mutations
 	useEffect(() => {
 		registerDataChangedHandler(async () => {
 			const currentDocId = activeDoc?.id;

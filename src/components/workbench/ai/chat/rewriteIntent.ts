@@ -16,6 +16,13 @@ export const REWRITE_ACTION_IDS: Record<RewriteIntent, string> = {
 	structure: "stream_structure_rewrite",
 };
 
+/** 各意图的动作展示名（双栏 modeLabel / 提议卡片标题） */
+export const REWRITE_ACTION_LABELS: Record<RewriteIntent, string> = {
+	spin: "二创洗稿重构",
+	polish: "全文润色",
+	structure: "结构化整理",
+};
+
 /**
  * 匹配整篇改写类意图。关键词刻意收紧，避免劫持「总结/分析/建议」类提问：
  * - spin：二创 / 洗稿 / 重构 / 改写 / 重写
