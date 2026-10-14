@@ -1,4 +1,13 @@
-import { Label } from "@heroui/react";
+import {
+	Checkbox,
+	Label,
+	ListBox,
+	ListBoxItem,
+	Select,
+	SelectPopover,
+	SelectTrigger,
+	SelectValue,
+} from "@heroui/react";
 import {
 	CheckCircle2,
 	ExternalLink,
@@ -119,13 +128,21 @@ export function PublishPlatformSection({
 										</div>
 									</div>
 
-									<input
-										type="checkbox"
-										checked={isChecked}
-										onChange={() => onTogglePlatform(p.id)}
-										onClick={(e) => e.stopPropagation()}
-										className="rounded text-accent focus:ring-accent cursor-pointer mt-0.5 accent-accent"
-									/>
+									{/* HeroUI Checkbox */}
+									<div onClick={(e) => e.stopPropagation()}>
+										<Checkbox
+											isSelected={isChecked}
+											onChange={() => onTogglePlatform(p.id)}
+											aria-label={p.name}
+											variant="secondary"
+										>
+											<Checkbox.Content>
+												<Checkbox.Control>
+													<Checkbox.Indicator />
+												</Checkbox.Control>
+											</Checkbox.Content>
+										</Checkbox>
+									</div>
 								</div>
 
 								{/* WeChat Account Selector inside WeChat platform card */}
@@ -135,17 +152,32 @@ export function PublishPlatformSection({
 										onClick={(e) => e.stopPropagation()}
 									>
 										{accounts.length > 0 ? (
-											<select
-												value={selectedAccountId ?? accounts[0]?.id ?? ""}
-												onChange={(e) => onSelectAccountId(Number(e.target.value))}
-												className="w-full px-2 py-1 rounded bg-surface border border-border text-[11px] outline-none focus:border-accent"
+											<Select
+												aria-label="选择微信公众号账号"
+												selectedKey={String(selectedAccountId ?? accounts[0]?.id ?? "")}
+												onSelectionChange={(key) => {
+													if (key != null) onSelectAccountId(Number(key));
+												}}
+												className="w-full"
 											>
-												{accounts.map((acc) => (
-													<option key={acc.id} value={acc.id}>
-														{acc.label}
-													</option>
-												))}
-											</select>
+												<SelectTrigger className="w-full h-7 min-h-7 px-2 py-0 text-[11px] rounded-lg border border-border/80 bg-surface text-foreground flex items-center justify-between">
+													<SelectValue className="text-[11px] truncate leading-none" />
+												</SelectTrigger>
+												<SelectPopover className="rounded-xl border border-border bg-surface shadow-lg max-h-48 overflow-y-auto min-w-[180px] z-50">
+													<ListBox>
+														{accounts.map((acc) => (
+															<ListBoxItem
+																key={acc.id}
+																id={String(acc.id)}
+																textValue={acc.label}
+																className="text-xs rounded-lg cursor-pointer"
+															>
+																{acc.label}
+															</ListBoxItem>
+														))}
+													</ListBox>
+												</SelectPopover>
+											</Select>
 										) : (
 											<div className="text-warning text-[10px] leading-tight">
 												未配置公众号账号（设置中心 → 发布平台）
