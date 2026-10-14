@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useCloudAuth } from "../../lib/cloud/useCloudAuth";
 import type { NavLayoutEntry } from "../../modules/registry";
 import { saveSettingsAsync } from "../../services/storage/settingsStorage";
+import { useImmersiveMode } from "../../stores/immersiveStore";
 import { ModulePaywall } from "../cloud/ModulePaywall";
 import {
 	ObsidianNoteCanvasSkeleton,
@@ -44,6 +45,7 @@ export function ObsidianApp({
 }: ObsidianAppProps) {
 	const { isMember } = useCloudAuth();
 	const { sidebarWidth, handleSidebarResizeStart } = useSidebarResize();
+	const { isImmersive } = useImmersiveMode();
 
 	// 1. Navigation history state
 	const {
@@ -220,43 +222,45 @@ export function ObsidianApp({
 				</div>
 			) : (
 				<div className="flex-1 flex overflow-hidden">
-					<ObsidianSidebar
-						sidebarWidth={sidebarWidth}
-						onSidebarResizeStart={handleSidebarResizeStart}
-						query={query}
-						onQueryChange={handleQueryChange}
-						vaultExists={!!vault?.exists}
-						onCreateNote={() => void handleCreateNote()}
-						onCreateFolder={() => void handleCreateFolder()}
-						onCreateCanvas={() => void handleCreateCanvas()}
-						onCreateExcalidraw={() => void handleCreateExcalidraw()}
-						onRefresh={() => load(true)}
-						refreshing={refreshing}
-						anyExpanded={expanded.size > 0}
-						onToggleExpandAll={handleToggleExpandAll}
-						autoReveal={autoReveal}
-						onToggleAutoReveal={handleToggleAutoReveal}
-						filteredTree={filteredTree}
-						selectedNotePath={selectedNotePath}
-						currentDir={currentDir}
-						effectiveExpanded={effectiveExpanded}
-						renamingPath={renamingPath}
-						onToggleFolder={toggleFolder}
-						onSelectFolder={setCurrentDir}
-						onSelectNote={openNote}
-						onOpenMenu={handleOpenMenu}
-						onRenameCommit={(p, name, isFolder) =>
-							void handleRenameCommit(p, name, isFolder)
-						}
-						onRenameCancel={() => setRenamingPath(null)}
-						onMoveEntry={(src, dest) => void handleMoveEntry(src, dest)}
-						onClearCurrentDir={() => setCurrentDir("")}
-						vaultMissing={vaultMissing}
-						settings={currentSettings}
-						vault={vault}
-						scannedAt={treeData?.scannedAt}
-						onApplyVaultSettings={handleApplyVaultSettings}
-					/>
+					{!isImmersive && (
+						<ObsidianSidebar
+							sidebarWidth={sidebarWidth}
+							onSidebarResizeStart={handleSidebarResizeStart}
+							query={query}
+							onQueryChange={handleQueryChange}
+							vaultExists={!!vault?.exists}
+							onCreateNote={() => void handleCreateNote()}
+							onCreateFolder={() => void handleCreateFolder()}
+							onCreateCanvas={() => void handleCreateCanvas()}
+							onCreateExcalidraw={() => void handleCreateExcalidraw()}
+							onRefresh={() => load(true)}
+							refreshing={refreshing}
+							anyExpanded={expanded.size > 0}
+							onToggleExpandAll={handleToggleExpandAll}
+							autoReveal={autoReveal}
+							onToggleAutoReveal={handleToggleAutoReveal}
+							filteredTree={filteredTree}
+							selectedNotePath={selectedNotePath}
+							currentDir={currentDir}
+							effectiveExpanded={effectiveExpanded}
+							renamingPath={renamingPath}
+							onToggleFolder={toggleFolder}
+							onSelectFolder={setCurrentDir}
+							onSelectNote={openNote}
+							onOpenMenu={handleOpenMenu}
+							onRenameCommit={(p, name, isFolder) =>
+								void handleRenameCommit(p, name, isFolder)
+							}
+							onRenameCancel={() => setRenamingPath(null)}
+							onMoveEntry={(src, dest) => void handleMoveEntry(src, dest)}
+							onClearCurrentDir={() => setCurrentDir("")}
+							vaultMissing={vaultMissing}
+							settings={currentSettings}
+							vault={vault}
+							scannedAt={treeData?.scannedAt}
+							onApplyVaultSettings={handleApplyVaultSettings}
+						/>
+					)}
 
 					<ObsidianContent
 						vaultMissing={vaultMissing}

@@ -43,19 +43,19 @@ const ModuleTabItem = memo(function ModuleTabItem({
 		<Link
 			to={module.route}
 			ref={ref}
-			className={`px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-150 flex items-center gap-1.5 cursor-pointer select-none ${
+			className={`px-3.5 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-150 flex items-center gap-2 cursor-pointer select-none ${
 				isDropTarget
 					? "bg-accent text-accent-foreground font-semibold shadow-md ring-2 ring-accent/80 scale-105"
 					: isActive
-						? "bg-accent-soft text-accent font-semibold shadow-xs"
+						? "bg-zinc-200 text-foreground dark:bg-zinc-800 dark:text-zinc-100 font-semibold shadow-xs"
 						: "text-muted hover:text-foreground hover:bg-surface-secondary"
 			}`}
 		>
-			<Icon className="w-3.5 h-3.5" />
+			<Icon className="w-4 h-4" />
 			<span>{module.label}</span>
 			{showBadge && (
 				<span
-					className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono transition-colors ${
+					className={`text-[11px] px-1.5 py-0.2 rounded-full font-mono transition-colors ${
 						isDropTarget
 							? "bg-accent-foreground/20 text-accent-foreground font-bold"
 							: "bg-danger/15 text-danger font-bold"

@@ -21,6 +21,7 @@ import type { NavLayoutEntry } from "../../modules/registry";
 import { getModuleByRoute } from "../../modules/registry";
 import { ExtensionBridgeService } from "../../services/extensionBridge";
 import { WorkbenchStorageService } from "../../services/workbenchStorage";
+import { useImmersiveMode } from "../../stores/immersiveStore";
 import { workbenchContextActions } from "../../stores/workbenchContextStore";
 import type { ChatContextItem } from "../../types/chatContext";
 import type { PageBridge } from "../../types/pageBridge";
@@ -195,6 +196,25 @@ export function AppShell({
 	const activeModule = getModuleByRoute(pathname)?.code ?? "workbench";
 
 	const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
+	const { isImmersive, exit: exitImmersive } = useImmersiveMode();
+
+	// When entering immersive mode, auto-expand AI panel
+	useEffect(() => {
+		if (isImmersive) {
+			setIsCollapsed(false);
+		}
+	}, [isImmersive]);
+
+	// Auto exit immersive mode when leaving creator or obsidian
+	useEffect(() => {
+		if (
+			isImmersive &&
+			activeModule !== "creator" &&
+			activeModule !== "obsidian"
+		) {
+			exitImmersive();
+		}
+	}, [activeModule, isImmersive, exitImmersive]);
 
 	// Synchronize Electron window size mode with user authentication status
 	useEffect(() => {
@@ -391,15 +411,17 @@ export function AppShell({
 					{/* Left Region: 全局公共顶栏 + 子路由内容区 */}
 					<div className="order-1 relative flex-1 flex flex-col min-w-0 min-h-0 h-full overflow-hidden">
 						{/* Global persistent header: shared across all route transitions */}
-						<WorkbenchHeader
-							unclassifiedCount={unclassified.length}
-							navLayout={settings.navLayout as NavLayoutEntry[] | undefined}
-							onOpenSearch={handleOpenSearch}
-							onOpenExtension={handleOpenExtension}
-							onOpenSettings={() => setIsSettingsModalOpen(true)}
-							onOpenCreateFolder={() => setIsFolderModalOpen(true)}
-							onOpenAIClassifyTask={() => setIsAIClassifyModalOpen(true)}
-						/>
+						{!isImmersive && (
+							<WorkbenchHeader
+								unclassifiedCount={unclassified.length}
+								navLayout={settings.navLayout as NavLayoutEntry[] | undefined}
+								onOpenSearch={handleOpenSearch}
+								onOpenExtension={handleOpenExtension}
+								onOpenSettings={() => setIsSettingsModalOpen(true)}
+								onOpenCreateFolder={() => setIsFolderModalOpen(true)}
+								onOpenAIClassifyTask={() => setIsAIClassifyModalOpen(true)}
+							/>
+						)}
 						{/* Active route page content */}
 						<FloatingDockProvider
 							aiTrigger={{
@@ -449,9 +471,7 @@ export function AppShell({
 							folders={folders}
 							categories={categories}
 							defaultCategory={
-								categories.find(
-									(c) => c !== "未分类" && c !== "工作台",
-								) || ""
+								categories.find((c) => c !== "未分类" && c !== "工作台") || ""
 							}
 							onClose={() => setIsFolderModalOpen(false)}
 							onSave={handleSaveFolder}

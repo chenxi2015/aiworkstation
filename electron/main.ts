@@ -1,8 +1,9 @@
 import { app, BrowserWindow, dialog, Menu } from "electron";
 import { isDev, resolveFromRoot } from "./config.js";
 import { startNitroServer, stopNitroServer } from "./server.js";
+import { destroyTray, setupTray } from "./tray.js";
 import { setupAutoUpdater } from "./updater.js";
-import { createMainWindow, focusMainWindow } from "./window.js";
+import { createMainWindow, focusMainWindow, setIsQuitting, showMainWindow } from "./window.js";
 
 // ── Enforce Single Instance ───────────────────────────────────────────────────
 const gotLock = app.requestSingleInstanceLock();
@@ -31,6 +32,7 @@ if (!gotLock) {
 		try {
 			const serverPort = await startNitroServer();
 			await createMainWindow(serverPort);
+			setupTray();
 			setupAutoUpdater();
 		} catch (err) {
 			console.error("[electron] Startup failed:", err);
@@ -41,11 +43,13 @@ if (!gotLock) {
 			app.quit();
 		}
 
-		// macOS: re-create window when dock icon is clicked
+		// macOS: re-create window when dock icon is clicked, or restore hidden window
 		app.on("activate", async () => {
 			if (BrowserWindow.getAllWindows().length === 0) {
 				const { getServerPort } = await import("./server.js");
 				await createMainWindow(getServerPort());
+			} else {
+				showMainWindow();
 			}
 		});
 	});
@@ -58,12 +62,17 @@ if (!gotLock) {
 	});
 
 	const cleanup = () => {
+		destroyTray();
 		stopNitroServer();
 	};
 
-	app.on("before-quit", cleanup);
+	app.on("before-quit", () => {
+		setIsQuitting(true);
+		cleanup();
+	});
 	process.on("exit", cleanup);
 	process.on("SIGINT", () => {
+		setIsQuitting(true);
 		cleanup();
 		process.exit(0);
 	});

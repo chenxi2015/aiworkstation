@@ -9,6 +9,8 @@ import {
 	Ellipsis,
 	FolderSearch,
 	Loader2,
+	Maximize2,
+	Minimize2,
 	PenLine,
 	PenTool,
 	Redo2,
@@ -19,6 +21,7 @@ import {
 import { Fragment, useEffect, useRef, useState } from "react";
 import { getFileManagerName } from "../../../../lib/platform";
 import { revealVaultEntryRpc } from "../../../../services/api/obsidianClient";
+import { useImmersiveMode } from "../../../../stores/immersiveStore";
 
 export interface NoteToolbarProps {
 	canGoBack?: boolean;
@@ -81,6 +84,7 @@ export function NoteToolbar({
 	const [editingTitle, setEditingTitle] = useState(false);
 	const [titleDraft, setTitleDraft] = useState("");
 	const titleInputRef = useRef<HTMLInputElement | null>(null);
+	const { isImmersive, toggle: toggleImmersive } = useImmersiveMode();
 
 	// Focus and select title on entering rename mode
 	useEffect(() => {
@@ -289,6 +293,29 @@ export function NoteToolbar({
 					</Tooltip>
 				</>
 			)}
+			<Tooltip>
+				<Tooltip.Trigger>
+					<button
+						type="button"
+						aria-label={isImmersive ? "退出沉浸模式 (Esc)" : "沉浸式创作模式"}
+						onClick={toggleImmersive}
+						className={`p-1.5 rounded-md transition-colors shrink-0 ${
+							isImmersive
+								? "bg-accent/15 text-accent"
+								: "text-muted hover:text-foreground hover:bg-surface-secondary/60"
+						}`}
+					>
+						{isImmersive ? (
+							<Minimize2 className="w-3.5 h-3.5" />
+						) : (
+							<Maximize2 className="w-3.5 h-3.5" />
+						)}
+					</button>
+				</Tooltip.Trigger>
+				<Tooltip.Content placement="bottom">
+					{isImmersive ? "退出沉浸模式 (Esc)" : "沉浸式创作模式"}
+				</Tooltip.Content>
+			</Tooltip>
 			<Dropdown>
 				<Dropdown.Trigger
 					aria-label="更多操作"

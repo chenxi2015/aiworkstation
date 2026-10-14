@@ -41,6 +41,21 @@ function saveStoredWindowMode(mode: WindowMode): void {
 }
 
 let mainWindow: BrowserWindow | null = null;
+let isQuitting = false;
+
+/**
+ * Set the quitting state flag before application exit
+ */
+export function setIsQuitting(val: boolean): void {
+	isQuitting = val;
+}
+
+/**
+ * Get the current quitting state flag
+ */
+export function getIsQuitting(): boolean {
+	return isQuitting;
+}
 
 /**
  * Switch the application window between compact login modal and full dashboard layout.
@@ -208,6 +223,14 @@ export async function createMainWindow(serverPort: number): Promise<BrowserWindo
 		return { action: "allow" };
 	});
 
+	// Intercept window close to keep application running in system tray
+	mainWindow.on("close", (event) => {
+		if (!isQuitting) {
+			event.preventDefault();
+			mainWindow?.hide();
+		}
+	});
+
 	mainWindow.on("closed", () => {
 		mainWindow = null;
 	});
@@ -223,11 +246,22 @@ export function getMainWindow(): BrowserWindow | null {
 }
 
 /**
+ * Show, restore, and focus the primary application window
+ */
+export function showMainWindow(): void {
+	if (!mainWindow || mainWindow.isDestroyed()) return;
+	if (mainWindow.isMinimized()) {
+		mainWindow.restore();
+	}
+	if (!mainWindow.isVisible()) {
+		mainWindow.show();
+	}
+	mainWindow.focus();
+}
+
+/**
  * Focus or restore the main window when a duplicate instance attempts to launch
  */
 export function focusMainWindow(): void {
-	if (mainWindow) {
-		if (mainWindow.isMinimized()) mainWindow.restore();
-		mainWindow.focus();
-	}
+	showMainWindow();
 }

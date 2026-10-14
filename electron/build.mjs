@@ -3,6 +3,7 @@
 // require("fs") — esbuild's ESM output has no `require`, which crashes at
 // startup with "Dynamic require of 'fs' is not supported". The createRequire
 // banner restores it.
+import fs from "node:fs";
 import { build } from "esbuild";
 import { loadEnv } from "vite";
 
@@ -35,4 +36,22 @@ await build({
   outfile: "dist-electron/preload.cjs",
 });
 
-console.log("[electron] main + preload bundled");
+// Copy tray and window icons into dist-electron/icons
+const iconsDistDir = "dist-electron/icons";
+fs.mkdirSync(iconsDistDir, { recursive: true });
+
+const filesToCopy = [
+  ["build/icon.ico", "dist-electron/icons/icon.ico"],
+  ["build/icon.png", "dist-electron/icons/icon.png"],
+  ["build/icons.iconset/icon_16x16.png", "dist-electron/icons/icon_16x16.png"],
+  ["build/icons.iconset/icon_16x16@2x.png", "dist-electron/icons/icon_16x16@2x.png"],
+  ["build/icons.iconset/icon_32x32.png", "dist-electron/icons/icon_32x32.png"],
+];
+
+for (const [src, dest] of filesToCopy) {
+  if (fs.existsSync(src)) {
+    fs.copyFileSync(src, dest);
+  }
+}
+
+console.log("[electron] main + preload bundled and icons copied");

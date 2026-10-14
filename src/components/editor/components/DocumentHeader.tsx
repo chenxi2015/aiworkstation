@@ -1,15 +1,17 @@
 import { toast } from "@heroui/react";
 import {
-	Copy,
 	Film,
 	FolderOpen,
 	Loader2,
+	Maximize2,
+	Minimize2,
 	Music,
 	Pencil,
 	Sparkles,
 } from "lucide-react";
 import { useRef, useState } from "react";
 import { openDocumentDirectoryRpc } from "../../../services/api/editorClient";
+import { useImmersiveMode } from "../../../stores/immersiveStore";
 import type { EditorDocument } from "../types";
 
 export interface DocumentHeaderProps {
@@ -33,10 +35,11 @@ export function DocumentHeader({
 	isSplitLayout,
 	onToggleSplitLayout,
 	mediaMode,
-	onDuplicate,
+	onDuplicate: _onDuplicate,
 }: DocumentHeaderProps) {
 	const inputRef = useRef<HTMLInputElement>(null);
 	const [isOpeningFolder, setIsOpeningFolder] = useState(false);
+	const { isImmersive, toggle: toggleImmersive } = useImmersiveMode();
 
 	const handleFocusInput = () => {
 		if (inputRef.current) {
@@ -152,6 +155,25 @@ export function DocumentHeader({
 						<span>{isSplitLayout ? "常规写作" : "AI 创作模式"}</span>
 					</button>
 				)}
+
+				<button
+					type="button"
+					onClick={toggleImmersive}
+					className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-lg transition-colors cursor-pointer border ${
+						isImmersive
+							? "bg-accent/15 border-accent text-accent shadow-xs"
+							: "bg-surface-secondary border-border text-muted hover:text-foreground hover:bg-muted/15"
+					}`}
+					title={isImmersive ? "退出沉浸模式 (Esc)" : "沉浸式创作模式"}
+					aria-label={isImmersive ? "退出沉浸模式" : "进入沉浸式创作模式"}
+				>
+					{isImmersive ? (
+						<Minimize2 className="w-3.5 h-3.5 text-accent" />
+					) : (
+						<Maximize2 className="w-3.5 h-3.5" />
+					)}
+					<span>{isImmersive ? "退出沉浸" : "沉浸模式"}</span>
+				</button>
 			</div>
 		</div>
 	);

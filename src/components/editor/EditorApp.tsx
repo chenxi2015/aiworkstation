@@ -10,6 +10,7 @@ import type { Editor, JSONContent } from "@tiptap/react";
 import { FileText, Sparkles, Square } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { updateDocumentRpc } from "../../services/api/editorClient";
+import { useImmersiveMode } from "../../stores/immersiveStore";
 import { arrayMove } from "../workbench/dnd/dndUtils";
 import { EditorCanvasSkeleton } from "../workbench/skeletons";
 import { DocumentEditorCanvas } from "./components/DocumentEditorCanvas";
@@ -58,6 +59,7 @@ export interface EditorAppProps {
  */
 export function EditorApp({ initialDocId }: EditorAppProps = {}) {
 	const docManager = useDocumentManager();
+	const { isImmersive } = useImmersiveMode();
 	const {
 		documents,
 		loading,
@@ -214,10 +216,7 @@ export function EditorApp({ initialDocId }: EditorAppProps = {}) {
 		if (initialDocId !== activeId) {
 			const target = documents.find((d) => d.id === initialDocId);
 			if (target) {
-				if (
-					activeFolderId !== "all" &&
-					target.folderId !== activeFolderId
-				) {
+				if (activeFolderId !== "all" && target.folderId !== activeFolderId) {
 					setActiveFolderId(target.folderId ?? "all");
 				}
 				void switchDocument(initialDocId);
@@ -567,52 +566,54 @@ export function EditorApp({ initialDocId }: EditorAppProps = {}) {
 		<div className="h-full bg-surface dark:bg-background text-foreground flex flex-col overflow-hidden">
 			<main className="flex-1 overflow-hidden flex min-h-0">
 				{/* Left: Folders + Documents（Notes 式三栏，跨栏拖拽共用一个 provider） */}
-				<DragDropProvider
-					onDragMove={handleEditorDragMove}
-					onDragEnd={handleEditorDragEnd}
-				>
-					<FolderSidebar
-						folders={docFolders}
-						totalCount={documents.length}
-						activeFolderId={activeFolderId}
-						docDropTarget={docDropTarget}
-						collapsed={folderCollapsed}
-						onToggleCollapsed={toggleFolderCollapsed}
-						onSelectFolder={setActiveFolderId}
-						onCreateFolder={handleCreateFolder}
-						onRenameFolder={handleRenameFolder}
-						onDeleteFolder={handleDeleteFolder}
-					/>
-					<DocumentSidebar
-						documents={documents}
-						loading={loading}
-						activeId={activeId}
-						activeFolderId={activeFolderId}
-						folders={docFolders}
-						onSelect={handleSelectDoc}
-						onCreate={async () => {
-							setSplitSession(null);
-							const newDoc = await handleCreate();
-							if (newDoc) {
-								handleSelectDoc(newDoc.id);
-							}
-						}}
-						onDelete={async (id, deleteLocalAssets) => {
-							await handleDelete(id, deleteLocalAssets);
-							const remaining = documents.filter((d) => d.id !== id);
-							if (activeId === id && remaining[0]) {
-								handleSelectDoc(remaining[0].id);
-							}
-						}}
-						onOpenImport={() => setIsImportModalOpen(true)}
-						onDuplicate={handleDuplicateDoc}
-						onTogglePin={handleTogglePinned}
-						onMoveDocument={handleMoveDocument}
-						onArchive={handleArchive}
-					/>
-					{/* 拖拽跟随物：Notes 式纯图标芯片，紧贴指针左侧（自绘，不用 DragOverlay 避免继承源卡片宽度） */}
-					<EditorDragChip />
-				</DragDropProvider>
+				{!isImmersive && (
+					<DragDropProvider
+						onDragMove={handleEditorDragMove}
+						onDragEnd={handleEditorDragEnd}
+					>
+						<FolderSidebar
+							folders={docFolders}
+							totalCount={documents.length}
+							activeFolderId={activeFolderId}
+							docDropTarget={docDropTarget}
+							collapsed={folderCollapsed}
+							onToggleCollapsed={toggleFolderCollapsed}
+							onSelectFolder={setActiveFolderId}
+							onCreateFolder={handleCreateFolder}
+							onRenameFolder={handleRenameFolder}
+							onDeleteFolder={handleDeleteFolder}
+						/>
+						<DocumentSidebar
+							documents={documents}
+							loading={loading}
+							activeId={activeId}
+							activeFolderId={activeFolderId}
+							folders={docFolders}
+							onSelect={handleSelectDoc}
+							onCreate={async () => {
+								setSplitSession(null);
+								const newDoc = await handleCreate();
+								if (newDoc) {
+									handleSelectDoc(newDoc.id);
+								}
+							}}
+							onDelete={async (id, deleteLocalAssets) => {
+								await handleDelete(id, deleteLocalAssets);
+								const remaining = documents.filter((d) => d.id !== id);
+								if (activeId === id && remaining[0]) {
+									handleSelectDoc(remaining[0].id);
+								}
+							}}
+							onOpenImport={() => setIsImportModalOpen(true)}
+							onDuplicate={handleDuplicateDoc}
+							onTogglePin={handleTogglePinned}
+							onMoveDocument={handleMoveDocument}
+							onArchive={handleArchive}
+						/>
+						{/* 拖拽跟随物：Notes 式纯图标芯片，紧贴指针左侧（自绘，不用 DragOverlay 避免继承源卡片宽度） */}
+						<EditorDragChip />
+					</DragDropProvider>
+				)}
 
 				{/* Center: Title + Editor + Bottom actions or Dedicated Media Canvases */}
 				<section className="flex-1 flex flex-col min-w-0 min-h-0">

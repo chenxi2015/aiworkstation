@@ -1,9 +1,11 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
+import { useStore } from "@tanstack/react-store";
 import { useEffect, useState } from "react";
 import { CreatorContextProvider } from "../components/creator/CreatorContext";
 import { CreatorSubNav } from "../components/creator/CreatorSubNav";
 import { CreatorSkeleton } from "../components/workbench/skeletons";
 import { fetchMaterials } from "../services/api/creatorClient";
+import { immersiveStore } from "../stores/immersiveStore";
 import { workbenchLoader } from "./-workbenchLoader";
 
 export const Route = createFileRoute("/creator")({
@@ -21,6 +23,7 @@ export const Route = createFileRoute("/creator")({
 function CreatorLayout() {
 	const { unclassified, settings, folders } = Route.useLoaderData();
 	const [materialsCount, setMaterialsCount] = useState<number>(0);
+	const isImmersive = useStore(immersiveStore, (s) => s.isImmersive);
 
 	useEffect(() => {
 		let isMounted = true;
@@ -45,7 +48,7 @@ function CreatorLayout() {
 			}}
 		>
 			<div className="h-full bg-surface dark:bg-background text-foreground flex flex-col overflow-hidden">
-				<CreatorSubNav materialsCount={materialsCount} />
+				{!isImmersive && <CreatorSubNav materialsCount={materialsCount} />}
 				<main className="flex-1 overflow-hidden flex flex-col min-h-0">
 					<Outlet />
 				</main>
