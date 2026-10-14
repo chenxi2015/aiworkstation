@@ -2,15 +2,18 @@ import { Button, Tooltip } from "@heroui/react";
 import {
 	Clock,
 	Download,
+	Loader2,
 	MessageSquare,
 	Plus,
 	Search,
 	Trash2,
 	X,
 } from "lucide-react";
+import { useSelector } from "@tanstack/react-store";
 import { useMemo, useState } from "react";
 import type { ChatSession } from "../../../../services/workbenchStorage";
 import { ConfirmDialog } from "../../ConfirmDialog";
+import { agentSessionStore } from "../../../../stores/agentSessionStore";
 
 export interface ChatHistoryDrawerProps {
 	isOpen: boolean;
@@ -45,6 +48,7 @@ export function ChatHistoryDrawer({
 		null,
 	);
 	const [searchQuery, setSearchQuery] = useState("");
+	const runtimeSessions = useSelector(agentSessionStore, (s) => s.sessions);
 
 	const filteredSessions = useMemo(() => {
 		if (!searchQuery.trim()) return sessions;
@@ -162,6 +166,9 @@ export function ChatHistoryDrawer({
 					) : (
 						filteredSessions.map((session) => {
 							const isCurrent = session.id === currentSessionId;
+							const runtime = runtimeSessions[session.id];
+							const isRunning = runtime?.status === "running";
+							const hasUnread = runtime?.hasUnread;
 							const msgCount = session.messages?.length || 0;
 
 							return (
@@ -188,14 +195,26 @@ export function ChatHistoryDrawer({
 								>
 									<div className="flex items-center justify-between gap-2">
 										<div className="flex items-center gap-1.5 min-w-0 flex-1">
-											<MessageSquare
-												className={`w-3.5 h-3.5 shrink-0 ${
-													isCurrent ? "text-accent" : "text-muted"
-												}`}
-											/>
+											{isRunning ? (
+												<Loader2 className="w-3.5 h-3.5 shrink-0 text-accent animate-spin" />
+											) : (
+												<MessageSquare
+													className={`w-3.5 h-3.5 shrink-0 ${
+														isCurrent ? "text-accent" : "text-muted"
+													}`}
+												/>
+											)}
 											<span className="font-medium text-xs text-foreground truncate">
 												{session.title || "未命名对话"}
 											</span>
+											{isRunning && (
+												<span className="text-[9px] px-1.5 py-0.2 rounded-full bg-accent-soft text-accent shrink-0 animate-pulse">
+													生成中
+												</span>
+											)}
+											{hasUnread && !isRunning && (
+												<span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" title="有新回复" />
+											)}
 										</div>
 
 										{/* Action buttons (Export & Delete) */}

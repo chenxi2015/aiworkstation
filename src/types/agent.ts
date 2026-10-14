@@ -26,6 +26,11 @@ export interface AgentStep {
 	summary?: string;
 	durationMs?: number;
 	timestamp?: string;
+	/**
+	 * Dynamic client action directive defined by function tools (e.g. "canvas" | "rewrite")
+	 * Decouples client execution dispatchers from hardcoded tool names.
+	 */
+	action?: string;
 	/** Optional artifact navigation, rendered as a clickable result card */
 	navigation?: AgentStepNavigation;
 }

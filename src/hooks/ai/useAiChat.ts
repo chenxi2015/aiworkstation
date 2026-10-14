@@ -1,20 +1,30 @@
 import { toast } from "@heroui/react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { streamAgentChat } from "../../services/api/agentStreamClient";
+import { useSelector } from "@tanstack/react-store";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { AgentStepNavigation } from "../../types/agent.ts";
+import type { ChatContextItem } from "../../types/chatContext";
+import type {
+	Category,
+	Folder,
+	SearchResultItem,
+} from "../../components/workbench/types.ts";
 import {
-	type ChatMessage,
+	agentSessionActions,
+	agentSessionStore,
+	type SessionRuntime,
+} from "../../stores/agentSessionStore";
+import {
+	agentSessionManager,
+	type SendPromptOptions,
+} from "../../services/ai/agentSessionManager";
+import {
 	type ChatSession,
 	WorkbenchStorageService,
 } from "../../services/workbenchStorage";
-import { workbenchContextStore } from "../../stores/workbenchContextStore";
-import type { AgentStepNavigation } from "../../types/agent.ts";
-import type { ChatContextItem } from "../../types/chatContext";
 import {
 	type ChatItem,
 	type ChatMessagePart,
-	useChatMessages,
 } from "./useChatMessages";
-import { useChatSessions } from "./useChatSessions";
 
 export type { ChatItem, ChatMessagePart };
 
@@ -24,32 +34,90 @@ export interface UseAiChatOptions {
 	onDataMutated?: () => void;
 	onTriggerRewritePipeline?: (instruction?: string) => void;
 	onCanvasAction?: (
-		toolName:
-			| "canvas_create_board"
-			| "canvas_create_elements"
-			| "canvas_create_group"
-			| "canvas_update_node"
-			| "canvas_tidy_layout"
-			| "canvas_center_view"
-			| "excalidraw_create_board"
-			| "excalidraw_draw_elements"
-			| "excalidraw_update_element"
-			| "excalidraw_clear_canvas"
-			| "excalidraw_center_view",
+		toolName: string,
 		args: any,
 		navigation?: AgentStepNavigation,
 	) => void;
 }
 
 /**
- * Facade hook managing conversational RAG state, history sessions, and network requests
+ * Helper to trigger browser download of JSON file
+ */
+function downloadJsonFile(filename: string, data: unknown) {
+	if (typeof window === "undefined") return;
+	const jsonStr = JSON.stringify(data, null, 2);
+	const blob = new Blob([jsonStr], { type: "application/json;charset=utf-8;" });
+	const url = URL.createObjectURL(blob);
+	const link = document.createElement("a");
+	link.href = url;
+	link.download = filename;
+	document.body.appendChild(link);
+	link.click();
+	document.body.removeChild(link);
+	URL.revokeObjectURL(url);
+}
+
+/**
+ * Facade hook connecting UI components to the persistent agentSessionStore & agentSessionManager
  */
 export function useAiChat(options?: UseAiChatOptions) {
 	const [input, setInput] = useState<string>("");
 	const [contextItems, setContextItems] = useState<ChatContextItem[]>([]);
-	const [isLoading, setIsLoading] = useState<boolean>(false);
-	const abortControllerRef = useRef<AbortController | null>(null);
 
+	// 1. Subscribe to reactive agent session store
+	const activeSessionId = useSelector(
+		agentSessionStore,
+		(s) => s.activeSessionId,
+	);
+	const sessionsMap = useSelector(agentSessionStore, (s) => s.sessions);
+	const sessionOrder = useSelector(agentSessionStore, (s) => s.order);
+
+	const currentSession: SessionRuntime | undefined = sessionsMap[activeSessionId];
+	const messages: ChatItem[] = currentSession?.messages || [];
+	const isLoading: boolean = currentSession?.status === "running";
+
+	// Convert runtime sessions map to standard ChatSession[] ordered for drawer/history
+	const sessions: ChatSession<ChatItem>[] = useMemo(() => {
+		return sessionOrder
+			.map((id) => sessionsMap[id])
+			.filter((s): s is SessionRuntime => Boolean(s))
+			.map((s) => ({
+				id: s.id,
+				title: s.title,
+				createdAt: s.createdAt || "",
+				updatedAt: s.updatedAt || "",
+				messages: s.messages,
+			}));
+	}, [sessionOrder, sessionsMap]);
+
+	// Stable options ref
+	const optionsRef = useRef(options);
+	optionsRef.current = options;
+
+	// Load chat sessions on mount solely from SQLite
+	useEffect(() => {
+		let isMounted = true;
+
+		async function loadSessionsFromDb() {
+			try {
+				const dbSessions =
+					await WorkbenchStorageService.fetchChatSessions<ChatItem>();
+				if (dbSessions && isMounted) {
+					agentSessionActions.initSessions(dbSessions);
+				}
+			} catch (e) {
+				console.error("[useAiChat] Failed to load sessions from SQLite:", e);
+			}
+		}
+
+		loadSessionsFromDb();
+
+		return () => {
+			isMounted = false;
+		};
+	}, []);
+
+	// Context items management
 	const addContextItem = useCallback((item: ChatContextItem) => {
 		setContextItems((prev) => {
 			if (
@@ -73,649 +141,179 @@ export function useAiChat(options?: UseAiChatOptions) {
 		setContextItems([]);
 	}, []);
 
-	const onSessionLoadedRef = useRef<(msgs: ChatItem[]) => void>(() => {});
-	const onSessionClearedRef = useRef<() => void>(() => {});
-
-	// 1. Manage chat sessions
-	const {
-		sessions,
-		currentSessionId,
-		currentSessionIdRef,
-		setCurrentSessionId,
-		syncSession,
-		createNewChat: baseCreateNewChat,
-		loadSession: baseLoadSession,
-		deleteSession: baseDeleteSession,
-		clearAllSessions: baseClearAllSessions,
-		exportAllSessionsToJson,
-		exportSessionToJson,
-	} = useChatSessions<ChatItem>({
-		onSessionLoaded: (msgs) => onSessionLoadedRef.current(msgs),
-		onSessionCleared: () => onSessionClearedRef.current(),
-	});
-
-	// 2. Manage active messages
-	const {
-		messages,
-		setMessages,
-		loadMessages,
-		editMessage: baseEditMessage,
-		deleteMessage: baseDeleteMessage,
-		deleteMessages: baseDeleteMessages,
-		updateMessageReferences,
-	} = useChatMessages({
-		onMessagesChange: useCallback(
-			(msgs: ChatItem[]) => {
-				syncSession(msgs, currentSessionIdRef.current);
-			},
-			[syncSession, currentSessionIdRef],
-		),
-	});
-
-	// Wire session lifecycle events to messages state
-	useEffect(() => {
-		onSessionLoadedRef.current = (msgs) => loadMessages(msgs);
-		onSessionClearedRef.current = () => setMessages([]);
-	}, [loadMessages, setMessages]);
-
-	// Stop / abort current ongoing AI answer generation
-	const stopChat = useCallback(() => {
-		if (abortControllerRef.current) {
-			abortControllerRef.current.abort();
-			abortControllerRef.current = null;
-		}
-		setIsLoading(false);
-		toast.info("已停止回答");
-		setMessages((prev) => {
-			const lastMsg = prev[prev.length - 1];
-			if (lastMsg && lastMsg.role === "assistant") {
-				return [
-					...prev.slice(0, -1),
-					{
-						...lastMsg,
-						isStreaming: false,
-						content: lastMsg.content || "（已停止本次回答）",
-					},
-				];
-			}
-			if (!lastMsg || lastMsg.role === "user") {
-				return [
-					...prev,
-					{
-						role: "assistant",
-						content: "（已停止本次回答）",
-						isStreaming: false,
-						timestamp: new Date().toLocaleTimeString([], {
-							hour: "2-digit",
-							minute: "2-digit",
-						}),
-					},
-				];
-			}
-			return prev;
-		});
-	}, [setMessages]);
-
-	// Clean up pending requests on unmount
-	useEffect(() => {
-		return () => {
-			abortControllerRef.current?.abort();
-		};
+	// Create a new blank session without interrupting ongoing background streams
+	const createNewChat = useCallback(() => {
+		const newId = `session_${Date.now()}`;
+		agentSessionActions.setActiveSessionId(newId);
+		setInput("");
+		toast.success("已开启新对话");
 	}, []);
 
-	// Wrapped session actions that coordinate messages state
-	const createNewChat = useCallback(() => {
-		baseCreateNewChat();
-		setMessages([]);
-		setInput("");
-	}, [baseCreateNewChat, setMessages]);
+	// Load a selected historical session
+	const loadSession = useCallback((session: ChatSession<ChatItem>) => {
+		agentSessionActions.ensureSession(session.id, session.title, session.messages);
+		agentSessionActions.setActiveSessionId(session.id);
+		toast.success(`已载入「${session.title || "历史对话"}」`);
+	}, []);
 
-	const loadSession = useCallback(
-		(session: ChatSession<ChatItem>) => {
-			baseLoadSession(session);
-			loadMessages(session.messages || []);
-		},
-		[baseLoadSession, loadMessages],
-	);
+	// Delete a single historical session
+	const deleteSession = useCallback((sessionId: string) => {
+		agentSessionManager.stopSession(sessionId);
+		agentSessionActions.removeSession(sessionId);
+		void WorkbenchStorageService.deleteChatSession(sessionId);
+	}, []);
 
-	const deleteSession = useCallback(
-		(sessionId: string) => {
-			if (currentSessionId === sessionId) {
-				setMessages([]);
-			}
-			baseDeleteSession(sessionId);
-		},
-		[currentSessionId, baseDeleteSession, setMessages],
-	);
-
+	// Clear all sessions
 	const clearAllSessions = useCallback(() => {
-		setMessages([]);
-		baseClearAllSessions();
-	}, [setMessages, baseClearAllSessions]);
+		agentSessionManager.stopAllSessions();
+		agentSessionActions.clearAll();
+		void WorkbenchStorageService.clearChatSessions();
+	}, []);
 
 	const clearHistory = useCallback(() => {
 		createNewChat();
 	}, [createNewChat]);
 
-	const editMessage = useCallback(
-		(index: number, newContent: string) => {
-			baseEditMessage(index, newContent);
+	// Stop ongoing AI response generation for current active session
+	const stopChat = useCallback(() => {
+		agentSessionManager.stopSession(activeSessionId);
+		toast.info("已停止回答");
+	}, [activeSessionId]);
+
+	// Manual message updates (edit/delete)
+	const setMessages = useCallback(
+		(updater: ChatItem[] | ((prev: ChatItem[]) => ChatItem[])) => {
+			agentSessionActions.setSessionMessages(activeSessionId, updater);
+			agentSessionManager.persistSession(activeSessionId);
 		},
-		[baseEditMessage],
+		[activeSessionId],
 	);
 
-	const deleteMessage = useCallback(
-		(index: number) => {
-			baseDeleteMessage(index);
+	const editMessage = useCallback(
+		(index: number, newContent: string) => {
+			const trimmed = newContent.trim();
+			if (!trimmed) return;
+			agentSessionActions.setSessionMessages(activeSessionId, (prev) =>
+				prev.map((m, i) => (i === index ? { ...m, content: trimmed } : m)),
+			);
+			agentSessionManager.persistSession(activeSessionId);
+			toast.success("已更新消息内容");
 		},
-		[baseDeleteMessage],
+		[activeSessionId],
 	);
 
 	const deleteMessages = useCallback(
 		(indices: number[] | Set<number>) => {
-			baseDeleteMessages(indices);
+			const indexSet = indices instanceof Set ? indices : new Set(indices);
+			agentSessionActions.setSessionMessages(activeSessionId, (prev) =>
+				prev.filter((_, i) => !indexSet.has(i)),
+			);
+			agentSessionManager.persistSession(activeSessionId);
+			toast.success(
+				indexSet.size > 1
+					? `已删除 ${indexSet.size} 条消息`
+					: "已删除该条消息",
+			);
 		},
-		[baseDeleteMessages],
+		[activeSessionId],
+	);
+
+	const deleteMessage = useCallback(
+		(index: number) => {
+			deleteMessages([index]);
+		},
+		[deleteMessages],
+	);
+
+	const updateMessageReferences = useCallback(
+		(movedItems: SearchResultItem[], targetFolder: Folder) => {
+			const movedKeys = new Set(movedItems.map((i) => i.id || i.url));
+			agentSessionActions.setSessionMessages(activeSessionId, (prev) =>
+				prev.map((msg) => {
+					if (!msg.references) return msg;
+					return {
+						...msg,
+						references: msg.references.map((r) => {
+							if (movedKeys.has(r.id || r.url)) {
+								return {
+									...r,
+									folderId: targetFolder.id,
+									folderName: targetFolder.name,
+									category: targetFolder.category as Category,
+								};
+							}
+							return r;
+						}),
+					};
+				}),
+			);
+			agentSessionManager.persistSession(activeSessionId);
+		},
+		[activeSessionId],
 	);
 
 	// Send user prompt to LLM and retrieve RAG answer
 	const sendPrompt = useCallback(
 		async (
 			userPrompt?: string,
-			sendOptions?: {
-				newChat?: boolean;
-				folderId?: number | null;
-				folderName?: string;
-				baseMessages?: ChatItem[];
-				contextItems?: ChatContextItem[];
-				module?: string;
-				activeDocumentId?: number | null;
-				activeNotePath?: string | null;
-			},
+			sendOptions?: SendPromptOptions,
 		) => {
 			const rawText = (userPrompt || input).trim();
 			const activeAttachments =
 				sendOptions?.contextItems !== undefined
 					? sendOptions.contextItems
 					: [...contextItems];
+
 			const textToSend =
 				rawText ||
 				(activeAttachments.length > 0
 					? "请结合上述引用的上下文进行深度分析与总结"
 					: "");
+
 			if (!textToSend) return;
+
+			// Only block if current session is already running
 			if (isLoading) {
 				toast.warning("AI 正在回答中，请稍候...");
 				return;
 			}
 
-			const isNewChat = Boolean(sendOptions?.newChat);
-			let activeSessionId = currentSessionId;
-
-			if (isNewChat) {
-				if (messages.length > 0) {
-					syncSession(messages, currentSessionId);
-					toast.success("已开启新对话");
-				}
-				activeSessionId = `session_${Date.now()}`;
-				setCurrentSessionId(activeSessionId);
+			let targetSessionId = activeSessionId;
+			if (sendOptions?.newChat) {
+				targetSessionId = `session_${Date.now()}`;
+				agentSessionActions.setActiveSessionId(targetSessionId);
+				toast.success("已开启新对话");
 			}
 
-			const timeStr = new Date().toLocaleTimeString([], {
-				hour: "2-digit",
-				minute: "2-digit",
-			});
-
-			const userMsg: ChatItem = {
-				role: "user",
-				content: textToSend,
-				contextItems:
-					activeAttachments.length > 0 ? activeAttachments : undefined,
-				timestamp: timeStr,
-			};
-
-			const historyBase =
-				sendOptions?.baseMessages !== undefined
-					? sendOptions.baseMessages
-					: messages;
-
-			const nextMessages = isNewChat ? [userMsg] : [...historyBase, userMsg];
-
-			setMessages(nextMessages);
-
 			if (!userPrompt) setInput("");
-			// Clear attached contexts after successfully queuing send only if using input contextItems
 			if (sendOptions?.contextItems === undefined) {
 				setContextItems([]);
 			}
-			setIsLoading(true);
-			options?.onMessageSent?.();
 
-			const controller = new AbortController();
-			abortControllerRef.current = controller;
-
-			try {
-				const history: ChatMessage[] = isNewChat
-					? []
-					: historyBase.slice(-8).map((m) => ({
-							role: m.role,
-							content: m.content,
-						}));
-
-				const settings = WorkbenchStorageService.getSettings();
-				const llmConfig = {
-					apiKey: settings.apiKey,
-					baseUrl: settings.baseUrl,
-					model: settings.model,
-				};
-
-				const embeddingConfig = {
-					apiKey: settings.embeddingApiKey || settings.apiKey || "",
-					baseUrl: settings.embeddingBaseUrl,
-					model: settings.embeddingModel,
-				};
-
-				// Append initial assistant streaming message placeholder
-				const initialAssistantMsg: ChatItem = {
-					role: "assistant",
-					content: "",
-					steps: [],
-					parts: [],
-					isStreaming: true,
-					timestamp: new Date().toLocaleTimeString([], {
-						hour: "2-digit",
-						minute: "2-digit",
-					}),
-				};
-				setMessages((prev) => [...prev, initialAssistantMsg]);
-
-				await streamAgentChat(
-					{
-						question: textToSend,
-						history,
-						embeddingConfig,
-						llmConfig,
-						folderId: sendOptions?.folderId,
-						folderName: sendOptions?.folderName,
-						contextItems:
-							activeAttachments.length > 0 ? activeAttachments : undefined,
-						module:
-							sendOptions?.module ?? workbenchContextStore.state.activeModule,
-						activeDocumentId:
-							sendOptions?.activeDocumentId !== undefined
-								? (sendOptions.activeDocumentId ?? undefined)
-								: workbenchContextStore.state.detachedDocumentId ===
-										workbenchContextStore.state.activeDocument?.id
-									? undefined
-									: (workbenchContextStore.state.activeDocument?.id ??
-										undefined),
-						activeMaterialId:
-							workbenchContextStore.state.detachedMaterialId ===
-							workbenchContextStore.state.activeMaterial?.id
-								? undefined
-								: (workbenchContextStore.state.activeMaterial?.id ?? undefined),
-						activeNotePath:
-							sendOptions?.activeNotePath !== undefined
-								? (sendOptions.activeNotePath ?? undefined)
-								: // 与 activeDocumentId 同款回退：重发/编辑重发等 hook 内部路径
-									// 不会带 sendOptions，缺了这一步 agent 收不到笔记正文
-									// （间歇性「未检测到笔记正文」的根因）
-									workbenchContextStore.state.detachedNotePath ===
-										workbenchContextStore.state.activeNote?.path
-									? undefined
-									: (workbenchContextStore.state.activeNote?.path ?? undefined),
-					},
-					{
-						onStepStart: (step) => {
-							if (step.toolName === "trigger_paragraph_rewrite") {
-								const instruction =
-									typeof step.args?.instruction === "string"
-										? step.args.instruction
-										: undefined;
-								options?.onTriggerRewritePipeline?.(instruction);
-							}
-							if (
-								step.toolName === "canvas_create_board" ||
-								step.toolName === "canvas_create_elements" ||
-								step.toolName === "canvas_create_group" ||
-								step.toolName === "canvas_update_node" ||
-								step.toolName === "canvas_tidy_layout" ||
-								step.toolName === "canvas_center_view" ||
-								step.toolName === "excalidraw_create_board" ||
-								step.toolName === "excalidraw_draw_elements" ||
-								step.toolName === "excalidraw_update_element" ||
-								step.toolName === "excalidraw_clear_canvas" ||
-								step.toolName === "excalidraw_center_view"
-							) {
-								// Draw calls executed headlessly server-side when the target
-								// board is not the currently open file; the bridge would only
-								// paint into a different open board, so skip it in that case.
-								const isDrawCall =
-									step.toolName === "excalidraw_draw_elements" ||
-									step.toolName === "canvas_create_elements";
-								const activePath =
-									workbenchContextStore.state.activeNote?.path ?? undefined;
-								const expectedExt =
-									step.toolName === "excalidraw_draw_elements"
-										? ".excalidraw"
-										: ".canvas";
-								if (isDrawCall && !activePath?.endsWith(expectedExt)) {
-									return;
-								}
-								options?.onCanvasAction?.(
-									step.toolName as any,
-									step.args,
-									step.navigation,
-								);
-							}
-							setMessages((prev) => {
-								const last = prev[prev.length - 1];
-								if (!last || last.role !== "assistant") return prev;
-
-								// Prevent inserting duplicate steps if already present
-								if (last.steps?.some((s) => s.id === step.id)) return prev;
-
-								const existingParts = last.parts ? [...last.parts] : [];
-								const lastPart = existingParts[existingParts.length - 1];
-
-								let nextParts: ChatMessagePart[];
-								if (lastPart && lastPart.type === "step_group") {
-									nextParts = [
-										...existingParts.slice(0, -1),
-										{
-											...lastPart,
-											steps: [...lastPart.steps, step],
-										},
-									];
-								} else {
-									nextParts = [
-										...existingParts,
-										{
-											type: "step_group",
-											steps: [step],
-										},
-									];
-								}
-
-								return [
-									...prev.slice(0, -1),
-									{
-										...last,
-										steps: [...(last.steps || []), step],
-										parts: nextParts,
-									},
-								];
-							});
-						},
-						onStepEnd: (step) => {
-							setMessages((prev) => {
-								const last = prev[prev.length - 1];
-								if (!last || last.role !== "assistant") return prev;
-
-								let matched = false;
-								const updatedSteps = (last.steps || []).map((s) => {
-									if (s.id === step.id) {
-										matched = true;
-										return step;
-									}
-									return s;
-								});
-								// Fallback: only update the first running step with matching toolName if ID not matched
-								const finalSteps = matched
-									? updatedSteps
-									: (() => {
-											let didReplace = false;
-											return updatedSteps.map((s) => {
-												if (
-													!didReplace &&
-													s.toolName === step.toolName &&
-													s.status === "running"
-												) {
-													didReplace = true;
-													return step;
-												}
-												return s;
-											});
-										})();
-
-								const existingParts = last.parts ? [...last.parts] : [];
-								let matchedPart = false;
-								const nextParts = existingParts.map((p) => {
-									if (p.type !== "step_group") return p;
-									return {
-										...p,
-										steps: p.steps.map((s) => {
-											if (s.id === step.id) {
-												matchedPart = true;
-												return step;
-											}
-											return s;
-										}),
-									};
-								});
-								const finalParts = matchedPart
-									? nextParts
-									: (() => {
-											let didReplace = false;
-											return nextParts.map((p) => {
-												if (p.type !== "step_group") return p;
-												return {
-													...p,
-													steps: p.steps.map((s) => {
-														if (
-															!didReplace &&
-															s.toolName === step.toolName &&
-															s.status === "running"
-														) {
-															didReplace = true;
-															return step;
-														}
-														return s;
-													}),
-												};
-											});
-										})();
-
-								const draftPayload =
-									step.toolName === "draft_article" && step.navigation?.draftId
-										? {
-												draftId: step.navigation.draftId,
-												title: step.navigation.title || "未命名草稿",
-												wordCount: step.navigation.wordCount || 0,
-												status: "pending" as const,
-											}
-										: last.draft;
-
-								return [
-									...prev.slice(0, -1),
-									{
-										...last,
-										steps: finalSteps,
-										parts: finalParts,
-										...(draftPayload ? { draft: draftPayload } : {}),
-									},
-								];
-							});
-						},
-						onTextChunk: (delta) => {
-							setMessages((prev) => {
-								const last = prev[prev.length - 1];
-								if (!last || last.role !== "assistant") return prev;
-
-								const existingParts = last.parts ? [...last.parts] : [];
-								const lastPart = existingParts[existingParts.length - 1];
-
-								let nextParts: ChatMessagePart[];
-								if (lastPart && lastPart.type === "text") {
-									nextParts = [
-										...existingParts.slice(0, -1),
-										{
-											...lastPart,
-											text: lastPart.text + delta,
-										},
-									];
-								} else {
-									nextParts = [
-										...existingParts,
-										{
-											type: "text",
-											text: delta,
-										},
-									];
-								}
-
-								return [
-									...prev.slice(0, -1),
-									{
-										...last,
-										content: last.content + delta,
-										parts: nextParts,
-									},
-								];
-							});
-						},
-						onReferences: (refs) => {
-							setMessages((prev) => {
-								const last = prev[prev.length - 1];
-								if (!last || last.role !== "assistant") return prev;
-								return [
-									...prev.slice(0, -1),
-									{
-										...last,
-										references: refs,
-									},
-								];
-							});
-						},
-						onRunEnd: (answer, dbMutated) => {
-							setMessages((prev) => {
-								const last = prev[prev.length - 1];
-								if (!last || last.role !== "assistant") return prev;
-
-								let finalParts = last.parts ? [...last.parts] : [];
-								const finalContent = answer || last.content;
-
-								const hasTextPart = finalParts.some(
-									(p) => p.type === "text" && p.text.trim().length > 0,
-								);
-								if (!hasTextPart && finalContent) {
-									finalParts.push({ type: "text", text: finalContent });
-								}
-
-								finalParts = finalParts.map((p) => {
-									if (p.type !== "step_group") return p;
-									return {
-										...p,
-										steps: p.steps.map((s) =>
-											s.status === "running"
-												? { ...s, status: "completed" }
-												: s,
-										),
-									};
-								});
-
-								return [
-									...prev.slice(0, -1),
-									{
-										...last,
-										content: finalContent,
-										parts: finalParts,
-										isStreaming: false,
-									},
-								];
-							});
-							options?.onResponseReceived?.();
-							if (dbMutated) {
-								options?.onDataMutated?.();
-							}
-						},
-						onError: (errMsg) => {
-							toast.danger(errMsg);
-							setMessages((prev) => {
-								const last = prev[prev.length - 1];
-								if (!last || last.role !== "assistant") return prev;
-								const existingParts = last.parts ? [...last.parts] : [];
-								existingParts.push({
-									type: "text",
-									text: `\n\n${errMsg}`,
-								});
-								return [
-									...prev.slice(0, -1),
-									{
-										...last,
-										content: last.content
-											? `${last.content}\n\n${errMsg}`
-											: errMsg,
-										parts: existingParts,
-										isStreaming: false,
-									},
-								];
-							});
-						},
-					},
-					{ signal: controller.signal },
-				);
-			} catch (error: unknown) {
-				const isAbort =
-					controller.signal.aborted ||
-					(error instanceof Error && error.name === "AbortError");
-				if (isAbort) {
-					console.log("[useAiChat] AI query aborted by user");
-					return;
-				}
-				console.error("[useAiChat] Error:", error);
-				const errMsg =
-					error instanceof Error
-						? error.message
-						: "问答检索失败，请检查网络或 AI 配置";
-				toast.danger(errMsg);
-				setMessages((prev) => {
-					const last = prev[prev.length - 1];
-					if (last && last.role === "assistant") {
-						return [
-							...prev.slice(0, -1),
-							{
-								...last,
-								isStreaming: false,
-								content:
-									last.content ||
-									`请求失败: ${errMsg || "未知错误，请检查设置中的 AI Model API Key"}`,
-							},
-						];
-					}
-					return [
-						...prev,
-						{
-							role: "assistant",
-							content: `请求失败: ${errMsg || "未知错误，请检查设置中的 AI Model API Key"}`,
-							timestamp: new Date().toLocaleTimeString([], {
-								hour: "2-digit",
-								minute: "2-digit",
-							}),
-						},
-					];
-				});
-			} finally {
-				setIsLoading(false);
-				if (abortControllerRef.current === controller) {
-					abortControllerRef.current = null;
-				}
-			}
+			await agentSessionManager.sendPrompt(
+				targetSessionId,
+				textToSend,
+				{
+					...sendOptions,
+					contextItems:
+						activeAttachments.length > 0 ? activeAttachments : undefined,
+				},
+				{
+					onMessageSent: () => optionsRef.current?.onMessageSent?.(),
+					onResponseReceived: () =>
+						optionsRef.current?.onResponseReceived?.(),
+					onDataMutated: () => optionsRef.current?.onDataMutated?.(),
+					onTriggerRewritePipeline: (instruction) =>
+						optionsRef.current?.onTriggerRewritePipeline?.(instruction),
+					onCanvasAction: (toolName, args, nav) =>
+						optionsRef.current?.onCanvasAction?.(toolName, args, nav),
+				},
+			);
 		},
-		[
-			input,
-			contextItems,
-			isLoading,
-			messages,
-			options,
-			currentSessionId,
-			syncSession,
-			setMessages,
-			setCurrentSessionId,
-		],
+		[activeSessionId, contextItems, input, isLoading],
 	);
 
-	// Edit user prompt and regenerate answer from that point
+	// Edit user prompt and regenerate answer
 	const editAndResendMessage = useCallback(
 		(index: number, newContent: string) => {
 			const trimmed = newContent.trim();
@@ -726,12 +324,12 @@ export function useAiChat(options?: UseAiChatOptions) {
 			}
 			const targetMsg = messages[index];
 			const baseMessages = messages.slice(0, index);
-			sendPrompt(trimmed, {
+			void sendPrompt(trimmed, {
 				baseMessages,
 				contextItems: targetMsg?.contextItems,
 			});
 		},
-		[messages, isLoading, sendPrompt],
+		[isLoading, messages, sendPrompt],
 	);
 
 	// Resend / regenerate message
@@ -746,7 +344,7 @@ export function useAiChat(options?: UseAiChatOptions) {
 
 			if (targetMsg.role === "user") {
 				const baseMessages = messages.slice(0, index);
-				sendPrompt(targetMsg.content, {
+				void sendPrompt(targetMsg.content, {
 					baseMessages,
 					contextItems: targetMsg.contextItems,
 				});
@@ -761,22 +359,68 @@ export function useAiChat(options?: UseAiChatOptions) {
 				if (prevUserIndex >= 0) {
 					const userMsg = messages[prevUserIndex];
 					const baseMessages = messages.slice(0, prevUserIndex);
-					sendPrompt(userMsg.content, {
+					void sendPrompt(userMsg.content, {
 						baseMessages,
 						contextItems: userMsg.contextItems,
 					});
 				} else {
-					sendPrompt(targetMsg.content);
+					void sendPrompt(targetMsg.content);
 				}
 			}
 		},
-		[messages, isLoading, sendPrompt],
+		[isLoading, messages, sendPrompt],
+	);
+
+	// Export all sessions
+	const exportAllSessionsToJson = useCallback(async () => {
+		try {
+			const dateTag = new Date().toISOString().slice(0, 10);
+			const filename = `aiworkstation_chat_history_${dateTag}.json`;
+			const exportData =
+				await WorkbenchStorageService.exportChatSessionsJson();
+			downloadJsonFile(
+				filename,
+				exportData || {
+					exportedAt: new Date().toISOString(),
+					version: "1.0",
+					totalSessions: sessions.length,
+					sessions,
+				},
+			);
+			toast.success("已成功导出所有对话记录");
+		} catch (err) {
+			console.error("[useAiChat] Failed to export JSON:", err);
+			toast.danger("导出对话记录失败");
+		}
+	}, [sessions]);
+
+	// Export single session
+	const exportSessionToJson = useCallback(
+		(session: ChatSession<ChatItem>) => {
+			try {
+				const dateTag = new Date().toISOString().slice(0, 10);
+				const cleanTitle = (session.title || "chat")
+					.replace(/[\\/:*?"<>|]/g, "_")
+					.slice(0, 30);
+				const filename = `${cleanTitle}_${dateTag}.json`;
+
+				downloadJsonFile(filename, {
+					exportedAt: new Date().toISOString(),
+					session,
+				});
+				toast.success(`已导出「${session.title}」`);
+			} catch (err) {
+				console.error("[useAiChat] Failed to export single session:", err);
+				toast.danger("导出单条会话失败");
+			}
+		},
+		[],
 	);
 
 	return {
 		messages,
 		sessions,
-		currentSessionId,
+		currentSessionId: activeSessionId,
 		input,
 		isLoading,
 		setInput,
@@ -794,8 +438,8 @@ export function useAiChat(options?: UseAiChatOptions) {
 		exportAllSessionsToJson,
 		exportSessionToJson,
 		clearHistory,
-		setMessages,
 		updateMessageReferences,
+		setMessages,
 		contextItems,
 		addContextItem,
 		removeContextItem,

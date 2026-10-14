@@ -18,8 +18,26 @@ import { resolveRequiredToolIntent } from "./toolIntentRouter.ts";
 import { createCanvasServerTools } from "./tools/canvasTools.ts";
 import { createExcalidrawServerTools } from "./tools/excalidrawTools.ts";
 import type { BookmarkToolHooks } from "./tools/types.ts";
-
 export type StreamEventEmitter = (event: AgentStreamEvent) => void;
+
+/**
+ * Resolve client action directive dynamically from function tool naming or metadata
+ */
+export function resolveToolActionDirective(toolName: string): string | undefined {
+	if (
+		toolName.startsWith("canvas_") ||
+		toolName.startsWith("excalidraw_")
+	) {
+		return "canvas";
+	}
+	if (toolName === "trigger_paragraph_rewrite") {
+		return "rewrite";
+	}
+	if (toolName === "draft_article") {
+		return "draft";
+	}
+	return undefined;
+}
 
 /**
  * Execute TanStack AI streaming Agent loop with step-by-step Harness tracking
@@ -66,12 +84,14 @@ export async function runAgentStream(
 		onToolStart: (toolName, args) => {
 			stepCounter += 1;
 			const stepId = `step_${stepCounter}_${toolName}`;
+			const action = resolveToolActionDirective(toolName);
 			const step: AgentStep = {
 				id: stepId,
 				toolName,
 				args,
 				status: "running",
 				timestamp: new Date().toLocaleTimeString(),
+				...(action ? { action } : {}),
 			};
 			activeSteps.set(stepId, step);
 			emit({ type: "step_start", step });
@@ -84,6 +104,7 @@ export async function runAgentStream(
 			} else if (!ok) {
 				failedToolSummary = summary;
 			}
+			const action = existing?.action || resolveToolActionDirective(toolName);
 			const step: AgentStep = {
 				id: existing?.id || stepId || `step_${stepCounter}_${toolName}`,
 				toolName,
@@ -92,6 +113,7 @@ export async function runAgentStream(
 				summary,
 				durationMs,
 				timestamp: new Date().toLocaleTimeString(),
+				...(action ? { action } : {}),
 				...(navigation ? { navigation } : {}),
 			};
 			if (stepId) {

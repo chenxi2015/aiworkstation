@@ -1,6 +1,7 @@
 import { Button, Tooltip, toast } from "@heroui/react";
 import { useNavigate } from "@tanstack/react-router";
-import { History, MessageSquarePlus, PanelRightClose } from "lucide-react";
+import { useSelector } from "@tanstack/react-store";
+import { History, Loader2, MessageSquarePlus, PanelRightClose } from "lucide-react";
 import {
 	forwardRef,
 	useCallback,
@@ -15,6 +16,7 @@ import { useItemFolderAssign } from "../../../../hooks/ai/useItemFolderAssign";
 import { getAiContribution } from "../../../../modules/ai-contributions";
 import { getModuleByCode } from "../../../../modules/registry";
 import { fetchSkillDetail } from "../../../../services/api/skillsClient";
+import { agentSessionStore } from "../../../../stores/agentSessionStore";
 import {
 	workbenchContextActions,
 	workbenchContextStore,
@@ -148,6 +150,18 @@ export const ChatWithBookmarksPanel = forwardRef<
 	const inputRef = useRef<HTMLTextAreaElement | null>(null);
 	const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
 	const navigate = useNavigate();
+
+	// Check if there are other background sessions currently running or unread
+	const hasBackgroundRunning = useSelector(agentSessionStore, (s) =>
+		Object.values(s.sessions).some(
+			(session) => session.id !== s.activeSessionId && session.status === "running",
+		),
+	);
+	const hasBackgroundUnread = useSelector(agentSessionStore, (s) =>
+		Object.values(s.sessions).some(
+			(session) => session.id !== s.activeSessionId && session.hasUnread,
+		),
+	);
 	// 跨模块确认后的过期提醒计时器（pending action 未被目标页面消费时）
 	const pendingActionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
 		null,
@@ -641,15 +655,22 @@ export const ChatWithBookmarksPanel = forwardRef<
 									variant="ghost"
 									size="sm"
 									isIconOnly
-									className="h-7 w-7 p-0 text-muted hover:text-foreground hover:bg-surface-secondary/80 rounded-lg cursor-pointer transition-colors"
+									className="relative h-7 w-7 p-0 text-muted hover:text-foreground hover:bg-surface-secondary/80 rounded-lg cursor-pointer transition-colors"
 									onPress={() => setIsHistoryOpen(true)}
 									aria-label="历史对话记录"
 								>
-									<History className="w-3.5 h-3.5" />
+									{hasBackgroundRunning ? (
+										<Loader2 className="w-3.5 h-3.5 text-accent animate-spin" />
+									) : (
+										<History className="w-3.5 h-3.5" />
+									)}
+									{hasBackgroundUnread && !hasBackgroundRunning && (
+										<span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-accent" />
+									)}
 								</Button>
 							</Tooltip.Trigger>
 							<Tooltip.Content className="text-xs py-1 px-2">
-								历史记录
+								{hasBackgroundRunning ? "后台有正在运行的会话" : "历史记录"}
 							</Tooltip.Content>
 						</Tooltip>
 

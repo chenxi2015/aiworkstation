@@ -16,6 +16,7 @@ import type {
 } from "./types.ts";
 
 export * from "./types.ts";
+export * from "./dossier.ts";
 
 /**
  * Registry mapping module code to its specialized prompt definition
