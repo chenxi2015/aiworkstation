@@ -45,7 +45,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 				content: "no-referrer",
 			},
 			{
-				title: "AI 工作台 - 本地优先的内容工作台",
+				title: "AI 工作台",
 			},
 		],
 		links: [

@@ -10,7 +10,7 @@ export function HeaderSkeleton() {
 				<div className="w-8 h-8 rounded-xl bg-surface-secondary/80 shrink-0" />
 				<div className="flex flex-col gap-1">
 					<div className="w-16 h-3.5 rounded bg-surface-secondary/80" />
-					<div className="w-12 h-2.5 rounded bg-surface-secondary/40" />
+					<div className="w-24 h-2.5 rounded bg-surface-secondary/40" />
 				</div>
 			</div>
 

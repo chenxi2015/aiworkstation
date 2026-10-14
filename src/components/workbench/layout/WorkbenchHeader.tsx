@@ -104,8 +104,8 @@ export function WorkbenchHeader({
 					<span className="font-semibold text-sm tracking-tight text-foreground leading-none whitespace-nowrap">
 						AI 工作台
 					</span>
-					<span className="text-[10px] text-muted tracking-tight font-mono mt-0.5 whitespace-nowrap">
-						SQLite 驱动
+					<span className="text-[10px] text-muted tracking-tight mt-0.5 whitespace-nowrap">
+						本地优先的内容工作台
 					</span>
 				</div>
 			</div>

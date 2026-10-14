@@ -149,8 +149,14 @@ export async function createMainWindow(serverPort: number): Promise<BrowserWindo
 			nodeIntegration: false,
 			webSecurity: true,
 		},
+		autoHideMenuBar: process.platform !== "darwin",
 		show: false,
 	});
+
+	// On Windows and Linux, remove the default legacy menu bar to keep layout clean
+	if (process.platform !== "darwin") {
+		mainWindow.removeMenu();
+	}
 
 	ipcMain.removeHandler("window:set-mode");
 	ipcMain.handle("window:set-mode", (_event, mode: WindowMode) => {

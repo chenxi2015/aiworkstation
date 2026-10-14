@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog } from "electron";
+import { app, BrowserWindow, dialog, Menu } from "electron";
 import { isDev, resolveFromRoot } from "./config.js";
 import { startNitroServer, stopNitroServer } from "./server.js";
 import { setupAutoUpdater } from "./updater.js";
@@ -17,6 +17,11 @@ if (!gotLock) {
 
 	// ── Application Initialization ──────────────────────────────────────────────
 	app.whenReady().then(async () => {
+		// On Windows and Linux, disable default application menu bar
+		if (process.platform !== "darwin") {
+			Menu.setApplicationMenu(null);
+		}
+
 		// Set dock icon in dev mode (packaged app uses build/icon.icns automatically)
 		if (isDev && process.platform === "darwin") {
 			const devIconPath = resolveFromRoot("build", "icon.png");
