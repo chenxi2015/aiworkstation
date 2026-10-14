@@ -15,7 +15,10 @@ import {
 	Waypoints,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import { openVaultEntryRpc } from "../../../services/api/obsidianClient";
+import {
+	openVaultEntryRpc,
+	prefetchVaultNote,
+} from "../../../services/api/obsidianClient";
 import type { ObsidianTreeNode } from "../types";
 import { getVaultFileCategory, isViewableInApp } from "../utils/vaultFileUtils";
 import type { FlatTreeNode } from "./vaultTreeUtils";
@@ -161,6 +164,11 @@ export function RowShell({
 			onDragEnd={onDragEnd}
 			onClick={handleRowClick}
 			onContextMenu={handleContextMenu}
+			onMouseEnter={() => {
+				if (!isFolder && isViewableInApp(getVaultFileCategory(node.relPath))) {
+					prefetchVaultNote(node.relPath);
+				}
+			}}
 			className={`group relative w-full h-[28px] flex items-center gap-1.5 pr-1 text-left text-xs cursor-pointer select-none transition-colors ${
 				isDragging ? "opacity-35" : ""
 			} ${

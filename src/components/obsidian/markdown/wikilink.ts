@@ -11,12 +11,12 @@ import {
 	isMarkdownFile,
 } from "../utils/vaultFileUtils";
 import type { LivePreviewOptions } from "./livePreview";
+import { invalidateWikilinkSuggestions } from "./wikilinkAutocomplete";
 import {
 	clearWikilinkPreviewCache,
 	mountWikilinkPreview,
 	unmountWikilinkPreview,
-} from "./WikilinkPreviewCard";
-import { invalidateWikilinkSuggestions } from "./wikilinkAutocomplete";
+} from "./wikilinkPreviewOverlay";
 
 /**
  * 双链交互（对齐 Obsidian）：

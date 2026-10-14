@@ -94,41 +94,57 @@ export function useNoteSync({
 	const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const inFlightRef = useRef<string | null>(null);
 	const lastTreeSyncRef = useRef(0);
+	const loadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-	const load = useCallback(async (target: string) => {
-		const seq = ++loadSeqRef.current;
-		const cached = getCachedVaultNote(target);
-		if (cached) {
-			setNote(cached);
-			setDraft(cached.content);
-			setLoading(false);
-			setError(null);
-			setConflict(null);
-		} else {
-			setLoading(true);
-			setError(null);
-			setConflict(null);
+	const clearLoadingTimer = useCallback(() => {
+		if (loadingTimerRef.current) {
+			clearTimeout(loadingTimerRef.current);
+			loadingTimerRef.current = null;
 		}
-		const { note: data, error: err } = await fetchVaultNote(target);
-		if (seq !== loadSeqRef.current) return;
-		if (data) {
-			setNote(data);
-			setDraft((prev: string) => {
-				if (!cached) return data.content;
-				if (prev === cached.content) return data.content;
-				// Never discard real note content if local draft is empty
-				if (!prev.trim() && data.content.trim()) return data.content;
-				return prev;
-			});
-			setError(null);
-		} else if (!cached) {
-			setNote(null);
-			setError(err ?? "读取笔记失败");
-		}
-		setSaveState("idle");
-		setSavedAt(null);
-		setLoading(false);
 	}, []);
+
+	const load = useCallback(
+		async (target: string) => {
+			const seq = ++loadSeqRef.current;
+			clearLoadingTimer();
+			const cached = getCachedVaultNote(target);
+			if (cached) {
+				setNote(cached);
+				setDraft(cached.content);
+				setLoading(false);
+				setError(null);
+				setConflict(null);
+			} else {
+				// Defer showing loading state by 120ms to prevent visual flicker during fast local reads
+				loadingTimerRef.current = setTimeout(() => {
+					setLoading(true);
+				}, 120);
+				setError(null);
+				setConflict(null);
+			}
+			const { note: data, error: err } = await fetchVaultNote(target);
+			if (seq !== loadSeqRef.current) return;
+			clearLoadingTimer();
+			if (data) {
+				setNote(data);
+				setDraft((prev: string) => {
+					if (!cached) return data.content;
+					if (prev === cached.content) return data.content;
+					// Never discard real note content if local draft is empty
+					if (!prev.trim() && data.content.trim()) return data.content;
+					return prev;
+				});
+				setError(null);
+			} else if (!cached) {
+				setNote(null);
+				setError(err ?? "读取笔记失败");
+			}
+			setSaveState("idle");
+			setSavedAt(null);
+			setLoading(false);
+		},
+		[clearLoadingTimer],
+	);
 
 	/**
 	 * Autosave (git-like sync semantics):
@@ -229,9 +245,10 @@ export function useNoteSync({
 	// Flush unsaved draft on unmount
 	useEffect(() => {
 		return () => {
+			clearLoadingTimer();
 			void flushSaveRef.current();
 		};
-	}, []);
+	}, [clearLoadingTimer]);
 
 	// Register note API handler for AI sidebar bridge
 	// biome-ignore lint/correctness/useExhaustiveDependencies: api getters resolve lazily via mutable refs

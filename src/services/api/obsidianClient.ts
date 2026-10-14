@@ -31,7 +31,11 @@ let lastObsidianTree: ObsidianTree | null = null;
 /** 客户端从内存目录树快速解析双链目标（0ms 纯内存匹配，省去网络 RPC 往返） */
 export function resolveWikilinkLocally(target: string): string | null {
 	const trimmed = target.trim();
-	if (!trimmed || !lastObsidianTree?.tree || lastObsidianTree.tree.length === 0) {
+	if (
+		!trimmed ||
+		!lastObsidianTree?.tree ||
+		lastObsidianTree.tree.length === 0
+	) {
 		return null;
 	}
 
@@ -194,7 +198,8 @@ export async function fetchObsidianTree(
 			vaultNoteCache.clear();
 			lastObsidianTree = null;
 		}
-		const tree = (await getObsidianTree({ data: { force, vaultDir } })) ?? EMPTY_TREE;
+		const tree =
+			(await getObsidianTree({ data: { force, vaultDir } })) ?? EMPTY_TREE;
 		lastObsidianTree = tree;
 		return tree;
 	} catch (err) {
@@ -232,6 +237,11 @@ export function invalidateObsidianTreeCache(): void {
 	lastObsidianTree = null;
 }
 
+/** 同步读取已缓存的目录树内存缓存（如无缓存返回 null） */
+export function getCachedObsidianTree(): ObsidianTree | null {
+	return lastObsidianTree;
+}
+
 /** 读取单篇笔记全文（含 mtime 冲突检测基线，自动回填内存缓存） */
 export async function fetchVaultNote(
 	relPath: string,
@@ -245,6 +255,25 @@ export async function fetchVaultNote(
 	} catch (err) {
 		return { note: null, error: errMessage(err, "读取笔记失败") };
 	}
+}
+
+const prefetchInFlight = new Set<string>();
+
+/**
+ * 静默预加载单篇笔记全文至客户端内存缓存（如已缓存或正在拉取则跳过）
+ */
+export function prefetchVaultNote(relPath: string): void {
+	if (
+		!relPath ||
+		vaultNoteCache.has(relPath) ||
+		prefetchInFlight.has(relPath)
+	) {
+		return;
+	}
+	prefetchInFlight.add(relPath);
+	fetchVaultNote(relPath).finally(() => {
+		prefetchInFlight.delete(relPath);
+	});
 }
 
 export interface SaveVaultNoteOptions {

@@ -168,6 +168,21 @@ export function ObsidianNoteBodySkeleton() {
 }
 
 /**
+ * Canvas / Excalidraw white-board placeholder skeleton with subtle grid pattern.
+ */
+export function ObsidianCanvasBodySkeleton() {
+	return (
+		<div className="h-full w-full flex items-center justify-center bg-surface/40 relative overflow-hidden">
+			<div className="absolute inset-0 opacity-[0.03] dark:opacity-[0.06] bg-[radial-gradient(#000_1px,transparent_1px)] dark:bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:20px_20px]" />
+			<div className="flex flex-col items-center gap-3 text-muted/50 z-10">
+				<Skeleton className="w-14 h-14 rounded-2xl" />
+				<Skeleton className="w-24 h-3.5 rounded-full" />
+			</div>
+		</div>
+	);
+}
+
+/**
  * Right-side note canvas skeleton showing breadcrumb bar, body, and status bar.
  */
 export function ObsidianNoteCanvasSkeleton() {

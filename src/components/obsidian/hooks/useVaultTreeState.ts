@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { fetchObsidianTree } from "../../../services/api/obsidianClient";
+import {
+	fetchObsidianTree,
+	getCachedObsidianTree,
+} from "../../../services/api/obsidianClient";
 import type { ObsidianTree } from "../types";
 import { collectFolderPaths, filterVaultTree } from "../VaultTree";
 
@@ -17,8 +20,9 @@ export function useVaultTreeState({
 	selectedNotePath,
 	enabled = true,
 }: UseVaultTreeStateOptions) {
-	const [treeData, setTreeData] = useState<ObsidianTree | null>(null);
-	const [loading, setLoading] = useState(true);
+	const initialTree = getCachedObsidianTree();
+	const [treeData, setTreeData] = useState<ObsidianTree | null>(initialTree);
+	const [loading, setLoading] = useState(!initialTree);
 	const [refreshing, setRefreshing] = useState(false);
 	const [query, setQuery] = useState("");
 	const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -48,6 +52,9 @@ export function useVaultTreeState({
 
 	const load = useCallback(async (force: boolean, targetVaultDir?: string) => {
 		if (force) setRefreshing(true);
+		if (!targetVaultDir && !getCachedObsidianTree()) {
+			setLoading(true);
+		}
 		try {
 			const data = await fetchObsidianTree(force, targetVaultDir);
 			setTreeData(data);

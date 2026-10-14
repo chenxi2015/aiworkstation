@@ -20,7 +20,10 @@ import {
 	saveVaultNoteRpc,
 } from "../../../../services/api/obsidianClient";
 import { ImagePreviewProvider } from "../../../workbench/ai/shared/ImagePreviewModal";
-import { ObsidianNoteBodySkeleton } from "../../../workbench/skeletons";
+import {
+	ObsidianCanvasBodySkeleton,
+	ObsidianNoteBodySkeleton,
+} from "../../../workbench/skeletons";
 import {
 	DeleteEntryDialog,
 	shouldSkipDeleteConfirm,
@@ -84,6 +87,14 @@ export function TextNotePanel({
 		},
 		[],
 	);
+
+	// Reset undo/redo state when switching note path
+	// biome-ignore lint/correctness/useExhaustiveDependencies: reset editor state when relPath changes
+	useEffect(() => {
+		setCanUndo(false);
+		setCanRedo(false);
+		setEditorView(null);
+	}, [relPath]);
 
 	// Persist view mode across sessions (Obsidian-styled)
 	const [viewMode, setViewMode] = useState<"editing" | "reading">(() =>
@@ -465,13 +476,6 @@ export function TextNotePanel({
 				/>
 			)}
 
-			{/* Micro loading progress bar */}
-			{loading && (
-				<div className="h-0.5 w-full bg-accent/20 overflow-hidden shrink-0">
-					<div className="h-full bg-accent animate-pulse w-full" />
-				</div>
-			)}
-
 			{conflict && (
 				<NoteConflictBanner
 					isSaving={saveState === "saving"}
@@ -480,11 +484,15 @@ export function TextNotePanel({
 				/>
 			)}
 
-			<div className="flex-1 min-h-0 overflow-hidden relative">
+			<div
+				className={`flex-1 min-h-0 overflow-hidden relative transition-opacity duration-200 ${
+					loading ? "opacity-60 pointer-events-none" : "opacity-100"
+				}`}
+			>
 				{note ? (
 					isExcalidraw ? (
 						canvasMode === "visual" ? (
-							<Suspense fallback={<ObsidianNoteBodySkeleton />}>
+							<Suspense fallback={<ObsidianCanvasBodySkeleton />}>
 								<ExcalidrawView
 									key={note.relPath}
 									content={draft}
@@ -506,7 +514,7 @@ export function TextNotePanel({
 						)
 					) : isCanvas ? (
 						canvasMode === "visual" ? (
-							<Suspense fallback={<ObsidianNoteBodySkeleton />}>
+							<Suspense fallback={<ObsidianCanvasBodySkeleton />}>
 								<CanvasView
 									key={note.relPath}
 									content={draft}
@@ -559,6 +567,8 @@ export function TextNotePanel({
 							/>
 						</ImagePreviewProvider>
 					)
+				) : isCanvas || isExcalidraw ? (
+					<ObsidianCanvasBodySkeleton />
 				) : (
 					<ObsidianNoteBodySkeleton />
 				)}

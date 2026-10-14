@@ -1,7 +1,6 @@
 import { Maximize2 } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
-import { createRoot, type Root } from "react-dom/client";
 import { fetchVaultNote } from "../../../services/api/obsidianClient";
 import { markdownToHtml } from "../../editor/markdown";
 import {
@@ -9,22 +8,10 @@ import {
 	isImageFile,
 	isMarkdownFile,
 } from "../utils/vaultFileUtils";
-
-interface CacheEntry<T> {
-	data: T;
-	at: number;
-}
-
-const previewCache = new Map<string, CacheEntry<string>>();
-const PREVIEW_CACHE_TTL_MS = 30_000;
-
-export function clearWikilinkPreviewCache(relPath?: string): void {
-	if (relPath) {
-		previewCache.delete(relPath);
-	} else {
-		previewCache.clear();
-	}
-}
+import {
+	getCachedWikilinkPreview,
+	setCachedWikilinkPreview,
+} from "./wikilinkPreviewOverlay";
 
 function stripFrontmatter(content: string): string {
 	return content.replace(/^---\n[\s\S]*?\n---\n?/, "").trim();
@@ -86,9 +73,9 @@ export function WikilinkPreviewCard({
 		}
 
 		let cancelled = false;
-		const cached = previewCache.get(relPath);
-		if (cached && Date.now() - cached.at < PREVIEW_CACHE_TTL_MS) {
-			setHtml(cached.data);
+		const cached = getCachedWikilinkPreview(relPath);
+		if (cached) {
+			setHtml(cached);
 			setLoading(false);
 			return;
 		}
@@ -99,7 +86,7 @@ export function WikilinkPreviewCard({
 			const body = stripFrontmatter(note?.content ?? "");
 			const rawHtml = note ? markdownToHtml(body) : "";
 			const parsed = renderWikilinksInHtml(rawHtml);
-			previewCache.set(relPath, { data: parsed, at: Date.now() });
+			setCachedWikilinkPreview(relPath, parsed);
 			setHtml(parsed);
 			setLoading(false);
 		});
@@ -199,30 +186,4 @@ export function WikilinkPreviewCard({
 			)}
 		</div>
 	);
-}
-
-let containerEl: HTMLDivElement | null = null;
-let rootInstance: Root | null = null;
-
-/** Mount or update the floating wikilink preview card */
-export function mountWikilinkPreview(props: WikilinkPreviewCardProps): void {
-	if (!containerEl) {
-		containerEl = document.createElement("div");
-		containerEl.id = "cm-wikilink-preview-root";
-		document.body.appendChild(containerEl);
-		rootInstance = createRoot(containerEl);
-	}
-	rootInstance?.render(<WikilinkPreviewCard {...props} />);
-}
-
-/** Unmount and clean up floating wikilink preview card */
-export function unmountWikilinkPreview(): void {
-	if (containerEl) {
-		if (rootInstance) {
-			rootInstance.unmount();
-			rootInstance = null;
-		}
-		containerEl.remove();
-		containerEl = null;
-	}
 }
