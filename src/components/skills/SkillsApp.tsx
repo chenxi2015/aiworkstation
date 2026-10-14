@@ -1,9 +1,13 @@
+import { toast } from "@heroui/react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { FolderOpen, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { NavLayoutEntry } from "../../modules/registry";
-import { fetchSkillsOverview } from "../../services/api/skillsClient";
+import {
+	fetchSkillsOverview,
+	openSkillDirectory,
+} from "../../services/api/skillsClient";
 import { SkillsGridSkeleton, SkillsListSkeleton } from "../workbench/skeletons";
 import type { Folder } from "../workbench/types";
 import { InstallSkillModal } from "./InstallSkillModal";
@@ -43,9 +47,9 @@ function getGridColumnCount(width: number): number {
 }
 
 export function SkillsApp({
-	unclassifiedCount,
-	navLayout,
-	folders,
+	unclassifiedCount: _unclassifiedCount,
+	navLayout: _navLayout,
+	folders: _folders,
 	initialSkillPath,
 }: SkillsAppProps) {
 	const [overview, setOverview] = useState<SkillsOverview | null>(null);
@@ -209,9 +213,23 @@ export function SkillsApp({
 		overscan: 5,
 	});
 
-	const handleRequestUninstall = (skill: SkillInfo, e: React.MouseEvent) => {
-		e.stopPropagation();
+	const handleRequestUninstall = (skill: SkillInfo, e?: React.MouseEvent) => {
+		e?.stopPropagation();
 		setSkillToUninstall(skill);
+	};
+
+	const handleOpenDirectory = async (
+		skill: SkillInfo,
+		e?: React.MouseEvent,
+	) => {
+		e?.stopPropagation();
+		if (!skill.dirPath) return;
+		const res = await openSkillDirectory(skill.dirPath);
+		if (res.success) {
+			toast.success(res.message || "已在系统文件管理器中打开");
+		} else {
+			toast.danger(res.message || "打开目录失败");
+		}
 	};
 
 	return (
@@ -295,6 +313,7 @@ export function SkillsApp({
 												skill={skill}
 												onOpen={setSelected}
 												onRequestUninstall={handleRequestUninstall}
+												onOpenDirectory={handleOpenDirectory}
 											/>
 										))}
 									</div>
@@ -322,6 +341,7 @@ export function SkillsApp({
 											skill={skill}
 											onOpen={setSelected}
 											onRequestUninstall={handleRequestUninstall}
+											onOpenDirectory={handleOpenDirectory}
 										/>
 									</div>
 								);
@@ -333,7 +353,14 @@ export function SkillsApp({
 
 			{/* Detail Drawer Panel */}
 			{selected && (
-				<SkillDetailPanel skill={selected} onClose={() => setSelected(null)} />
+				<SkillDetailPanel
+					skill={selected}
+					onClose={() => setSelected(null)}
+					onRequestUninstall={(s) => {
+						setSelected(null);
+						setSkillToUninstall(s);
+					}}
+				/>
 			)}
 
 			{/* Install Skill Modal */}

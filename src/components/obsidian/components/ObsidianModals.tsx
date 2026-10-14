@@ -1,3 +1,4 @@
+import { CanvasNoteSearchModal } from "../canvas/CanvasNoteSearchModal";
 import { DeleteEntryDialog } from "../DeleteEntryDialog";
 import { DirectoryPickerModal } from "../DirectoryPickerModal";
 import { MoveEntryModal } from "../MoveEntryModal";
@@ -30,6 +31,10 @@ export interface ObsidianModalsProps {
 	initialPickerPath?: string;
 	onSelectPickerPath: (path: string) => void;
 	onClosePicker: () => void;
+	quickOpenOpen?: boolean;
+	onCloseQuickOpen?: () => void;
+	onSelectQuickOpenFile?: (relPath: string) => void;
+	onCreateQuickOpenNote?: (name?: string) => Promise<string | null>;
 }
 
 /**
@@ -58,6 +63,10 @@ export function ObsidianModals({
 	initialPickerPath,
 	onSelectPickerPath,
 	onClosePicker,
+	quickOpenOpen,
+	onCloseQuickOpen,
+	onSelectQuickOpenFile,
+	onCreateQuickOpenNote,
 }: ObsidianModalsProps) {
 	return (
 		<>
@@ -94,6 +103,16 @@ export function ObsidianModals({
 					initialPath={initialPickerPath}
 					onSelect={onSelectPickerPath}
 					onClose={onClosePicker}
+				/>
+			)}
+			{quickOpenOpen && (
+				<CanvasNoteSearchModal
+					isOpen={quickOpenOpen}
+					onClose={onCloseQuickOpen ?? (() => {})}
+					onSelect={onSelectQuickOpenFile ?? (() => {})}
+					onCreate={onCreateQuickOpenNote}
+					filterCategory="all"
+					title="打开文件"
 				/>
 			)}
 		</>

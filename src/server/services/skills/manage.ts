@@ -6,6 +6,7 @@ import type {
 	InstallSkillResult,
 	UninstallSkillResult,
 } from "../../../components/skills/types.ts";
+import { openInOs } from "../systemOpener.ts";
 import { clearOverviewCache } from "./overview.ts";
 import { DEFAULT_SKILL_ROOTS, expandHome } from "./roots.ts";
 
@@ -129,6 +130,62 @@ ${descText}
 }
 
 /**
+ * Validate that a directory path is a descendant of one of the defined skill roots.
+ */
+export function isPathInSkillRoots(dirPath: string): boolean {
+	if (!dirPath || typeof dirPath !== "string") return false;
+	const normalizedTarget = path.resolve(dirPath);
+	return DEFAULT_SKILL_ROOTS.some((r) => {
+		const rootResolved = path.resolve(expandHome(r.path));
+		const relative = path.relative(rootResolved, normalizedTarget);
+		return (
+			!relative.startsWith("..") &&
+			!path.isAbsolute(relative) &&
+			relative !== ""
+		);
+	});
+}
+
+/**
+ * Safely reveal/open a skill directory in the host OS file manager.
+ */
+export async function openSkillDirectory(
+	dirPath: string,
+): Promise<{ success: boolean; message?: string }> {
+	if (!dirPath || typeof dirPath !== "string") {
+		return { success: false, message: "无效的技能路径" };
+	}
+
+	const normalizedTarget = path.resolve(dirPath);
+
+	if (!isPathInSkillRoots(normalizedTarget)) {
+		return {
+			success: false,
+			message: "安全拦截：目标路径不在允许的 Skills 根目录范围内",
+		};
+	}
+
+	try {
+		const stat = await fs.stat(normalizedTarget);
+		if (!stat.isDirectory()) {
+			return { success: false, message: "目标不是有效目录" };
+		}
+
+		await openInOs(normalizedTarget, { skipRootCheck: true });
+		return {
+			success: true,
+			message: "已在系统文件管理器中打开技能目录",
+		};
+	} catch (err) {
+		const msg = err instanceof Error ? err.message : String(err);
+		return {
+			success: false,
+			message: `打开目录失败: ${msg}`,
+		};
+	}
+}
+
+/**
  * Safely uninstall/delete a skill directory from disk.
  * Includes strict path verification against recognized skill roots.
  */
@@ -141,19 +198,7 @@ export async function uninstallSkill(
 
 	const normalizedTarget = path.resolve(dirPath);
 
-	// Security validation: verify dirPath is within one of the valid skill roots
-	const isAllowed = DEFAULT_SKILL_ROOTS.some((r) => {
-		const rootResolved = path.resolve(expandHome(r.path));
-		const relative = path.relative(rootResolved, normalizedTarget);
-		// Must be a non-empty child path
-		return (
-			!relative.startsWith("..") &&
-			!path.isAbsolute(relative) &&
-			relative !== ""
-		);
-	});
-
-	if (!isAllowed) {
+	if (!isPathInSkillRoots(normalizedTarget)) {
 		return {
 			success: false,
 			message: "安全拦截：目标路径不在允许的 Skills 根目录范围内",

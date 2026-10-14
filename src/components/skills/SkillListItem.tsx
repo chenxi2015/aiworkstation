@@ -1,4 +1,12 @@
-import { CheckCircle2, FileText, KeyRound, Trash2 } from "lucide-react";
+import { Dropdown } from "@heroui/react";
+import {
+	CheckCircle2,
+	FileText,
+	FolderOpen,
+	KeyRound,
+	MoreHorizontal,
+	Trash2,
+} from "lucide-react";
 import type React from "react";
 import { formatBytes, formatDate } from "./format";
 import { SkillIconBadge } from "./SkillIconBadge";
@@ -7,13 +15,15 @@ import type { SkillInfo } from "./types";
 export interface SkillListItemProps {
 	skill: SkillInfo;
 	onOpen: (skill: SkillInfo) => void;
-	onRequestUninstall: (skill: SkillInfo, e: React.MouseEvent) => void;
+	onRequestUninstall: (skill: SkillInfo, e?: React.MouseEvent) => void;
+	onOpenDirectory?: (skill: SkillInfo, e?: React.MouseEvent) => void;
 }
 
 export function SkillListItem({
 	skill,
 	onOpen,
 	onRequestUninstall,
+	onOpenDirectory,
 }: SkillListItemProps) {
 	return (
 		<div className="relative group rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 bg-white dark:bg-zinc-900/60 p-4 shadow-2xs hover:shadow-xs hover:border-zinc-300 dark:hover:border-zinc-700 transition-all flex items-center justify-between gap-4">
@@ -71,16 +81,54 @@ export function SkillListItem({
 					</span>
 				</div>
 
-				{/* Uninstall action */}
+				{/* Actions dropdown */}
 				{skill.dirPath && (
-					<button
-						type="button"
-						onClick={(e) => onRequestUninstall(skill, e)}
-						title="卸载本技能"
-						className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors z-10"
-					>
-						<Trash2 className="w-4 h-4" />
-					</button>
+					<div>
+						<Dropdown>
+							<Dropdown.Trigger
+								onClick={(e) => e.stopPropagation()}
+								className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer flex items-center justify-center focus:outline-none focus-visible:ring-1 focus-visible:ring-zinc-400"
+								aria-label="更多操作"
+							>
+								<MoreHorizontal className="w-4 h-4" />
+							</Dropdown.Trigger>
+							<Dropdown.Popover
+								aria-label="技能操作"
+								className="min-w-[150px] p-1 shadow-lg border border-zinc-200/80 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-900 z-50"
+								placement="bottom end"
+							>
+								<Dropdown.Menu
+									aria-label="技能操作选项"
+									onAction={(key) => {
+										if (key === "open-dir") {
+											onOpenDirectory?.(skill);
+										} else if (key === "uninstall") {
+											onRequestUninstall(skill);
+										}
+									}}
+								>
+									{onOpenDirectory && (
+										<Dropdown.Item id="open-dir" textValue="查看所在目录">
+											<div className="flex items-center gap-2 py-1 px-1.5 text-xs text-zinc-700 dark:text-zinc-200">
+												<FolderOpen className="w-3.5 h-3.5 text-zinc-400" />
+												<span>查看所在目录</span>
+											</div>
+										</Dropdown.Item>
+									)}
+									<Dropdown.Item
+										id="uninstall"
+										textValue="卸载技能"
+										className="text-rose-600 dark:text-rose-400"
+									>
+										<div className="flex items-center gap-2 py-1 px-1.5 text-xs text-rose-600 dark:text-rose-400">
+											<Trash2 className="w-3.5 h-3.5" />
+											<span>卸载本技能</span>
+										</div>
+									</Dropdown.Item>
+								</Dropdown.Menu>
+							</Dropdown.Popover>
+						</Dropdown>
+					</div>
 				)}
 			</div>
 		</div>

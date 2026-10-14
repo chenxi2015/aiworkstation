@@ -7,10 +7,15 @@ import {
 	embedRichBlocksInDoc,
 	exportToPdf,
 	exportToWordDocx,
+	triggerFileDownload,
 } from "../exporters";
 import { coreConversionExtensions, tiptapJsonToMarkdown } from "../markdown";
 import type { EditorDocument } from "../types";
 import { normalizeCodeCardDoc } from "../utils/codeCardNormalizer";
+import {
+	packageHtmlWithAssets,
+	packageMarkdownWithAssets,
+} from "../utils/exportAssets";
 
 /**
  * Extensions set for export rendering。
@@ -209,29 +214,45 @@ ${bodyHtml}
 		}
 	}, [activeDoc, currentHtml]);
 
-	const handleExportMarkdown = useCallback(() => {
+	const handleExportMarkdown = useCallback(async () => {
 		if (!activeDoc) return;
 		const rich = hasRichBlocks(activeDoc.content);
 		if (rich) toast.info("正在将图表渲染为图片…");
-		void buildEmbeddedMarkdown().then((markdown) => {
-			downloadFile(
-				`${activeDoc.title || "未命名文档"}.md`,
+		try {
+			const markdown = await buildEmbeddedMarkdown();
+			const result = await packageMarkdownWithAssets(
+				activeDoc.title || "未命名文档",
 				markdown,
-				"text/markdown",
 			);
-		});
-	}, [activeDoc, buildEmbeddedMarkdown, downloadFile]);
+			triggerFileDownload(result.filename, result.blob);
+			toast.success(
+				result.isZip
+					? "Markdown 与本地图片已打包 (.zip) 导出"
+					: "Markdown 文档已导出",
+			);
+		} catch (e) {
+			console.error("Failed to export markdown", e);
+			toast.danger("导出 Markdown 失败，请重试");
+		}
+	}, [activeDoc, buildEmbeddedMarkdown]);
 
-	const handleExportHtml = useCallback(() => {
+	const handleExportHtml = useCallback(async () => {
 		if (!activeDoc) return;
-		void buildHtmlDocument().then((html) => {
-			downloadFile(
-				`${activeDoc.title || "未命名文档"}.html`,
+		try {
+			const html = await buildHtmlDocument();
+			const result = await packageHtmlWithAssets(
+				activeDoc.title || "未命名文档",
 				html,
-				"text/html",
 			);
-		});
-	}, [activeDoc, buildHtmlDocument, downloadFile]);
+			triggerFileDownload(result.filename, result.blob);
+			toast.success(
+				result.isZip ? "HTML 与本地图片已打包 (.zip) 导出" : "HTML 网页已导出",
+			);
+		} catch (e) {
+			console.error("Failed to export html", e);
+			toast.danger("导出 HTML 失败，请重试");
+		}
+	}, [activeDoc, buildHtmlDocument]);
 
 	const handleExportPdf = useCallback(async () => {
 		if (!activeDoc) return;

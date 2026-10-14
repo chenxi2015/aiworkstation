@@ -15,6 +15,7 @@ export { readSkillDetail } from "./detail.ts";
 export {
 	type InstallSkillOptions,
 	installSkill,
+	openSkillDirectory,
 	uninstallSkill,
 } from "./manage.ts";
 export { scanSkillsOverview } from "./overview.ts";

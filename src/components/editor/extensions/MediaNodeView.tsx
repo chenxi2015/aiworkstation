@@ -41,6 +41,8 @@ export function MediaNodeView(props: NodeViewProps) {
 		downloadSuccess,
 		showReplaceModal,
 		setShowReplaceModal,
+		showCompressModal,
+		setShowCompressModal,
 		replaceUrlInput,
 		setReplaceUrlInput,
 		uploading,
@@ -52,6 +54,9 @@ export function MediaNodeView(props: NodeViewProps) {
 		downloadTooltip,
 		handleDownloadAction,
 		handleOpenReplace,
+		handleOpenCompress,
+		handleOpenSourceUrl,
+		handleUpdateSrc,
 		handleConfirmUrlReplace,
 		handleRestoreOriginalSrc,
 		handleFileSelected,
@@ -228,8 +233,12 @@ export function MediaNodeView(props: NodeViewProps) {
 				{/* Action toolbar inside top-right corner of the media */}
 				<MediaActionToolbar
 					toolbarRef={toolbarRef}
-					visible={selected || isHovered || showReplaceModal}
+					visible={
+						selected || isHovered || showReplaceModal || showCompressModal
+					}
 					isExternal={isExternal}
+					src={src}
+					docId={docId}
 					textAlign={textAlign}
 					onSetAlignment={handleSetAlignment}
 					downloading={downloading}
@@ -240,6 +249,11 @@ export function MediaNodeView(props: NodeViewProps) {
 					onDownloadAction={handleDownloadAction}
 					showReplaceModal={showReplaceModal}
 					onOpenReplace={handleOpenReplace}
+					showCompressModal={showCompressModal}
+					onOpenCompress={handleOpenCompress}
+					onCloseCompress={() => setShowCompressModal(false)}
+					onUpdateSrc={handleUpdateSrc}
+					onOpenSource={handleOpenSourceUrl}
 					isVideo={isVideo}
 					uploading={uploading}
 					uploadError={uploadError}

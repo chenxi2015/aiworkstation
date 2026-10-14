@@ -1,3 +1,4 @@
+import { toast } from "@heroui/react";
 import { type ChangeEvent, type FormEvent, useRef, useState } from "react";
 import {
 	downloadExternalAssetRpc,
@@ -11,6 +12,21 @@ interface UseMediaOperationsOptions {
 	isVideo: boolean;
 	docId: number;
 	updateAttributes: (attrs: Record<string, unknown>) => void;
+}
+
+function parseErrorMessage(err: unknown, fallback: string): string {
+	if (err instanceof Error) {
+		const msg = err.message || "";
+		if (
+			msg.includes("terminated") ||
+			msg.includes("aborted") ||
+			msg.includes("AbortError")
+		) {
+			return "请求连接中断（页面刷新或热重载导致），请重试";
+		}
+		return msg;
+	}
+	return fallback;
 }
 
 /**
@@ -28,6 +44,7 @@ export function useMediaOperations({
 	const [downloading, setDownloading] = useState(false);
 	const [downloadSuccess, setDownloadSuccess] = useState(false);
 	const [showReplaceModal, setShowReplaceModal] = useState(false);
+	const [showCompressModal, setShowCompressModal] = useState(false);
 	const [replaceUrlInput, setReplaceUrlInput] = useState("");
 	const [uploading, setUploading] = useState(false);
 	const [uploadError, setUploadError] = useState<string | null>(null);
@@ -44,7 +61,7 @@ export function useMediaOperations({
 		if (isExternal) {
 			if (!src) return;
 			if (!docId) {
-				window.alert("缺少稿件 ID，无法转存到本地目录");
+				toast.warning("缺少稿件 ID，无法转存到本地目录");
 				return;
 			}
 			setDownloading(true);
@@ -57,14 +74,12 @@ export function useMediaOperations({
 				});
 				setDownloadSuccess(true);
 				setMediaLoadError(false);
+				toast.success("已成功转存至本地稿件目录");
 				setTimeout(() => setDownloadSuccess(false), 2500);
 			} catch (err) {
 				console.error("Failed to download external asset to document:", err);
-				window.alert(
-					err instanceof Error
-						? `转存失败: ${err.message}`
-						: "转存到本地稿件目录失败",
-				);
+				const errorMsg = parseErrorMessage(err, "转存到本地稿件目录失败");
+				toast.danger(`转存失败: ${errorMsg}`);
 			} finally {
 				setDownloading(false);
 			}
@@ -74,7 +89,7 @@ export function useMediaOperations({
 		// Case 2: Local media with original external URL recorded -> Re-fetch from original source
 		if (originalSrc && isExternalMedia(originalSrc)) {
 			if (!docId) {
-				window.alert("缺少稿件 ID，无法重新下载");
+				toast.warning("缺少稿件 ID，无法重新下载");
 				return;
 			}
 			setDownloading(true);
@@ -86,14 +101,12 @@ export function useMediaOperations({
 				updateAttributes({ src: localUrl });
 				setDownloadSuccess(true);
 				setMediaLoadError(false);
+				toast.success("已重新从网络原地址拉取并转存");
 				setTimeout(() => setDownloadSuccess(false), 2500);
 			} catch (err) {
 				console.error("Failed to re-download from original URL:", err);
-				window.alert(
-					err instanceof Error
-						? `重新拉取失败: ${err.message}`
-						: "从原外链重新拉取失败",
-				);
+				const errorMsg = parseErrorMessage(err, "从原外链重新拉取失败");
+				toast.danger(`重新拉取失败: ${errorMsg}`);
 			} finally {
 				setDownloading(false);
 			}
@@ -120,8 +133,33 @@ export function useMediaOperations({
 	const handleOpenReplace = (e: React.MouseEvent) => {
 		e.stopPropagation();
 		setShowReplaceModal((prev) => !prev);
+		setShowCompressModal(false);
 		setReplaceUrlInput("");
 		setUploadError(null);
+	};
+
+	// Open compress popup
+	const handleOpenCompress = (e: React.MouseEvent) => {
+		e.stopPropagation();
+		setShowCompressModal((prev) => !prev);
+		setShowReplaceModal(false);
+	};
+
+	// Directly open external link or local file in a new browser tab
+	const handleOpenSourceUrl = (e: React.MouseEvent) => {
+		e.stopPropagation();
+		if (!src) return;
+		if (isExternal) {
+			window.open(src, "_blank", "noopener,noreferrer");
+		} else {
+			window.open(src, "_blank");
+		}
+	};
+
+	// Update image source directly (used by compression & format conversion)
+	const handleUpdateSrc = (newUrl: string) => {
+		updateAttributes({ src: newUrl });
+		setMediaLoadError(false);
 	};
 
 	// Replace with new URL
@@ -201,6 +239,8 @@ export function useMediaOperations({
 		downloadSuccess,
 		showReplaceModal,
 		setShowReplaceModal,
+		showCompressModal,
+		setShowCompressModal,
 		replaceUrlInput,
 		setReplaceUrlInput,
 		uploading,
@@ -212,6 +252,9 @@ export function useMediaOperations({
 		downloadTooltip,
 		handleDownloadAction,
 		handleOpenReplace,
+		handleOpenCompress,
+		handleOpenSourceUrl,
+		handleUpdateSrc,
 		handleConfirmUrlReplace,
 		handleRestoreOriginalSrc,
 		handleFileSelected,

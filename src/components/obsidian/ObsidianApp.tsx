@@ -134,11 +134,43 @@ export function ObsidianApp({
 
 	// 5. Vault directory configuration & switcher
 	const [pickerOpen, setPickerOpen] = useState(false);
+	const [quickOpenOpen, setQuickOpenOpen] = useState(false);
 	const [currentSettings, setCurrentSettings] = useState(settings);
 
 	useEffect(() => {
 		setCurrentSettings(settings);
 	}, [settings]);
+
+	// Global keyboard shortcuts: Cmd/Ctrl + O to quick-open, Cmd/Ctrl + N to new note
+	useEffect(() => {
+		const handleKeyDown = (e: KeyboardEvent) => {
+			const isMod = e.metaKey || e.ctrlKey;
+			if (!isMod) return;
+
+			const target = e.target as HTMLElement | null;
+			const isEditing =
+				target &&
+				(target.tagName === "INPUT" ||
+					target.tagName === "TEXTAREA" ||
+					target.isContentEditable);
+
+			if (e.key.toLowerCase() === "o" && !e.shiftKey && !e.altKey) {
+				e.preventDefault();
+				setQuickOpenOpen(true);
+			} else if (
+				e.key.toLowerCase() === "n" &&
+				!e.shiftKey &&
+				!e.altKey &&
+				!isEditing
+			) {
+				e.preventDefault();
+				void handleCreateNote();
+			}
+		};
+
+		window.addEventListener("keydown", handleKeyDown);
+		return () => window.removeEventListener("keydown", handleKeyDown);
+	}, [handleCreateNote]);
 
 	const handleSaveVaultDir = useCallback(
 		async (path: string) => {
@@ -244,6 +276,11 @@ export function ObsidianApp({
 						onBack={goBack}
 						onForward={goForward}
 						onSelectFolder={handleSelectFolder}
+						onCreateNote={() => void handleCreateNote()}
+						onCreateFolder={() => void handleCreateFolder()}
+						onCreateCanvas={() => void handleCreateCanvas()}
+						onCreateExcalidraw={() => void handleCreateExcalidraw()}
+						onOpenFile={() => setQuickOpenOpen(true)}
 					/>
 				</div>
 			)}
@@ -276,6 +313,13 @@ export function ObsidianApp({
 					handleSaveVaultDir(path);
 				}}
 				onClosePicker={() => setPickerOpen(false)}
+				quickOpenOpen={quickOpenOpen}
+				onCloseQuickOpen={() => setQuickOpenOpen(false)}
+				onSelectQuickOpenFile={(path) => openNote(path)}
+				onCreateQuickOpenNote={async (name) => {
+					if (!name?.trim()) return null;
+					return await handleCreateNote(undefined, name.trim());
+				}}
 			/>
 		</div>
 	);

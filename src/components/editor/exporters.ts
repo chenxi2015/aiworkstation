@@ -1,4 +1,5 @@
 import type { JSONContent } from "@tiptap/core";
+import { inlineHtmlImages } from "./utils/exportAssets";
 
 /**
  * 触发浏览器端文件下载辅助函数
@@ -322,8 +323,11 @@ export async function exportToWordDocx(
 	htmlContent: string,
 ): Promise<void> {
 	const safeTitle = title || "未命名文档";
+	const inlinedHtml = await inlineHtmlImages(
+		await embedRichBlocksAsImages(htmlContent),
+	);
 	const bodyHtml = inlineTableStylesForWord(
-		preprocessHtmlForExport(await embedRichBlocksAsImages(htmlContent)),
+		preprocessHtmlForExport(inlinedHtml),
 	);
 	const fullHtml = `<h1>${safeTitle}</h1>${bodyHtml}`;
 
@@ -374,10 +378,12 @@ export async function exportToPdf(
 	htmlContent: string,
 ): Promise<void> {
 	const safeTitle = title || "未命名文档";
-	const bodyHtml = preprocessHtmlForExport(
+	const inlinedHtml = await inlineHtmlImages(
 		await embedRichBlocksAsImages(htmlContent),
-		{ unwrapContainers: false },
 	);
+	const bodyHtml = preprocessHtmlForExport(inlinedHtml, {
+		unwrapContainers: false,
+	});
 
 	// 离屏元素会被浏览器跳过绘制导致空白输出，因此用全屏白底覆盖层
 	// 临时盖住页面渲染，生成完成后移除

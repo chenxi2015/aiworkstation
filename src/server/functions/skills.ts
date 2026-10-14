@@ -8,6 +8,7 @@ import type {
 import {
 	type InstallSkillOptions,
 	installSkill,
+	openSkillDirectory,
 	readSkillDetail,
 	scanSkillsOverview,
 	uninstallSkill,
@@ -30,6 +31,17 @@ export const getSkillDetail = createServerFn({ method: "POST" })
 	.handler(async ({ data }): Promise<SkillDetail> => {
 		return await readSkillDetail(data.dirPath);
 	});
+
+/**
+ * Server Function: 在系统文件管理器中打开技能所在目录
+ */
+export const openSkillDirFn = createServerFn({ method: "POST" })
+	.validator((data: { dirPath: string }) => data)
+	.handler(
+		async ({ data }): Promise<{ success: boolean; message?: string }> => {
+			return await openSkillDirectory(data.dirPath);
+		},
+	);
 
 /**
  * Server Function: 安装新技能 (支持 Git 仓库克隆或脚手架生成)

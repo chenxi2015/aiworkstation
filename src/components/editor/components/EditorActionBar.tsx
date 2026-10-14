@@ -182,7 +182,7 @@ export function EditorActionBar({
 								<div className="flex flex-col">
 									<span className="text-xs font-medium">Word 文档 (.docx)</span>
 									<span className="text-[10px] text-muted">
-										标准排版与标题样式
+										内嵌图片与标准排版
 									</span>
 								</div>
 							</div>
@@ -197,7 +197,7 @@ export function EditorActionBar({
 								<div className="flex flex-col">
 									<span className="text-xs font-medium">Markdown (.md)</span>
 									<span className="text-[10px] text-muted">
-										标准 MD 格式源文件
+										标准 MD / 含图打包 (.zip)
 									</span>
 								</div>
 							</div>
@@ -212,7 +212,7 @@ export function EditorActionBar({
 								<div className="flex flex-col">
 									<span className="text-xs font-medium">HTML 网页 (.html)</span>
 									<span className="text-[10px] text-muted">
-										含内嵌样式的独立网页
+										独立网页 / 含图打包 (.zip)
 									</span>
 								</div>
 							</div>

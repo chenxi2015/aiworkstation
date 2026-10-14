@@ -104,22 +104,26 @@ export function useVaultOperations({
 		[treeData],
 	);
 
-	/** Create a new note and enter inline rename mode directly */
+	/** Create a new note and optionally enter inline rename mode directly */
 	const handleCreateNote = useCallback(
-		async (dir?: string) => {
+		async (dir?: string, customName?: string, enterRename = true) => {
 			const targetDir = dir ?? currentDir;
-			const name = nextAvailableName(targetDir, "未命名文件", false, ".md");
+			const defaultTitle = customName?.trim() || "未命名文件";
+			const name = nextAvailableName(targetDir, defaultTitle, false, ".md");
 			const res = await createVaultNoteRpc(targetDir, name);
 			if (!res.success) {
 				toast.danger(res.error ?? "新建笔记失败");
-				return;
+				return null;
 			}
 			expandDirChain(targetDir);
 			await load(true);
 			if (res.relPath) {
 				openNote(res.relPath);
-				setRenamingPath(res.relPath);
+				if (enterRename && !customName) {
+					setRenamingPath(res.relPath);
+				}
 			}
+			return res.relPath ?? null;
 		},
 		[currentDir, nextAvailableName, expandDirChain, load, openNote],
 	);

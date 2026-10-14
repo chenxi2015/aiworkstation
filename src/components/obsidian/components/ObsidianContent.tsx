@@ -1,5 +1,13 @@
 import { Button } from "@heroui/react";
-import { FolderOpen, NotebookPen } from "lucide-react";
+import {
+	FolderOpen,
+	FolderPlus,
+	LayoutGrid,
+	NotebookPen,
+	PenTool,
+	Search,
+	SquarePen,
+} from "lucide-react";
 import type { WorkbenchSettings } from "../../workbench/types";
 import { NotePanel } from "../NotePanel";
 import type { ObsidianNoteApi, ObsidianTree } from "../types";
@@ -22,6 +30,11 @@ export interface ObsidianContentProps {
 	onBack: () => void;
 	onForward: () => void;
 	onSelectFolder: (dir: string) => void;
+	onCreateNote?: () => void;
+	onCreateFolder?: () => void;
+	onCreateCanvas?: () => void;
+	onCreateExcalidraw?: () => void;
+	onOpenFile?: () => void;
 }
 
 /**
@@ -45,7 +58,17 @@ export function ObsidianContent({
 	onBack,
 	onForward,
 	onSelectFolder,
+	onCreateNote,
+	onCreateFolder,
+	onCreateCanvas,
+	onCreateExcalidraw,
+	onOpenFile,
 }: ObsidianContentProps) {
+	const isMac =
+		typeof navigator !== "undefined" &&
+		/(Mac|iPhone|iPod|iPad)/i.test(navigator.platform || navigator.userAgent);
+	const modLabel = isMac ? "⌘" : "Ctrl";
+
 	return (
 		<section className="flex-1 overflow-hidden">
 			{vaultMissing ? (
@@ -101,8 +124,8 @@ export function ObsidianContent({
 					onSelectFolder={onSelectFolder}
 				/>
 			) : (
-				<div className="h-full flex flex-col items-center justify-center text-center px-8">
-					<div className="w-14 h-14 rounded-2xl bg-surface-secondary text-foreground/70 flex items-center justify-center mb-4">
+				<div className="h-full flex flex-col items-center justify-center text-center px-8 overflow-y-auto py-8">
+					<div className="w-14 h-14 rounded-2xl bg-surface-secondary text-foreground/70 flex items-center justify-center mb-4 shrink-0">
 						<NotebookPen className="w-6 h-6" />
 					</div>
 					<h2 className="text-sm font-semibold text-foreground">
@@ -112,6 +135,90 @@ export function ObsidianContent({
 						目录即分类：点击文件夹选定新建位置，笔记直接读写 Vault 内的
 						Markdown 文件，与 Obsidian 实时双向同步。
 					</p>
+
+					{/* Quick Actions List (matching Figure 2 pill button style) */}
+					<div className="w-64 sm:w-72 flex flex-col gap-2.5 mt-8">
+						{onCreateNote && (
+							<button
+								type="button"
+								onClick={onCreateNote}
+								className="group w-full h-10 px-4 rounded-full border border-border/80 dark:border-border/70 bg-surface dark:bg-surface-secondary/30 hover:bg-surface-secondary/80 hover:border-foreground/25 flex items-center justify-between text-left shadow-2xs transition-all active:scale-[0.98] cursor-pointer"
+							>
+								<div className="flex items-center gap-3">
+									<SquarePen className="w-4 h-4 text-foreground/80 group-hover:text-foreground transition-colors" />
+									<span className="text-[13px] font-medium text-foreground tracking-tight">
+										新建笔记
+									</span>
+								</div>
+								<span className="rounded-full bg-surface-secondary/90 dark:bg-surface-secondary/70 border border-border/40 px-2 py-0.5 text-[11px] text-muted font-mono tracking-tight">
+									{modLabel} + N
+								</span>
+							</button>
+						)}
+
+						{onCreateExcalidraw && (
+							<button
+								type="button"
+								onClick={onCreateExcalidraw}
+								className="group w-full h-10 px-4 rounded-full border border-border/80 dark:border-border/70 bg-surface dark:bg-surface-secondary/30 hover:bg-surface-secondary/80 hover:border-foreground/25 flex items-center justify-between text-left shadow-2xs transition-all active:scale-[0.98] cursor-pointer"
+							>
+								<div className="flex items-center gap-3">
+									<PenTool className="w-4 h-4 text-foreground/80 group-hover:text-foreground transition-colors" />
+									<span className="text-[13px] font-medium text-foreground tracking-tight">
+										新建画板
+									</span>
+								</div>
+							</button>
+						)}
+
+						{onCreateCanvas && (
+							<button
+								type="button"
+								onClick={onCreateCanvas}
+								className="group w-full h-10 px-4 rounded-full border border-border/80 dark:border-border/70 bg-surface dark:bg-surface-secondary/30 hover:bg-surface-secondary/80 hover:border-foreground/25 flex items-center justify-between text-left shadow-2xs transition-all active:scale-[0.98] cursor-pointer"
+							>
+								<div className="flex items-center gap-3">
+									<LayoutGrid className="w-4 h-4 text-foreground/80 group-hover:text-foreground transition-colors" />
+									<span className="text-[13px] font-medium text-foreground tracking-tight">
+										新建白板
+									</span>
+								</div>
+							</button>
+						)}
+
+						{onCreateFolder && (
+							<button
+								type="button"
+								onClick={onCreateFolder}
+								className="group w-full h-10 px-4 rounded-full border border-border/80 dark:border-border/70 bg-surface dark:bg-surface-secondary/30 hover:bg-surface-secondary/80 hover:border-foreground/25 flex items-center justify-between text-left shadow-2xs transition-all active:scale-[0.98] cursor-pointer"
+							>
+								<div className="flex items-center gap-3">
+									<FolderPlus className="w-4 h-4 text-foreground/80 group-hover:text-foreground transition-colors" />
+									<span className="text-[13px] font-medium text-foreground tracking-tight">
+										新建文件夹
+									</span>
+								</div>
+							</button>
+						)}
+
+						{onOpenFile && (
+							<button
+								type="button"
+								onClick={onOpenFile}
+								className="group w-full h-10 px-4 rounded-full border border-border/80 dark:border-border/70 bg-surface dark:bg-surface-secondary/30 hover:bg-surface-secondary/80 hover:border-foreground/25 flex items-center justify-between text-left shadow-2xs transition-all active:scale-[0.98] cursor-pointer"
+							>
+								<div className="flex items-center gap-3">
+									<Search className="w-4 h-4 text-foreground/80 group-hover:text-foreground transition-colors" />
+									<span className="text-[13px] font-medium text-foreground tracking-tight">
+										打开文件
+									</span>
+								</div>
+								<span className="rounded-full bg-surface-secondary/90 dark:bg-surface-secondary/70 border border-border/40 px-2 py-0.5 text-[11px] text-muted font-mono tracking-tight">
+									{modLabel} + O
+								</span>
+							</button>
+						)}
+					</div>
 				</div>
 			)}
 		</section>

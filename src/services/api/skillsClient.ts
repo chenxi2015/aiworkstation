@@ -8,6 +8,7 @@ import {
 	getSkillDetail,
 	getSkillsOverview,
 	installSkillFn,
+	openSkillDirFn,
 	uninstallSkillFn,
 } from "../../server/functions/skills";
 import type { InstallSkillOptions } from "../../server/services/skills/manage";
@@ -70,3 +71,16 @@ export async function requestUninstallSkill(
 	}
 }
 
+/**
+ * 在系统文件管理器中打开指定技能所在目录
+ */
+export async function openSkillDirectory(
+	dirPath: string,
+): Promise<{ success: boolean; message?: string }> {
+	try {
+		return await openSkillDirFn({ data: { dirPath } });
+	} catch (err) {
+		const msg = err instanceof Error ? err.message : String(err);
+		return { success: false, message: `打开目录请求异常: ${msg}` };
+	}
+}

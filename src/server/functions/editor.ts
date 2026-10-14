@@ -639,15 +639,34 @@ export const downloadExternalAssetToDocument = createServerFn({
 			Referer: resolveAssetReferer(url, customReferer),
 		};
 
-		let response = await fetch(url, { headers });
-		// Fallback retry without Referer if 403 Forbidden is returned
-		if (response.status === 403 && headers.Referer) {
-			const fallbackHeaders = { ...headers };
-			delete fallbackHeaders.Referer;
-			const fallbackRes = await fetch(url, { headers: fallbackHeaders });
-			if (fallbackRes.ok) {
-				response = fallbackRes;
+		let response: Response;
+		try {
+			response = await fetch(url, {
+				headers,
+				signal: AbortSignal.timeout(30000),
+			});
+			// Fallback retry without Referer if 403 Forbidden is returned
+			if (response.status === 403 && headers.Referer) {
+				const fallbackHeaders = { ...headers };
+				delete fallbackHeaders.Referer;
+				const fallbackRes = await fetch(url, {
+					headers: fallbackHeaders,
+					signal: AbortSignal.timeout(30000),
+				});
+				if (fallbackRes.ok) {
+					response = fallbackRes;
+				}
 			}
+		} catch (fetchErr) {
+			if (
+				fetchErr instanceof Error &&
+				(fetchErr.name === "TimeoutError" || fetchErr.name === "AbortError")
+			) {
+				throw new Error("下载外部图片超时（超过30秒），请检查网络连接");
+			}
+			throw new Error(
+				fetchErr instanceof Error ? fetchErr.message : "请求外部图片地址失败",
+			);
 		}
 
 		if (!response.ok) {

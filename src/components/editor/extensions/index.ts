@@ -28,7 +28,13 @@ export {
 	isExternalMedia,
 	MediaNodeView,
 } from "./MediaNodeView";
+export {
+	compressImage,
+	formatBytes,
+	inspectImage,
+} from "./media/imageCompressor";
 export { MediaActionToolbar } from "./media/MediaActionToolbar";
+export { MediaCompressPopover } from "./media/MediaCompressPopover";
 export { MediaReplacePopover } from "./media/MediaReplacePopover";
 export { useMediaOperations } from "./media/useMediaOperations";
 export { useMediaToolbarPosition } from "./media/useMediaToolbarPosition";
