@@ -83,11 +83,15 @@ export const FolderAssignMenu = memo(function FolderAssignMenu({
 	const { categories, categoryCountMap, defaultTab } = useMemo(() => {
 		const map = new Map<string, number>();
 		let matchedCategory: string | null = null;
+		const fallbackCategory =
+			propCategories?.find((c) => c !== "未分类" && c !== "工作台") || "常用";
 
 		for (const f of validFolders) {
 			const rawCat = f.category?.trim();
-			// "未分类" is a pseudo category for bookmarks, fallback to "工作台"
-			const cat = !rawCat || rawCat === "未分类" ? "工作台" : rawCat;
+			const cat =
+				!rawCat || rawCat === "未分类" || rawCat === "工作台"
+					? fallbackCategory
+					: rawCat;
 			map.set(cat, (map.get(cat) || 0) + 1);
 			if (
 				normalizedOriginalFolder &&
@@ -117,13 +121,18 @@ export const FolderAssignMenu = memo(function FolderAssignMenu({
 
 	// Filter & sort folders based on active tab and item matching
 	const displayedFolders = useMemo(() => {
+		const fallbackCategory =
+			propCategories?.find((c) => c !== "未分类" && c !== "工作台") || "常用";
+
 		const targetList =
 			activeTab === "全部"
 				? validFolders
 				: validFolders.filter((f) => {
 						const cat =
-							!f.category || f.category === "未分类"
-								? "工作台"
+							!f.category ||
+							f.category === "未分类" ||
+							f.category === "工作台"
+								? fallbackCategory
 								: f.category.trim();
 						return cat === activeTab;
 					});
@@ -143,9 +152,17 @@ export const FolderAssignMenu = memo(function FolderAssignMenu({
 				if (!aMatch && bMatch) return 1;
 			}
 			const aCat =
-				!a.category || a.category === "未分类" ? "工作台" : a.category.trim();
+				!a.category ||
+				a.category === "未分类" ||
+				a.category === "工作台"
+					? fallbackCategory
+					: a.category.trim();
 			const bCat =
-				!b.category || b.category === "未分类" ? "工作台" : b.category.trim();
+				!b.category ||
+				b.category === "未分类" ||
+				b.category === "工作台"
+					? fallbackCategory
+					: b.category.trim();
 			if (aCat !== bCat) {
 				const aIdx = orderMap.has(aCat) ? (orderMap.get(aCat) as number) : 9999;
 				const bIdx = orderMap.has(bCat) ? (orderMap.get(bCat) as number) : 9999;

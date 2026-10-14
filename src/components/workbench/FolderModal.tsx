@@ -4,14 +4,8 @@ import {
 	FieldError,
 	Input,
 	Label,
-	ListBox,
-	ListBoxItem,
 	Modal,
 	parseColor,
-	Select,
-	SelectPopover,
-	SelectTrigger,
-	SelectValue,
 	TextArea,
 	TextField,
 } from "@heroui/react";
@@ -19,6 +13,7 @@ import { Palette, RotateCcw } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { FolderAppGridCover } from "./folder/FolderAppGridCover";
+import { FolderCascaderPicker } from "./folder/FolderCascaderPicker";
 import type { Folder } from "./types";
 
 export const FOLDER_COLORS = [
@@ -70,22 +65,34 @@ export function FolderModal({
 
 	const isEdit = !!folder;
 
-	// Calculate all available top-level navigation spaces/categories
+	// Calculate all available top-level navigation spaces/categories (purging '未分类' and '工作台')
 	const availableCategories = useMemo(() => {
 		const set = new Set<string>();
 		for (const c of categories) {
-			if (c && c !== "未分类") set.add(c);
-		}
-		for (const f of folders) {
-			if (f.category && f.category !== "未分类") {
-				set.add(f.category);
+			const trimmed = c?.trim();
+			if (trimmed && trimmed !== "未分类" && trimmed !== "工作台") {
+				set.add(trimmed);
 			}
 		}
-		if (defaultCategory && defaultCategory !== "未分类") {
-			set.add(defaultCategory);
+		for (const f of folders) {
+			const cat = f.category?.trim();
+			if (cat && cat !== "未分类" && cat !== "工作台") {
+				set.add(cat);
+			}
 		}
-		if (folder?.category && folder.category !== "未分类") {
-			set.add(folder.category);
+		if (
+			defaultCategory &&
+			defaultCategory !== "未分类" &&
+			defaultCategory !== "工作台"
+		) {
+			set.add(defaultCategory.trim());
+		}
+		if (
+			folder?.category &&
+			folder.category !== "未分类" &&
+			folder.category !== "工作台"
+		) {
+			set.add(folder.category.trim());
 		}
 		return Array.from(set);
 	}, [categories, folders, defaultCategory, folder]);
@@ -121,39 +128,28 @@ export function FolderModal({
 					defaultParentId != null
 						? folders.find((f) => f.id === defaultParentId)
 						: undefined;
-				setCategory(parent?.category || defaultCategory || "bookmarks");
+				const initialCategory =
+					parent?.category ||
+					(defaultCategory &&
+					defaultCategory !== "未分类" &&
+					defaultCategory !== "工作台"
+						? defaultCategory
+						: availableCategories[0] || "");
+				setCategory(initialCategory);
 				setDesc("");
 				setColor("");
 				setParentId(parent?.id ?? null);
 			}
 			setError("");
 		}
-	}, [isOpen, folder, folders, defaultCategory, defaultParentId]);
-
-	// Unified parent key representation: `root:${category}` or `folder:${folderId}`
-	const selectedParentKey = useMemo(() => {
-		if (parentId != null) {
-			return `folder:${parentId}`;
-		}
-		return `root:${category || defaultCategory || "bookmarks"}`;
-	}, [parentId, category, defaultCategory]);
-
-	const handleParentChange = (key: unknown) => {
-		if (!key) return;
-		const keyStr = String(key);
-		if (keyStr.startsWith("root:")) {
-			const targetCat = keyStr.slice(5);
-			setParentId(null);
-			setCategory(targetCat);
-		} else if (keyStr.startsWith("folder:")) {
-			const targetId = Number(keyStr.slice(7));
-			const targetFolder = folders.find((f) => f.id === targetId);
-			setParentId(targetId);
-			if (targetFolder) {
-				setCategory(targetFolder.category);
-			}
-		}
-	};
+	}, [
+		isOpen,
+		folder,
+		folders,
+		defaultCategory,
+		defaultParentId,
+		availableCategories,
+	]);
 
 	const handleSubmit = (e: FormEvent) => {
 		e.preventDefault();
@@ -190,7 +186,7 @@ export function FolderModal({
 				onOpenChange={(open) => !open && onClose()}
 				variant="blur"
 			>
-				<Modal.Container size="sm">
+				<Modal.Container size="md" className="sm:max-w-lg">
 					<Modal.Dialog aria-label={isEdit ? "编辑文件夹" : "新建文件夹"}>
 						{/* Built-in close button from HeroUI */}
 						<Modal.CloseTrigger />
@@ -224,53 +220,22 @@ export function FolderModal({
 									{error && <FieldError>{error}</FieldError>}
 								</TextField>
 
-								{/* Unified Parent Folder / Space Select */}
-								<Select
-									selectedKey={selectedParentKey}
-									onSelectionChange={handleParentChange}
-								>
-									<Label>父级文件夹 / 所属空间</Label>
-									<SelectTrigger className={fieldClassName}>
-										<SelectValue />
-									</SelectTrigger>
-									<SelectPopover>
-										<ListBox>
-											{availableCategories.map((cat) => (
-												<ListBoxItem
-													key={`root:${cat}`}
-													id={`root:${cat}`}
-													textValue={`📂 ${cat} (顶层空间)`}
-												>
-													<div className="flex items-center gap-2 py-0.5">
-														<span className="text-base">📂</span>
-														<span className="font-medium text-foreground">
-															{cat}
-														</span>
-														<span className="text-[10px] text-muted ml-auto bg-surface-secondary px-1.5 py-0.5 rounded font-mono">
-															顶层空间
-														</span>
-													</div>
-												</ListBoxItem>
-											))}
-
-											{parentOptions.map((f) => (
-												<ListBoxItem
-													key={`folder:${f.id}`}
-													id={`folder:${f.id}`}
-													textValue={`📁 ${f.name}`}
-												>
-													<div className="flex items-center gap-2 py-0.5">
-														<span className="text-sm opacity-70">📁</span>
-														<span className="text-foreground">{f.name}</span>
-														<span className="text-[10px] text-muted ml-auto">
-															空间: {f.category}
-														</span>
-													</div>
-												</ListBoxItem>
-											))}
-										</ListBox>
-									</SelectPopover>
-								</Select>
+								{/* Multi-level Parent Folder / Space Cascader Picker */}
+								<div className="flex flex-col gap-1.5">
+									<Label className="text-xs font-medium text-foreground">
+										父级文件夹 / 所属空间
+									</Label>
+									<FolderCascaderPicker
+										folders={parentOptions}
+										categories={availableCategories}
+										selectedCategory={category}
+										selectedParentId={parentId}
+										onChange={({ category: newCat, parentId: newParentId }) => {
+											setCategory(newCat);
+											setParentId(newParentId);
+										}}
+									/>
+								</div>
 
 								{/* Description */}
 								<TextField value={desc} onChange={setDesc}>

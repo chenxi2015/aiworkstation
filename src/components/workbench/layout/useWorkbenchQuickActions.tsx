@@ -77,7 +77,11 @@ export function useWorkbenchQuickActions({ folders }: { folders: Folder[] }) {
 					folder={null}
 					folders={folders}
 					categories={categories}
-					defaultCategory="工作台"
+					defaultCategory={
+						categories.find(
+							(c) => c !== "未分类" && c !== "工作台",
+						) || ""
+					}
 					onClose={() => setIsFolderModalOpen(false)}
 					onSave={handleSaveFolder}
 					onDelete={() => {}}

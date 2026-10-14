@@ -168,7 +168,12 @@ export function WorkbenchModals({
 						categories={dynamicCategories}
 						defaultCategory={
 							isUnclassified || activeCategory === ALL_CATEGORY
-								? "工作台"
+								? dynamicCategories.find(
+										(c) =>
+											c !== "未分类" &&
+											c !== "工作台" &&
+											c !== ALL_CATEGORY,
+									) || ""
 								: activeCategory
 						}
 						defaultParentId={folderModalState.defaultParentId}

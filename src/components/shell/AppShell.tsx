@@ -160,10 +160,9 @@ export function useAiPanel(): AiPanelApi {
 /** 与 useWorkbenchNavigation 中 dynamicCategories 相同的推导逻辑，作为面板数据的兜底 */
 function collectCategories(folders: Folder[]): string[] {
 	const cats = new Set<string>();
-	cats.add("工作台");
 	for (const f of folders) {
 		const cat = f.category?.trim();
-		if (cat && cat !== "未分类") {
+		if (cat && cat !== "未分类" && cat !== "工作台") {
 			cats.add(cat);
 		}
 	}
@@ -449,7 +448,11 @@ export function AppShell({
 							folder={null}
 							folders={folders}
 							categories={categories}
-							defaultCategory="工作台"
+							defaultCategory={
+								categories.find(
+									(c) => c !== "未分类" && c !== "工作台",
+								) || ""
+							}
 							onClose={() => setIsFolderModalOpen(false)}
 							onSave={handleSaveFolder}
 							onDelete={() => {}}

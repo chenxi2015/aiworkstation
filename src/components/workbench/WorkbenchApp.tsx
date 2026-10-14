@@ -1,11 +1,10 @@
 import { toast } from "@heroui/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useWorkbenchData } from "../../hooks/useWorkbenchData";
 import { useWorkbenchModals } from "../../hooks/useWorkbenchModals";
 import {
 	ALL_CATEGORY,
 	isSystemCategory,
-	type NavLayoutEntry,
 	resolveCategoryLabel,
 	sanitizeBookmarkFilter,
 	UNCLASSIFIED_CATEGORY,
@@ -55,6 +54,25 @@ export function WorkbenchApp({
 	showCategoryFilter = false,
 	deepLink,
 }: WorkbenchAppProps) {
+	// Determine the initial active category:
+	// For bookmark full browsing page (/bookmarks), visiting without an explicit ?category
+	// MUST default to ALL_CATEGORY ("全部") as requested by the user.
+	const resolvedInitialCategory = useMemo(() => {
+		if (fixedCategory) return fixedCategory;
+		if (deepLink?.category) {
+			return sanitizeBookmarkFilter(deepLink.category);
+		}
+		if (showCategoryFilter) {
+			return ALL_CATEGORY;
+		}
+		return sanitizeBookmarkFilter(initialData.activeCategory);
+	}, [
+		fixedCategory,
+		deepLink?.category,
+		showCategoryFilter,
+		initialData.activeCategory,
+	]);
+
 	// 1. Data, Sync and CRUD Business Logic (Hydrated with Route Loader Data)
 	const {
 		folders,
@@ -95,8 +113,7 @@ export function WorkbenchApp({
 		reloadFromDb,
 	} = useWorkbenchData({
 		...initialData,
-		initialCategory:
-			fixedCategory ?? sanitizeBookmarkFilter(initialData.activeCategory),
+		initialCategory: resolvedInitialCategory,
 	});
 
 	// Module routes lock the browsing category to the module code
@@ -118,11 +135,9 @@ export function WorkbenchApp({
 		setIsDeadLinksModalOpen,
 	} = modalsState;
 
-	// 深链定位（一次性消费）：从工作台仪表盘等入口直达分类/文件夹/书签/死链弹窗
-	const deepLinkHandledRef = useRef(false);
+	// 深链定位：从工作台仪表盘等入口直达分类/文件夹/书签/死链弹窗
 	useEffect(() => {
-		if (!deepLink || deepLinkHandledRef.current) return;
-		deepLinkHandledRef.current = true;
+		if (!deepLink) return;
 		if (deepLink.deadlinks) {
 			setIsDeadLinksModalOpen(true);
 		}
@@ -145,10 +160,17 @@ export function WorkbenchApp({
 			handleNavigateFromSearch(deepLink.folder);
 		} else if (deepLink.category) {
 			handleCategoryChange(sanitizeBookmarkFilter(deepLink.category));
+		} else if (showCategoryFilter && !deepLink.folder && !deepLink.item) {
+			// Navigating directly to clean /bookmarks resets to ALL_CATEGORY ("全部")
+			handleCategoryChange(ALL_CATEGORY);
 		}
 	}, [
-		deepLink,
+		deepLink?.category,
+		deepLink?.folder,
+		deepLink?.item,
+		deepLink?.deadlinks,
 		folders,
+		showCategoryFilter,
 		handleNavigateFromSearch,
 		handleCategoryChange,
 		setIsDeadLinksModalOpen,
