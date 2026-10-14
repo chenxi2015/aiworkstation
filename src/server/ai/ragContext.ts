@@ -12,5 +12,7 @@ export {
 	resolveEmbeddingConfig,
 } from "./context/index.ts";
 
-// Re-export types that some callers import from here
-export type { LlmConfigOverrides } from "./context/config.ts";
+// Re-export types and image gen config from config.ts
+export type { LlmConfigOverrides, ImageGenConfig } from "./context/config.ts";
+export { resolveImageGenConfig } from "./context/config.ts";
+

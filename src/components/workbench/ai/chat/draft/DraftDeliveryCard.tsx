@@ -25,6 +25,7 @@ import {
 	fetchObsidianTree,
 	invalidateObsidianTreeCache,
 } from "../../../../../services/api/obsidianClient";
+import { ConfirmDialog } from "../../../ConfirmDialog";
 import { AiMarkdownRenderer } from "../../shared/AiMarkdownRenderer";
 import {
 	collectAllFolders,
@@ -61,6 +62,7 @@ export const DraftDeliveryCard = memo(function DraftDeliveryCard({
 
 	// Action loading state
 	const [isActionLoading, setIsActionLoading] = useState(false);
+	const [isDiscardConfirmOpen, setIsDiscardConfirmOpen] = useState(false);
 
 	const onDraftStatusChangeRef = useRef(onDraftStatusChange);
 	onDraftStatusChangeRef.current = onDraftStatusChange;
@@ -186,7 +188,9 @@ export const DraftDeliveryCard = memo(function DraftDeliveryCard({
 			);
 			toast.success(`已保存至 Obsidian 笔记：${res.relPath}`);
 		} catch (err: unknown) {
-			toast.danger(err instanceof Error ? err.message : "保存 Obsidian 笔记失败");
+			toast.danger(
+				err instanceof Error ? err.message : "保存 Obsidian 笔记失败",
+			);
 		} finally {
 			setIsActionLoading(false);
 		}
@@ -381,7 +385,7 @@ export const DraftDeliveryCard = memo(function DraftDeliveryCard({
 						size="sm"
 						variant="ghost"
 						className="h-7.5 px-2.5 text-xs rounded-xl text-muted hover:text-danger cursor-pointer ml-auto"
-						onPress={handleDiscard}
+						onPress={() => setIsDiscardConfirmOpen(true)}
 						isDisabled={isActionLoading}
 					>
 						<Trash2 className="w-3.5 h-3.5 mr-1" />
@@ -426,7 +430,10 @@ export const DraftDeliveryCard = memo(function DraftDeliveryCard({
 								</div>
 							) : (
 								<ScrollShadow className="max-h-[60vh] rounded-xl border border-border/60 bg-surface-secondary/20 p-4 sm:p-5">
-									<AiMarkdownRenderer content={previewContent} compact={false} />
+									<AiMarkdownRenderer
+										content={previewContent}
+										compact={false}
+									/>
 								</ScrollShadow>
 							)}
 						</Modal.Body>
@@ -557,6 +564,24 @@ export const DraftDeliveryCard = memo(function DraftDeliveryCard({
 					</Modal.Dialog>
 				</Modal.Container>
 			</Modal.Backdrop>
+
+			{/* Discard Confirmation Dialog */}
+			<ConfirmDialog
+				isOpen={isDiscardConfirmOpen}
+				onOpenChange={setIsDiscardConfirmOpen}
+				title="确认丢弃草稿"
+				description={
+					<span>
+						确定要丢弃草稿{" "}
+						<strong className="font-semibold text-foreground">
+							《{draft.title}》
+						</strong>
+						吗？丢弃后草稿将被移入回收站。
+					</span>
+				}
+				confirmLabel="确认丢弃"
+				onConfirm={handleDiscard}
+			/>
 		</div>
 	);
 });

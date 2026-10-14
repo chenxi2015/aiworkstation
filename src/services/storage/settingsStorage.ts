@@ -28,6 +28,11 @@ export const DEFAULT_SETTINGS: WorkbenchSettings = {
 	embeddingModel: DEFAULT_EMBEDDING_MODEL,
 	embeddingProvider: "siliconflow",
 	embeddingProvidersConfig: {},
+	imageApiKey: "",
+	imageBaseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+	imageModel: "",
+	imageProvider: "doubao",
+	imageSkillPath: "",
 };
 
 export interface EffectiveLLMConfig {

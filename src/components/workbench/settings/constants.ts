@@ -70,10 +70,42 @@ export const EMBEDDING_PROVIDERS: ProviderPreset[] = [
 	},
 ];
 
+export const MEDIA_PROVIDERS: ProviderPreset[] = [
+	{
+		id: "doubao",
+		name: "豆包（Volcano Ark / 火山方舟）",
+		baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+		models: ["doubao-seed-image", "doubao-seed-image-3.0", "doubao-seed-video"],
+	},
+	{
+		id: "siliconflow",
+		name: "硅基流动（SiliconFlow / FLUX）",
+		baseUrl: "https://api.siliconflow.cn/v1",
+		models: [
+			"black-forest-labs/FLUX.1-schnell",
+			"black-forest-labs/FLUX.1-dev",
+			"stabilityai/stable-diffusion-3-5-large",
+		],
+	},
+	{
+		id: "openai",
+		name: "OpenAI（DALL-E）",
+		baseUrl: "https://api.openai.com/v1",
+		models: ["dall-e-3", "dall-e-2"],
+	},
+	{
+		id: "custom",
+		name: "自定义（OpenAI 兼容生图/视频接口）",
+		baseUrl: "",
+		models: [],
+	},
+];
+
 export const FALLBACK_LLM_MODELS = LLM_PROVIDERS.flatMap((p) => p.models);
 export const FALLBACK_EMBEDDING_MODELS = EMBEDDING_PROVIDERS.flatMap(
 	(p) => p.models,
 );
+export const FALLBACK_MEDIA_MODELS = MEDIA_PROVIDERS.flatMap((p) => p.models);
 
 export function inferProviderId(
 	baseUrl: string | undefined,

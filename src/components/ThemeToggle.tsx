@@ -1,9 +1,9 @@
 import { Laptop, Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 
-type ThemeMode = "light" | "dark" | "auto";
+export type ThemeMode = "light" | "dark" | "auto";
 
-function getInitialMode(): ThemeMode {
+export function getInitialMode(): ThemeMode {
 	if (typeof window === "undefined") {
 		return "auto";
 	}
@@ -16,7 +16,7 @@ function getInitialMode(): ThemeMode {
 	return "auto";
 }
 
-function applyThemeMode(mode: ThemeMode) {
+export function applyThemeMode(mode: ThemeMode) {
 	const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
 	const resolved = mode === "auto" ? (prefersDark ? "dark" : "light") : mode;
 
@@ -32,19 +32,23 @@ function applyThemeMode(mode: ThemeMode) {
 	document.documentElement.style.colorScheme = resolved;
 }
 
-export default function ThemeToggle({
-	compact = false,
-	menu = false,
-}: {
-	compact?: boolean;
-	menu?: boolean;
-}) {
+export function useThemeMode() {
 	const [mode, setMode] = useState<ThemeMode>("auto");
 
 	useEffect(() => {
 		const initialMode = getInitialMode();
 		setMode(initialMode);
 		applyThemeMode(initialMode);
+
+		const handleStorage = () => {
+			setMode(getInitialMode());
+		};
+		window.addEventListener("theme-change", handleStorage);
+		window.addEventListener("storage", handleStorage);
+		return () => {
+			window.removeEventListener("theme-change", handleStorage);
+			window.removeEventListener("storage", handleStorage);
+		};
 	}, []);
 
 	useEffect(() => {
@@ -67,7 +71,20 @@ export default function ThemeToggle({
 		setMode(nextMode);
 		applyThemeMode(nextMode);
 		window.localStorage.setItem("theme", nextMode);
+		window.dispatchEvent(new Event("theme-change"));
 	}
+
+	return { mode, toggleMode };
+}
+
+export default function ThemeToggle({
+	compact = false,
+	menu = false,
+}: {
+	compact?: boolean;
+	menu?: boolean;
+}) {
+	const { mode, toggleMode } = useThemeMode();
 
 	const label =
 		mode === "auto"

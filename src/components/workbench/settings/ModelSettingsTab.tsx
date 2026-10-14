@@ -49,6 +49,12 @@ export interface ModelSettingsFormData {
 	embeddingBaseUrl: string;
 	embeddingModel: string;
 	embeddingProvidersConfig?: Record<string, ProviderModelConfig>;
+	imageProvider?: string;
+	imageApiKey?: string;
+	imageBaseUrl?: string;
+	imageModel?: string;
+	imageSkillPath?: string;
+	imageProvidersConfig?: Record<string, ProviderModelConfig>;
 }
 
 interface ModelSettingsTabProps {

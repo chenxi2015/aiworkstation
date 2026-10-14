@@ -151,6 +151,8 @@ export type CoverPlatform = "redbook" | "wechat" | "douyin" | "bilibili";
 export type CardTheme =
 	| "minimal-light"
 	| "geek-dark"
+	| "vibrant-gradient"
+	| "minimal-dark"
 	| "vintage-paper"
 	| "redbook";
 

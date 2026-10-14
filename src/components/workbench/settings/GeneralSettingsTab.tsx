@@ -297,7 +297,7 @@ export function GeneralSettingsTab() {
 	})();
 
 	return (
-		<div className="flex flex-col gap-6 pt-1">
+		<div className="flex flex-col gap-6">
 			<SettingsSection title="通用">
 				<SettingsRow title="应用版本">
 					<div className="flex items-center gap-2">

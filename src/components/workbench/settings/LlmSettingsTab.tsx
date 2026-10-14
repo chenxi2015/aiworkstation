@@ -199,25 +199,33 @@ export function LlmSettingsTab({
 	};
 
 	return (
-		<div className="flex flex-col gap-6 pt-1">
+		<div className="flex flex-col gap-6">
 			{/* AI Assistant Active Model Banner */}
-			<div className="flex items-center justify-between">
-				<div className="flex items-center gap-3">
+			<div className="flex items-center justify-between gap-3 min-w-0">
+				<div className="flex items-center gap-3 min-w-0">
 					<div className="w-8 h-8 rounded-lg border border-border/70 flex items-center justify-center shrink-0 text-foreground">
 						<Bot className="w-4 h-4" />
 					</div>
-					<div className="flex items-center gap-2">
-						<span className="text-sm font-semibold text-foreground">
+					<div className="flex items-center gap-2 min-w-0 flex-wrap sm:flex-nowrap">
+						<span className="text-sm font-semibold text-foreground whitespace-nowrap shrink-0">
 							当前默认模型：
 						</span>
-						<span className="text-xs font-mono font-medium text-foreground px-2 py-0.5 rounded-md border border-border/60 bg-transparent">
+						<span
+							title={data.model || "deepseek-chat"}
+							className="text-xs font-mono font-medium text-foreground px-2 py-0.5 rounded-md border border-border/60 bg-transparent truncate max-w-[200px] sm:max-w-[240px]"
+						>
 							{data.model || "deepseek-chat"}
 						</span>
-						<span className="text-xs text-muted">({activeProvider.name})</span>
+						<span
+							title={activeProvider.name}
+							className="text-xs text-muted truncate max-w-[130px] shrink-0"
+						>
+							({activeProvider.name})
+						</span>
 					</div>
 				</div>
 
-				<div className="text-right hidden sm:block">
+				<div className="text-right shrink-0 hidden sm:block">
 					<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
 						<span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
 						生效中

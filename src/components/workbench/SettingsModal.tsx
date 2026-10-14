@@ -9,35 +9,39 @@ import {
 	Send,
 	ShieldAlert,
 	SlidersHorizontal,
+	Sparkles,
 } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
-import {
-	DEFAULT_SETTINGS,
-	WorkbenchStorageService,
-} from "../../services/workbenchStorage";
 import {
 	getSearchConfig,
 	saveSearchConfig,
 } from "../../server/functions/searchSettings";
 import {
+	DEFAULT_SETTINGS,
+	WorkbenchStorageService,
+} from "../../services/workbenchStorage";
+import {
 	EMBEDDING_PROVIDERS,
 	FALLBACK_EMBEDDING_MODELS,
 	FALLBACK_LLM_MODELS,
+	FALLBACK_MEDIA_MODELS,
 	inferProviderId,
 	LLM_PROVIDERS,
+	MEDIA_PROVIDERS,
 } from "./settings/constants";
 import { DangerZoneTab } from "./settings/DangerZoneTab";
 import { DataMaintenanceTab } from "./settings/DataMaintenanceTab";
 import { EmbeddingSettingsTab } from "./settings/EmbeddingSettingsTab";
 import { GeneralSettingsTab } from "./settings/GeneralSettingsTab";
 import { LlmSettingsTab } from "./settings/LlmSettingsTab";
+import { MediaModelSettingsTab } from "./settings/MediaModelSettingsTab";
 import type { ModelSettingsFormData } from "./settings/ModelSettingsTab";
 import { PublishAccountsTab } from "./settings/PublishAccountsTab";
 import {
 	formDataToSearchConfig,
 	INITIAL_SEARCH_FORM_DATA,
-	SearchSettingsTab,
 	type SearchSettingsFormData,
+	SearchSettingsTab,
 	searchConfigToFormData,
 } from "./settings/SearchSettingsTab";
 import type { WorkbenchSettings } from "./types";
@@ -46,6 +50,7 @@ export type SettingTabId =
 	| "general"
 	| "llm"
 	| "embedding"
+	| "media"
 	| "search"
 	| "publish"
 	| "data"
@@ -67,22 +72,27 @@ const SETTING_TABS: SettingTabItem[] = [
 	},
 	{
 		id: "llm",
-		label: "AI 对话模型",
+		label: "语言模型",
 		description:
 			"配置智能对话助手与书签分析使用的语言模型 (LLM)，支持多模型快速切换",
 		icon: Bot,
 	},
 	{
 		id: "embedding",
-		label: "向量检索模型",
+		label: "向量模型",
 		description: "配置全局语义检索与知识库 (RAG) 向量嵌入模型 (Embedding)",
 		icon: Brain,
 	},
 	{
+		id: "media",
+		label: "视觉模型",
+		description: "配置封面生图、视频生成等多媒体 AI 模型（豆包、FLUX、DALL-E）",
+		icon: Sparkles,
+	},
+	{
 		id: "search",
 		label: "联网搜索",
-		description:
-			"管理 web_search / web_fetch 的搜索引擎密钥、级联优先级与超时",
+		description: "管理 web_search / web_fetch 的搜索引擎密钥、级联优先级与超时",
 		icon: Globe,
 	},
 	{
@@ -111,6 +121,7 @@ interface SettingsModalProps {
 	onSettingsUpdated?: (settings: WorkbenchSettings) => void;
 	onOpenDeadLinks?: () => void;
 	onDataCleared?: () => void;
+	initialTab?: SettingTabId;
 }
 
 const INITIAL_FORM_DATA: ModelSettingsFormData = {
@@ -126,6 +137,11 @@ const INITIAL_FORM_DATA: ModelSettingsFormData = {
 	embeddingBaseUrl: "",
 	embeddingModel: "",
 	embeddingProvidersConfig: {},
+	imageProvider: "doubao",
+	imageApiKey: "",
+	imageBaseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+	imageModel: "doubao-seed-image",
+	imageSkillPath: "",
 };
 
 export function SettingsModal({
@@ -134,8 +150,9 @@ export function SettingsModal({
 	onSettingsUpdated,
 	onOpenDeadLinks,
 	onDataCleared,
+	initialTab = "general",
 }: SettingsModalProps) {
-	const [activeTab, setActiveTab] = useState<SettingTabId>("general");
+	const [activeTab, setActiveTab] = useState<SettingTabId>(initialTab);
 	const [formData, setFormData] =
 		useState<ModelSettingsFormData>(INITIAL_FORM_DATA);
 	const [searchFormData, setSearchFormData] = useState<SearchSettingsFormData>(
@@ -147,6 +164,9 @@ export function SettingsModal({
 	);
 	const [embeddingModelList, setEmbeddingModelList] = useState<string[]>(
 		EMBEDDING_PROVIDERS[0].models,
+	);
+	const [mediaModelList, setMediaModelList] = useState<string[]>(
+		MEDIA_PROVIDERS[0].models,
 	);
 
 	const handleFormChange = <K extends keyof ModelSettingsFormData>(
@@ -214,6 +234,12 @@ export function SettingsModal({
 			embeddingBaseUrl: currentEmbBaseUrl,
 			embeddingModel: currentEmbModel,
 			embeddingProvidersConfig: initialEmbProvidersConfig,
+			imageProvider: settings.imageProvider || "doubao",
+			imageApiKey: settings.imageApiKey || "",
+			imageBaseUrl:
+				settings.imageBaseUrl || "https://ark.cn-beijing.volces.com/api/v3",
+			imageModel: settings.imageModel || "doubao-seed-image",
+			imageSkillPath: settings.imageSkillPath || "",
 		});
 		setFilesRootDir(settings.filesRootDir ?? settings.downloadsDir ?? "");
 
@@ -230,11 +256,24 @@ export function SettingsModal({
 		setEmbeddingModelList(
 			Array.from(new Set([currentEmbModel, ...embPreset].filter(Boolean))),
 		);
+
+		const mediaPreset =
+			MEDIA_PROVIDERS.find((p) => p.id === (settings.imageProvider || "doubao"))
+				?.models ?? FALLBACK_MEDIA_MODELS;
+		setMediaModelList(
+			Array.from(
+				new Set(
+					[settings.imageModel || "doubao-seed-image", ...mediaPreset].filter(
+						Boolean,
+					),
+				),
+			),
+		);
 	}, []);
 
 	useEffect(() => {
 		if (isOpen) {
-			setActiveTab("general");
+			setActiveTab(initialTab || "general");
 			const localSettings = WorkbenchStorageService.getSettings();
 			applySettingsToForm(localSettings);
 
@@ -251,7 +290,7 @@ export function SettingsModal({
 					console.warn("[SettingsModal] load searchConfig failed:", err);
 				});
 		}
-	}, [isOpen, applySettingsToForm]);
+	}, [isOpen, applySettingsToForm, initialTab]);
 
 	const handleSubmit = async (e: FormEvent) => {
 		e.preventDefault();
@@ -283,6 +322,13 @@ export function SettingsModal({
 				formData.embeddingModel.trim() || DEFAULT_SETTINGS.embeddingModel,
 			embeddingProvider: formData.embeddingProvider,
 			embeddingProvidersConfig: formData.embeddingProvidersConfig,
+			imageProvider: formData.imageProvider || "doubao",
+			imageApiKey: formData.imageApiKey?.trim() || "",
+			imageBaseUrl:
+				formData.imageBaseUrl?.trim() ||
+				"https://ark.cn-beijing.volces.com/api/v3",
+			imageModel: formData.imageModel?.trim() || "doubao-seed-image",
+			imageSkillPath: formData.imageSkillPath || "",
 			filesRootDir: filesRootDir.trim() || undefined,
 			downloadsDir: undefined,
 		};
@@ -405,6 +451,16 @@ export function SettingsModal({
 											onChange={handleFormChange}
 											embeddingModelList={embeddingModelList}
 											setEmbeddingModelList={setEmbeddingModelList}
+										/>
+									</Tabs.Panel>
+
+									<Tabs.Panel id="media" className="outline-none">
+										<MediaModelSettingsTab
+											data={formData}
+											onChange={handleFormChange}
+											mediaModelList={mediaModelList}
+											setMediaModelList={setMediaModelList}
+											showSkillAssociation={false}
 										/>
 									</Tabs.Panel>
 

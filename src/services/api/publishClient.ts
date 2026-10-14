@@ -13,7 +13,14 @@ import {
 	validatePlatformAccount,
 	type WechatPublishInput,
 } from "../../server/functions/publish";
-import { generatePublishVariants } from "../../server/functions/publishAi";
+import {
+	generateAiCoverImages,
+	generatePublishMetadata,
+	generatePublishVariants,
+	type GenerateAiCoversInput,
+	type CoverImageResultItem,
+	type PublishMetadataInput,
+} from "../../server/functions/publishAi";
 
 export async function fetchPlatformAccounts(): Promise<PlatformAccountInfo[]> {
 	try {
@@ -68,3 +75,25 @@ export async function requestPublishVariants(input: {
 }): Promise<{ variants: Partial<PublishVariants>; aiGenerated: boolean }> {
 	return generatePublishVariants({ data: input });
 }
+
+/** 智能提炼/生成发布标题与标签 */
+export async function requestPublishMetadata(input: PublishMetadataInput): Promise<{
+	titles: string[];
+	tags: string[];
+	summary: string;
+	aiGenerated: boolean;
+}> {
+	return generatePublishMetadata({ data: input });
+}
+
+/** 调用生图模型生成封面图 */
+export async function requestAiCoverImages(input: GenerateAiCoversInput): Promise<{
+	images: CoverImageResultItem[];
+	prompt: string;
+	aiGenerated: boolean;
+	error?: string;
+}> {
+	return generateAiCoverImages({ data: input });
+}
+export type { CoverImageResultItem };
+
