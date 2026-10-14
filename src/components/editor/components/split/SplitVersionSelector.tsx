@@ -3,13 +3,16 @@ import { useState } from "react";
 import type { DocumentVersion } from "./types";
 
 export interface SplitVersionSelectorProps {
-	labelPrefix: string; // e.g. "左栏 · 基准" or "右栏 · 演练"
+	labelPrefix?: string; // e.g. "左栏 · 基准" or "右栏 · 演练" or "版本"
 	selectedVersionId: string;
 	versions: DocumentVersion[];
 	onSelectVersion: (versionId: string) => void;
 	disabled?: boolean;
 	/** 当 selectedVersionId 不在 versions 列表中（如右栏草稿工作区）时显示的回退标签 */
 	fallbackLabel?: string;
+	placement?: "up" | "down";
+	showIcon?: boolean;
+	title?: string;
 }
 
 const MODE_TAGS: Record<string, { text: string; bg: string; textCol: string }> =
@@ -63,6 +66,9 @@ export function SplitVersionSelector({
 	onSelectVersion,
 	disabled = false,
 	fallbackLabel,
+	placement = "down",
+	showIcon = false,
+	title = "切换版本",
 }: SplitVersionSelectorProps) {
 	const [isOpen, setIsOpen] = useState(false);
 
@@ -79,10 +85,13 @@ export function SplitVersionSelector({
 				onClick={() => setIsOpen((prev) => !prev)}
 				disabled={disabled}
 				className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium hover:bg-surface-secondary/80 text-foreground transition-colors cursor-pointer disabled:opacity-50"
-				title="切换对比版本"
+				title={title}
 			>
-				<span className="text-muted font-normal">{labelPrefix}:</span>
-				<span className="font-semibold text-foreground max-w-[120px] truncate">
+				{showIcon && <History className="w-3.5 h-3.5 text-muted shrink-0" />}
+				{labelPrefix && (
+					<span className="text-muted font-normal">{labelPrefix}:</span>
+				)}
+				<span className="font-semibold text-foreground max-w-[130px] truncate">
 					{activeVersion?.label || fallbackLabel || selectedVersionId}
 				</span>
 				{tag && (
@@ -103,13 +112,17 @@ export function SplitVersionSelector({
 						className="fixed inset-0 z-40 bg-transparent cursor-default border-none p-0"
 						onClick={() => setIsOpen(false)}
 					/>
-					<div className="absolute left-0 top-full mt-1.5 w-60 bg-surface dark:bg-zinc-900 border border-border rounded-xl shadow-xl py-1 z-50 text-xs animate-in fade-in zoom-in-95 duration-100">
+					<div
+						className={`absolute left-0 ${
+							placement === "up" ? "bottom-full mb-1.5" : "top-full mt-1.5"
+						} w-64 bg-surface dark:bg-zinc-900 border border-border rounded-xl shadow-xl py-1 z-50 text-xs animate-in fade-in zoom-in-95 duration-100`}
+					>
 						<div className="px-3 py-1 text-[11px] font-medium text-muted border-b border-border/60 flex items-center justify-between">
 							<span className="flex items-center gap-1">
 								<History className="w-3 h-3" />
 								<span>可用版本 ({versions.length})</span>
 							</span>
-							<span className="text-[10px] text-muted/70">可任意选定对比</span>
+							<span className="text-[10px] text-muted/70">可任意切换</span>
 						</div>
 						<div className="max-h-56 overflow-y-auto py-1">
 							{versions.map((ver) => {

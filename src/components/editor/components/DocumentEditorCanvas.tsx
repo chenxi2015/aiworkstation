@@ -6,6 +6,7 @@ import type { EditorDocument } from "../types";
 import { DocumentHeader } from "./DocumentHeader";
 import { EditorActionBar } from "./EditorActionBar";
 import { SplitCompareView } from "./SplitCompareView";
+import type { DocumentVersion } from "./split/types";
 
 export interface DocumentEditorCanvasProps {
 	activeDoc: EditorDocument;
@@ -19,6 +20,9 @@ export interface DocumentEditorCanvasProps {
 	saveState: SaveState;
 	savedAt: string | null;
 	contentText: string;
+	versions?: DocumentVersion[];
+	selectedVersionId?: string;
+	onSelectVersion?: (versionId: string) => void;
 	onTitleChange: (title: string) => void;
 	onToggleSplitLayout: () => void;
 	onAcceptSplitCompare: (
@@ -66,6 +70,9 @@ export function DocumentEditorCanvas({
 	saveState,
 	savedAt,
 	contentText,
+	versions,
+	selectedVersionId,
+	onSelectVersion,
 	onTitleChange,
 	onToggleSplitLayout,
 	onAcceptSplitCompare,
@@ -137,6 +144,9 @@ export function DocumentEditorCanvas({
 					saveState={saveState}
 					savedAt={savedAt}
 					contentText={contentText}
+					versions={versions}
+					selectedVersionId={selectedVersionId}
+					onSelectVersion={onSelectVersion}
 					onSnapshot={onSnapshot}
 					onToggleFinalized={() =>
 						onStatusChange(

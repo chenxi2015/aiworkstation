@@ -48,7 +48,8 @@ export const appTheme = EditorView.theme({
 	".cm-content": {
 		fontFamily: "inherit",
 		lineHeight: "1.75",
-		padding: "0",
+		// padding: "0",
+		padding: "20px 0",
 		caretColor: "var(--accent)",
 		// Obsidian-like reading width: centered focus
 		maxWidth: "760px",
@@ -57,7 +58,7 @@ export const appTheme = EditorView.theme({
 	".cm-scroller": {
 		fontFamily: "inherit",
 		overflow: "auto",
-		padding: "20px 0",
+		// padding: "20px 0",
 	},
 	".cm-gutters": {
 		backgroundColor: "var(--surface-secondary)",

@@ -20,6 +20,7 @@ import { FolderSidebar } from "./components/FolderSidebar";
 import { useArticleCreationPipeline } from "./hooks/useArticleCreationPipeline";
 import { useDocumentExport } from "./hooks/useDocumentExport";
 import { useDocumentManager } from "./hooks/useDocumentManager";
+import { useDocumentVersions } from "./hooks/useDocumentVersions";
 import { useEditorAiBridge } from "./hooks/useEditorAiBridge";
 import { ImportModal } from "./ImportModal";
 import { markdownToTiptapDoc } from "./markdown";
@@ -92,6 +93,7 @@ export function EditorApp({ initialDocId }: EditorAppProps = {}) {
 		handleAiGenerate,
 		handleInsertNewDocument,
 		reloadDocuments,
+		flushSave,
 	} = docManager;
 
 	// 文件夹栏折叠态（持久化到 localStorage）
@@ -343,6 +345,21 @@ export function EditorApp({ initialDocId }: EditorAppProps = {}) {
 	const [isPublishCenterOpen, setIsPublishCenterOpen] = useState(false);
 
 	const editorInstanceRef = useRef<Editor | null>(null);
+
+	const {
+		versions: docVersions,
+		selectedVersionId: selectedDocVersionId,
+		handleSnapshot: handleDocSnapshot,
+		handleSelectVersion: handleSelectDocVersion,
+	} = useDocumentVersions({
+		docId: activeDoc?.id ?? null,
+		activeDoc,
+		editorRef: editorInstanceRef,
+		flushSave,
+		onEditorChange: handleEditorChange,
+		rawHandleSnapshot: handleSnapshot,
+	});
+
 	const pipelineTriggerRef = useRef<
 		((instruction?: string) => Promise<void>) | null
 	>(null);
@@ -674,7 +691,10 @@ export function EditorApp({ initialDocId }: EditorAppProps = {}) {
 								onRegisterPipeline={(trigger) => {
 									pipelineTriggerRef.current = trigger;
 								}}
-								onSnapshot={() => void handleSnapshot()}
+								versions={docVersions}
+								selectedVersionId={selectedDocVersionId}
+								onSelectVersion={(vId) => void handleSelectDocVersion(vId)}
+								onSnapshot={() => void handleDocSnapshot()}
 								onStatusChange={(status) => void handleStatusChange(status)}
 								onCopyText={copyText}
 								onCopyMarkdown={copyMarkdown}

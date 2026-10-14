@@ -1,11 +1,64 @@
 import type { Editor } from "@tiptap/core";
+import type { JSONContent } from "@tiptap/react";
+import type { DocumentVersion as DbDocumentVersion } from "../../types";
 import {
 	markdownToHtml,
 	markdownToTiptapDoc,
 	parseInlineMarkdownToNodes,
 	renderBlock,
+	tiptapJsonToMarkdown,
 } from "../../markdown";
 import type { DocBlock, DocumentVersion } from "./types";
+
+/**
+ * Safely parse a JSON string into a TipTap JSONContent structure.
+ */
+export function tryParseJson(str?: string | null): JSONContent | undefined {
+	if (!str) return undefined;
+	try {
+		const parsed = JSON.parse(str);
+		if (parsed && (parsed.type === "doc" || Array.isArray(parsed.content))) {
+			return parsed;
+		}
+	} catch {
+		// Non-JSON content string
+	}
+	return undefined;
+}
+
+/**
+ * Map raw database document_versions record into frontend DocumentVersion model.
+ */
+export function mapDbVersionToUiVersion(dv: DbDocumentVersion): DocumentVersion {
+	let contentMd = "";
+	let contentJson: JSONContent | undefined;
+	try {
+		const parsed = JSON.parse(dv.content);
+		contentMd = tiptapJsonToMarkdown(parsed) || dv.content;
+		if (parsed && (parsed.type === "doc" || Array.isArray(parsed.content))) {
+			contentJson = parsed;
+		}
+	} catch {
+		contentMd = dv.content;
+	}
+	const dateStr = dv.createdAt
+		? new Date(dv.createdAt).toLocaleTimeString([], {
+				hour: "2-digit",
+				minute: "2-digit",
+			})
+		: "";
+	return {
+		id: `db_${dv.id}`,
+		label: `v${dv.version}: ${dv.note || (dv.origin === "ai" ? "AI 改写" : "历史快照")}${dateStr ? ` (${dateStr})` : ""}`,
+		mode: dv.origin === "ai" ? "rewrite" : "manual",
+		content: contentMd,
+		contentJson,
+		createdAt: dv.createdAt ? new Date(dv.createdAt).getTime() : Date.now(),
+		dbVersionId: dv.id,
+		origin: dv.origin,
+		isSavedToDb: true,
+	};
+}
 
 /**
  * Check whether a text string contains Markdown table format

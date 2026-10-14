@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import type { SaveState } from "../hooks/useDocumentManager";
 import type { EditorDocument } from "../types";
+import { SplitVersionSelector } from "./split/SplitVersionSelector";
+import type { DocumentVersion } from "./split/types";
 
 export interface EditorActionBarProps {
 	activeDoc: EditorDocument;
@@ -20,6 +22,9 @@ export interface EditorActionBarProps {
 	saveState: SaveState;
 	savedAt: string | null;
 	contentText: string;
+	versions?: DocumentVersion[];
+	selectedVersionId?: string;
+	onSelectVersion?: (versionId: string) => void;
 	onSnapshot: () => void;
 	onToggleFinalized: () => void;
 	onCopyText: (text: string, label: string) => void;
@@ -38,6 +43,9 @@ export function EditorActionBar({
 	saveState,
 	savedAt,
 	contentText,
+	versions,
+	selectedVersionId,
+	onSelectVersion,
 	onSnapshot,
 	onToggleFinalized,
 	onCopyText,
@@ -65,12 +73,24 @@ export function EditorActionBar({
 
 			<div className="flex-1" />
 
-			{/* Snapshot & Finalize */}
-			<div className="flex items-center gap-1">
+			{/* Version Selector & Snapshot & Finalize */}
+			<div className="flex items-center gap-1.5">
+				{versions && versions.length > 0 && onSelectVersion && (
+					<SplitVersionSelector
+						labelPrefix="版本"
+						showIcon
+						placement="up"
+						selectedVersionId={selectedVersionId || "current"}
+						versions={versions}
+						onSelectVersion={onSelectVersion}
+						title="切换查看/回退历史版本"
+					/>
+				)}
 				<button
 					type="button"
 					onClick={onSnapshot}
 					className="flex items-center gap-1 px-2.5 py-1 text-xs text-muted hover:text-foreground hover:bg-muted/10 rounded-md transition-colors cursor-pointer"
+					title="将当前正文保存为一个独立的历史版本"
 				>
 					<Archive className="w-3.5 h-3.5" />
 					存快照

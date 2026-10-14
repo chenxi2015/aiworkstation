@@ -411,17 +411,15 @@ export function AppShell({
 					{/* Left Region: 全局公共顶栏 + 子路由内容区 */}
 					<div className="order-1 relative flex-1 flex flex-col min-w-0 min-h-0 h-full overflow-hidden">
 						{/* Global persistent header: shared across all route transitions */}
-						{!isImmersive && (
-							<WorkbenchHeader
-								unclassifiedCount={unclassified.length}
-								navLayout={settings.navLayout as NavLayoutEntry[] | undefined}
-								onOpenSearch={handleOpenSearch}
-								onOpenExtension={handleOpenExtension}
-								onOpenSettings={() => setIsSettingsModalOpen(true)}
-								onOpenCreateFolder={() => setIsFolderModalOpen(true)}
-								onOpenAIClassifyTask={() => setIsAIClassifyModalOpen(true)}
-							/>
-						)}
+						<WorkbenchHeader
+							unclassifiedCount={unclassified.length}
+							navLayout={settings.navLayout as NavLayoutEntry[] | undefined}
+							onOpenSearch={handleOpenSearch}
+							onOpenExtension={handleOpenExtension}
+							onOpenSettings={() => setIsSettingsModalOpen(true)}
+							onOpenCreateFolder={() => setIsFolderModalOpen(true)}
+							onOpenAIClassifyTask={() => setIsAIClassifyModalOpen(true)}
+						/>
 						{/* Active route page content */}
 						<FloatingDockProvider
 							aiTrigger={{

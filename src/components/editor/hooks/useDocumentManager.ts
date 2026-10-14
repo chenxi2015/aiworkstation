@@ -21,6 +21,7 @@ import {
 import { workbenchContextActions } from "../../../stores/workbenchContextStore";
 import {
 	DEFAULT_STYLE_PRESETS,
+	type DocumentVersion as DbDocumentVersion,
 	type EditorDocFolder,
 	type EditorDocument,
 	type EditorStylePreset,
@@ -84,7 +85,7 @@ export interface UseDocumentManagerReturn {
 	handleStylePresetChange: (stylePreset: string) => void;
 	handleStatusChange: (status: EditorDocument["status"]) => Promise<void>;
 	handleArchive: (docId: number) => Promise<void>;
-	handleSnapshot: (note?: string) => Promise<void>;
+	handleSnapshot: (note?: string) => Promise<DbDocumentVersion | undefined>;
 	handleBeforeAiApply: () => Promise<void>;
 	handleAiGenerate: (prompt: string) => Promise<string>;
 	handleInsertNewDocument: (
@@ -664,13 +665,21 @@ export function useDocumentManager(): UseDocumentManagerReturn {
 	const handleSnapshot = useCallback(
 		async (note = "手动存档") => {
 			const id = activeIdRef.current;
-			if (!id) return;
+			if (!id) return undefined;
 			await flushSave();
-			await snapshotVersionRpc({
-				documentId: id,
-				origin: "human",
-				note,
-			});
+			try {
+				const ver = await snapshotVersionRpc({
+					documentId: id,
+					origin: "human",
+					note,
+				});
+				toast.success(`已保存版本快照 v${ver.version}${note ? `（${note}）` : ""}`);
+				return ver;
+			} catch (err: any) {
+				const msg = err instanceof Error ? err.message : String(err);
+				toast.danger(`保存快照失败: ${msg}`);
+				throw err;
+			}
 		},
 		[flushSave],
 	);

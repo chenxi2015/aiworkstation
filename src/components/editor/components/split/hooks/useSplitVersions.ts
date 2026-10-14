@@ -9,7 +9,7 @@ import {
 import { tiptapJsonToMarkdown } from "../../../markdown";
 import { markdownToPlainText } from "../../../utils/diffHelper";
 import type { DocumentVersion } from "../types";
-import { applyVersionContent } from "../utils";
+import { applyVersionContent, mapDbVersionToUiVersion } from "../utils";
 
 /** 右栏草稿工作区的固定 ID：不属于版本列表，仅表示"未保存的当前草稿" */
 export const DRAFT_VERSION_ID = "draft";
@@ -64,41 +64,7 @@ export function useSplitVersions({
 		let isMounted = true;
 		void fetchDocumentVersions(docId).then((dbVers) => {
 			if (!isMounted || !dbVers || dbVers.length === 0) return;
-			const mappedDbVersions: DocumentVersion[] = dbVers.map((dv) => {
-				let contentMd = "";
-				let contentJson: JSONContent | undefined;
-				try {
-					const parsed = JSON.parse(dv.content);
-					contentMd = tiptapJsonToMarkdown(parsed) || dv.content;
-					if (
-						parsed &&
-						(parsed.type === "doc" || Array.isArray(parsed.content))
-					) {
-						contentJson = parsed;
-					}
-				} catch {
-					contentMd = dv.content;
-				}
-				const dateStr = dv.createdAt
-					? new Date(dv.createdAt).toLocaleTimeString([], {
-							hour: "2-digit",
-							minute: "2-digit",
-						})
-					: "";
-				return {
-					id: `db_${dv.id}`,
-					label: `v${dv.version}: ${dv.note || (dv.origin === "ai" ? "AI 改写" : "历史快照")}${dateStr ? ` (${dateStr})` : ""}`,
-					mode: dv.origin === "ai" ? "rewrite" : "manual",
-					content: contentMd,
-					contentJson,
-					createdAt: dv.createdAt
-						? new Date(dv.createdAt).getTime()
-						: Date.now(),
-					dbVersionId: dv.id,
-					origin: dv.origin,
-					isSavedToDb: true,
-				};
-			});
+			const mappedDbVersions: DocumentVersion[] = dbVers.map(mapDbVersionToUiVersion);
 
 			setVersions((prev) => {
 				const existingIds = new Set(prev.map((v) => v.id));
