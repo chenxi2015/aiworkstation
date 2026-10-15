@@ -126,9 +126,27 @@ export default function ExcalidrawView({
 				if (rawAppState[key] !== undefined)
 					safeAppState[key] = rawAppState[key];
 			}
+			let rawElements = Array.isArray(raw?.elements) ? raw.elements : [];
+			const hasUnexpandedLabels = rawElements.some(
+				(el: {
+					label?: { text?: string };
+					boundElements?: readonly unknown[];
+				}) =>
+					Boolean(el?.label?.text) &&
+					(!el.boundElements || el.boundElements.length === 0),
+			);
+			if (
+				hasUnexpandedLabels &&
+				typeof mod.convertToExcalidrawElements === "function"
+			) {
+				rawElements = mod.convertToExcalidrawElements(rawElements, {
+					regenerateIds: false,
+				});
+			}
+
 			const restored = mod.restore(
 				{
-					elements: raw?.elements,
+					elements: rawElements,
 					appState: safeAppState,
 					files: raw?.files,
 				},
@@ -224,18 +242,32 @@ export default function ExcalidrawView({
 			updateElement: (id, updates) => {
 				try {
 					const currentElements = excalidrawApi.getSceneElements() || [];
-					let found = false;
+					const target = currentElements.find((el) => el.id === id);
+					if (!target) return false;
+
+					const boundTextIds = new Set(
+						(target.boundElements || [])
+							.filter((b) => b.type === "text")
+							.map((b) => b.id),
+					);
+
 					const nextElements = currentElements.map((el) => {
 						if (el.id === id) {
-							found = true;
 							return {
 								...el,
 								...(updates.label ? { text: updates.label } : {}),
 							};
 						}
+						if (boundTextIds.has(el.id)) {
+							return {
+								...el,
+								...(updates.label
+									? { text: updates.label, originalText: updates.label }
+									: {}),
+							};
+						}
 						return el;
 					});
-					if (!found) return false;
 					excalidrawApi.updateScene({
 						elements: nextElements,
 					});

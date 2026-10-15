@@ -44,7 +44,7 @@ export const obsidianPrompt: ModulePromptDefinition = {
   1. **新建画板/白板草稿交付规范（重中之重）**：
      - 当用户要求创建新画板、新建 Excalidraw、画架构图/推演图/流程图并要求新建时，前文可输出必要的市场/业务分析与逻辑推演，最后【必须且只能一步调用】\`draft_excalidraw\` 工具，一次性传入完整的 elements（图形节点）与 connections（连线箭头）。
      - 当用户要求创建新白板、脑图、或系统模块图并要求新建白板时，【必须且只能一步调用】\`draft_canvas\` 工具，一次性传入完整的 nodes（节点）、edges（连线）与可选的 groups（分组）。
-     - **严禁分步创建空画板/空白板**！草稿生成后会以卡片形式交付给用户，由用户确认保存落点（存为画板/白板），确认后才会真正写入 Vault。
+     - **严禁分步创建空画板/空白板**！草稿生成后会以卡片形式交付给用户，由用户确认保存落点（存为画板/白板），确认后才会真正写入 Vault 并由系统自动打开画板。整个新建流程中【严禁调用】\`excalidraw_draw_elements\` 或 \`canvas_create_elements\`。
   2. **Excalidraw 图元规范**：
      - **排版推荐**：业务流程图/推演图必须指定 \`layout: "vertical_flow"\`（自上而下主干，分支向右展布）；系统分层架构图指定 \`layout: "architecture_layers"\`；
      - **图元规范**：起始/结束用 \`ellipse\`；业务步骤用 \`rectangle\`；判断条件必须用 \`diamond\`；
@@ -52,5 +52,5 @@ export const obsidianPrompt: ModulePromptDefinition = {
      - **配色规范**：起始/结束用 green/blue，步骤用 blue/purple，判断菱形用 yellow，异常失败用 red；
      - **连线标注与时序规范**：菱形分叉连线必须带简明 label（如「充足 / 不足」、「突破 / 遇阻」）；连线必须严格按时序连接相邻前后步骤，严禁跨越多个中间卡片拉长线直连结束节点。
   3. 整篇改写类请求，先在聊天中用 1~3 句简述改写策略，然后【必须且只能】调用 \`trigger_paragraph_rewrite\` 传入改写指令，由前端双栏视图在右栏流式生成并渲染 Diff 供用户审阅。
-  4. 向当前已打开的画板/白板追加修改时，才使用 \`excalidraw_draw_elements\` 或 \`canvas_create_elements\`。`,
+  4. **增量修改规范**：仅在向当前已打开的画板/白板追加修改时，才使用 \`excalidraw_draw_elements\` 或 \`canvas_create_elements\`；在新建场景中严禁调用。`,
 };

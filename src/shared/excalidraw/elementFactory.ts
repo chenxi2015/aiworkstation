@@ -12,15 +12,11 @@ import type {
 /**
  * Dependency-free Excalidraw element factory.
  *
- * Produces plain JSON conforming to the .excalidraw file format. The client's
- * ExcalidrawView `restore()` call backfills runtime fields (seed defaults to 1,
- * versionNonce to 0, updated to now) and generates bound text children for
- * shapes carrying a `label` — so this factory emits schema-shaped raw elements
- * without importing the @excalidraw package, enabling server-side headless
- * drawing into Vault files.
- *
- * The client path may still pass an official `convertToExcalidrawElements`
- * converter for enhanced fidelity; both paths produce the same file format.
+ * Produces schema-shaped JSON conforming to ExcalidrawElementSkeleton format.
+ * Elements carry abstract `label` configs for zero-dependency headless generation.
+ * The client's ExcalidrawView hydrates these labels into bound text child elements
+ * with accurate canvas typography measurements via `convertToExcalidrawElements`
+ * before passing to `restore()`.
  */
 
 export interface BuildExcalidrawOptions {

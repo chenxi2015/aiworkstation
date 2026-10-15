@@ -58,7 +58,7 @@ export const excalidrawDrawInputSchema = z.object({
 		.string()
 		.optional()
 		.describe(
-			"目标画板相对路径（.excalidraw）。省略时写入本会话最近一次创建/当前打开的画板；仅在需要写入其他已有画板时指定",
+			"目标画板相对路径（.excalidraw）。省略时作用于当前已打开的画板；仅在需要修改其他已有画板时指定",
 		),
 	layout: z
 		.enum([
@@ -110,12 +110,16 @@ export function executeExcalidrawDrawElements(
 export const excalidrawDrawElementsToolDef = toolDefinition({
 	name: "excalidraw_draw_elements",
 	description:
-		"在当前 Excalidraw 画板中批量绘制高质量手绘流程图、系统架构图或思维导图。前端将自动进行 DAG 有向图拓扑分层排版与避障连线。规范：起始/结束用 ellipse，流程用 rectangle，判断用 diamond；分支动作必须拆分为独立节点，不可合并。",
+		"【仅用于修改当前已打开的画板】在当前已打开的 Excalidraw 画板中批量追加手绘图形节点或连线。严禁在新建画板流程中调用本工具！新建画板必须单步调用 draft_excalidraw 一次性生成完整草稿卡片。",
 	inputSchema: excalidrawDrawInputSchema,
 });
 
 export const draftExcalidrawInputSchema = z.object({
-	title: z.string().describe("画板名称或主题（如：'黄金指数2026年底行情推演'、'微服务架构图'）"),
+	title: z
+		.string()
+		.describe(
+			"画板名称或主题（如：'黄金指数2026年底行情推演'、'微服务架构图'）",
+		),
 	layout: z
 		.enum([
 			"vertical_flow",
@@ -143,14 +147,12 @@ export const draftExcalidrawInputSchema = z.object({
 		),
 });
 
-export type DraftExcalidrawInput = z.input<
-	typeof draftExcalidrawInputSchema
->;
+export type DraftExcalidrawInput = z.input<typeof draftExcalidrawInputSchema>;
 
 export const draftExcalidrawToolDef = toolDefinition({
 	name: "draft_excalidraw",
 	description:
-		"在一步内规划并生成完整的 Excalidraw 手绘流程图、系统架构图或推演图草稿。草稿将暂存本地草稿区，以交互卡片形式交付给用户确认是否存入 Vault。严禁分步创建空画板，请在分析完成后一次性调用本工具产出完整图形草稿。",
+		"【新建画板唯一入口】在一步内规划并生成完整的 Excalidraw 手绘流程图、系统架构图或推演图草稿。草稿暂存本地草稿区，以交互卡片形式交付用户确认后落盘保存并打开。严禁分步创建空画板，严禁后续再调用 excalidraw_draw_elements，必须在所有分析完成后一次性调用本工具产出完整图形草稿。",
 	inputSchema: draftExcalidrawInputSchema,
 });
 
@@ -264,6 +266,11 @@ export function createExcalidrawServerTools(
 				args,
 				async () => {
 					const targetPath = args.targetPath;
+					if (!boardOpen && !targetPath) {
+						throw new Error(
+							"当前未打开任何 Excalidraw 画板。excalidraw_draw_elements 仅用于修改当前已打开的画板，严禁用于新建画板。如需新建画板，请调用 draft_excalidraw 一次性生成完整草稿卡片。",
+						);
+					}
 					if (boardOpen && (!targetPath || targetPath === activeNotePath)) {
 						// Live path: frontend bridge renders with animation on currently open board
 						return executeExcalidrawDrawElements(args);

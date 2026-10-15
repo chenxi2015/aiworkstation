@@ -96,7 +96,7 @@ export const canvasCreateElementsInputSchema = z.object({
 		.string()
 		.optional()
 		.describe(
-			"目标白板相对路径（.canvas）。省略时写入本会话最近一次创建/当前打开的白板；仅在需要写入其他已有白板时指定",
+			"目标白板相对路径（.canvas）。省略时作用于当前已打开的白板；仅在需要修改其他已有白板时指定",
 		),
 	layout: z
 		.enum(["horizontal_tree", "vertical_tree", "grid", "free"])
@@ -146,7 +146,7 @@ export function executeCanvasCreateElements(
 export const canvasCreateElementsToolDef = toolDefinition({
 	name: "canvas_create_elements",
 	description:
-		"在当前 Obsidian Canvas 白板中批量创建节点与连线（支持思维导图、架构流程图、知识对比卡片等）。前端将自动计算合理坐标并实时渲染呈现，同时支持一键撤销。",
+		"【仅用于修改当前已打开的白板】在当前打开的 Obsidian Canvas 白板中批量追加节点与连线（支持思维导图、架构流程图、知识对比卡片等）。严禁在新建白板流程中调用本工具！新建白板必须单步调用 draft_canvas 一次性生成完整草稿卡片。",
 	inputSchema: canvasCreateElementsInputSchema,
 });
 
@@ -294,7 +294,9 @@ export const canvasCreateGroupToolDef = toolDefinition({
 });
 
 export const draftCanvasInputSchema = z.object({
-	title: z.string().describe("白板名称或主题（如：'微服务架构白板'、'知识对比卡片'）"),
+	title: z
+		.string()
+		.describe("白板名称或主题（如：'微服务架构白板'、'知识对比卡片'）"),
 	layout: z
 		.enum(["horizontal_tree", "vertical_tree", "grid", "free"])
 		.default("horizontal_tree")
@@ -319,7 +321,7 @@ export type DraftCanvasInput = z.input<typeof draftCanvasInputSchema>;
 export const draftCanvasToolDef = toolDefinition({
 	name: "draft_canvas",
 	description:
-		"在一步内规划并生成完整的 Obsidian Canvas 白板脑图、架构图或对比卡片草稿。草稿将暂存本地草稿区，以交付卡片形式供用户确认是否存为白板。严禁分步创建空白白板，请在分析完成后一次性调用本工具产出完整白板草稿。",
+		"【新建白板唯一入口】在一步内规划并生成完整的 Obsidian Canvas 白板脑图、架构图或对比卡片草稿。草稿暂存本地草稿区，以交付卡片形式供用户确认后落盘保存并打开。严禁分步创建空白白板，严禁后续再调用 canvas_create_elements，必须在所有分析完成后一次性调用本工具产出完整白板草稿。",
 	inputSchema: draftCanvasInputSchema,
 });
 
@@ -346,6 +348,11 @@ export function createCanvasServerTools(
 				args,
 				async () => {
 					const targetPath = args.targetPath;
+					if (!boardOpen && !targetPath) {
+						throw new Error(
+							"当前未打开任何 Canvas 白板。canvas_create_elements 仅用于修改当前已打开的白板，严禁用于新建白板。如需新建白板，请调用 draft_canvas 一次性生成完整草稿卡片。",
+						);
+					}
 					if (boardOpen && (!targetPath || targetPath === activeNotePath)) {
 						// Live path: frontend bridge renders with animation on currently open canvas
 						return executeCanvasCreateElements(args);
