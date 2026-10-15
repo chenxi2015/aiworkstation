@@ -14,6 +14,9 @@ export {
 export { readSkillDetail } from "./detail.ts";
 export {
 	type InstallSkillOptions,
+	type InspectGitHubSkillResult,
+	type UploadFileItem,
+	inspectGitHubSkill,
 	installSkill,
 	openSkillDirectory,
 	uninstallSkill,

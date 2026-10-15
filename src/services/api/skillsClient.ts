@@ -7,11 +7,15 @@ import type {
 import {
 	getSkillDetail,
 	getSkillsOverview,
+	inspectGitHubSkillFn,
 	installSkillFn,
 	openSkillDirFn,
 	uninstallSkillFn,
 } from "../../server/functions/skills";
-import type { InstallSkillOptions } from "../../server/services/skills/manage";
+import type {
+	InspectGitHubSkillResult,
+	InstallSkillOptions,
+} from "../../server/services/skills/manage";
 
 const EMPTY_OVERVIEW: SkillsOverview = { roots: [], skills: [], scannedAt: 0 };
 
@@ -82,5 +86,26 @@ export async function openSkillDirectory(
 	} catch (err) {
 		const msg = err instanceof Error ? err.message : String(err);
 		return { success: false, message: `打开目录请求异常: ${msg}` };
+	}
+}
+
+/**
+ * 识别 GitHub 仓库技能信息
+ */
+export async function requestInspectGitHubSkill(
+	repoInput: string,
+): Promise<InspectGitHubSkillResult> {
+	try {
+		return await inspectGitHubSkillFn({ data: { repoInput } });
+	} catch (err) {
+		const msg = err instanceof Error ? err.message : String(err);
+		return {
+			success: false,
+			normalizedRepoUrl: repoInput,
+			skillName: "",
+			title: "",
+			description: "",
+			message: `识别请求异常: ${msg}`,
+		};
 	}
 }

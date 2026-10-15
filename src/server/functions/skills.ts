@@ -7,6 +7,7 @@ import type {
 } from "../../components/skills/types.ts";
 import {
 	type InstallSkillOptions,
+	inspectGitHubSkill,
 	installSkill,
 	openSkillDirectory,
 	readSkillDetail,
@@ -44,7 +45,7 @@ export const openSkillDirFn = createServerFn({ method: "POST" })
 	);
 
 /**
- * Server Function: 安装新技能 (支持 Git 仓库克隆或脚手架生成)
+ * Server Function: 安装新技能 (支持 Git 仓库克隆、脚手架生成或本地上传)
  */
 export const installSkillFn = createServerFn({ method: "POST" })
 	.validator((data: InstallSkillOptions) => data)
@@ -59,4 +60,13 @@ export const uninstallSkillFn = createServerFn({ method: "POST" })
 	.validator((data: { dirPath: string }) => data)
 	.handler(async ({ data }): Promise<UninstallSkillResult> => {
 		return await uninstallSkill(data.dirPath);
+	});
+
+/**
+ * Server Function: 识别 GitHub 仓库或子路径的技能元数据
+ */
+export const inspectGitHubSkillFn = createServerFn({ method: "POST" })
+	.validator((data: { repoInput: string }) => data)
+	.handler(async ({ data }) => {
+		return await inspectGitHubSkill(data.repoInput);
 	});
