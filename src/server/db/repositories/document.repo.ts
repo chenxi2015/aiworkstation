@@ -359,4 +359,20 @@ export class DocumentRepository {
 			.all(documentId) as DocumentVersionRow[];
 		return rows.map(rowToVersion);
 	}
+
+	getPublishDraft(documentId: number): string | null {
+		const row = this.db
+			.prepare("SELECT publish_draft FROM documents WHERE id = ?")
+			.get(documentId) as { publish_draft?: string | null } | undefined;
+		return row?.publish_draft || null;
+	}
+
+	savePublishDraft(documentId: number, draftJson: string): void {
+		const now = new Date().toISOString();
+		this.db
+			.prepare(
+				"UPDATE documents SET publish_draft = ?, updated_at = ? WHERE id = ?",
+			)
+			.run(draftJson, now, documentId);
+	}
 }

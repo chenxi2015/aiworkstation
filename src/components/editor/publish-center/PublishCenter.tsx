@@ -2,7 +2,9 @@ import { Button, Drawer, toast } from "@heroui/react";
 import { Save, Send } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
+	fetchDocumentPublishDraft,
 	fetchPlatformAccounts,
+	persistDocumentPublishDraft,
 	publishToWechat,
 } from "../../../services/api/publishClient";
 import type { PlatformAccountInfo, PublishPlatform } from "../types";
@@ -29,6 +31,7 @@ interface PublishCenterProps {
 }
 
 interface PublishDraft {
+	docId: number;
 	publishTitle: string;
 	tags: string[];
 	author: string;
@@ -44,9 +47,9 @@ const getDraftKey = (docId: number) => `publish_center_draft_${docId}`;
 
 const saveDraftToStorage = (docId: number, data: PublishDraft) => {
 	try {
-		localStorage.setItem(getDraftKey(docId), JSON.stringify(data));
+		localStorage.setItem(getDraftKey(docId), JSON.stringify({ ...data, docId }));
 	} catch (err) {
-		console.warn("[PublishCenter] save draft error:", err);
+		console.warn("[PublishCenter] save draft cache error:", err);
 	}
 };
 
@@ -54,9 +57,13 @@ const loadDraftFromStorage = (docId: number): PublishDraft | null => {
 	try {
 		const raw = localStorage.getItem(getDraftKey(docId));
 		if (!raw) return null;
-		return JSON.parse(raw);
+		const parsed = JSON.parse(raw);
+		if (parsed && (!parsed.docId || parsed.docId === docId)) {
+			return parsed;
+		}
+		return null;
 	} catch (err) {
-		console.warn("[PublishCenter] load draft error:", err);
+		console.warn("[PublishCenter] load draft cache error:", err);
 		return null;
 	}
 };
@@ -70,11 +77,11 @@ export function PublishCenter({
 	contentText,
 	markdown,
 }: PublishCenterProps) {
-	// Metadata states
-	const [publishTitle, setPublishTitle] = useState(initialTitle);
+	// Metadata states - initialized from the specific document props
+	const [publishTitle, setPublishTitle] = useState(initialTitle || "未命名文章");
 	const [tags, setTags] = useState<string[]>([]);
 	const [author, setAuthor] = useState("AI Workstation");
-	const [digest, setDigest] = useState("");
+	const [digest, setDigest] = useState(() => contentText.slice(0, 100).trim());
 
 	// Cover images states (4 candidate images)
 	const [covers, setCovers] = useState<CoverItem[]>([]);
@@ -93,6 +100,7 @@ export function PublishCenter({
 	const [accounts, setAccounts] = useState<PlatformAccountInfo[]>([]);
 	const [accountId, setAccountId] = useState<number | null>(null);
 	const [isPublishing, setIsPublishing] = useState(false);
+	const [isSavingDraft, setIsSavingDraft] = useState(false);
 
 	// Publishing results tracking
 	const [results, setResults] = useState<
@@ -104,29 +112,69 @@ export function PublishCenter({
 		twitter: { platform: "twitter", status: "idle" },
 	});
 
-	// Synchronize initial document title & digest, or restore saved draft
+	// Helper to apply draft content to form state
+	const applyDraft = (draft: PublishDraft) => {
+		if (draft.publishTitle) setPublishTitle(draft.publishTitle);
+		if (draft.tags) setTags(draft.tags);
+		if (draft.author) setAuthor(draft.author);
+		if (draft.digest !== undefined) setDigest(draft.digest);
+		// Filter out invalid or legacy auto-generated blank template covers
+		const validCovers = (draft.covers || []).filter(
+			(c) => Boolean(c?.url?.trim()) && !c.id?.startsWith("template-cover-"),
+		);
+		if (validCovers.length > 0) {
+			setCovers(validCovers);
+			setSelectedCoverIndex(
+				Math.min(draft.selectedCoverIndex ?? 0, validCovers.length - 1),
+			);
+		} else {
+			setCovers([]);
+			setSelectedCoverIndex(0);
+		}
+		if (draft.selectedPlatforms) {
+			setSelectedPlatforms(draft.selectedPlatforms);
+		}
+		if (draft.accountId) {
+			setAccountId(draft.accountId);
+		}
+	};
+
+	// Reset to initial document state if no draft exists
+	const resetToCleanDocState = () => {
+		setPublishTitle(initialTitle || "未命名文章");
+		setTags([]);
+		setAuthor("AI Workstation");
+		setDigest(contentText.slice(0, 100).trim());
+		setCovers([]);
+		setSelectedCoverIndex(0);
+	};
+
+	// Synchronize initial document title & digest, or restore saved draft from DB / cache
 	useEffect(() => {
 		if (isOpen) {
-			const savedDraft = loadDraftFromStorage(documentId);
-			if (savedDraft) {
-				setPublishTitle(savedDraft.publishTitle || initialTitle || "未命名文章");
-				setTags(savedDraft.tags || []);
-				setAuthor(savedDraft.author || "AI Workstation");
-				setDigest(savedDraft.digest ?? contentText.slice(0, 100).trim());
-				if (savedDraft.covers && savedDraft.covers.length > 0) {
-					setCovers(savedDraft.covers);
-					setSelectedCoverIndex(savedDraft.selectedCoverIndex ?? 0);
-				}
-				if (savedDraft.selectedPlatforms) {
-					setSelectedPlatforms(savedDraft.selectedPlatforms);
-				}
-				if (savedDraft.accountId) {
-					setAccountId(savedDraft.accountId);
-				}
+			// 1. Fast restore from localStorage cache for this specific document
+			const localDraft = loadDraftFromStorage(documentId);
+			if (localDraft) {
+				applyDraft(localDraft);
 			} else {
-				setPublishTitle(initialTitle || "未命名文章");
-				setDigest(contentText.slice(0, 100).trim());
+				// Clean reset for document without draft
+				resetToCleanDocState();
 			}
+
+			// 2. Authoritative sync from backend SQLite database for this documentId
+			fetchDocumentPublishDraft(documentId).then((dbDraftJson) => {
+				if (dbDraftJson) {
+					try {
+						const dbDraft = JSON.parse(dbDraftJson) as PublishDraft;
+						if (dbDraft && (!dbDraft.docId || dbDraft.docId === documentId)) {
+							applyDraft(dbDraft);
+							saveDraftToStorage(documentId, { ...dbDraft, docId: documentId });
+						}
+					} catch (e) {
+						console.warn("[PublishCenter] parse database draft error:", e);
+					}
+				}
+			});
 
 			// Reset platform result states
 			setResults({
@@ -135,13 +183,14 @@ export function PublishCenter({
 				zhihu: { platform: "zhihu", status: "idle" },
 				twitter: { platform: "twitter", status: "idle" },
 			});
+
 			// Load WeChat platform accounts
 			fetchPlatformAccounts().then((all) => {
 				const wechat = all.filter(
 					(a) => a.platform === "wechat-mp" && a.status === "active",
 				);
 				setAccounts(wechat);
-				if (wechat.length > 0 && !savedDraft?.accountId) {
+				if (wechat.length > 0 && !localDraft?.accountId) {
 					setAccountId(wechat[0].id);
 				}
 			});
@@ -344,9 +393,10 @@ export function PublishCenter({
 		}
 	};
 
-	// Save current state as publish draft
-	const handleSaveDraft = (showToast = true) => {
-		saveDraftToStorage(documentId, {
+	// Save current state as publish draft into SQLite database & local cache
+	const handleSaveDraft = async (showToast = true) => {
+		const draftData: PublishDraft = {
+			docId: documentId,
 			publishTitle,
 			tags,
 			author,
@@ -356,15 +406,36 @@ export function PublishCenter({
 			selectedPlatforms,
 			accountId,
 			updatedAt: Date.now(),
-		});
-		if (showToast) {
-			toast.success("草稿已保存，下次打开将自动恢复");
+		};
+		// Cache locally first for instant resilience
+		saveDraftToStorage(documentId, draftData);
+
+		if (showToast) setIsSavingDraft(true);
+		try {
+			const ok = await persistDocumentPublishDraft(
+				documentId,
+				JSON.stringify(draftData),
+			);
+			if (showToast) {
+				if (ok) {
+					toast.success("草稿已成功保存到数据库");
+				} else {
+					toast.success("草稿已保存到本地缓存");
+				}
+			}
+		} catch (err) {
+			console.warn("[PublishCenter] save draft error:", err);
+			if (showToast) toast.success("草稿已保存到本地缓存");
+		} finally {
+			if (showToast) setIsSavingDraft(false);
 		}
 	};
 
-	// Close with silent auto-save
+	// Close with silent auto-save to database
 	const handleCloseWithSave = () => {
-		handleSaveDraft(false);
+		if (covers.length > 0 || tags.length > 0 || publishTitle !== initialTitle) {
+			handleSaveDraft(false);
+		}
 		onClose();
 	};
 
@@ -388,9 +459,17 @@ export function PublishCenter({
 								<Send className="w-4 h-4" />
 							</div>
 							<div>
-								<Drawer.Heading className="font-semibold text-base text-foreground tracking-tight">
-									一键发布
-								</Drawer.Heading>
+								<div className="flex items-center gap-2">
+									<Drawer.Heading className="font-semibold text-base text-foreground tracking-tight">
+										一键发布
+									</Drawer.Heading>
+									<span
+										className="text-[11px] px-2 py-0.5 rounded-full bg-accent/10 text-accent font-medium max-w-[220px] truncate"
+										title={initialTitle}
+									>
+										{initialTitle || "未命名文档"}
+									</span>
+								</div>
 								<p className="text-xs text-muted">
 									生成精选封面 · AI 提炼标题与标签 · 多平台直发
 								</p>
@@ -444,7 +523,7 @@ export function PublishCenter({
 					</Drawer.Body>
 
 					{/* Drawer Footer with Fixed Publish Action */}
-					<Drawer.Footer className="border-t border-border py-3.5 px-6 flex items-center justify-between shrink-0 bg-surface">
+					<Drawer.Footer className="border-t border-border py-3.5 flex items-center justify-between shrink-0 bg-surface">
 						<span className="text-xs text-muted">
 							已选{" "}
 							<span className="font-medium text-foreground">
@@ -456,20 +535,21 @@ export function PublishCenter({
 						<div className="flex items-center gap-2">
 							<Button
 								size="sm"
-								variant="outline"
-								onPress={() => handleSaveDraft(true)}
-								className="rounded-lg h-8 px-3 text-xs text-foreground/80 hover:text-foreground border-border/80"
-							>
-								<Save className="w-3.5 h-3.5 mr-1 text-muted" />
-								保存草稿
-							</Button>
-							<Button
-								size="sm"
 								variant="ghost"
 								onPress={handleCloseWithSave}
 								className="rounded-lg h-8 px-3 text-xs"
 							>
 								关闭
+							</Button>
+							<Button
+								size="sm"
+								variant="outline"
+								isPending={isSavingDraft}
+								onPress={() => handleSaveDraft(true)}
+								className="rounded-lg h-8 px-3 text-xs text-foreground/80 hover:text-foreground border-border/80"
+							>
+								<Save className="w-3.5 h-3.5 mr-1 text-muted" />
+								保存草稿
 							</Button>
 							<Button
 								size="sm"

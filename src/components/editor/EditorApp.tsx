@@ -729,6 +729,7 @@ export function EditorApp({ initialDocId }: EditorAppProps = {}) {
 			/>
 			{activeDoc && effectiveMediaKind === "doc" && (
 				<PublishCenter
+					key={activeDoc.id}
 					isOpen={isPublishCenterOpen}
 					onClose={() => setIsPublishCenterOpen(false)}
 					documentId={activeDoc.id}

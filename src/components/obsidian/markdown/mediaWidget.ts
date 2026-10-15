@@ -290,7 +290,8 @@ export class MediaWidget extends WidgetType {
 		return wrap;
 	}
 
-	override ignoreEvent() {
+	override ignoreEvent(event: Event) {
+		if (event.type === "contextmenu") return false;
 		return true;
 	}
 }

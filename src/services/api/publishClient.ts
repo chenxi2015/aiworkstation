@@ -6,9 +6,11 @@ import type {
 } from "../../components/editor/types";
 import {
 	deletePlatformAccount,
+	getDocumentPublishDraft,
 	listPlatformAccounts,
 	listPublishRecords,
 	publishDocumentToWechat,
+	saveDocumentPublishDraft,
 	saveWechatMpAccount,
 	validatePlatformAccount,
 	type WechatPublishInput,
@@ -97,3 +99,30 @@ export async function requestAiCoverImages(input: GenerateAiCoversInput): Promis
 }
 export type { CoverImageResultItem };
 
+/** 从数据库获取文档的发布中心草稿 */
+export async function fetchDocumentPublishDraft(
+	documentId: number,
+): Promise<string | null> {
+	try {
+		return (await getDocumentPublishDraft({ data: { documentId } })) ?? null;
+	} catch (err) {
+		console.warn("[publishClient] fetchDocumentPublishDraft error:", err);
+		return null;
+	}
+}
+
+/** 持久化保存发布中心草稿到 SQLite 数据库 */
+export async function persistDocumentPublishDraft(
+	documentId: number,
+	draftJson: string,
+): Promise<boolean> {
+	try {
+		const res = await saveDocumentPublishDraft({
+			data: { documentId, draftJson },
+		});
+		return res?.success ?? false;
+	} catch (err) {
+		console.warn("[publishClient] persistDocumentPublishDraft error:", err);
+		return false;
+	}
+}

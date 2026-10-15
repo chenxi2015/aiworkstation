@@ -303,3 +303,19 @@ export const publishDocumentToWechat = createServerFn({ method: "POST" })
 			throw new Error(message);
 		}
 	});
+
+/** Server Function: 获取文档的发布中心草稿（从 SQLite 读取） */
+export const getDocumentPublishDraft = createServerFn({ method: "GET" })
+	.validator((input: { documentId: number }) => input)
+	.handler(async ({ data }): Promise<string | null> => {
+		return workbenchDb.getDocumentPublishDraft(data.documentId);
+	});
+
+/** Server Function: 保存文档的发布中心草稿（持久化至 SQLite 数据库） */
+export const saveDocumentPublishDraft = createServerFn({ method: "POST" })
+	.validator((input: { documentId: number; draftJson: string }) => input)
+	.handler(async ({ data }): Promise<{ success: boolean }> => {
+		workbenchDb.saveDocumentPublishDraft(data.documentId, data.draftJson);
+		return { success: true };
+	});
+

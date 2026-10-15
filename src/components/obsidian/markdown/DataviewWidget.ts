@@ -189,7 +189,8 @@ export class DataviewWidget extends WidgetType {
 		}
 	}
 
-	override ignoreEvent() {
+	override ignoreEvent(event: Event) {
+		if (event.type === "contextmenu") return false;
 		return true;
 	}
 }

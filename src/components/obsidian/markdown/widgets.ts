@@ -29,6 +29,12 @@ export class TableWidget extends WidgetType {
 		div.innerHTML = markdownToHtml(this.source);
 		return div;
 	}
+
+	override ignoreEvent(event: Event) {
+		// Allow contextmenu events to bubble so user can right-click selected content or cells
+		if (event.type === "contextmenu") return false;
+		return true;
+	}
 }
 
 /** Horizontal rule widget: renders a divider line when cursor is outside */
@@ -206,7 +212,8 @@ export class FrontmatterWidget extends WidgetType {
 		return outer;
 	}
 
-	override ignoreEvent() {
+	override ignoreEvent(event: Event) {
+		if (event.type === "contextmenu") return false;
 		return true;
 	}
 }
@@ -249,6 +256,11 @@ export class CheckboxWidget extends WidgetType {
 		});
 		return checkbox;
 	}
+
+	override ignoreEvent(event: Event) {
+		if (event.type === "contextmenu") return false;
+		return true;
+	}
 }
 
 /** Unordered list bullet widget (`-` rendered as bullet •) */
@@ -262,6 +274,11 @@ export class BulletWidget extends WidgetType {
 		span.className = "cm-live-bullet";
 		span.textContent = "•";
 		return span;
+	}
+
+	override ignoreEvent(event: Event) {
+		if (event.type === "contextmenu") return false;
+		return true;
 	}
 }
 
@@ -355,7 +372,8 @@ export class CalloutIconWidget extends WidgetType {
 		return span;
 	}
 
-	override ignoreEvent() {
+	override ignoreEvent(event: Event) {
+		if (event.type === "contextmenu") return false;
 		return true;
 	}
 }
@@ -389,7 +407,8 @@ export class MathWidget extends WidgetType {
 		return span;
 	}
 
-	override ignoreEvent() {
+	override ignoreEvent(event: Event) {
+		if (event.type === "contextmenu") return false;
 		return true;
 	}
 }
@@ -516,6 +535,11 @@ export class InlineHtmlWidget extends WidgetType {
 		span.textContent = this.innerText ?? this.openTag;
 		return span;
 	}
+
+	override ignoreEvent(event: Event) {
+		if (event.type === "contextmenu") return false;
+		return true;
+	}
 }
 
 /** HTML block widget: rendered inside a Shadow DOM with CSS reset to isolate from CodeMirror cascade */
@@ -526,6 +550,11 @@ export class HtmlBlockWidget extends WidgetType {
 
 	override eq(other: HtmlBlockWidget) {
 		return other.source === this.source;
+	}
+
+	override ignoreEvent(event: Event) {
+		if (event.type === "contextmenu") return false;
+		return true;
 	}
 
 	override toDOM(view: EditorView) {

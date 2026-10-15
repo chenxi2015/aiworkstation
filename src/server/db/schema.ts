@@ -274,6 +274,9 @@ export function initSchema(db: SqliteDatabase): void {
 		if (!documentColNames.has("pinned")) {
 			db.exec("ALTER TABLE documents ADD COLUMN pinned INTEGER DEFAULT 0");
 		}
+		if (!documentColNames.has("publish_draft")) {
+			db.exec("ALTER TABLE documents ADD COLUMN publish_draft TEXT DEFAULT ''");
+		}
 		db.exec(
 			"CREATE INDEX IF NOT EXISTS idx_documents_folder_id ON documents(folder_id)",
 		);

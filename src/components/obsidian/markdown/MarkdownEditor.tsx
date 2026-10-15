@@ -221,22 +221,27 @@ export function MarkdownEditor({
 					return true;
 				},
 				contextmenu(event, v) {
-					if (readOnlyRef.current) return false;
 					event.preventDefault();
-					// 右键落在选区外时先把光标移过去（对齐 Obsidian 行为）
-					const pos = v.posAtCoords({
-						x: event.clientX,
-						y: event.clientY,
-					});
-					if (pos != null && !readingRef.current) {
-						const inSelection = v.state.selection.ranges.some(
-							(r) => pos >= r.from && pos <= r.to,
-						);
-						if (!inSelection) {
-							v.dispatch({ selection: { anchor: pos } });
+					const hasCmSelection = !v.state.selection.main.empty;
+					const domSel = window.getSelection()?.toString();
+					const hasDomSelection = Boolean(domSel && domSel.length > 0);
+
+					// Move caret to click position when clicking outside active selection
+					if (!hasDomSelection && !hasCmSelection) {
+						const pos = v.posAtCoords({
+							x: event.clientX,
+							y: event.clientY,
+						});
+						if (pos != null && !readingRef.current && !readOnlyRef.current) {
+							const inSelection = v.state.selection.ranges.some(
+								(r) => pos >= r.from && pos <= r.to,
+							);
+							if (!inSelection) {
+								v.dispatch({ selection: { anchor: pos } });
+							}
 						}
 					}
-					if (!readingRef.current) v.focus();
+					if (!readingRef.current && !readOnlyRef.current) v.focus();
 					setContextMenu({
 						x: event.clientX,
 						y: event.clientY,
@@ -388,9 +393,49 @@ export function MarkdownEditor({
 		});
 	}, [value, noteRelPath]);
 
+	const handleContextMenu = useCallback((event: React.MouseEvent) => {
+		const v = viewRef.current;
+		if (!v) return;
+		event.preventDefault();
+
+		const hasCmSelection = !v.state.selection.main.empty;
+		const domSel = window.getSelection()?.toString();
+		const hasDomSelection = Boolean(domSel && domSel.length > 0);
+
+		// Move caret to click position when clicking outside active selection
+		if (!hasDomSelection && !hasCmSelection) {
+			const pos = v.posAtCoords({
+				x: event.clientX,
+				y: event.clientY,
+			});
+			if (pos != null && !readingRef.current && !readOnlyRef.current) {
+				const inSelection = v.state.selection.ranges.some(
+					(r) => pos >= r.from && pos <= r.to,
+				);
+				if (!inSelection) {
+					v.dispatch({ selection: { anchor: pos } });
+				}
+			}
+		}
+
+		if (!readingRef.current && !readOnlyRef.current) {
+			v.focus();
+		}
+
+		setContextMenu({
+			x: event.clientX,
+			y: event.clientY,
+		});
+	}, []);
+
 	return (
 		<>
-			<div ref={containerRef} className="h-full min-h-0" />
+			{/* biome-ignore lint/a11y/noStaticElementInteractions: context menu handler on editor wrapper container */}
+			<div
+				ref={containerRef}
+				className="h-full min-h-0"
+				onContextMenu={handleContextMenu}
+			/>
 			{contextMenu && viewRef.current && (
 				<MarkdownContextMenu
 					x={contextMenu.x}

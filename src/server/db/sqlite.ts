@@ -457,6 +457,14 @@ export class WorkbenchDatabase {
 		return this.documentRepo.listVersions(documentId);
 	}
 
+	getDocumentPublishDraft(documentId: number) {
+		return this.documentRepo.getPublishDraft(documentId);
+	}
+
+	saveDocumentPublishDraft(documentId: number, draftJson: string) {
+		return this.documentRepo.savePublishDraft(documentId, draftJson);
+	}
+
 	// ================= Publish (平台发布) Operations =================
 	listPlatformAccounts() {
 		return this.publishRepo.listAccounts();

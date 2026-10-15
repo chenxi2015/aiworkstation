@@ -109,7 +109,9 @@ export class MermaidWidget extends WidgetType {
 		this.root = null;
 		if (root) setTimeout(() => root.unmount(), 0);
 	}
-	override ignoreEvent() {
+	override ignoreEvent(event: Event) {
+		// Allow contextmenu events to trigger context menu
+		if (event.type === "contextmenu") return false;
 		// 滚轮缩放 / 拖拽平移事件全部交给视口，不触发 CM 选区变化
 		return true;
 	}

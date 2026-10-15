@@ -11,18 +11,12 @@ import {
 	X,
 } from "lucide-react";
 import type React from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { requestAiCoverImages } from "../../../services/api/publishClient";
 import { WorkbenchStorageService } from "../../../services/workbenchStorage";
 import { SettingsModal } from "../../workbench/SettingsModal";
-import { CoverCard } from "../CoverCard";
-import {
-	CARD_THEMES,
-	COVER_SPECS,
-	captureElementToDataUrl,
-} from "../cardExporter";
 import { triggerFileDownload } from "../exporters";
-import type { CardTheme, CoverPlatform } from "../types";
+import type { CoverPlatform } from "../types";
 
 export interface CoverItem {
 	id: string;
@@ -36,7 +30,6 @@ export interface CoverStylePreset {
 	label: string;
 	description: string;
 	promptSuffix: string;
-	fallbackTheme: CardTheme;
 }
 
 const COVER_STYLE_PRESETS: CoverStylePreset[] = [
@@ -46,7 +39,6 @@ const COVER_STYLE_PRESETS: CoverStylePreset[] = [
 		description: "高端画报排版与影棚质感摄影",
 		promptSuffix:
 			"modern editorial magazine cover, Vogue style, elegant composition, studio softbox lighting, clean aesthetics, award winning photography",
-		fallbackTheme: "minimal-light",
 	},
 	{
 		id: "minimal-tech",
@@ -54,7 +46,6 @@ const COVER_STYLE_PRESETS: CoverStylePreset[] = [
 		description: "未来主义几何、流动微光渐变",
 		promptSuffix:
 			"minimalist high-tech aesthetic, sleek abstract geometry, futuristic iridescent gradients, subtle neon glows, clean glassmorphism, Apple design",
-		fallbackTheme: "geek-dark",
 	},
 	{
 		id: "3d-render",
@@ -62,7 +53,6 @@ const COVER_STYLE_PRESETS: CoverStylePreset[] = [
 		description: "粘土模型、C4D 柔和立体渲染",
 		promptSuffix:
 			"cute modern 3D clay render, C4D Octane style, smooth soft matte shading, vibrant clean pastel colors, isometric angle, depth of field",
-		fallbackTheme: "vibrant-gradient",
 	},
 	{
 		id: "vector-art",
@@ -70,7 +60,6 @@ const COVER_STYLE_PRESETS: CoverStylePreset[] = [
 		description: "现代矢量线条、和谐色彩版画",
 		promptSuffix:
 			"contemporary editorial flat vector illustration, clean lines, bold harmonious colors, creative graphic design poster",
-		fallbackTheme: "redbook",
 	},
 	{
 		id: "eastern-ink",
@@ -78,7 +67,6 @@ const COVER_STYLE_PRESETS: CoverStylePreset[] = [
 		description: "东方意境留白与水彩泼墨",
 		promptSuffix:
 			"traditional oriental Chinese ink wash painting with modern design, poetic ethereal atmosphere, watercolor strokes, misty mountains, artistic negative space",
-		fallbackTheme: "vintage-paper",
 	},
 	{
 		id: "cyberpunk",
@@ -86,7 +74,6 @@ const COVER_STYLE_PRESETS: CoverStylePreset[] = [
 		description: "高对比度霓虹光影与夜景未来感",
 		promptSuffix:
 			"cyberpunk futuristic nightscape, moody neon rim lights, holographic reflections, high contrast cinematic sci-fi atmosphere",
-		fallbackTheme: "geek-dark",
 	},
 	{
 		id: "vintage-film",
@@ -94,7 +81,6 @@ const COVER_STYLE_PRESETS: CoverStylePreset[] = [
 		description: "35mm 暖调颗粒与怀旧光影",
 		promptSuffix:
 			"warm vintage 35mm film photograph, nostalgic grain, Kodachrome color tone, cinematic golden hour sunlight, retro magazine aesthetic",
-		fallbackTheme: "vintage-paper",
 	},
 	{
 		id: "cinematic",
@@ -102,7 +88,6 @@ const COVER_STYLE_PRESETS: CoverStylePreset[] = [
 		description: "纪实大光圈、大师级构图与光影",
 		promptSuffix:
 			"cinematic realism, commercial documentary photography, natural depth, atmospheric lens flare, hyper-detailed, 8k",
-		fallbackTheme: "minimal-dark",
 	},
 ];
 
@@ -152,17 +137,10 @@ export const ASPECT_RATIO_PRESETS: AspectRatioPreset[] = [
 	},
 ];
 
-const FALLBACK_THEMES: CardTheme[] = [
-	"minimal-light",
-	"geek-dark",
-	"redbook",
-	"vintage-paper",
-];
-
 export function CoverSection({
 	title,
 	contentText,
-	authorName,
+	authorName: _authorName,
 	covers,
 	selectedCoverIndex,
 	onSelectCover,
@@ -182,103 +160,51 @@ export function CoverSection({
 		ASPECT_RATIO_PRESETS.find((r) => r.id === selectedRatio) ??
 		ASPECT_RATIO_PRESETS[0];
 
-	// Hidden container for DOM-based cover card rendering fallback
-	const renderContainerRef = useRef<HTMLDivElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
-
-	// Generate 4 typographic/template covers based on the chosen aspect ratio
-	const generateFallbackCovers = useCallback(async (): Promise<CoverItem[]> => {
-		if (!renderContainerRef.current) return [];
-		const nodes = Array.from(
-			renderContainerRef.current.children,
-		) as HTMLElement[];
-		const results: CoverItem[] = [];
-
-		for (let i = 0; i < nodes.length; i++) {
-			try {
-				const dataUrl = await captureElementToDataUrl(nodes[i], 2);
-				results.push({
-					id: `template-cover-${Date.now()}-${i}`,
-					url: dataUrl,
-					ratioLabel: `${selectedRatioPreset.label} · 方案 ${i + 1}`,
-				});
-			} catch (err) {
-				console.warn("[CoverSection] Render template cover failed:", err);
-			}
-		}
-		return results;
-	}, [selectedRatioPreset.label]);
-
-	// Auto-generate template covers on first open if empty
-	useEffect(() => {
-		if (covers.length === 0) {
-			const timer = setTimeout(() => {
-				generateFallbackCovers().then((initialCovers) => {
-					if (initialCovers.length > 0) {
-						onCoversChange(initialCovers);
-					}
-				});
-			}, 100);
-			return () => clearTimeout(timer);
-		}
-	}, [generateFallbackCovers, covers.length, onCoversChange]);
 
 	// Generate 4 covers based on selected preset style and unified aspect ratio
 	const handleGenerateCovers = async () => {
+		const settings = WorkbenchStorageService.getSettings();
+		const hasApiKey = Boolean(settings.imageApiKey?.trim());
+
+		if (!hasApiKey) {
+			toast.info("尚未配置生图 API 密钥，已自动打开设置窗口");
+			setIsSettingsOpen(true);
+			return;
+		}
+
 		setIsGenerating(true);
 		try {
-			const settings = WorkbenchStorageService.getSettings();
-			const hasApiKey = Boolean(settings.imageApiKey?.trim());
+			toast.info(
+				`正在按「${selectedStyle.label}」风格与「${selectedRatioPreset.label}」生成 4 张封面...`,
+			);
+			const res = await requestAiCoverImages({
+				title,
+				contentText,
+				style: selectedStyle.promptSuffix,
+				aspectRatio: selectedRatio,
+				configOverrides: {
+					provider: settings.imageProvider,
+					apiKey: settings.imageApiKey,
+					baseUrl: settings.imageBaseUrl,
+					model: settings.imageModel,
+				},
+			});
 
-			if (hasApiKey) {
-				toast.info(`正在按「${selectedStyle.label}」风格与「${selectedRatioPreset.label}」生成 4 张封面...`);
-				const res = await requestAiCoverImages({
-					title,
-					contentText,
-					style: selectedStyle.promptSuffix,
-					aspectRatio: selectedRatio,
-					configOverrides: {
-						provider: settings.imageProvider,
-						apiKey: settings.imageApiKey,
-						baseUrl: settings.imageBaseUrl,
-						model: settings.imageModel,
-					},
-				});
-
-				if (res.aiGenerated && res.images.length > 0) {
-					onCoversChange(res.images);
-					onSelectCover(0);
-					toast.success(`已生成 4 张「${selectedRatioPreset.label}」风格封面图`);
-					return;
-				}
-				if (res.error) {
-					toast.warning(`${res.error}，已切换为精美排版封面`);
-				}
-			} else {
-				// Guide user to settings modal directly if imageApiKey is missing
-				toast.info("尚未配置生图 API 密钥，已自动打开设置窗口");
-				setIsSettingsOpen(true);
-			}
-
-			// Fallback: Generate typographic styled covers using unified aspect ratio
-			const fallback = await generateFallbackCovers();
-			if (fallback.length > 0) {
-				onCoversChange(fallback);
+			if (res.aiGenerated && res.images.length > 0) {
+				onCoversChange(res.images);
 				onSelectCover(0);
-				if (!hasApiKey) {
-					toast.success(`已生成 4 张「${selectedRatioPreset.label}」排版封面供您预览`);
-				}
+				toast.success(`已生成 4 张「${selectedRatioPreset.label}」风格封面图`);
+				return;
+			}
+			if (res.error) {
+				toast.danger(`封面生成失败：${res.error}`);
 			} else {
-				toast.warning("封面生成未返回结果，请手动上传图片");
+				toast.warning("封面生成未返回结果，请检查模型配置或手动上传图片");
 			}
 		} catch (err) {
 			console.error("[CoverSection] generate error:", err);
-			const fallback = await generateFallbackCovers();
-			if (fallback.length > 0) {
-				onCoversChange(fallback);
-				onSelectCover(0);
-			}
-			toast.warning("已切换为精美排版封面");
+			toast.danger("生成封面失败，请检查网络连接或 API 配置");
 		} finally {
 			setIsGenerating(false);
 		}
@@ -297,7 +223,8 @@ export function CoverSection({
 				url: dataUrl,
 				ratioLabel: "本地上传",
 			};
-			const updated = [newCover, ...covers.slice(0, 3)];
+			const validExisting = covers.filter((c) => Boolean(c?.url));
+			const updated = [newCover, ...validExisting.slice(0, 3)];
 			onCoversChange(updated);
 			onSelectCover(0);
 			toast.success("已添加本地封面图片");
@@ -483,115 +410,106 @@ export function CoverSection({
 				/>
 			)}
 
-			{/* 4 Square Cover Images Grid */}
-			<div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-				{[0, 1, 2, 3].map((idx) => {
-					const cover = covers[idx];
-					const hasImage = Boolean(cover?.url);
-					const isSelected = selectedCoverIndex === idx && hasImage;
-
-					return (
-						/* biome-ignore lint/a11y/useSemanticElements: Contains nested action buttons */
-						<div
-							key={cover?.id || `cover-slot-${idx}`}
-							role="button"
-							tabIndex={0}
-							onClick={() => hasImage && onSelectCover(idx)}
-							onKeyDown={(e) => {
-								if ((e.key === "Enter" || e.key === " ") && hasImage) {
-									e.preventDefault();
-									onSelectCover(idx);
-								}
-							}}
-							className={`group relative rounded-xl overflow-hidden border transition-all duration-200 aspect-square flex flex-col items-center justify-center select-none ${
-								hasImage
-									? isSelected
-										? "border-accent ring-2 ring-accent/30 shadow-md bg-surface"
-										: "border-border/80 hover:border-foreground/40 hover:shadow-sm bg-surface cursor-pointer"
-									: "border-dashed border-border/80 bg-surface-secondary/30"
-							}`}
-						>
-							{/* Cover Image or Empty Placeholder */}
-							{hasImage ? (
-								<img
-									src={cover.url}
-									alt={`封面 ${idx + 1}`}
-									className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-								/>
-							) : (
-								<div className="flex flex-col items-center justify-center gap-1.5 p-3 text-muted/50">
-									<ImageIcon className="w-8 h-8 stroke-[1.25]" />
-									<span className="text-[11px] font-medium text-muted/70">
-										{`${selectedRatioPreset.label} · 方案 ${idx + 1}`}
-									</span>
-								</div>
-							)}
-
-							{/* Loading Overlay */}
-							{isGenerating && (
-								<div className="absolute inset-0 z-20 bg-background/80 backdrop-blur-xs flex flex-col items-center justify-center gap-2 p-2 text-center animate-in fade-in duration-200">
-									<div className="relative flex items-center justify-center">
-										<div className="w-8 h-8 rounded-full border-2 border-accent/20 border-t-accent animate-spin" />
-										<Sparkles className="w-3.5 h-3.5 text-accent absolute" />
-									</div>
-									<div className="flex flex-col items-center">
-										<span className="text-xs font-medium text-foreground">AI 构图中</span>
-										<span className="text-[10px] text-muted">
-											{`${selectedRatioPreset.label} · 方案 ${idx + 1}`}
-										</span>
+			{/* Cover Images Grid - Only displayed when generating or when covers exist */}
+			{(isGenerating || covers.some((c) => Boolean(c?.url?.trim()))) && (
+				<div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+					{isGenerating
+						? [0, 1, 2, 3].map((idx) => (
+								<div
+									key={`generating-slot-${idx}`}
+									className="relative rounded-xl overflow-hidden border border-border/80 bg-surface-secondary/30 aspect-square flex flex-col items-center justify-center select-none"
+								>
+									<div className="absolute inset-0 z-20 bg-background/80 backdrop-blur-xs flex flex-col items-center justify-center gap-2 p-2 text-center animate-in fade-in duration-200">
+										<div className="relative flex items-center justify-center">
+											<div className="w-8 h-8 rounded-full border-2 border-accent/20 border-t-accent animate-spin" />
+											<Sparkles className="w-3.5 h-3.5 text-accent absolute" />
+										</div>
+										<div className="flex flex-col items-center">
+											<span className="text-xs font-medium text-foreground">AI 构图中</span>
+											<span className="text-[10px] text-muted">
+												{`${selectedRatioPreset.label} · 方案 ${idx + 1}`}
+											</span>
+										</div>
 									</div>
 								</div>
-							)}
+						  ))
+						: covers
+								.filter((c) => Boolean(c?.url?.trim()))
+								.map((cover, idx) => {
+									const isSelected = selectedCoverIndex === idx;
 
-							{/* Selected Badge */}
-							{isSelected && !isGenerating && (
-								<div className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded-md bg-accent text-accent-foreground text-[10px] font-semibold flex items-center gap-1 shadow-sm backdrop-blur-md animate-in fade-in zoom-in-95 duration-150">
-									<Check className="w-3 h-3 stroke-[3]" />
-									<span>已选为封面</span>
-								</div>
-							)}
+									return (
+										/* biome-ignore lint/a11y/useSemanticElements: Contains nested action buttons */
+										<div
+											key={cover.id || `cover-slot-${idx}`}
+											role="button"
+											tabIndex={0}
+											onClick={() => onSelectCover(idx)}
+											onKeyDown={(e) => {
+												if (e.key === "Enter" || e.key === " ") {
+													e.preventDefault();
+													onSelectCover(idx);
+												}
+											}}
+											className={`group relative rounded-xl overflow-hidden border transition-all duration-200 aspect-square flex flex-col items-center justify-center select-none ${
+												isSelected
+													? "border-accent ring-2 ring-accent/30 shadow-md bg-surface"
+													: "border-border/80 hover:border-foreground/40 hover:shadow-sm bg-surface cursor-pointer"
+											}`}
+										>
+											{/* Cover Image */}
+											<img
+												src={cover.url}
+												alt={`封面 ${idx + 1}`}
+												className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+											/>
 
-							{/* Dimension Label (Bottom Left) */}
-							{!isGenerating && (
-								<div className="absolute bottom-2 left-2 z-10 px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-md text-white text-[10px] font-mono tracking-tight shadow-xs">
-									{cover?.ratioLabel || `${selectedRatioPreset.label} · 方案 ${idx + 1}`}
-								</div>
-							)}
+											{/* Selected Badge */}
+											{isSelected && (
+												<div className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded-md bg-accent text-accent-foreground text-[10px] font-semibold flex items-center gap-1 shadow-sm backdrop-blur-md animate-in fade-in zoom-in-95 duration-150">
+													<Check className="w-3 h-3 stroke-[3]" />
+													<span>已选为封面</span>
+												</div>
+											)}
 
-							{/* Hover Overlay Actions (Preview / Download) */}
-							{hasImage && !isGenerating && (
-								<div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 z-10">
-									<button
-										type="button"
-										title="放大查看"
-										onClick={(e) => {
-											e.stopPropagation();
-											setPreviewImageUrl(cover.url);
-										}}
-										className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white backdrop-blur-xs transition cursor-pointer"
-									>
-										<Eye className="w-3.5 h-3.5" />
-									</button>
-									<button
-										type="button"
-										title="下载封面"
-										onClick={(e) => {
-											e.stopPropagation();
-											handleDownloadCover(
-												cover.url,
-												`cover-${idx + 1}-${Date.now()}.png`,
-											);
-										}}
-										className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white backdrop-blur-xs transition cursor-pointer"
-									>
-										<Download className="w-3.5 h-3.5" />
-									</button>
-								</div>
-							)}
-						</div>
-					);
-				})}
-			</div>
+											{/* Dimension Label (Bottom Left) */}
+											<div className="absolute bottom-2 left-2 z-10 px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-md text-white text-[10px] font-mono tracking-tight shadow-xs">
+												{cover.ratioLabel || `${selectedRatioPreset.label} · 方案 ${idx + 1}`}
+											</div>
+
+											{/* Hover Overlay Actions (Preview / Download) */}
+											<div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 z-10">
+												<button
+													type="button"
+													title="放大查看"
+													onClick={(e) => {
+														e.stopPropagation();
+														setPreviewImageUrl(cover.url);
+													}}
+													className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white backdrop-blur-xs transition cursor-pointer"
+												>
+													<Eye className="w-3.5 h-3.5" />
+												</button>
+												<button
+													type="button"
+													title="下载封面"
+													onClick={(e) => {
+														e.stopPropagation();
+														handleDownloadCover(
+															cover.url,
+															`cover-${idx + 1}-${Date.now()}.png`,
+														);
+													}}
+													className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white backdrop-blur-xs transition cursor-pointer"
+												>
+													<Download className="w-3.5 h-3.5" />
+												</button>
+											</div>
+										</div>
+									);
+								})}
+				</div>
+			)}
 
 			{/* Fullscreen/Modal Image Preview */}
 			{previewImageUrl && (
@@ -627,29 +545,6 @@ export function CoverSection({
 					</div>
 				</div>
 			)}
-
-			{/* Offscreen Container for Typographic Fallback Cards */}
-			<div
-				ref={renderContainerRef}
-				style={{
-					position: "absolute",
-					top: -99999,
-					left: -99999,
-					visibility: "hidden",
-					pointerEvents: "none",
-				}}
-			>
-				{FALLBACK_THEMES.map((theme, i) => (
-					<CoverCard
-						key={`fallback-${selectedRatio}-${theme}-${i}`}
-						spec={COVER_SPECS[selectedRatioPreset.platform]}
-						theme={CARD_THEMES[theme] || CARD_THEMES["minimal-light"]}
-						title={title}
-						author={authorName}
-						summary={contentText.slice(0, 100)}
-					/>
-				))}
-			</div>
 		</div>
 	);
 }
