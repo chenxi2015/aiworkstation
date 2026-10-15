@@ -142,10 +142,6 @@ function buildArrowElementConfig(
 		isVerticalFlow,
 	);
 
-	// Multi-segment arrows skip start/end binding to avoid converter invariants;
-	// the same conservative rule applies to the raw JSON path.
-	const isMultiSegment = route.points.length > 2;
-
 	return {
 		id: `arrow_${conn.from}_${conn.to}_${index}`,
 		type: "arrow",
@@ -160,13 +156,9 @@ function buildArrowElementConfig(
 		roughness: 1,
 		opacity: 100,
 		angle: 0,
-		roundness: isMultiSegment ? null : { type: 2 },
-		...(isMultiSegment
-			? {}
-			: {
-					start: { id: conn.from },
-					end: { id: conn.to },
-				}),
+		roundness: { type: 2 },
+		start: { id: conn.from },
+		end: { id: conn.to },
 		...(conn.label
 			? {
 					label: {

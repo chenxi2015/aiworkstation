@@ -87,7 +87,7 @@ export const excalidrawDrawInputSchema = z.object({
 		.optional()
 		.default([])
 		.describe(
-			"Connecting arrows between elements. Rules: connect strictly adjacent steps in chronological order (do NOT skip intermediate steps with cross-layer lines to the end node). For diamond decisions, connect the affirmative/main path to the next normal step, and connect the negative/failure path to an independent error/abort step with concise labels (e.g. '充足' vs '不足', '成功' vs '失败').",
+			"节点之间的连线箭头。做减法连线规则（杜绝线条杂乱）：仅连接直接因果相关的相邻前后步骤；严禁从顶部或任意节点拉出跨越多层的长实线/长虚线贯穿画布；判断节点 diamond 严格仅出 2 条线（主路径向下连下一步，分支路径向右连独立异常卡片，带简短 label 如'企稳'/'跌破'）；异常或终止卡片作为叶子节点，严禁再拉多余的跨层连线。",
 		),
 });
 
@@ -143,7 +143,7 @@ export const draftExcalidrawInputSchema = z.object({
 		.optional()
 		.default([])
 		.describe(
-			"节点之间的连线箭头。规则：按时序严格连接相邻步骤。判断节点 diamond 的肯定分支连接下一步，否定分支连接独立异常步骤，并带有清晰简短标签（如'是'/'否'，'满足'/'不足'）。",
+			"节点之间的连线箭头。做减法连线规则（杜绝线条杂乱）：仅连接直接因果相关的相邻前后步骤；严禁从顶部或任意节点拉出跨越多层的长实线/长虚线贯穿画布；判断节点 diamond 严格仅出 2 条线（主路径向下连下一步，分支路径向右连独立异常卡片，带简短 label 如'企稳'/'跌破'）；异常或终止卡片作为叶子节点，严禁再拉多余的跨层连线。",
 		),
 });
 

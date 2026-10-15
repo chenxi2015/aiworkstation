@@ -59,7 +59,7 @@ function layoutVerticalFlow(
 	startY: number,
 	positions: Map<string, SharedNodePosition>,
 ): void {
-	const colWidth = 260;
+	const colWidth = 320;
 	const minGap = 75;
 	const layerY: number[] = [];
 	let currentY = startY;

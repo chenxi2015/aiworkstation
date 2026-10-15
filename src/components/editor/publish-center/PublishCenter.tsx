@@ -1,5 +1,5 @@
 import { Button, Drawer, toast } from "@heroui/react";
-import { Save, Send } from "lucide-react";
+import { Loader2, Save, Send } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
 	fetchDocumentPublishDraft,
@@ -8,17 +8,18 @@ import {
 	publishToWechat,
 } from "../../../services/api/publishClient";
 import type { PlatformAccountInfo, PublishPlatform } from "../types";
+import { type CoverItem, CoverSection } from "./CoverSection";
 import {
 	copyRedbookText,
 	copyTwitterText,
 	copyZhihuMarkdown,
 } from "./clipboardChannels";
-import { CoverSection, type CoverItem } from "./CoverSection";
 import { MetadataSection } from "./MetadataSection";
 import {
-	PublishPlatformSection,
 	type PlatformPublishResult,
+	PublishPlatformSection,
 } from "./PublishPlatformSection";
+import { prepareWechatContent } from "./wechatFormatter";
 
 interface PublishCenterProps {
 	isOpen: boolean;
@@ -47,7 +48,10 @@ const getDraftKey = (docId: number) => `publish_center_draft_${docId}`;
 
 const saveDraftToStorage = (docId: number, data: PublishDraft) => {
 	try {
-		localStorage.setItem(getDraftKey(docId), JSON.stringify({ ...data, docId }));
+		localStorage.setItem(
+			getDraftKey(docId),
+			JSON.stringify({ ...data, docId }),
+		);
 	} catch (err) {
 		console.warn("[PublishCenter] save draft cache error:", err);
 	}
@@ -78,7 +82,9 @@ export function PublishCenter({
 	markdown,
 }: PublishCenterProps) {
 	// Metadata states - initialized from the specific document props
-	const [publishTitle, setPublishTitle] = useState(initialTitle || "未命名文章");
+	const [publishTitle, setPublishTitle] = useState(
+		initialTitle || "未命名文章",
+	);
 	const [tags, setTags] = useState<string[]>([]);
 	const [author, setAuthor] = useState("AI Workstation");
 	const [digest, setDigest] = useState(() => contentText.slice(0, 100).trim());
@@ -243,14 +249,19 @@ export function PublishCenter({
 				}));
 			} else {
 				try {
+					// 预处理微信正文：图片转码为标准 PNG 并内联注入微信排版样式
+					const preparedContentHtml = await prepareWechatContent(contentHtml);
+
 					const record = await publishToWechat({
 						documentId,
 						accountId,
 						title: publishTitle,
 						author: author.trim() || "AI Workstation",
 						digest: digest.trim(),
-						contentHtml,
+						contentHtml: preparedContentHtml,
 						coverImageDataUrl: selectedCover,
+						tags,
+						publishMode: "draft",
 						confirmed: true,
 					});
 					setResults((prev) => ({
@@ -453,7 +464,7 @@ export function PublishCenter({
 			<Drawer.Content placement="right">
 				<Drawer.Dialog className="h-full w-[94vw]! sm:w-[680px]! md:w-[740px]! bg-surface flex flex-col shadow-2xl border-l border-border">
 					{/* Drawer Header */}
-					<Drawer.Header className="flex flex-row items-center justify-between border-b border-border py-3.5 px-6 shrink-0">
+					<Drawer.Header className="flex flex-row items-center justify-between border-b border-border pb-3.5 shrink-0">
 						<div className="flex items-center gap-2.5">
 							<div className="w-8 h-8 rounded-xl bg-accent-soft text-accent flex items-center justify-center shrink-0">
 								<Send className="w-4 h-4" />
@@ -523,7 +534,7 @@ export function PublishCenter({
 					</Drawer.Body>
 
 					{/* Drawer Footer with Fixed Publish Action */}
-					<Drawer.Footer className="border-t border-border py-3.5 flex items-center justify-between shrink-0 bg-surface">
+					<Drawer.Footer className="border-t border-border pt-3.5 flex items-center justify-between shrink-0 bg-surface">
 						<span className="text-xs text-muted">
 							已选{" "}
 							<span className="font-medium text-foreground">
@@ -559,8 +570,12 @@ export function PublishCenter({
 								onPress={handleConfirmPublish}
 								className="rounded-lg h-8 px-5 text-xs font-semibold shadow-xs"
 							>
-								<Send className="w-3.5 h-3.5 mr-1" />
-								一键确认发布
+								{isPublishing ? (
+									<Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+								) : (
+									<Send className="w-3.5 h-3.5 mr-1.5" />
+								)}
+								{isPublishing ? "正在发布中..." : "一键确认发布"}
 							</Button>
 						</div>
 					</Drawer.Footer>

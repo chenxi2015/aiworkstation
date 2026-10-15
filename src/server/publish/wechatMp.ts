@@ -73,9 +73,13 @@ async function postForm(
 	url: string,
 	buffer: Buffer,
 	filename: string,
+	mimeType?: string,
 ): Promise<Record<string, unknown>> {
 	const form = new FormData();
-	form.append("media", new Blob([new Uint8Array(buffer)]), filename);
+	const blob = mimeType
+		? new Blob([new Uint8Array(buffer)], { type: mimeType })
+		: new Blob([new Uint8Array(buffer)]);
+	form.append("media", blob, filename);
 	const res = await fetch(url, { method: "POST", body: form });
 	const payload = (await res.json()) as Record<string, unknown>;
 	assertOk(payload);
@@ -87,11 +91,13 @@ export async function uploadContentImage(
 	token: string,
 	buffer: Buffer,
 	filename: string,
+	mimeType?: string,
 ): Promise<string> {
 	const payload = await postForm(
 		`${API_BASE}/cgi-bin/media/uploadimg?access_token=${token}`,
 		buffer,
 		filename,
+		mimeType,
 	);
 	const url = String(payload.url ?? "");
 	if (!url) throw new WechatMpError(-1, "uploadimg 未返回 url");
@@ -103,11 +109,13 @@ export async function uploadThumbMaterial(
 	token: string,
 	buffer: Buffer,
 	filename: string,
+	mimeType?: string,
 ): Promise<string> {
 	const payload = await postForm(
 		`${API_BASE}/cgi-bin/material/add_material?access_token=${token}&type=image`,
 		buffer,
 		filename,
+		mimeType,
 	);
 	const mediaId = String(payload.media_id ?? "");
 	if (!mediaId) throw new WechatMpError(-1, "add_material 未返回 media_id");

@@ -426,15 +426,118 @@ export const updateDocumentTitleToolDef = toolDefinition({
 	inputSchema: updateDocumentTitleInputSchema,
 });
 
-// ---------- Helper: Extract text from TipTap JSON node ----------
+// ---------- Helpers: Extract & Normalize text for matching ----------
 
-function extractBlockText(node: JSONContent | undefined): string {
+export function extractBlockText(node: JSONContent | undefined): string {
 	if (!node) return "";
 	if (typeof node.text === "string") return node.text;
 	if (Array.isArray(node.content)) {
 		return node.content.map(extractBlockText).join("");
 	}
 	return "";
+}
+
+/**
+ * Normalizes text for resilient matching across Markdown and plain text.
+ * Strips common markdown formatting syntax, converts full-width punctuation to half-width,
+ * collapses whitespaces and converts to lowercase.
+ */
+export function normalizeTextForMatching(text: string): string {
+	if (!text) return "";
+	return (
+		text
+			// Strip markdown links [text](url) -> text
+			.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+			// Strip markdown images ![alt](url) -> alt
+			.replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
+			// Strip bold and italic marks: **, *, __, _, ~~
+			.replace(/(\*\*|__|\*|_|~~)/g, "")
+			// Strip inline code backticks
+			.replace(/`/g, "")
+			// Strip block prefixes (#, >, -, *, +, 1.) at line starts
+			.replace(/^[ \t]*(?:[#]+|>|[-*+]|\d+\.)[ \t]+/gm, "")
+			// Normalize full-width punctuation to half-width
+			.replace(/：/g, ":")
+			.replace(/，/g, ",")
+			.replace(/。/g, ".")
+			.replace(/！/g, "!")
+			.replace(/？/g, "?")
+			.replace(/（/g, "(")
+			.replace(/）/g, ")")
+			.replace(/【/g, "[")
+			.replace(/】/g, "]")
+			.replace(/[“”]/g, '"')
+			.replace(/[‘’]/g, "'")
+			.replace(/；/g, ";")
+			.replace(/[—–]/g, "-")
+			// Remove spaces around punctuation marks (common in Chinese / Markdown mixed text)
+			.replace(/\s*([:()[\]{},;!?])\s*/g, "$1")
+			// Collapse multiple spaces/newlines
+			.replace(/\s+/g, " ")
+			.toLowerCase()
+			.trim()
+	);
+}
+
+/**
+ * Compact text stripping non-essential punctuation and whitespaces
+ * for fuzzy character sequence fallback matching.
+ */
+export function compactTextForMatching(text: string): string {
+	if (!text) return "";
+	return text
+		.replace(
+			/[ \t\r\n.,;:!?()[\]{}'"`\-_*#~`/\\，。！？（）【】“”‘’、：；—…]+/g,
+			"",
+		)
+		.toLowerCase()
+		.trim();
+}
+
+/**
+ * Robust block matching against a snippet, checking raw text, rendered markdown,
+ * normalized text, and compact character sequences.
+ */
+export function isBlockMatchingSnippet(
+	node: JSONContent,
+	snippet: string,
+): boolean {
+	const rawText = extractBlockText(node);
+	let mdText = "";
+	try {
+		mdText = tiptapJsonToMarkdown({ type: "doc", content: [node] });
+	} catch {
+		mdText = "";
+	}
+
+	const sLower = snippet.toLowerCase().trim();
+	if (
+		rawText.toLowerCase().includes(sLower) ||
+		mdText?.toLowerCase().includes(sLower)
+	) {
+		return true;
+	}
+
+	const normSnippet = normalizeTextForMatching(snippet);
+	if (!normSnippet) return false;
+
+	const normRaw = normalizeTextForMatching(rawText);
+	if (normRaw.includes(normSnippet)) return true;
+
+	if (mdText) {
+		const normMd = normalizeTextForMatching(mdText);
+		if (normMd.includes(normSnippet)) return true;
+	}
+
+	const compSnippet = compactTextForMatching(snippet);
+	if (compSnippet.length >= 3) {
+		if (compactTextForMatching(rawText).includes(compSnippet)) return true;
+		if (mdText && compactTextForMatching(mdText).includes(compSnippet)) {
+			return true;
+		}
+	}
+
+	return false;
 }
 
 // ---------- insert_document_block ----------
@@ -569,11 +672,10 @@ export function executeInsertDocumentBlock(
 
 	// 4. Locate insertion position by targetAnchor
 	let anchorIndex = -1;
-	const anchor = args.targetAnchor?.trim().toLowerCase();
+	const anchor = args.targetAnchor?.trim();
 	if (anchor && position !== "append" && docJson.content) {
 		anchorIndex = docJson.content.findIndex((node) => {
-			const text = extractBlockText(node).toLowerCase();
-			return text.includes(anchor);
+			return isBlockMatchingSnippet(node, anchor);
 		});
 	}
 
@@ -629,7 +731,9 @@ export const editDocumentParagraphInputSchema = z.object({
 		.describe("要修改段落的文档 ID。省略时自动定位当前活跃文档"),
 	targetParagraphSnippet: z
 		.string()
-		.describe("要修改的原段落关键文字特征或首句，用于定位目标段落"),
+		.describe(
+			"要修改的原段落关键文字特征或首句，用于定位目标段落（可带 Markdown 标记或纯文字）",
+		),
 	newParagraphContent: z
 		.string()
 		.describe("修改/润色后的新段落完整内容（Markdown 格式）"),
@@ -642,6 +746,59 @@ export const editDocumentParagraphInputSchema = z.object({
 export type EditDocumentParagraphInput = z.infer<
 	typeof editDocumentParagraphInputSchema
 >;
+
+/**
+ * Applies paragraph replacement to doc content.
+ * If target node is a list and replacement is a single item, replaces only the matched listItem.
+ * Otherwise, replaces the matched top-level block node with replacementNodes.
+ */
+export function applyParagraphReplacement(
+	docContent: JSONContent[],
+	targetIndex: number,
+	rawSnippet: string,
+	replacementNodes: JSONContent[],
+): void {
+	const targetNode = docContent[targetIndex];
+	if (!targetNode) {
+		docContent.splice(targetIndex, 1, ...replacementNodes);
+		return;
+	}
+
+	const listContent = targetNode.content;
+	const isListTarget =
+		(targetNode.type === "bulletList" || targetNode.type === "orderedList") &&
+		Array.isArray(listContent) &&
+		listContent.length > 0;
+
+	// Check if replacement is also a full multi-item list of the same kind
+	const isReplacementFullList =
+		replacementNodes.length === 1 &&
+		replacementNodes[0].type === targetNode.type &&
+		Array.isArray(replacementNodes[0].content) &&
+		replacementNodes[0].content.length > 1;
+
+	if (isListTarget && Array.isArray(listContent) && !isReplacementFullList) {
+		const matchedItemIndex = listContent.findIndex((item) =>
+			isBlockMatchingSnippet(item, rawSnippet),
+		);
+		if (matchedItemIndex !== -1) {
+			const itemToInsert =
+				replacementNodes.length === 1 && replacementNodes[0].type === "listItem"
+					? replacementNodes[0]
+					: replacementNodes.length === 1 &&
+							replacementNodes[0].type === targetNode.type &&
+							Array.isArray(replacementNodes[0].content) &&
+							replacementNodes[0].content.length === 1
+						? replacementNodes[0].content[0]
+						: { type: "listItem", content: replacementNodes };
+
+			listContent.splice(matchedItemIndex, 1, itemToInsert);
+			return;
+		}
+	}
+
+	docContent.splice(targetIndex, 1, ...replacementNodes);
+}
 
 export function executeEditDocumentParagraph(
 	args: EditDocumentParagraphInput & { activeDocumentId?: number },
@@ -690,8 +847,8 @@ export function executeEditDocumentParagraph(
 		};
 	}
 
-	const snippet = args.targetParagraphSnippet.trim().toLowerCase();
-	if (!snippet || !docJson.content || docJson.content.length === 0) {
+	const rawSnippet = args.targetParagraphSnippet.trim();
+	if (!rawSnippet || !docJson.content || docJson.content.length === 0) {
 		return {
 			toolName: "edit_document_paragraph",
 			summary: "修改失败：未提供目标段落特征文字或当前文档为空。",
@@ -702,14 +859,13 @@ export function executeEditDocumentParagraph(
 	}
 
 	const targetIndex = docJson.content.findIndex((node) => {
-		const text = extractBlockText(node).toLowerCase();
-		return text.includes(snippet);
+		return isBlockMatchingSnippet(node, rawSnippet);
 	});
 
 	if (targetIndex === -1) {
 		return {
 			toolName: "edit_document_paragraph",
-			summary: `未找到匹配「${args.targetParagraphSnippet.slice(0, 30)}…」的目标段落，请确认段落特征文字是否准确。`,
+			summary: `未找到匹配「${rawSnippet.slice(0, 30)}…」的目标段落，请确认段落特征文字是否准确。`,
 			items: [],
 			references: [],
 			isMutation: false,
@@ -737,7 +893,12 @@ export function executeEditDocumentParagraph(
 		};
 	}
 
-	docJson.content.splice(targetIndex, 1, ...replacementNodes);
+	applyParagraphReplacement(
+		docJson.content,
+		targetIndex,
+		rawSnippet,
+		replacementNodes,
+	);
 
 	const updatedJsonString = JSON.stringify(docJson);
 	const updatedMarkdown = tiptapJsonToMarkdown(docJson);

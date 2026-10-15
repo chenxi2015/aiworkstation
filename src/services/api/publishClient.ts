@@ -1,8 +1,6 @@
 import type {
 	PlatformAccountInfo,
 	PublishRecord,
-	PublishVariants,
-	VariantFocus,
 } from "../../components/editor/types";
 import {
 	deletePlatformAccount,
@@ -18,7 +16,6 @@ import {
 import {
 	generateAiCoverImages,
 	generatePublishMetadata,
-	generatePublishVariants,
 	type GenerateAiCoversInput,
 	type CoverImageResultItem,
 	type PublishMetadataInput,
@@ -66,16 +63,6 @@ export async function publishToWechat(
 	input: WechatPublishInput,
 ): Promise<PublishRecord> {
 	return publishDocumentToWechat({ data: input });
-}
-
-/** 内容层 AI：一次生成全平台发布变体（P2 一把梭；focus = 单平台「换一版」） */
-export async function requestPublishVariants(input: {
-	documentId: number;
-	title: string;
-	contentText: string;
-	focus?: VariantFocus;
-}): Promise<{ variants: Partial<PublishVariants>; aiGenerated: boolean }> {
-	return generatePublishVariants({ data: input });
 }
 
 /** 智能提炼/生成发布标题与标签 */
