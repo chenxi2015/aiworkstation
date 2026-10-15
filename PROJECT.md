@@ -242,17 +242,36 @@ extensions/aicollector/ # Chrome 插件（WXT 框架）：background / content /
 | `update_folder` | 更新文件夹属性与描述 | 修改单个或特定文件夹元信息 | ✅ 已实现 |
 | `remove_bookmarks_from_folder` | 从文件夹移出书签 | 移回未分类或清空目录 | ✅ 已实现 |
 | `crawl_webpage_via_extension` | 调度 Chrome 插件静默抓取网页 | 突破 SPA/反爬/需登录限制，支持指定 CSS 选择器定向提纯 Markdown | ✅ 已实现 |
-| `canvas_create_board` | **创建新 Canvas 空白白板文件并自动打开画布** | 单一职责新建 .canvas 白板文件并自动打开视图，内容写入由 `canvas_create_elements` 链式承接 | ✅ 已实现 |
-| `canvas_create_elements` | **Canvas 白板批量创建节点与连线（复合工具，支持 groups 分组）** | 批量生成思维导图/架构图/卡片矩阵/分区容器，前端自动排版与实时渲染，支持 Cmd+Z | ✅ 已实现 |
-| `canvas_create_group` | **Canvas 白板节点逻辑分组框** | 为指定节点列表创建自适应包围盒的 Group 容器框，自动外扩 padding | ✅ 已实现 |
+| `draft_article` | **从零撰写长文或素材汇总草稿** | 服务端全量生成正文并暂存本地草稿区，通过交付卡片由用户确认落点（存为创作文档/存为笔记/丢弃） | ✅ 已实现 |
+| `draft_canvas` | **单步规划并生成 Canvas 白板脑图/卡片草稿** | 一步完成节点组织、连线计算与逻辑分组，生成完整白板草稿交付卡片，确认后原子写入 Vault | ✅ 已实现 |
+| `canvas_create_elements` | Canvas 白板批量创建节点与连线（已打开画布） | 向当前已打开的白板中追加节点/架构/脑图，前端自动排版与实时渲染，支持 Cmd+Z | ✅ 已实现 |
+| `canvas_create_group` | Canvas 白板节点逻辑分组框 | 为指定节点列表创建自适应包围盒的 Group 容器框，自动外扩 padding | ✅ 已实现 |
 | `canvas_update_node` | 更新 Canvas 白板卡片内容与颜色 | 局部安全修改卡片文本或 Obsidian 预设颜色，不破坏周围排版 | ✅ 已实现 |
 | `canvas_tidy_layout` | **Canvas 白板一键几何规整与锚点优化** | 20px 网格吸附、卡片宽度标准化、防碰撞防重叠、智能连接面计算 | ✅ 已实现 |
-| `excalidraw_create_board` | **创建新 Excalidraw 画板文件并自动打开** | 在 Vault 中新建 .excalidraw 画板文件并在视图中自动打开，内容由 `excalidraw_draw_elements` 承接 | ✅ 已实现 |
-| `excalidraw_draw_elements` | **Excalidraw 画板批量绘制图形与智能连线** | 批量生成手绘流程图/系统架构图，前端确定性 DAG 拓扑分层（中轴居中、动态层高、主干优先、正交避障连线） | ✅ 已实现 |
+| `canvas_center_view` | Canvas 白板视野平滑居中聚焦 | 缩放并平移视野至全图或指定节点中央 | ✅ 已实现 |
+| `draft_excalidraw` | **单步规划并生成 Excalidraw 画板草稿** | 一步完成图形图元、手绘连线与 DAG 拓扑分层，生成完整画板草稿交付卡片，确认后原子写入 Vault | ✅ 已实现 |
+| `excalidraw_draw_elements` | Excalidraw 画板批量绘制图形与连线（已打开画板） | 向当前已打开的画板中追加绘制图形与手绘连线 | ✅ 已实现 |
 | `excalidraw_update_element` | 更新 Excalidraw 元素文本与颜色样式 | 局部修改指定手绘图形的文字内容或手绘预设配色 | ✅ 已实现 |
 | `excalidraw_clear_canvas` | 清空当前 Excalidraw 画板 | 清空画板所有图元（可通过快捷键撤销） | ✅ 已实现 |
 | `excalidraw_center_view` | Excalidraw 画板视野平滑居中聚焦 | 缩放并平移视野至全图或指定元素集合中央 | ✅ 已实现 |
 | `execute_browser_action` | 驱动浏览器插件执行原子交互序列 | 支持模拟点击、滚动翻页、表单填写等自动化操作流 | P2 |
+
+### 解耦草稿交付体系（Decoupled Draft Architecture）
+
+为解决长文生成、画板与白板创作中“AI 直接向用户数据库/Vault 倾倒内容造成脏数据、抢跑创建空壳文件、保存重名冲突”的问题，工作台建立了统一的**解耦草稿交付体系**（`src/server/ai/drafts/` 与 `src/components/workbench/ai/chat/draft/`）：
+
+1. **统一交付物模型（Universal Draft Model）**：
+   - 涵盖长文创作（`article`）、Excalidraw 手绘流程图（`excalidraw`）、Obsidian Canvas 白板（`canvas`）；
+   - 元数据索引统一持久化在 `.aiworkstation/drafts/index.json`，内容体按草稿 ID 独立落地文件（Markdown 存 `.md`，画板与白板保留完整原生 JSON）。
+2. **前置分析，单步交付（Single-Step Delivery）**：
+   - 彻底废除“先建空板、再分步写入”的脆弱链式模式；
+   - AI 在前文完成检索、研报分析与逻辑推演后，**最后一步原子化调用** `draft_article` / `draft_excalidraw` / `draft_canvas` 工具；
+   - 工具在服务端完成排版与 JSON/Markdown 构建，写入草稿存储区，返回包含 `draftId` 的 navigation。
+3. **用户主权与确认落点（User-in-the-Loop Confirmation）**：
+   - 消息底部呈现唯一的 `DraftDeliveryCard` 交付卡片，前端绝不向 Vault 抢跑建空文件；
+   - 用户可预览摘要与字数/图元数，自由选择保存落点（默认路径或自选文件夹），点击【存为笔记】、【存为画板】或【存为白板】；
+   - 保存时后端执行原子写入，写入成功后卡片状态切换为已归档，提供唯一的【打开文档/画板/白板】跳转入口；
+   - 若用户对成果不满意，可一键【丢弃】，草稿移入废纸篓，7 天自动清理过期未处理草稿，保持知识库与工作区极致整洁。
 
 | `find_duplicates` | 基于 URL 和语义的重复检测 | 扫描知识库中潜在冗余条目 | P1 |
 | `batch_classify` | 批量智能分类（复用 AIClassifier） | 自动化大批量未分类数据清洗 | P1 |
@@ -297,8 +316,8 @@ extensions/aicollector/ # Chrome 插件（WXT 框架）：background / content /
    - CodeMirror 6 深度定制专业 Markdown 编辑器，支持编辑/阅读视图自由切换
    - 双链系统（Wikilink）：`[[笔记名]]` 语法高亮、点击跳转、目标缺失时一键就地新建笔记
    - **双栏 Diff 审阅与通篇流式创作流水线**：红绿高亮比对、一键采纳覆盖或另存为新笔记
-   - **Canvas 白板 AI 实时写入与智能排版规整**：提供 `canvas_create_board`、`canvas_create_elements`、`canvas_create_group`、`canvas_update_node`、`canvas_tidy_layout`，搭配前端确定性几何排版引擎（`canvasLayoutEngine`），右下角控制条支持一键规整，接入 `useCanvasHistory` 支持 Cmd+Z 一键撤销。
-   - **Excalidraw 手绘流程图/架构图 AI 协同生态**：支持 `.excalidraw` 文件的读写与渲染，提供 `excalidraw_create_board`、`excalidraw_draw_elements`、`excalidraw_update_element`、`excalidraw_clear_canvas`、`excalidraw_center_view`；确立“逻辑因果归 AI、几何布局归代码”的关注点分离原则，通过前端确定性 DAG 拓扑分层引擎（`excalidrawLayout`）实现列中轴居中对齐、动态层高防碰撞、Happy-Path 主干中轴优先与正交避障连线。
+   - **Canvas 白板草稿交付与排版规整**：提供单步草稿工具 `draft_canvas` 及画布级微调工具 `canvas_create_elements`、`canvas_create_group`、`canvas_update_node`、`canvas_tidy_layout`、`canvas_center_view`，搭配前端确定性几何排版引擎（`canvasLayoutEngine`），右下角控制条支持一键规整，接入 `useCanvasHistory` 支持 Cmd+Z 一键撤销。
+   - **Excalidraw 手绘流程图/架构图草稿交付生态**：支持 `.excalidraw` 文件的读写与渲染，提供单步草稿工具 `draft_excalidraw` 及画板级修改工具 `excalidraw_draw_elements`、`excalidraw_update_element`、`excalidraw_clear_canvas`、`excalidraw_center_view`；确立“逻辑因果归 AI、几何布局归代码”的关注点分离原则，通过前端确定性 DAG 拓扑分层引擎（`excalidrawLayout`）实现列中轴居中对齐、动态层高防碰撞、Happy-Path 主干中轴优先与正交避障连线。
    - 丰富渲染扩展：KaTeX 数学公式（`$...$` 与 `$$...$$`）、Mermaid 交互图表、水平分割线 Widget、完成状态任务复选框
    - 桌面级工程体验：侧栏拖拽调宽记忆、面包屑与前进后退、跨平台直接在系统文件管理器打开、删除文件移入系统回收站（Trash）
 

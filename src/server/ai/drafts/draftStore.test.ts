@@ -67,26 +67,36 @@ describe("draftStore", () => {
 		expect(all[0].id).toBe(draft.id);
 	});
 
-	it("updates draft content and word count", () => {
-		const d1 = new Date("2026-03-01T12:00:00.000Z");
-		const d2 = new Date("2026-03-01T13:00:00.000Z");
-
+	it("creates and updates an excalidraw draft with raw json preserved", () => {
+		const excalidrawJson = JSON.stringify({ type: "excalidraw", elements: [] });
 		const draft = createDraft(
-			{ title: "草稿 A", content: "初始内容" },
-			{ baseDir: TEST_BASE_DIR, now: () => d1 },
+			{
+				title: "行情研判画板",
+				content: excalidrawJson,
+				kind: "excalidraw",
+				wordCount: 0,
+			},
+			{ baseDir: TEST_BASE_DIR },
 		);
 
+		expect(draft.kind).toBe("excalidraw");
+		expect(existsSync(join(TEST_BASE_DIR, `${draft.id}.excalidraw`))).toBe(true);
+
+		const updatedJson = JSON.stringify({
+			type: "excalidraw",
+			elements: [{ id: "el_1" }],
+		});
 		const updated = updateDraftContent(
 			draft.id,
-			"修改后的全新内容，字数变多了",
-			{ baseDir: TEST_BASE_DIR, now: () => d2 },
+			updatedJson,
+			{ baseDir: TEST_BASE_DIR },
+			1,
 		);
 
-		expect(updated.wordCount).toBe("修改后的全新内容，字数变多了".length);
-		expect(updated.updatedAt).toBe(d2.toISOString());
-
-		const refetched = getDraft(draft.id, { baseDir: TEST_BASE_DIR });
-		expect(refetched?.content).toBe("修改后的全新内容，字数变多了");
+		expect(updated.wordCount).toBe(1);
+		const fetched = getDraft(draft.id, { baseDir: TEST_BASE_DIR });
+		expect(fetched?.content).toBe(updatedJson);
+		expect(fetched?.kind).toBe("excalidraw");
 	});
 
 	it("marks draft archived to document or note target", () => {

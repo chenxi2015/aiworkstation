@@ -1,7 +1,9 @@
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
-import { headlessCreateCanvasElements } from "./headlessCanvas.ts";
-import { headlessCreateCanvasBoard } from "./headlessExcalidraw.ts";
+import {
+	executeDraftCanvas,
+	headlessCreateCanvasElements,
+} from "./headlessCanvas.ts";
 import { wrapExecution } from "./index.ts";
 import type {
 	BookmarkToolHooks,
@@ -11,7 +13,7 @@ import type {
 
 /** Execution dependency metadata, keyed by tool name */
 export const CANVAS_TOOL_CLASSES: Record<string, ToolExecutionClass> = {
-	canvas_create_board: "global-headless",
+	draft_canvas: "content-generating",
 	canvas_create_elements: "content-generating",
 	canvas_create_group: "context-dependent",
 	canvas_update_node: "context-dependent",
@@ -23,6 +25,8 @@ export const CANVAS_TOOL_CLASSES: Record<string, ToolExecutionClass> = {
 export interface CanvasToolRuntime {
 	/** Currently open note path in the obsidian module, if any */
 	activeNotePath?: string;
+	/** Current AI conversation session ID for decoupled draft containment */
+	sessionId?: string;
 }
 
 export const canvasNodeSchema = z.object({
@@ -289,49 +293,34 @@ export const canvasCreateGroupToolDef = toolDefinition({
 	inputSchema: canvasCreateGroupInputSchema,
 });
 
-export const canvasCreateBoardInputSchema = z.object({
-	name: z
-		.string()
+export const draftCanvasInputSchema = z.object({
+	title: z.string().describe("白板名称或主题（如：'微服务架构白板'、'知识对比卡片'）"),
+	layout: z
+		.enum(["horizontal_tree", "vertical_tree", "grid", "free"])
+		.default("horizontal_tree")
 		.describe(
-			"新白板的名称或主题（例如：'微服务架构图'、'用户生命周期'、'2026产品规划'，无需输入 .canvas 后缀）",
+			"排版拓扑：horizontal_tree (脑图分层向右展开，最推荐), vertical_tree (自顶向下分层), grid (整齐网格卡片矩阵), free (自由分布)",
 		),
-	dir: z
-		.string()
+	nodes: z.array(canvasNodeSchema).min(1).describe("白板节点列表"),
+	edges: z
+		.array(canvasEdgeSchema)
 		.optional()
-		.describe(
-			"存放白板的相对目录路径（例如：'架构设计'，留空或省略则保存在当前目录或 Vault 根目录）",
-		),
-	overwrite: z
-		.boolean()
+		.default([])
+		.describe("节点之间的连线关系"),
+	groups: z
+		.array(canvasGroupSchema)
 		.optional()
-		.default(false)
-		.describe(
-			"当同名白板已存在时是否重置为空白板重新绘制。仅在用户明确要求重画/覆盖时传 true；否则同名时自动追加序号，且内容写入仍应指向原白板",
-		),
+		.default([])
+		.describe("逻辑模块分组框"),
 });
 
-export type CanvasCreateBoardInput = z.input<
-	typeof canvasCreateBoardInputSchema
->;
+export type DraftCanvasInput = z.input<typeof draftCanvasInputSchema>;
 
-export function executeCanvasCreateBoard(
-	args: CanvasCreateBoardInput,
-): ToolExecutionResult {
-	const dirText = args.dir ? `在「${args.dir}」目录下` : "";
-	return {
-		toolName: "canvas_create_board",
-		summary: `已成功${dirText}创建空白白板「${args.name}」并自动在编辑器中打开画布视图。`,
-		items: [],
-		references: [],
-		isMutation: true,
-	};
-}
-
-export const canvasCreateBoardToolDef = toolDefinition({
-	name: "canvas_create_board",
+export const draftCanvasToolDef = toolDefinition({
+	name: "draft_canvas",
 	description:
-		"在 Obsidian Vault 中创建新的 Canvas 空白白板文件（.canvas）并自动在编辑器中打开白板画布视图。注意：此工具仅负责创建并打开空白白板；若需要向白板中写入节点、连线与脑图，必须在调用此工具后紧接着调用 canvas_create_elements 写入内容。创建成功后白板即自动成为后续写入目标，切勿因未收到跳转确认而重复创建新白板。",
-	inputSchema: canvasCreateBoardInputSchema,
+		"在一步内规划并生成完整的 Obsidian Canvas 白板脑图、架构图或对比卡片草稿。草稿将暂存本地草稿区，以交付卡片形式供用户确认是否存为白板。严禁分步创建空白白板，请在分析完成后一次性调用本工具产出完整白板草稿。",
+	inputSchema: draftCanvasInputSchema,
 });
 
 export function createCanvasServerTools(
@@ -339,21 +328,15 @@ export function createCanvasServerTools(
 	runtime?: CanvasToolRuntime,
 ) {
 	const activeNotePath = runtime?.activeNotePath;
+	const sessionId = runtime?.sessionId;
 	const boardOpen = Boolean(activeNotePath?.endsWith(".canvas"));
-	/** 会话内最近一次创建的白板：创建即成为后续 create_elements 的写入目标 */
-	let sessionBoardPath: string | undefined;
 
 	return [
-		canvasCreateBoardToolDef.server((args) =>
+		draftCanvasToolDef.server((args) =>
 			wrapExecution(
-				"canvas_create_board",
+				"draft_canvas",
 				args,
-				// Creation is always headless (atomic Vault file write)
-				async () => {
-					const result = await headlessCreateCanvasBoard(args);
-					sessionBoardPath = result.navigation?.searchParams?.note;
-					return result;
-				},
+				() => executeDraftCanvas(args, sessionId),
 				hooks,
 			),
 		),
@@ -364,12 +347,12 @@ export function createCanvasServerTools(
 				async () => {
 					const targetPath = args.targetPath;
 					if (boardOpen && (!targetPath || targetPath === activeNotePath)) {
-						// Live path: frontend bridge renders with animation via streamed step.
+						// Live path: frontend bridge renders with animation on currently open canvas
 						return executeCanvasCreateElements(args);
 					}
 					return headlessCreateCanvasElements(
 						args,
-						targetPath ?? sessionBoardPath ?? activeNotePath,
+						targetPath ?? activeNotePath,
 					);
 				},
 				hooks,

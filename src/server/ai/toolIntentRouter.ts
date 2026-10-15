@@ -21,12 +21,12 @@ export function resolveRequiredToolIntent(
 	if (
 		/(?:新建|创建|建个|建一个|新开).{0,10}(?:excalidraw|画板)/i.test(question)
 	) {
-		const intent = required("excalidraw_create_board", "create_excalidraw");
+		const intent = required("draft_excalidraw", "create_excalidraw");
 		if (intent) return intent;
 	}
 
 	if (/(?:新建|创建|建个|建一个|新开).{0,10}(?:canvas|白板)/i.test(question)) {
-		const intent = required("canvas_create_board", "create_canvas");
+		const intent = required("draft_canvas", "create_canvas");
 		if (intent) return intent;
 	}
 

@@ -27,6 +27,7 @@ export interface ToolNavigation {
 	label: string;
 	/** Optional draft metadata for content delivery decoupling */
 	draftId?: string;
+	draftKind?: "article" | "excalidraw" | "canvas";
 	title?: string;
 	wordCount?: number;
 }

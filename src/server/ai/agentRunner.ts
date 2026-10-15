@@ -151,8 +151,14 @@ export async function runAgentStream(
 		// Canvas / Excalidraw tools are registered globally: create + draw run
 		// headlessly on the server (no page bridge required), while view-state
 		// tools (center / tidy / update) degrade gracefully when no board is open.
-		...createCanvasServerTools(toolHooks, { activeNotePath }),
-		...createExcalidrawServerTools(toolHooks, { activeNotePath }),
+		...createCanvasServerTools(toolHooks, {
+			activeNotePath,
+			sessionId: params.sessionId,
+		}),
+		...createExcalidrawServerTools(toolHooks, {
+			activeNotePath,
+			sessionId: params.sessionId,
+		}),
 	];
 	const tools = Array.from(
 		new Map(allTools.map((tool) => [(tool as any).name, tool])).values(),

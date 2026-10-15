@@ -341,53 +341,6 @@ export function useObsidianAiBridge({
 			},
 			actions: [
 				...canvasActions,
-				// Canvas tool execution bridges
-				{
-					id: "canvas_create_board",
-					label: "创建新白板",
-					onAction: async (payload?: string | Record<string, unknown>) => {
-						if (!onCreateCanvas) {
-							toast.info("当前环境未提供白板创建能力");
-							return;
-						}
-						try {
-							const data = payload
-								? typeof payload === "string"
-									? JSON.parse(payload)
-									: payload
-								: {};
-							// Headless creation already wrote the file: just open it
-							if (typeof data.openPath === "string" && data.openPath) {
-								onOpenPath?.(data.openPath);
-								toast.success("已打开 AI 创建的白板");
-								return;
-							}
-							const name = data.name || "未命名白板";
-							const dir = data.dir || undefined;
-							const res = await onCreateCanvas(dir, name, false);
-							if (res.success) {
-								toast.success(`AI 已创建并打开空白白板「${name}」`);
-								// Fallback for legacy calls containing nodes
-								if (
-									data.nodes &&
-									Array.isArray(data.nodes) &&
-									data.nodes.length > 0
-								) {
-									const canvasApi = await waitForCanvasApi(noteApiRef);
-									if (canvasApi) {
-										canvasApi.addElements({
-											nodes: data.nodes,
-											edges: data.edges || [],
-											layout: data.layout || "horizontal_tree",
-										});
-									}
-								}
-							}
-						} catch (err) {
-							console.error("[canvas_create_board] execution error:", err);
-						}
-					},
-				},
 				{
 					id: "canvas_create_elements",
 					label: "创建白板节点",
@@ -503,41 +456,6 @@ export function useObsidianAiBridge({
 					},
 				},
 				// Excalidraw tool execution bridges
-				{
-					id: "excalidraw_create_board",
-					label: "新建画板",
-					onAction: async (payload?: string | Record<string, unknown>) => {
-						try {
-							const data = payload
-								? typeof payload === "string"
-									? JSON.parse(payload)
-									: payload
-								: {};
-							// Headless creation already wrote the file: just open it
-							if (typeof data.openPath === "string" && data.openPath) {
-								onOpenPath?.(data.openPath);
-								toast.success("已打开 AI 创建的画板");
-								return;
-							}
-							const name = data.name
-								? String(data.name).replace(/\.excalidraw$/i, "")
-								: "未命名画板";
-							const dir = data.dir ? String(data.dir) : undefined;
-							if (onCreateExcalidraw) {
-								// The server already wrote the file headlessly; this call
-								// resolves the same path and switches the view to open it.
-								const res = await onCreateExcalidraw(dir, name, false);
-								if (res.success) {
-									toast.success(`AI 已创建并打开画板「${name}」`);
-								}
-							} else {
-								toast.success(`已创建 Excalidraw 画板「${name}」`);
-							}
-						} catch (err) {
-							console.error("[excalidraw_create_board] execution error:", err);
-						}
-					},
-				},
 				{
 					id: "excalidraw_draw_elements",
 					label: "绘制画板元素",

@@ -3,8 +3,12 @@ import {
 	layoutAiElements,
 } from "../../../components/obsidian/canvas/canvasLayoutEngine.ts";
 import type { CanvasData } from "../../../components/obsidian/canvas/canvasUtils.ts";
+import { createDraft } from "../drafts/draftStore.ts";
 import { readVaultNote, saveVaultNote } from "../../services/obsidian/note.ts";
-import type { CanvasCreateElementsInput } from "./canvasTools.ts";
+import type {
+	CanvasCreateElementsInput,
+	DraftCanvasInput,
+} from "./canvasTools.ts";
 import type { ToolExecutionResult, ToolNavigation } from "./types.ts";
 
 /**
@@ -28,7 +32,7 @@ export async function headlessCreateCanvasElements(
 ): Promise<ToolExecutionResult> {
 	if (!activeNotePath || !activeNotePath.endsWith(".canvas")) {
 		throw new Error(
-			"未指定目标白板。请先创建白板（canvas_create_board）或在笔记模块打开一个 .canvas 文件。",
+			"未指定目标白板。请在笔记模块打开一个 .canvas 白板文件后再执行修改。",
 		);
 	}
 
@@ -81,5 +85,62 @@ export async function headlessCreateCanvasElements(
 		references: [],
 		isMutation: true,
 		navigation: obsidianNavigation(activeNotePath, "打开白板"),
+	};
+}
+
+/**
+ * Generates an Obsidian Canvas draft in one atomic step and returns a delivery card navigation.
+ * No Vault file is touched until the user confirms save on the delivery card.
+ */
+export async function executeDraftCanvas(
+	args: DraftCanvasInput,
+	sessionId?: string,
+): Promise<ToolExecutionResult> {
+	const title = (args.title || "未命名白板").trim();
+	const { nodes: newNodes, edges: newEdges } = layoutAiElements(
+		args.nodes.map((n) => ({ ...n, type: n.type ?? ("text" as const) })),
+		args.edges ?? [],
+		{
+			existingNodes: [],
+			layout: args.layout ?? "horizontal_tree",
+		},
+		(args.groups ?? []) as AiGroupInput[],
+	);
+
+	const content = JSON.stringify(
+		{
+			nodes: newNodes,
+			edges: newEdges,
+		},
+		null,
+		2,
+	);
+
+	const totalCount = newNodes.length + newEdges.length;
+	const draft = createDraft({
+		title,
+		content,
+		kind: "canvas",
+		sessionId,
+		wordCount: totalCount,
+	});
+
+	const groupCount = args.groups?.length ?? 0;
+	const groupText = groupCount > 0 ? `与 ${groupCount} 个分组框` : "";
+	return {
+		toolName: "draft_canvas",
+		summary: `已为「${title}」生成 Canvas 白板草稿（共 ${newNodes.length} 个节点、${newEdges.length} 条连线${groupText}）。正文已暂存本地草稿区，等待用户在交付卡片中确认保存。`,
+		items: [],
+		references: [],
+		isMutation: true,
+		navigation: {
+			route: "",
+			searchParams: { draftId: draft.id },
+			label: "存为白板",
+			draftId: draft.id,
+			draftKind: "canvas",
+			title,
+			wordCount: totalCount,
+		},
 	};
 }

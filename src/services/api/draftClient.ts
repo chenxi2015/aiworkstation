@@ -12,6 +12,7 @@ export interface DraftPreviewResult {
 	content: string;
 	wordCount: number;
 	createdAt: string;
+	kind?: "article" | "excalidraw" | "canvas";
 	archivedTo?: {
 		kind: "document" | "note";
 		ref: string;

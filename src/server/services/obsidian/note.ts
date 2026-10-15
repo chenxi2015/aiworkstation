@@ -212,6 +212,7 @@ export async function createVaultCanvas(
 	dirRelPath: string,
 	name: string,
 	overwrite = false,
+	initialContent?: string,
 ): Promise<ObsidianMutationResult> {
 	try {
 		const cleanName = name.trim();
@@ -243,7 +244,7 @@ export async function createVaultCanvas(
 		}
 
 		const defaultContent = JSON.stringify({ nodes: [], edges: [] }, null, 2);
-		writeTextAtomicSync(abs, defaultContent);
+		writeTextAtomicSync(abs, initialContent?.trim() ? initialContent : defaultContent);
 		invalidateVaultTreeCache();
 		return { success: true, relPath: toPosixRelPath(vaultRoot(), abs) };
 	} catch (err) {
@@ -256,6 +257,7 @@ export async function createVaultExcalidraw(
 	dirRelPath: string,
 	name: string,
 	overwrite = false,
+	initialContent?: string,
 ): Promise<ObsidianMutationResult> {
 	try {
 		const cleanName = name.trim();
@@ -301,7 +303,7 @@ export async function createVaultExcalidraw(
 			null,
 			2,
 		);
-		writeTextAtomicSync(abs, defaultContent);
+		writeTextAtomicSync(abs, initialContent?.trim() ? initialContent : defaultContent);
 		invalidateVaultTreeCache();
 		return { success: true, relPath: toPosixRelPath(vaultRoot(), abs) };
 	} catch (err) {

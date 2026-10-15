@@ -1,7 +1,7 @@
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 import {
-	headlessCreateExcalidrawBoard,
+	executeDraftExcalidraw,
 	headlessDrawExcalidrawElements,
 } from "./headlessExcalidraw.ts";
 import { wrapExecution } from "./index.ts";
@@ -13,7 +13,7 @@ import type {
 
 /** Execution dependency metadata, keyed by tool name */
 export const EXCALIDRAW_TOOL_CLASSES: Record<string, ToolExecutionClass> = {
-	excalidraw_create_board: "global-headless",
+	draft_excalidraw: "content-generating",
 	excalidraw_draw_elements: "content-generating",
 	excalidraw_update_element: "context-dependent",
 	excalidraw_clear_canvas: "context-dependent",
@@ -24,6 +24,8 @@ export const EXCALIDRAW_TOOL_CLASSES: Record<string, ToolExecutionClass> = {
 export interface ExcalidrawToolRuntime {
 	/** Currently open note path in the obsidian module, if any */
 	activeNotePath?: string;
+	/** Current AI conversation session ID for decoupled draft containment */
+	sessionId?: string;
 }
 
 export const excalidrawElementSchema = z.object({
@@ -112,50 +114,44 @@ export const excalidrawDrawElementsToolDef = toolDefinition({
 	inputSchema: excalidrawDrawInputSchema,
 });
 
-export const excalidrawCreateBoardInputSchema = z.object({
-	name: z
-		.string()
+export const draftExcalidrawInputSchema = z.object({
+	title: z.string().describe("画板名称或主题（如：'黄金指数2026年底行情推演'、'微服务架构图'）"),
+	layout: z
+		.enum([
+			"vertical_flow",
+			"horizontal_flow",
+			"architecture_layers",
+			"grid",
+			"free",
+		])
+		.default("vertical_flow")
 		.describe(
-			"Name of the Excalidraw drawing file (without .excalidraw extension)",
+			"布局拓扑：vertical_flow (推荐垂直业务流程图，自顶向下), horizontal_flow (横向流程图), architecture_layers (分层架构), grid (网格矩阵), free (自由分布)",
 		),
-	dir: z
-		.string()
-		.optional()
+	elements: z
+		.array(excalidrawElementSchema)
+		.min(1)
 		.describe(
-			"Relative folder path inside Vault, e.g. 'diagrams'; empty or omitted for Vault root",
+			"要绘制的图形节点列表。语义规范：起始/结束用 ellipse (green/blue)；业务处理/行动用 rectangle (blue/purple/green)；决策判断用 diamond (yellow)；异常/终止用 rectangle (red)。分支动作必须拆为独立节点，不可合并。",
 		),
-	overwrite: z
-		.boolean()
+	connections: z
+		.array(excalidrawConnectionSchema)
 		.optional()
-		.default(false)
+		.default([])
 		.describe(
-			"当同名画板已存在时是否重置为空白画板重新绘制。仅在用户明确要求重画/覆盖时传 true；否则同名时自动追加序号，且内容写入仍应指向原画板",
+			"节点之间的连线箭头。规则：按时序严格连接相邻步骤。判断节点 diamond 的肯定分支连接下一步，否定分支连接独立异常步骤，并带有清晰简短标签（如'是'/'否'，'满足'/'不足'）。",
 		),
 });
 
-export type ExcalidrawCreateBoardInput = z.input<
-	typeof excalidrawCreateBoardInputSchema
+export type DraftExcalidrawInput = z.input<
+	typeof draftExcalidrawInputSchema
 >;
 
-export function executeExcalidrawCreateBoard(
-	args: ExcalidrawCreateBoardInput,
-): ToolExecutionResult {
-	const dirText = args.dir ? `在「${args.dir}」目录下` : "";
-	const name = args.name.replace(/\.excalidraw$/i, "");
-	return {
-		toolName: "excalidraw_create_board",
-		summary: `已新建${dirText} Excalidraw 画板文件「${name}」并在画板视图中自动打开。`,
-		items: [],
-		references: [],
-		isMutation: true,
-	};
-}
-
-export const excalidrawCreateBoardToolDef = toolDefinition({
-	name: "excalidraw_create_board",
+export const draftExcalidrawToolDef = toolDefinition({
+	name: "draft_excalidraw",
 	description:
-		"在 Obsidian Vault 中创建新的 Excalidraw 画板文件（.excalidraw）并自动在画板视图中打开。若需要在新画板中绘制架构或流程图，可在调用此工具后紧接着调用 excalidraw_draw_elements 写入内容。",
-	inputSchema: excalidrawCreateBoardInputSchema,
+		"在一步内规划并生成完整的 Excalidraw 手绘流程图、系统架构图或推演图草稿。草稿将暂存本地草稿区，以交互卡片形式交付给用户确认是否存入 Vault。严禁分步创建空画板，请在分析完成后一次性调用本工具产出完整图形草稿。",
+	inputSchema: draftExcalidrawInputSchema,
 });
 
 export const excalidrawUpdateElementInputSchema = z.object({
@@ -250,25 +246,15 @@ export function createExcalidrawServerTools(
 	runtime?: ExcalidrawToolRuntime,
 ) {
 	const activeNotePath = runtime?.activeNotePath;
-	// Board is open in the view only when the obsidian module has it active;
-	// in that case the frontend bridge handles rendering. Otherwise headless.
+	const sessionId = runtime?.sessionId;
 	const boardOpen = Boolean(activeNotePath?.endsWith(".excalidraw"));
-	/** 会话内最近一次创建的画板：创建即成为后续 draw_elements 的写入目标 */
-	let sessionBoardPath: string | undefined;
 
 	return [
-		excalidrawCreateBoardToolDef.server((args) =>
+		draftExcalidrawToolDef.server((args) =>
 			wrapExecution(
-				"excalidraw_create_board",
+				"draft_excalidraw",
 				args,
-				// Creation is always headless (atomic Vault file write); when the
-				// obsidian module is active the frontend additionally opens the file
-				// via the bridge action triggered from the streamed step.
-				async () => {
-					const result = await headlessCreateExcalidrawBoard(args);
-					sessionBoardPath = result.navigation?.searchParams?.note;
-					return result;
-				},
+				() => executeDraftExcalidraw(args, sessionId),
 				hooks,
 			),
 		),
@@ -279,12 +265,12 @@ export function createExcalidrawServerTools(
 				async () => {
 					const targetPath = args.targetPath;
 					if (boardOpen && (!targetPath || targetPath === activeNotePath)) {
-						// Live path: frontend bridge renders with animation via streamed step.
+						// Live path: frontend bridge renders with animation on currently open board
 						return executeExcalidrawDrawElements(args);
 					}
 					return headlessDrawExcalidrawElements(
 						args,
-						targetPath ?? sessionBoardPath ?? activeNotePath,
+						targetPath ?? activeNotePath,
 					);
 				},
 				hooks,

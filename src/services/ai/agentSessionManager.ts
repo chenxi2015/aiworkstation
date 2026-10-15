@@ -324,7 +324,14 @@ class AgentSessionManager {
 					: undefined;
 			callbacks?.onTriggerRewritePipeline?.(instruction);
 		} else if (actionType === "canvas") {
-			callbacks?.onCanvasAction?.(step.toolName, step.args, step.navigation);
+			// Do NOT trigger canvas action on create board steps during start:
+			// creations are decoupled as drafts and finalized via user confirmation.
+			if (
+				step.toolName !== "draft_excalidraw" &&
+				step.toolName !== "draft_canvas"
+			) {
+				callbacks?.onCanvasAction?.(step.toolName, step.args, step.navigation);
+			}
 		}
 
 		agentSessionActions.setSessionMessages(sessionId, (prev) => {
@@ -431,13 +438,22 @@ class AgentSessionManager {
 					})();
 
 			const isDraftAction =
-				step.action === "draft" || step.toolName === "draft_article";
+				step.action === "draft" ||
+				Boolean(step.navigation?.draftId) ||
+				step.toolName === "draft_article";
 			const draftPayload =
 				isDraftAction && step.navigation?.draftId
 					? {
 							draftId: step.navigation.draftId,
 							title: step.navigation.title || "未命名草稿",
 							wordCount: step.navigation.wordCount || 0,
+							kind:
+								step.navigation.draftKind ||
+								(step.toolName.startsWith("excalidraw_")
+									? ("excalidraw" as const)
+									: step.toolName.startsWith("canvas_")
+										? ("canvas" as const)
+										: ("article" as const)),
 							status: "pending" as const,
 						}
 					: last.draft;

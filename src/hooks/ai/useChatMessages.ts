@@ -36,6 +36,7 @@ export interface ChatDraftPayload {
 	title: string;
 	wordCount: number;
 	status: "pending" | "archived" | "expired";
+	kind?: "article" | "excalidraw" | "canvas";
 	archivedTo?: {
 		kind: "document" | "note";
 		ref: string;

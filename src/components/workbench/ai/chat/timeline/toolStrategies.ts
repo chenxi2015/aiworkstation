@@ -273,16 +273,16 @@ export const TOOL_STRATEGIES: Record<string, ToolStrategy> = {
 		Icon: Layers,
 		actionText: "创建了画布分组",
 	}),
-	canvas_create_board: (args) => ({
+	draft_canvas: (args) => ({
 		Icon: LayoutGrid,
-		actionText: "新建了画布白板",
+		actionText: "规划了白板草稿",
 		targetText: extractTargetText(args),
 	}),
 
 	// ================= Excalidraw Tools =================
-	excalidraw_create_board: (args) => ({
+	draft_excalidraw: (args) => ({
 		Icon: Palette,
-		actionText: "新建了 Excalidraw 画板",
+		actionText: "规划了手绘画板草稿",
 		targetText: extractTargetText(args),
 	}),
 	excalidraw_draw_elements: () => ({

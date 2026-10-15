@@ -5,7 +5,7 @@ import {
 	Palette,
 	SquareArrowOutUpRight,
 } from "lucide-react";
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import type { AgentStep } from "../../../../../types/agent.ts";
 
 /**
@@ -23,10 +23,22 @@ export const ArtifactCardList = memo(function ArtifactCardList({
 }) {
 	const navigate = useNavigate();
 
-	const cards = (steps ?? []).filter(
-		(s) =>
-			s.status === "completed" && s.navigation && Boolean(s.navigation.route),
-	);
+	// Deduplicate cards by target resource (route + searchParams) so that
+	// multiple tool executions targeting the same artifact produce a single entry point.
+	const cards = useMemo(() => {
+		const completed = (steps ?? []).filter(
+			(s) =>
+				s.status === "completed" && s.navigation && Boolean(s.navigation.route),
+		);
+		const map = new Map<string, AgentStep>();
+		for (const s of completed) {
+			const nav = s.navigation!;
+			const key = `${nav.route}::${nav.searchParams?.note ?? ""}::${nav.searchParams?.doc ?? ""}`;
+			map.set(key, s);
+		}
+		return Array.from(map.values());
+	}, [steps]);
+
 	if (cards.length === 0) return null;
 
 	return (

@@ -8,8 +8,10 @@ import {
 	FileText,
 	Folder,
 	HardDrive,
+	LayoutGrid,
 	Loader2,
 	NotebookPen,
+	Palette,
 	Search,
 	Trash2,
 } from "lucide-react";
@@ -186,10 +188,16 @@ export const DraftDeliveryCard = memo(function DraftDeliveryCard({
 					detail: { relPath: res.relPath },
 				}),
 			);
-			toast.success(`已保存至 Obsidian 笔记：${res.relPath}`);
+			const successLabel =
+				draft.kind === "excalidraw"
+					? "画板"
+					: draft.kind === "canvas"
+						? "白板"
+						: "笔记";
+			toast.success(`已保存至 Obsidian ${successLabel}：${res.relPath}`);
 		} catch (err: unknown) {
 			toast.danger(
-				err instanceof Error ? err.message : "保存 Obsidian 笔记失败",
+				err instanceof Error ? err.message : "保存至 Obsidian 失败",
 			);
 		} finally {
 			setIsActionLoading(false);
@@ -247,9 +255,28 @@ export const DraftDeliveryCard = memo(function DraftDeliveryCard({
 		);
 	}
 
+	const isExcalidraw = draft.kind === "excalidraw";
+	const isCanvas = draft.kind === "canvas";
+	const isArticle = !isExcalidraw && !isCanvas;
+	const isJsonKind = isExcalidraw || isCanvas;
+	const kindLabel = isExcalidraw ? "画板" : isCanvas ? "白板" : "笔记";
+	const KindIcon = isExcalidraw ? Palette : isCanvas ? LayoutGrid : FileText;
+
 	// 2. Archived inert state
 	if (status === "archived") {
 		const isDoc = archivedTo?.kind === "document";
+		const OpenIcon = isDoc
+			? ExternalLink
+			: isExcalidraw
+				? Palette
+				: isCanvas
+					? LayoutGrid
+					: ExternalLink;
+		const openLabel = isDoc ? "打开文档" : `打开${kindLabel}`;
+		const archiveDesc = isDoc
+			? "已归档至创作台文档"
+			: `已归档至 Obsidian ${kindLabel}：${archivedTo?.ref ?? ""}`;
+
 		return (
 			<div className="flex justify-start my-1.5">
 				<div className="w-full rounded-2xl border border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10 p-3.5 space-y-2.5">
@@ -262,11 +289,7 @@ export const DraftDeliveryCard = memo(function DraftDeliveryCard({
 								<p className="text-xs font-semibold text-foreground truncate">
 									{draft.title}
 								</p>
-								<p className="text-[11px] text-muted">
-									{isDoc
-										? "已归档至创作台文档"
-										: `已归档至 Obsidian 笔记：${archivedTo?.ref ?? ""}`}
-								</p>
+								<p className="text-[11px] text-muted">{archiveDesc}</p>
 							</div>
 						</div>
 						<div className="shrink-0 flex items-center gap-1.5">
@@ -310,8 +333,8 @@ export const DraftDeliveryCard = memo(function DraftDeliveryCard({
 										});
 									}}
 								>
-									<ExternalLink className="w-3 h-3 mr-1" />
-									打开笔记
+									<OpenIcon className="w-3 h-3 mr-1" />
+									{openLabel}
 								</Button>
 							)}
 						</div>
@@ -321,6 +344,13 @@ export const DraftDeliveryCard = memo(function DraftDeliveryCard({
 		);
 	}
 
+	const pendingTitle = isArticle ? `《${draft.title}》` : draft.title;
+	const pendingDesc = isExcalidraw
+		? `画板已生成 · 包含 ${draft.wordCount} 个图形与连线 · 暂存本地草稿区`
+		: isCanvas
+			? `白板已生成 · 包含 ${draft.wordCount} 个节点与连线 · 暂存本地草稿区`
+			: `全文已生成 · 约 ${draft.wordCount} 字 · 暂存本地草稿区`;
+
 	// 3. Pending interactive card
 	return (
 		<div className="flex justify-start my-1.5">
@@ -328,15 +358,13 @@ export const DraftDeliveryCard = memo(function DraftDeliveryCard({
 				<div className="flex items-center justify-between gap-2">
 					<div className="flex items-center gap-2 min-w-0">
 						<div className="w-7 h-7 rounded-lg bg-accent/15 text-accent flex items-center justify-center shrink-0">
-							<FileText className="w-4 h-4" />
+							<KindIcon className="w-4 h-4" />
 						</div>
 						<div className="min-w-0">
 							<p className="text-xs font-semibold text-foreground truncate">
-								《{draft.title}》
+								{pendingTitle}
 							</p>
-							<p className="text-[11px] text-muted">
-								全文已生成 · 约 {draft.wordCount} 字 · 暂存本地草稿区
-							</p>
+							<p className="text-[11px] text-muted">{pendingDesc}</p>
 						</div>
 					</div>
 					<span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-accent/15 text-accent shrink-0">
@@ -356,29 +384,47 @@ export const DraftDeliveryCard = memo(function DraftDeliveryCard({
 						预览
 					</Button>
 
+					{isArticle && (
+						<Button
+							size="sm"
+							className="h-7.5 px-3 text-xs font-semibold rounded-xl bg-accent text-white hover:opacity-90 cursor-pointer shadow-xs"
+							onPress={handleSaveAsDocument}
+							isDisabled={isActionLoading}
+						>
+							{isActionLoading ? (
+								<Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+							) : (
+								<FileText className="w-3.5 h-3.5 mr-1" />
+							)}
+							存为创作文档
+						</Button>
+					)}
+
 					<Button
 						size="sm"
-						className="h-7.5 px-3 text-xs font-semibold rounded-xl bg-accent text-white hover:opacity-90 cursor-pointer shadow-xs"
-						onPress={handleSaveAsDocument}
+						variant={isArticle ? "secondary" : "primary"}
+						className={`h-7.5 px-3 text-xs font-semibold rounded-xl cursor-pointer ${
+							isArticle
+								? "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/25"
+								: "bg-accent text-white hover:opacity-90 shadow-xs"
+						}`}
+						onPress={handleOpenNoteFolderPicker}
 						isDisabled={isActionLoading}
 					>
 						{isActionLoading ? (
 							<Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+						) : isExcalidraw ? (
+							<Palette className="w-3.5 h-3.5 mr-1" />
+						) : isCanvas ? (
+							<LayoutGrid className="w-3.5 h-3.5 mr-1" />
 						) : (
-							<FileText className="w-3.5 h-3.5 mr-1" />
+							<NotebookPen className="w-3.5 h-3.5 mr-1" />
 						)}
-						存为创作文档
-					</Button>
-
-					<Button
-						size="sm"
-						variant="secondary"
-						className="h-7.5 px-3 text-xs font-semibold rounded-xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/25 cursor-pointer"
-						onPress={handleOpenNoteFolderPicker}
-						isDisabled={isActionLoading}
-					>
-						<NotebookPen className="w-3.5 h-3.5 mr-1" />
-						存为笔记
+						{isExcalidraw
+							? "存为画板"
+							: isCanvas
+								? "存为白板"
+								: "存为笔记"}
 					</Button>
 
 					<Button
@@ -410,14 +456,16 @@ export const DraftDeliveryCard = memo(function DraftDeliveryCard({
 						<Modal.Header className="shrink-0 pb-2">
 							<div className="flex items-center gap-2">
 								<div className="p-1.5 rounded-lg bg-accent/10 text-accent">
-									<FileText className="w-4 h-4" />
+									<KindIcon className="w-4 h-4" />
 								</div>
 								<div className="min-w-0 flex-1">
 									<Modal.Heading className="text-sm font-semibold truncate">
-										《{draft.title}》
+										{pendingTitle}
 									</Modal.Heading>
 									<p className="text-[11px] text-muted">
-										全文预览 · 约 {draft.wordCount} 字
+										{isJsonKind
+											? `结构概览 · 包含 ${draft.wordCount} 个元素`
+											: `全文预览 · 约 ${draft.wordCount} 字`}
 									</p>
 								</div>
 							</div>
@@ -428,6 +476,18 @@ export const DraftDeliveryCard = memo(function DraftDeliveryCard({
 								<div className="flex items-center justify-center h-48">
 									<Loader2 className="w-6 h-6 animate-spin text-accent" />
 								</div>
+							) : isJsonKind ? (
+								<ScrollShadow className="max-h-[60vh] rounded-xl border border-border/60 bg-surface-secondary/20 p-4 sm:p-5">
+									<pre className="text-xs text-muted font-mono whitespace-pre-wrap break-all select-text">
+										{(() => {
+											try {
+												return JSON.stringify(JSON.parse(previewContent), null, 2);
+											} catch {
+												return previewContent;
+											}
+										})()}
+									</pre>
+								</ScrollShadow>
 							) : (
 								<ScrollShadow className="max-h-[60vh] rounded-xl border border-border/60 bg-surface-secondary/20 p-4 sm:p-5">
 									<AiMarkdownRenderer
@@ -477,10 +537,10 @@ export const DraftDeliveryCard = memo(function DraftDeliveryCard({
 								</div>
 								<div>
 									<Modal.Heading className="text-sm font-semibold">
-										存为 Obsidian 笔记
+										存为 Obsidian {kindLabel}
 									</Modal.Heading>
 									<p className="text-[11px] text-muted">
-										将《{draft.title}》存入 Vault 对应目录
+										将「{draft.title}」存入 Vault 对应目录
 									</p>
 								</div>
 							</div>

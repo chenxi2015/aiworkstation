@@ -7,7 +7,11 @@ import {
 	markArchived,
 } from "../ai/drafts/draftStore.ts";
 import { workbenchDb } from "../db/sqlite.ts";
-import { createVaultNote } from "../services/obsidian/index.ts";
+import {
+	createVaultCanvas,
+	createVaultExcalidraw,
+	createVaultNote,
+} from "../services/obsidian/index.ts";
 
 /**
  * Server Function: Get draft preview content and metadata
@@ -23,6 +27,7 @@ export const getDraftPreview = createServerFn({ method: "POST" })
 				title: draft?.title || "",
 				content: "",
 				wordCount: draft?.wordCount || 0,
+				kind: draft?.kind || "article",
 				createdAt: draft?.createdAt || "",
 				archivedTo: draft?.archivedTo,
 			};
@@ -33,6 +38,7 @@ export const getDraftPreview = createServerFn({ method: "POST" })
 			title: draft.title,
 			content: draft.content,
 			wordCount: draft.wordCount,
+			kind: draft.kind || "article",
 			createdAt: draft.createdAt,
 			archivedTo: draft.archivedTo,
 		};
@@ -84,7 +90,7 @@ export const saveDraftAsDocument = createServerFn({ method: "POST" })
 	});
 
 /**
- * Server Function: Save draft as an Obsidian Markdown note in vault and mark archived
+ * Server Function: Save draft as an Obsidian Markdown note, Canvas, or Excalidraw board in vault and mark archived
  */
 export const saveDraftAsNote = createServerFn({ method: "POST" })
 	.validator((data: { draftId: string; dirRelPath?: string }) => data)
@@ -95,14 +101,31 @@ export const saveDraftAsNote = createServerFn({ method: "POST" })
 		}
 
 		const dirRel = (data.dirRelPath || "").trim();
-		const result = await createVaultNote(
-			dirRel,
-			draft.title,
-			draft.rawContent || draft.content,
-		);
+		let result;
+		if (draft.kind === "excalidraw") {
+			result = await createVaultExcalidraw(
+				dirRel,
+				draft.title,
+				false,
+				draft.rawContent || draft.content,
+			);
+		} else if (draft.kind === "canvas") {
+			result = await createVaultCanvas(
+				dirRel,
+				draft.title,
+				false,
+				draft.rawContent || draft.content,
+			);
+		} else {
+			result = await createVaultNote(
+				dirRel,
+				draft.title,
+				draft.rawContent || draft.content,
+			);
+		}
 
 		if (!result.success || !result.relPath) {
-			throw new Error(result.error || "保存至 Obsidian 笔记失败");
+			throw new Error(result.error || "保存至 Obsidian 失败");
 		}
 
 		markArchived(data.draftId, {

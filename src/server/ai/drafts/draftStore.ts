@@ -12,6 +12,7 @@ import { basename, join } from "node:path";
 import { writeTextAtomicSync } from "../fs/fsSafety.ts";
 
 export type DraftStatus = "pending" | "archived" | "expired";
+export type DraftKind = "article" | "excalidraw" | "canvas";
 
 export interface DraftArchivedTarget {
 	kind: "document" | "note";
@@ -26,6 +27,7 @@ export interface DraftMetadata {
 	updatedAt: string;
 	sessionId?: string;
 	status: DraftStatus;
+	kind?: DraftKind;
 	archivedTo?: DraftArchivedTarget;
 }
 
@@ -39,6 +41,8 @@ export interface CreateDraftInput {
 	title: string;
 	content: string;
 	sessionId?: string;
+	kind?: DraftKind;
+	wordCount?: number;
 }
 
 export interface DraftStoreOptions {
@@ -150,8 +154,14 @@ export function writeDraftIndex(
 	writeTextAtomicSync(indexPath, JSON.stringify(items, null, 2));
 }
 
+function getDraftExtension(kind?: DraftKind): string {
+	if (kind === "excalidraw") return ".excalidraw";
+	if (kind === "canvas") return ".canvas";
+	return ".md";
+}
+
 /**
- * Creates a new draft, persists the markdown file and registers metadata in index.json
+ * Creates a new draft, persists the content file and registers metadata in index.json
  */
 export function createDraft(
 	input: CreateDraftInput,
@@ -164,23 +174,36 @@ export function createDraft(
 
 	const id = randomUUID();
 	const title = input.title.trim() || "未命名草稿";
-	const { body: cleanBody } = parseDraftMarkdown(input.content);
-	const rawContent = formatDraftMarkdown(title, cleanBody);
-	const filePath = join(baseDir, `${id}.md`);
+	const isJsonKind = input.kind === "excalidraw" || input.kind === "canvas";
+
+	let cleanBody = input.content;
+	let rawContent = input.content;
+
+	if (!isJsonKind) {
+		const parsed = parseDraftMarkdown(input.content);
+		cleanBody = parsed.body;
+		rawContent = formatDraftMarkdown(title, cleanBody);
+	}
+
+	const ext = getDraftExtension(input.kind);
+	const filePath = join(baseDir, `${id}${ext}`);
 
 	writeTextAtomicSync(filePath, rawContent);
 
 	const now = options?.now ? options.now() : new Date();
 	const nowIso = now.toISOString();
 
+	const count = typeof input.wordCount === "number" ? input.wordCount : cleanBody.length;
+
 	const metadata: DraftMetadata = {
 		id,
 		title,
-		wordCount: cleanBody.length,
+		wordCount: count,
 		createdAt: nowIso,
 		updatedAt: nowIso,
 		sessionId: input.sessionId,
 		status: "pending",
+		kind: input.kind || "article",
 	};
 
 	const index = readDraftIndex(baseDir);
@@ -209,7 +232,8 @@ export function getDraft(
 		return null;
 	}
 
-	const filePath = join(baseDir, `${id}.md`);
+	const ext = getDraftExtension(metadata.kind);
+	const filePath = join(baseDir, `${id}${ext}`);
 	if (!existsSync(filePath)) {
 		return {
 			...metadata,
@@ -222,10 +246,11 @@ export function getDraft(
 
 	try {
 		const rawContent = readFileSync(filePath, "utf-8");
-		const { body } = parseDraftMarkdown(rawContent);
+		const isJsonKind = metadata.kind === "excalidraw" || metadata.kind === "canvas";
+		const content = isJsonKind ? rawContent : parseDraftMarkdown(rawContent).body;
 		return {
 			...metadata,
-			content: body,
+			content,
 			rawContent,
 			filePath,
 		};
@@ -256,6 +281,7 @@ export function updateDraftContent(
 	id: string,
 	content: string,
 	options?: DraftStoreOptions,
+	itemCount?: number,
 ): DraftItem {
 	const baseDir = options?.baseDir ?? DEFAULT_DRAFT_DIR;
 	const index = readDraftIndex(baseDir);
@@ -265,18 +291,30 @@ export function updateDraftContent(
 	}
 
 	const existing = index[targetIndex];
-	const { body: cleanBody } = parseDraftMarkdown(content);
-	const rawContent = formatDraftMarkdown(existing.title, cleanBody);
-	const filePath = join(baseDir, `${id}.md`);
+	const isJsonKind = existing.kind === "excalidraw" || existing.kind === "canvas";
+
+	let cleanBody = content;
+	let rawContent = content;
+
+	if (!isJsonKind) {
+		const parsed = parseDraftMarkdown(content);
+		cleanBody = parsed.body;
+		rawContent = formatDraftMarkdown(existing.title, cleanBody);
+	}
+
+	const ext = getDraftExtension(existing.kind);
+	const filePath = join(baseDir, `${id}${ext}`);
 
 	writeTextAtomicSync(filePath, rawContent);
 
 	const now = options?.now ? options.now() : new Date();
 	const nowIso = now.toISOString();
 
+	const count = typeof itemCount === "number" ? itemCount : cleanBody.length;
+
 	const updatedMetadata: DraftMetadata = {
 		...existing,
-		wordCount: cleanBody.length,
+		wordCount: count,
 		updatedAt: nowIso,
 	};
 
