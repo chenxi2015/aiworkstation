@@ -72,7 +72,7 @@ export function resolveAttachmentImage(item: ChatContextItem): {
 
 /** 获取卡片左上角的文件格式或类型徽章（自适应明亮与暗黑模式，贴合图一） */
 function renderFileTypeBadge(item: ChatContextItem) {
-	if (item.id === "__active_scope__") {
+	if (item.id === "__active_scope__" || item.id?.startsWith("__active_scope__")) {
 		return (
 			<div className="w-4 h-4 rounded-md bg-blue-500/15 text-blue-600 dark:bg-blue-500/25 dark:text-blue-400 flex items-center justify-center">
 				<Sparkles className="w-2.5 h-2.5" />

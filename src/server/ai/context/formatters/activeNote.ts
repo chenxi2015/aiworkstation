@@ -15,11 +15,14 @@ export async function resolveActiveNotePrompt(
 			return `\n- 【当前活跃笔记】路径 ${activeNotePath} 内容为空或不可读。请明确告知用户：笔记正文为空或读取失败，建议先在左侧重新打开该笔记后再提问。`;
 		}
 
-		if (activeNotePath.endsWith(".canvas")) {
+		const isCanvas = /\.canvas$/i.test(activeNotePath);
+		const isExcalidraw = /\.excalidraw(\.md)?$/i.test(activeNotePath);
+
+		if (isCanvas) {
 			return formatCanvasContext(note.relPath, note.name, note.content);
 		}
 
-		if (activeNotePath.endsWith(".excalidraw")) {
+		if (isExcalidraw) {
 			return formatExcalidrawContext(note.relPath, note.name, note.content);
 		}
 
@@ -89,16 +92,23 @@ ${edgeLines.length > 0 ? edgeLines.join("\n") : "    (暂无连线)"}
 }
 
 /**
- * Format an Excalidraw scene JSON into a concise summary for LLM context.
+ * Robust JSON extraction from raw content or Markdown code block
  */
-interface RawExcalidrawElement {
-	id?: string;
-	type?: string;
-	isDeleted?: boolean;
-	text?: string;
-	label?: { text?: string };
-	start?: { id?: string };
-	end?: { id?: string };
+function parseExcalidrawRaw(content: string): Record<string, unknown> | null {
+	const trimmed = content.trim();
+	if (!trimmed) return null;
+	try {
+		return JSON.parse(trimmed);
+	} catch {
+		// Try matching ```json ... ``` or ```compressed-json in obsidian excalidraw markdown
+		const jsonMatch = trimmed.match(/```(?:json)?\s*\n([\s\S]*?)\n```/i);
+		if (jsonMatch) {
+			try {
+				return JSON.parse(jsonMatch[1]);
+			} catch {}
+		}
+		return null;
+	}
 }
 
 /**
@@ -110,27 +120,62 @@ function formatExcalidrawContext(
 	content: string,
 ): string {
 	try {
-		const raw = JSON.parse(content || "{}");
-		const elements: RawExcalidrawElement[] = Array.isArray(raw.elements)
-			? raw.elements.filter((el: RawExcalidrawElement) => !el.isDeleted)
+		const raw = parseExcalidrawRaw(content || "{}");
+		if (!raw) {
+			return `\n- 【当前活跃文件为 Excalidraw 画板】: ${relPath} (画板结构解析失败)`;
+		}
+
+		// biome-ignore lint/suspicious/noExplicitAny: excalidraw loose elements
+		const elements: any[] = Array.isArray(raw.elements)
+			? raw.elements.filter((el: any) => !el.isDeleted)
 			: [];
+
+		// Index text elements by their containerId (e.g. text bound inside a rectangle)
+		const textByContainerId = new Map<string, string>();
+		const elementTextMap = new Map<string, string>();
+
+		for (const el of elements) {
+			if (el.type === "text" && el.text) {
+				elementTextMap.set(el.id, el.text);
+				if (el.containerId) {
+					textByContainerId.set(el.containerId, el.text);
+				}
+			}
+		}
 
 		const shapes = elements.filter(
 			(el) => el.type !== "arrow" && el.type !== "line",
 		);
 		const arrows = elements.filter((el) => el.type === "arrow");
 
-		const shapeLines = shapes.slice(0, 40).map((el) => {
-			const label = el.text || el.label?.text || "";
+		const shapeLines = shapes.slice(0, 50).map((el) => {
+			const boundText = textByContainerId.get(el.id);
+			const label = el.text || el.label?.text || boundText || "";
+			if (label) {
+				elementTextMap.set(el.id, label);
+			}
 			const labelPreview = label
-				? `「${label.length > 50 ? `${label.slice(0, 50)}...` : label}」`
+				? `「${label.length > 60 ? `${label.slice(0, 60)}...` : label}」`
 				: "(无文字)";
 			return `    - [ID: ${el.id || "unknown"}] (${el.type || "shape"}): ${labelPreview}`;
 		});
 
-		const arrowLines = arrows.slice(0, 30).map((arr) => {
-			const from = arr.start?.id ? `[${arr.start.id}]` : "起点";
-			const to = arr.end?.id ? `[${arr.end.id}]` : "终点";
+		const arrowLines = arrows.slice(0, 40).map((arr) => {
+			const startId = arr.startBinding?.elementId || arr.start?.id;
+			const endId = arr.endBinding?.elementId || arr.end?.id;
+			const fromText = startId ? elementTextMap.get(startId) : undefined;
+			const toText = endId ? elementTextMap.get(endId) : undefined;
+
+			const from = startId
+				? fromText
+					? `[${fromText}]`
+					: `[${startId}]`
+				: "起点";
+			const to = endId
+				? toText
+					? `[${toText}]`
+					: `[${endId}]`
+				: "终点";
 			const label = arr.label?.text ? ` (标注: ${arr.label.text})` : "";
 			return `    - ${from} -> ${to}${label}`;
 		});

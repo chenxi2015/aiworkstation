@@ -60,10 +60,14 @@ export async function prepareRagAgentContext(
 	// the user has supplied other context (attachments, an active document or
 	// note), the agent can still do useful work (creation tools are headless),
 	// so we proceed with an empty snippet section instead of bailing out.
+	const noteContextItem = contextItems.find(
+		(i) => i.type === "note" && i.notePath,
+	);
+	const effectiveNotePath = activeNotePath || noteContextItem?.notePath;
 	const hasOtherContext =
 		contextItems.length > 0 ||
 		Boolean(activeDocumentId) ||
-		Boolean(activeNotePath);
+		Boolean(effectiveNotePath);
 	if (retrieval.emptyFallbackMessage && !hasOtherContext) {
 		return {
 			systemPrompt: "",
@@ -80,8 +84,8 @@ export async function prepareRagAgentContext(
 	const activeDocumentPrompt = resolveActiveDocumentPrompt(activeDocumentId);
 	// Active material (injected via Creator/Store) for creator module
 	const activeMaterialPrompt = resolveActiveMaterialPrompt(activeMaterialId);
-	// Active obsidian note (injected via PageBridge when viewing/editing note in obsidian module)
-	const activeNotePrompt = await resolveActiveNotePrompt(activeNotePath);
+	// Active obsidian note (injected via PageBridge or attached note context item)
+	const activeNotePrompt = await resolveActiveNotePrompt(effectiveNotePath);
 	const { attachmentsPrompt, draggedDocumentPrompt } =
 		await resolveAttachmentsPrompt(contextItems, params.question);
 

@@ -153,11 +153,22 @@ export const ChatInputArea = memo(function ChatInputArea({
 	const mergedContextItems = useMemo(() => {
 		if (!activeScope?.isActive) return contextItems;
 		const chipType = SCOPE_TYPE_TO_CHIP[activeScope.type] ?? "document";
+		const isCanvas = activeScope.notePath?.toLowerCase().endsWith(".canvas");
+		const isExcalidraw = activeScope.notePath?.toLowerCase().endsWith(".excalidraw");
+		const subtitle = isCanvas
+			? "白板画布"
+			: isExcalidraw
+				? "手绘草图"
+				: (SCOPE_CHIP_LABEL[activeScope.type] ?? "当前上下文");
 		const scopeChip: ChatContextItem = {
 			id: "__active_scope__",
 			type: chipType,
 			title: activeScope.name,
-			subtitle: SCOPE_CHIP_LABEL[activeScope.type] ?? "当前上下文",
+			subtitle,
+			notePath: activeScope.notePath,
+			documentId: activeScope.documentId,
+			materialId: activeScope.materialId,
+			folderId: activeScope.folderId,
 		};
 		return [scopeChip, ...contextItems];
 	}, [activeScope, contextItems]);
@@ -175,7 +186,10 @@ export const ChatInputArea = memo(function ChatInputArea({
 	);
 
 	const canSend =
-		(hasEditorContent || input.trim().length > 0 || contextItems.length > 0) &&
+		(hasEditorContent ||
+			input.trim().length > 0 ||
+			contextItems.length > 0 ||
+			Boolean(activeScope?.isActive)) &&
 		!isLoading;
 
 	// Bridge inputRef for parent components calling inputRef.current?.focus()
@@ -488,9 +502,41 @@ export const ChatInputArea = memo(function ChatInputArea({
 		const data = inlineEditorRef.current?.getSerializedData();
 		const finalPrompt = data?.fullPrompt ?? input;
 
-		// Collect inline mentions and skills as extra context items to pass directly to sendPrompt
-		// (avoids React setState async race condition with onAttachContextItem)
+		// Collect active scope and inline mentions/skills as extra context items
 		const extraItems: ChatContextItem[] = [];
+
+		// Include active scope as context item if active and not already present in contextItems
+		if (activeScope?.isActive) {
+			const chipType = SCOPE_TYPE_TO_CHIP[activeScope.type] ?? "document";
+			const isCanvas = activeScope.notePath?.toLowerCase().endsWith(".canvas");
+			const isExcalidraw = activeScope.notePath?.toLowerCase().endsWith(".excalidraw");
+			const subtitle = isCanvas
+				? "白板画布"
+				: isExcalidraw
+					? "手绘草图"
+					: (SCOPE_CHIP_LABEL[activeScope.type] ?? "当前上下文");
+
+			const alreadyInContext = contextItems.some((ci) => {
+				if (activeScope.type === "note" && ci.type === "note" && ci.notePath === activeScope.notePath) return true;
+				if (activeScope.type === "document" && ci.type === "document" && ci.documentId === activeScope.documentId) return true;
+				if (activeScope.type === "material" && ci.type === "material" && ci.materialId === activeScope.materialId) return true;
+				if (activeScope.type === "folder" && ci.type === "folder" && ci.folderId === activeScope.folderId) return true;
+				return false;
+			});
+
+			if (!alreadyInContext) {
+				extraItems.push({
+					id: `__active_scope__${Date.now()}`,
+					type: chipType,
+					title: activeScope.name,
+					subtitle,
+					notePath: activeScope.notePath,
+					documentId: activeScope.documentId,
+					materialId: activeScope.materialId,
+					folderId: activeScope.folderId,
+				});
+			}
+		}
 
 		if (data?.mentions && data.mentions.length > 0) {
 			for (const m of data.mentions) {
@@ -521,7 +567,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 		setTimeout(() => {
 			onSend(extraItems.length > 0 ? extraItems : undefined, finalPrompt);
 		}, 0);
-	}, [canSend, input, onChangeInput, onSend]);
+	}, [canSend, input, onChangeInput, onSend, activeScope, contextItems]);
 
 	const placeholder = useMemo(() => {
 		if (contextItems.length > 0) {

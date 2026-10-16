@@ -109,11 +109,16 @@ export async function runAgentStream(
 		(activeSkillItem?.data?.skillName as string) ||
 		activeSkillItem?.title;
 
+	const noteContextItem = (params.contextItems || []).find(
+		(item) => item.type === "note" && item.notePath,
+	);
+	const effectiveNotePath = activeNotePath || noteContextItem?.notePath;
+
 	const tools = createAgentTools(toolHooks, {
 		module,
 		activeDocumentId,
 		activeMaterialId,
-		activeNotePath,
+		activeNotePath: effectiveNotePath,
 		sessionId: params.sessionId,
 		activeSkillDir,
 	});
@@ -135,7 +140,7 @@ export async function runAgentStream(
 		module,
 		activeDocumentId,
 		activeMaterialId,
-		activeNotePath,
+		activeNotePath: effectiveNotePath,
 	});
 
 	if (prepared.emptyFallbackMessage) {

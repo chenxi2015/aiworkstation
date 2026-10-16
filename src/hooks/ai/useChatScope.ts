@@ -43,6 +43,7 @@ const MODULE_SCOPE_RESOLVERS: Record<string, ScopeResolver> = {
 				type: "document",
 				name: rawDoc.title || "未命名文档",
 				isActive: !isDetached,
+				documentId: rawDoc.id,
 			},
 			toggle: () => {
 				if (isDetached) {
@@ -62,6 +63,7 @@ const MODULE_SCOPE_RESOLVERS: Record<string, ScopeResolver> = {
 				type: "material",
 				name: rawMaterial.title || "未命名素材",
 				isActive: !isDetached,
+				materialId: rawMaterial.id,
 			},
 			toggle: () => {
 				if (isDetached) {
@@ -84,6 +86,7 @@ const MODULE_SCOPE_RESOLVERS: Record<string, ScopeResolver> = {
 					rawNote.path.split("/").pop()?.replace(/\.md$/i, "") ||
 					"未命名笔记",
 				isActive: !isDetached,
+				notePath: rawNote.path,
 			},
 			toggle: () => {
 				if (isDetached) {
@@ -130,6 +133,7 @@ export function useChatScope({
 					type: "folder",
 					name: selectedFolder.name,
 					isActive: scopeMode === "folder",
+					folderId: selectedFolder.id,
 				},
 				toggle: () => {
 					onToggleFolderScope?.();
