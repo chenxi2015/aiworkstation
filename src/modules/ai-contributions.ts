@@ -138,16 +138,11 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 		systemPromptHint:
 			"用户正在「笔记」模块（Obsidian Vault 直连）。偏向笔记与白板协同：总结润色笔记、二创改写；当打开 .canvas 白板时，可通过 canvas 工具实时绘制思维导图、架构图与知识卡片网络；当打开 .excalidraw 画板时，可通过 excalidraw 工具批量绘制手绘风格流程图、架构图与实体关系。",
 		promptSuggestions: [
-			"帮我新建一个名为「系统架构」的白板并梳理核心模块",
-			"在当前 Excalidraw 画板中绘制用户登录鉴权流程图",
-			"在当前 Excalidraw 画板中绘制微服务调用链路与架构图",
-			"帮我规整一下当前白板的排版，对齐节点并优化连线",
-			"将当前画板内容居中显示",
-			"帮我在当前白板中梳理思维导图，向右延伸层级结构",
-			"根据这篇笔记的内容在白板中绘制系统架构与模块流向图",
 			"基于当前笔记事实进行二创改写与重新表述，生成全新的内容稿件",
 			"对当前笔记全文进行精细润色，纠正语病并优化行文逻辑",
 			"提炼并总结当前笔记的核心要点与结构脉络",
+			"帮我分析当前笔记的结构逻辑，提出可优化的改进建议",
+			"从知识库中检索可补充到当前笔记的相关资料",
 		],
 		contextItemTypes: ["bookmark", "folder", "tag", "image", "file"],
 	},

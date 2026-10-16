@@ -35,8 +35,6 @@ export interface PageAction {
 		badge?: string;
 		actionText?: string;
 	};
-	/** 在 AI 回复消息操作条上展示（onAction 收到该消息全文） */
-	showOnMessages?: boolean;
 	/** Optional target-object declaration for the action-proposal resolver */
 	target?: PageActionTarget;
 	/** Execution handler receiving the AI message content; may optionally

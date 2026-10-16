@@ -1,20 +1,12 @@
 import { toast } from "@heroui/react";
 import {
-	ArrowDownToLine,
 	Columns2,
-	FileText,
-	GitFork,
-	LayoutGrid,
 	ListTree,
-	Network,
-	Palette,
-	PlusSquare,
-	Replace,
 	Shuffle,
 	Sparkles,
 } from "lucide-react";
 import type React from "react";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { workbenchContextActions } from "../../../stores/workbenchContextStore";
 import { useAiPanel } from "../../shell/AppShell";
 import type {
@@ -23,9 +15,6 @@ import type {
 	ObsidianMutationResult,
 	ObsidianNoteApi,
 } from "../types";
-
-/** 传给 AI 的笔记原文上限（防止超大笔记打爆上下文） */
-const NOTE_CONTEXT_LIMIT = 12000;
 
 /**
  * Wait for canvasApi to become ready (e.g. after creating a new board or switching views)
@@ -88,8 +77,8 @@ export interface UseObsidianAiBridgeOptions {
 
 /**
  * 将 Obsidian 笔记页桥接到全局 AI 侧边栏：
- * - 空态快捷入口：双栏二创改写、双栏全文润色、结构化整理、提炼总结
- * - 消息级动作：把 AI 回复一键追加/替换进当前笔记
+ * - 空态快捷入口：双栏二创改写、双栏全文润色、结构化整理
+ * - 画布/画板工具联动：提供无头操作句柄供 AI Agent 实时绘制与编辑
  */
 export function useObsidianAiBridge({
 	noteApiRef,
@@ -98,9 +87,7 @@ export function useObsidianAiBridge({
 	onCreateCanvas,
 	onCreateExcalidraw,
 }: UseObsidianAiBridgeOptions) {
-	const { registerPageBridge, sendPrompt } = useAiPanel();
-	const sendPromptRef = useRef(sendPrompt);
-	sendPromptRef.current = sendPrompt;
+	const { registerPageBridge } = useAiPanel();
 
 	const noteTitle = selectedNotePath
 		? (selectedNotePath.split("/").pop()?.replace(/\.md$/i, "") ?? null)
@@ -125,137 +112,12 @@ export function useObsidianAiBridge({
 	}, [selectedNotePath, noteTitle]);
 
 	useEffect(() => {
-		const sendWithNote = (instruction: string) => {
-			const api = noteApiRef.current;
-			if (!api?.hasNote()) {
-				toast.info("请先在左侧打开一篇笔记");
-				return;
-			}
-			void api.flushSave();
-			const title = api.getTitle() ?? "未命名笔记";
-			const raw = api.getContent();
-			const content =
-				raw.length > NOTE_CONTEXT_LIMIT
-					? `${raw.slice(0, NOTE_CONTEXT_LIMIT)}\n\n…（笔记过长，已截断）`
-					: raw;
-			if (!content.trim()) {
-				toast.info("当前笔记还没有内容");
-				return;
-			}
-			sendPromptRef.current(
-				`${instruction}\n\n以下是我的笔记「${title}」全文：\n\n${content}`,
-			);
-		};
-
-		const applyToNote = (mode: "append" | "replace") => (content: string) => {
-			const api = noteApiRef.current;
-			if (!api?.hasNote()) {
-				toast.info("请先在左侧打开一篇笔记");
-				return;
-			}
-			const text = content.trim();
-			if (!text) return;
-			if (
-				mode === "replace" &&
-				!window.confirm("确认用该回复替换整篇笔记？可在编辑器内 Cmd+Z 撤销。")
-			) {
-				return;
-			}
-			const ok =
-				mode === "append"
-					? api.appendMarkdown(text)
-					: api.replaceMarkdown(text);
-			if (ok) {
-				toast.success(
-					mode === "append"
-						? "已追加到笔记末尾，将自动保存同步到 Vault"
-						: "已替换笔记内容，将自动保存同步到 Vault",
-				);
-			}
-		};
-
 		const isCanvas = Boolean(selectedNotePath?.endsWith(".canvas"));
 		const isExcalidraw = Boolean(selectedNotePath?.endsWith(".excalidraw"));
 
-		const canvasActions = isCanvas
-			? [
-					{
-						id: "canvas_mindmap",
-						label: "梳理思维导图",
-						icon: GitFork,
-						variant: "accent" as const,
-						tooltip: "根据当前白板主题或关联笔记梳理思维导图，向右延伸层级结构",
-						onAction: () => {
-							sendPromptRef.current(
-								"请根据当前白板内容及关联知识，调用 canvas_create_elements 工具绘制一份结构清晰的思维导图，层级分明地向右延伸。",
-							);
-						},
-					},
-					{
-						id: "canvas_arch",
-						label: "系统架构梳理",
-						icon: Network,
-						variant: "default" as const,
-						tooltip: "规划系统核心模块、数据流向与依赖关系，实时渲染在白板上",
-						onAction: () => {
-							sendPromptRef.current(
-								"请规划当前业务系统的模块架构，调用 canvas_create_elements 工具在白板中绘制出包含核心微服务/模块、数据流与调用关系的架构拓扑图。",
-							);
-						},
-					},
-					{
-						id: "canvas_quick_tidy",
-						label: "规整白板排版",
-						icon: LayoutGrid,
-						variant: "default" as const,
-						tooltip:
-							"一键规整当前白板：标准化卡片尺寸、消除节点重叠并优化连线走向",
-						onAction: () => {
-							sendPromptRef.current(
-								"请调用 canvas_tidy_layout 工具，对当前白板进行排版规整，统一卡片尺寸并优化连线走向。",
-							);
-						},
-					},
-				]
-			: isExcalidraw
-				? [
-						{
-							id: "excalidraw_flowchart",
-							label: "绘制业务流程图",
-							icon: GitFork,
-							variant: "accent" as const,
-							tooltip: "在当前 Excalidraw 画板中绘制包含判定与流向的业务流程图",
-							onAction: () => {
-								sendPromptRef.current(
-									"请根据当前画板主题，调用 excalidraw_draw_elements 工具绘制一份结构清晰的手绘流程图（包含关键操作、分支判断与流向箭头）。",
-								);
-							},
-						},
-						{
-							id: "excalidraw_arch",
-							label: "绘制系统架构图",
-							icon: Network,
-							variant: "default" as const,
-							tooltip: "在当前 Excalidraw 画板中绘制系统分层架构拓扑与调用流向",
-							onAction: () => {
-								sendPromptRef.current(
-									"请规划当前系统的分层架构，调用 excalidraw_draw_elements 工具在当前画板中绘制包含展示层、业务层、数据层及依赖关系的架构图。",
-								);
-							},
-						},
-						{
-							id: "excalidraw_center",
-							label: "居中画板视野",
-							icon: Palette,
-							variant: "default" as const,
-							tooltip: "平滑缩放并将当前画板内容居中对齐到视口中央",
-							onAction: () => {
-								sendPromptRef.current(
-									"请调用 excalidraw_center_view 工具，将当前 Excalidraw 画板内容居中显示。",
-								);
-							},
-						},
-					]
+		const noteActions =
+			isCanvas || isExcalidraw
+				? []
 				: [
 						{
 							id: "stream_spin_rewrite",
@@ -340,7 +202,7 @@ export function useObsidianAiBridge({
 				await noteApiRef.current?.flushSave();
 			},
 			actions: [
-				...canvasActions,
+				...noteActions,
 				{
 					id: "canvas_create_elements",
 					label: "创建白板节点",
@@ -533,64 +395,6 @@ export function useObsidianAiBridge({
 							console.error("[excalidraw_center_view] error:", err);
 						}
 					},
-				},
-				// Canvas message-level action
-				{
-					id: "canvas_add_as_card",
-					label: "转为白板卡片",
-					icon: PlusSquare,
-					tooltip: "将此条 AI 回复作为新卡片加入当前白板",
-					showOnMessages: isCanvas,
-					onAction: (content: string) => {
-						const api = noteApiRef.current;
-						if (!api?.canvasApi) {
-							toast.info("请先打开并聚焦白板视图");
-							return;
-						}
-						const text = content.trim();
-						if (!text) return;
-						const ok = api.canvasApi.addElements({
-							nodes: [
-								{
-									id: `ai_card_${Date.now().toString(16)}`,
-									type: "text",
-									text,
-									color: "3",
-								},
-							],
-							layout: "free",
-						});
-						if (ok) {
-							toast.success("已将 AI 回复转为白板卡片");
-						}
-					},
-				},
-				{
-					id: "note_summarize",
-					label: "总结当前笔记",
-					icon: FileText,
-					tooltip: "提炼当前打开笔记的核心要点与结构脉络进对话",
-					onAction: () => {
-						sendWithNote(
-							"请总结这篇笔记：提炼核心要点（分条列出），并简述其结构与可改进之处。",
-						);
-					},
-				},
-				{
-					id: "note_append",
-					label: "追加到笔记",
-					icon: ArrowDownToLine,
-					tooltip: "将该回复追加到当前笔记末尾",
-					showOnMessages: !isCanvas,
-					onAction: applyToNote("append"),
-				},
-				{
-					id: "note_replace",
-					label: "替换整篇",
-					icon: Replace,
-					tooltip: "用该回复替换当前笔记全文（编辑器内可撤销）",
-					showOnMessages: !isCanvas,
-					onAction: applyToNote("replace"),
 				},
 			],
 		});
