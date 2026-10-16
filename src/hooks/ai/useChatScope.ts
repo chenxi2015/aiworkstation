@@ -1,6 +1,6 @@
 import { useStore } from "@tanstack/react-store";
 import { useCallback, useMemo } from "react";
-import type { ActiveChatScope } from "../../components/workbench/ai/chat/ChatScopePill";
+import type { ActiveChatScope } from "../../components/workbench/ai/chat/chatScopeTypes";
 import type { Folder } from "../../components/workbench/types";
 import {
 	type WorkbenchContextState,

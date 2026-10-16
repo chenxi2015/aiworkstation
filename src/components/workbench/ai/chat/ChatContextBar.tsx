@@ -1,5 +1,12 @@
 import { toast } from "@heroui/react";
-import { Box, FileText, Folder as FolderIcon, Globe, Tag, X } from "lucide-react";
+import {
+	Box,
+	FileText,
+	Folder as FolderIcon,
+	Globe,
+	Tag,
+	X,
+} from "lucide-react";
 import { memo } from "react";
 import type { ChatContextItem } from "../../../../types/chatContext";
 import type { Category } from "../../types";

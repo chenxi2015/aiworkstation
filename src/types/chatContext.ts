@@ -8,6 +8,8 @@ export type ChatContextType =
 	| "image"
 	| "file"
 	| "document"
+	| "note"
+	| "material"
 	| "skill"
 	| "split_practice";
 
@@ -24,6 +26,12 @@ export interface ChatContextItem {
 	url?: string;
 	/** Optional folder id if type === 'folder' */
 	folderId?: number;
+	/** Optional note path if type === 'note'（Vault 相对路径） */
+	notePath?: string;
+	/** Optional material id if type === 'material' */
+	materialId?: number;
+	/** Optional document id if type === 'document' */
+	documentId?: number;
 	/** Optional category code for folder navigation */
 	category?: string;
 	/** Optional tag name if type === 'tag' */

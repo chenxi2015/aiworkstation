@@ -1,4 +1,5 @@
 import type { ChatContextItem } from "../../../../types/chatContext.ts";
+import { workbenchDb } from "../../../db/sqlite.ts";
 import { loadSkillContextBundle } from "../../../services/skills/index.ts";
 
 // ---------- Type labels ----------
@@ -6,6 +7,9 @@ import { loadSkillContextBundle } from "../../../services/skills/index.ts";
 const TYPE_LABELS: Record<string, string> = {
 	bookmark: "书签链接",
 	folder: "文件夹",
+	note: "Obsidian 笔记",
+	document: "创作文档",
+	material: "素材",
 	image: "图片",
 	skill: "技能规范(Skill)",
 };
@@ -22,12 +26,76 @@ function buildWebpageGuidance(contextItems: ChatContextItem[]): string {
 	return "\n\n★ 重要指引：用户在当前上下文中提供了具体的网址链接。如果用户的提问涉及深度分析该网页、总结文章、提取要点或了解项目详情，请【默认首选】调用 `crawl_webpage_via_extension` 工具（浏览器插件静默爬虫，携带真实登录态 Cookie，可穿透 SPA 渲染与反爬限制，返回整洁 Markdown 正文；插件离线时会自动降级，无需顾虑）抓取该网址的真实正文，然后向用户输出有深度、有条理的分析报告！仅当该工具明确返回失败时，才退而使用 `read_webpage_content` 轻量通道。";
 }
 
+/** 上传文档附件的正文预览注入（素材库导入的 Word/PDF/Excel/TXT 等，已在前端提取纯文本） */
+function buildUploadedDocsPrompt(contextItems: ChatContextItem[]): string {
+	const blocks: string[] = [];
+	for (const item of contextItems) {
+		if (item.type !== "file") continue;
+		const preview = item.data?.contentPreview;
+		if (typeof preview !== "string" || preview.length === 0) continue;
+		blocks.push(`### 上传文档：《${item.title}》\n"""\n${preview}\n"""`);
+	}
+	if (blocks.length === 0) return "";
+	return `\n- 【用户上传文档的正文内容（素材库导入，已提取为纯文本，直接基于其回答即可，无需调用任何读取工具）】:\n${blocks.join("\n\n")}`;
+}
+
 function buildImageGuidance(contextItems: ChatContextItem[]): string {
 	const hasImage = contextItems.some(
 		(item) => item.type === "image" && Boolean(item.thumbnail),
 	);
 	if (!hasImage) return "";
 	return "\n\n★ 重要视觉指引：用户在当前提问中附带了完整的图片/截图。如果用户的提问涉及提取图片文字（OCR）、分析截图、描述设计或解释图表，你可以直接基于接收到的图像内容给出完整、准确的分析与文字提取结果！";
+}
+
+/** 素材库导入的素材正文注入（服务端按 materialId 从 SQLite 直接取全文摘要，模型免调工具） */
+function buildLibraryMaterialsPrompt(contextItems: ChatContextItem[]): string {
+	const blocks: string[] = [];
+	for (const item of contextItems) {
+		if (item.type !== "material" || item.materialId == null) continue;
+		const material = workbenchDb.getMaterial(item.materialId);
+		if (!material) continue;
+		const content = material.content ?? "";
+		const preview = content.slice(0, 3000) || "(空素材/暂无正文)";
+		const suffix =
+			content.length > 3000 ? `\n…（共 ${content.length} 字，已截取）` : "";
+		const noteLine = material.note ? `\n批注/要点：${material.note}` : "";
+		blocks.push(
+			`### 素材：《${material.title}》(id=${material.id}，来源: ${material.sourceType})${noteLine}\n正文：\n"""\n${preview}${suffix}\n"""`,
+		);
+	}
+	if (blocks.length === 0) return "";
+	return `\n- 【用户从素材库导入的素材正文（已按 id 从本地素材库取出，直接基于其回答/二创即可，无需再调用读取工具）】:\n${blocks.join("\n\n")}`;
+}
+
+/** 笔记/文档/素材引用引导：指明对应的读取工具与定位字段 */
+function buildEntityGuidance(contextItems: ChatContextItem[]): string {
+	const notes = contextItems.filter((i) => i.type === "note" && i.notePath);
+	const docs = contextItems.filter(
+		(i) => i.type === "document" && i.documentId != null,
+	);
+	const materials = contextItems.filter(
+		(i) => i.type === "material" && i.materialId != null,
+	);
+	if (notes.length === 0 && docs.length === 0 && materials.length === 0)
+		return "";
+
+	const parts: string[] = [];
+	if (notes.length > 0) {
+		parts.push(
+			`笔记（Vault 相对路径）：${notes.map((n) => `《${n.title}》(${n.notePath})`).join("、")} —— 用 obsidian 相关工具按 relPath 读取全文`,
+		);
+	}
+	if (docs.length > 0) {
+		parts.push(
+			`创作文档（id）：${docs.map((d) => `《${d.title}》(id=${d.documentId})`).join("、")} —— 用 read_document 工具读取正文`,
+		);
+	}
+	if (materials.length > 0) {
+		parts.push(
+			`素材（id）：${materials.map((m) => `《${m.title}》(id=${m.materialId})`).join("、")} —— 用素材查询工具按 id 读取`,
+		);
+	}
+	return `\n\n★ 引用实体读取指引：用户通过 @ 显式引用了以下本地实体，需要全文时请用对应工具按标识读取，不要凭空臆测内容：\n${parts.map((p) => `  - ${p}`).join("\n")}`;
 }
 
 async function buildSkillsPrompt(
@@ -120,7 +188,10 @@ export async function resolveAttachmentsPrompt(
 
 	const webpageGuidance = buildWebpageGuidance(contextItems);
 	const imageGuidance = buildImageGuidance(contextItems);
+	const entityGuidance = buildEntityGuidance(contextItems);
 	const skillsPrompt = await buildSkillsPrompt(contextItems, userQuery);
+	const uploadedDocsPrompt = buildUploadedDocsPrompt(contextItems);
+	const libraryMaterialsPrompt = buildLibraryMaterialsPrompt(contextItems);
 
 	const itemLines = contextItems
 		.map((item, i) => {
@@ -136,7 +207,7 @@ export async function resolveAttachmentsPrompt(
 		})
 		.join("\n");
 
-	const attachmentsPrompt = `\n- 【用户显式注入的上下文实体（重点优先参考）】:\n${itemLines}\n提示：用户在本次提问中显式拖入或引用了以上实体作为上下文，请在回答或调用工具时优先围绕这些目标进行深度剖析、总结或比对。${webpageGuidance}${imageGuidance}${skillsPrompt}`;
+	const attachmentsPrompt = `\n- 【用户显式注入的上下文实体（重点优先参考）】:\n${itemLines}\n提示：用户在本次提问中显式拖入或引用了以上实体作为上下文，请在回答或调用工具时优先围绕这些目标进行深度剖析、总结或比对。${webpageGuidance}${imageGuidance}${entityGuidance}${skillsPrompt}${uploadedDocsPrompt}${libraryMaterialsPrompt}`;
 
 	const draggedDocumentPrompt = buildDraggedDocumentPrompt(contextItems);
 

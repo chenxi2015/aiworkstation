@@ -115,7 +115,9 @@ export const AgentStepItem = memo(function AgentStepItem({
 							{/* Execution output summary */}
 							{step.summary && (
 								<div>
-									<span className="text-neutral-400 text-[10.5px]">结果响应:</span>
+									<span className="text-neutral-400 text-[10.5px]">
+										结果响应:
+									</span>
 									<div className="mt-0.5 p-2 rounded bg-white/80 dark:bg-neutral-950/60 text-neutral-700 dark:text-neutral-300 text-xs overflow-x-auto border border-neutral-200/60 dark:border-neutral-800">
 										<AiMarkdownRenderer content={step.summary} compact={true} />
 									</div>

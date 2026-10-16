@@ -106,7 +106,7 @@ export function useObsidianAiBridge({
 		? (selectedNotePath.split("/").pop()?.replace(/\.md$/i, "") ?? null)
 		: null;
 
-	// 同步全局 activeNote 状态，供输入框 ChatScopePill 切换「限定笔记」与「全局检索」
+	// 同步全局 activeNote 状态，供输入框将「当前笔记」合成为内建上下文 chip（可 × 解除）
 	useEffect(() => {
 		if (selectedNotePath) {
 			workbenchContextActions.setActiveNote({

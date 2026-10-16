@@ -1,4 +1,5 @@
 import { useDroppable } from "@dnd-kit/react";
+import { useStore } from "@tanstack/react-store";
 import { Paperclip } from "lucide-react";
 import {
 	type ClipboardEvent,
@@ -13,6 +14,10 @@ import {
 } from "react";
 
 import { WorkbenchStorageService } from "../../../../services/workbenchStorage";
+import {
+	loadMentionIndex,
+	mentionIndexStore,
+} from "../../../../stores/mentionIndexStore";
 import type { ChatContextItem } from "../../../../types/chatContext";
 import { SlashSkillMenu } from "../../../common/slash/SlashSkillMenu";
 import {
@@ -23,13 +28,14 @@ import { CHAT_INPUT_DROP_ID } from "../../dnd/dndUtils";
 import type { Category, Folder } from "../../types";
 import { ChatContextBar } from "./ChatContextBar";
 import { ChatContextMentionMenu } from "./ChatContextMentionMenu";
-import { type ActiveChatScope, ChatInputBottomBar } from "./ChatInputBottomBar";
+import { ChatInputBottomBar } from "./ChatInputBottomBar";
 import { ChatInputTopToolbar } from "./ChatInputTopToolbar";
+import type { ActiveChatScope } from "./chatScopeTypes";
 import {
 	ChatRichInlineInput,
 	type ChatRichInlineInputHandle,
 } from "./inline/ChatRichInlineInput";
-import { searchMentionCandidates } from "./utils/mentionSearch";
+import { searchAllMentionSources } from "./utils/mentionSearch";
 
 export interface ChatInputAreaProps {
 	input: string;
@@ -43,8 +49,6 @@ export interface ChatInputAreaProps {
 	onNewChat?: () => void;
 	onClearHistory?: () => void;
 	model?: string;
-	scopeMode?: "global" | "folder";
-	selectedFolder?: Folder | null;
 	activeScope?: ActiveChatScope | null;
 	onToggleScope?: () => void;
 	folders?: Folder[];
@@ -67,6 +71,20 @@ const SCOPE_TYPE_LABELS: Record<string, string> = {
 	folder: "文件夹",
 };
 
+/** scope 类型 → chip 类型映射（模块级常量，避免被 useMemo 捕获触发依赖告警） */
+const SCOPE_TYPE_TO_CHIP: Record<string, ChatContextItem["type"]> = {
+	document: "document",
+	note: "note",
+	material: "material",
+	folder: "folder",
+};
+const SCOPE_CHIP_LABEL: Record<string, string> = {
+	document: "当前文档",
+	note: "当前笔记",
+	material: "当前素材",
+	folder: "当前文件夹",
+};
+
 /**
  * Modern AI chat input area with inline rich token integration,
  * context injection (dnd-kit & native drops), and embedded action bar.
@@ -78,11 +96,9 @@ export const ChatInputArea = memo(function ChatInputArea({
 	onChangeInput,
 	onSend,
 	onStop,
-	onOpenHistory: _onOpenHistory,
-	onNewChat: _onNewChat,
+	onOpenHistory,
+	onNewChat,
 	model,
-	scopeMode = "global",
-	selectedFolder,
 	activeScope,
 	onToggleScope,
 	folders = [],
@@ -120,13 +136,59 @@ export const ChatInputArea = memo(function ChatInputArea({
 
 	const { filteredItems: slashCandidates } = useSlashSkills(slashQuery);
 
-	// Compute active mention candidates
+	// 跨模块 mention 索引（笔记/文档/素材），首次打开菜单时惰性加载
+	const mentionIndex = useStore(mentionIndexStore);
+	useEffect(() => {
+		if (
+			mentionQuery !== null &&
+			!mentionIndex.loaded &&
+			!mentionIndex.loading
+		) {
+			void loadMentionIndex();
+		}
+	}, [mentionQuery, mentionIndex.loaded, mentionIndex.loading]);
+
+	// Compute active mention candidates（跨模块多源聚合）
 	const activeCandidates = useMemo(() => {
 		if (mentionQuery === null) return [];
-		return searchMentionCandidates(folders, mentionQuery);
-	}, [mentionQuery, folders]);
+		return searchAllMentionSources(
+			{
+				folders,
+				notes: mentionIndex.notes,
+				documents: mentionIndex.documents,
+				materials: mentionIndex.materials,
+			},
+			mentionQuery,
+		);
+	}, [mentionQuery, folders, mentionIndex]);
 
 	const isMenuOpen = mentionQuery !== null || slashQuery !== null;
+
+	// 将当前 scope（当前文档/笔记/素材/文件夹）合成为内建 chip 插入上下文栏开头；
+	// × 掉即 detach（等价于原「切换到全局」）。替代旧 scope pill 的表达。
+	const mergedContextItems = useMemo(() => {
+		if (!activeScope?.isActive) return contextItems;
+		const chipType = SCOPE_TYPE_TO_CHIP[activeScope.type] ?? "document";
+		const scopeChip: ChatContextItem = {
+			id: "__active_scope__",
+			type: chipType,
+			title: activeScope.name,
+			subtitle: SCOPE_CHIP_LABEL[activeScope.type] ?? "当前上下文",
+		};
+		return [scopeChip, ...contextItems];
+	}, [activeScope, contextItems]);
+
+	const handleRemoveContextItem = useCallback(
+		(id: string) => {
+			if (id === "__active_scope__") {
+				// 移除内建 scope chip = detach 当前上下文对象
+				onToggleScope?.();
+				return;
+			}
+			onRemoveContextItem?.(id);
+		},
+		[onToggleScope, onRemoveContextItem],
+	);
 
 	const canSend =
 		(hasEditorContent || input.trim().length > 0 || contextItems.length > 0) &&
@@ -303,6 +365,9 @@ export const ChatInputArea = memo(function ChatInputArea({
 							subtitle: target.subtitle,
 							url: target.url,
 							folderId: target.folderId,
+							notePath: target.notePath,
+							documentId: target.documentId,
+							materialId: target.materialId,
 							icon: target.icon,
 						});
 					}
@@ -406,8 +471,12 @@ export const ChatInputArea = memo(function ChatInputArea({
 				onClose={() => setSlashQuery(null)}
 			/>
 
-			{/* Top action toolbar: Model Badge & Active Context Indicator */}
-			<ChatInputTopToolbar displayModel={displayModel} />
+			{/* Top action toolbar: Model Badge & History/NewChat quick actions */}
+			<ChatInputTopToolbar
+				displayModel={displayModel}
+				onOpenHistory={onOpenHistory}
+				onNewChat={onNewChat}
+			/>
 
 			{/* Main Input Card: Droppable Zone with Context Bar, Rich Inline Editor, and Bottom Bar */}
 			<section
@@ -434,12 +503,12 @@ export const ChatInputArea = memo(function ChatInputArea({
 					</div>
 				)}
 
-				{/* Injected Context Attachment Chips (Bookmarks, Folders, Files) */}
-				{contextItems.length > 0 && (
+				{/* Injected Context Attachment Chips（内建 scope chip + 书签/文件夹/图片/文件） */}
+				{mergedContextItems.length > 0 && (
 					<div className="mb-1 pb-1 border-b border-border/50">
 						<ChatContextBar
-							items={contextItems}
-							onRemove={(id) => onRemoveContextItem?.(id)}
+							items={mergedContextItems}
+							onRemove={handleRemoveContextItem}
 							onClearAll={onClearContextItems}
 							onNavigateToFolder={onNavigateToFolder}
 						/>
@@ -471,16 +540,13 @@ export const ChatInputArea = memo(function ChatInputArea({
 					/>
 				</div>
 
-				{/* Card Bottom Bar: Left scope switch, Right Send/Stop Button */}
+				{/* Card Bottom Bar: Left + attachment menu, Right Send/Stop Button */}
 				<ChatInputBottomBar
-					scopeMode={scopeMode}
-					selectedFolder={selectedFolder}
-					activeScope={activeScope}
-					onToggleScope={onToggleScope}
 					isLoading={isLoading}
 					canSend={canSend}
 					onSend={handleSendMessage}
 					onStop={onStop}
+					onAttachContextItem={onAttachContextItem}
 				/>
 			</section>
 

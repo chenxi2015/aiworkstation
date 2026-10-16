@@ -78,6 +78,34 @@ export function getImageAssets(material: Material): MaterialAsset[] {
 	return (material.assets ?? []).filter(isImageAsset);
 }
 
+const AUDIO_EXTS = new Set([
+	"mp3",
+	"wav",
+	"m4a",
+	"aac",
+	"flac",
+	"ogg",
+	"oga",
+	"opus",
+	"wma",
+]);
+
+/**
+ * Check if an asset is a playable audio
+ */
+export function isAudioAsset(asset: MaterialAsset): boolean {
+	if (asset.kind === "audio") return true;
+	const ext = (asset.filename || asset.relPath).split(".").pop()?.toLowerCase();
+	return ext ? AUDIO_EXTS.has(ext) : false;
+}
+
+/**
+ * Extract all playable audio assets from a material
+ */
+export function getAudioAssets(material: Material): MaterialAsset[] {
+	return (material.assets ?? []).filter(isAudioAsset);
+}
+
 /**
  * Format bytes into human readable string
  */

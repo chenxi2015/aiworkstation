@@ -1,7 +1,12 @@
 import { Button, Tooltip, toast } from "@heroui/react";
 import { useNavigate } from "@tanstack/react-router";
 import { useSelector } from "@tanstack/react-store";
-import { History, Loader2, MessageSquarePlus, PanelRightClose } from "lucide-react";
+import {
+	History,
+	Loader2,
+	MessageSquarePlus,
+	PanelRightClose,
+} from "lucide-react";
 import {
 	forwardRef,
 	useCallback,
@@ -11,6 +16,7 @@ import {
 	useState,
 } from "react";
 import { type ChatItem, useAiChat } from "../../../../hooks/ai/useAiChat";
+import type { ChatDraftPayload } from "../../../../hooks/ai/useChatMessages";
 import { useChatScope } from "../../../../hooks/ai/useChatScope";
 import { useItemFolderAssign } from "../../../../hooks/ai/useItemFolderAssign";
 import { getAiContribution } from "../../../../modules/ai-contributions";
@@ -43,7 +49,6 @@ import {
 	REWRITE_ACTION_LABELS,
 	type RewriteIntent,
 } from "./rewriteIntent";
-import type { ChatDraftPayload } from "../../../../hooks/ai/useChatMessages";
 
 export interface ChatWithBookmarksPanelRef {
 	sendPrompt: (
@@ -154,7 +159,8 @@ export const ChatWithBookmarksPanel = forwardRef<
 	// Check if there are other background sessions currently running or unread
 	const hasBackgroundRunning = useSelector(agentSessionStore, (s) =>
 		Object.values(s.sessions).some(
-			(session) => session.id !== s.activeSessionId && session.status === "running",
+			(session) =>
+				session.id !== s.activeSessionId && session.status === "running",
 		),
 	);
 	const hasBackgroundUnread = useSelector(agentSessionStore, (s) =>
@@ -274,10 +280,7 @@ export const ChatWithBookmarksPanel = forwardRef<
 			// console.log("[ChatPanel onCanvasAction]", toolName, args);
 			// Board creations are decoupled as drafts and confirmed via DraftDeliveryCard.
 			// Skip bridge actions to prevent duplicate file creation race.
-			if (
-				toolName === "draft_excalidraw" ||
-				toolName === "draft_canvas"
-			) {
+			if (toolName === "draft_excalidraw" || toolName === "draft_canvas") {
 				return;
 			}
 			const act = pageBridge?.actions.find((a) => a.id === toolName);
@@ -514,9 +517,7 @@ export const ChatWithBookmarksPanel = forwardRef<
 	const handleDraftStatusChange = useCallback(
 		(index: number, updated: ChatDraftPayload) => {
 			setMessages((prev) =>
-				prev.map((m, i) =>
-					i === index ? { ...m, draft: updated } : m,
-				),
+				prev.map((m, i) => (i === index ? { ...m, draft: updated } : m)),
 			);
 		},
 		[setMessages],
@@ -795,8 +796,6 @@ export const ChatWithBookmarksPanel = forwardRef<
 						onNewChat={createNewChat}
 						onClearHistory={clearHistory}
 						model={settings?.model}
-						scopeMode={scopeMode}
-						selectedFolder={selectedFolder}
 						activeScope={activeScope}
 						onToggleScope={handleToggleScope}
 						contextItems={contextItems}

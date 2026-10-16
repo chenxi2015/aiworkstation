@@ -1,4 +1,5 @@
 import { Button, Tooltip } from "@heroui/react";
+import { useSelector } from "@tanstack/react-store";
 import {
 	Clock,
 	Download,
@@ -9,11 +10,10 @@ import {
 	Trash2,
 	X,
 } from "lucide-react";
-import { useSelector } from "@tanstack/react-store";
 import { useMemo, useState } from "react";
 import type { ChatSession } from "../../../../services/workbenchStorage";
-import { ConfirmDialog } from "../../ConfirmDialog";
 import { agentSessionStore } from "../../../../stores/agentSessionStore";
+import { ConfirmDialog } from "../../ConfirmDialog";
 
 export interface ChatHistoryDrawerProps {
 	isOpen: boolean;
@@ -213,7 +213,10 @@ export function ChatHistoryDrawer({
 												</span>
 											)}
 											{hasUnread && !isRunning && (
-												<span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" title="有新回复" />
+												<span
+													className="w-1.5 h-1.5 rounded-full bg-accent shrink-0"
+													title="有新回复"
+												/>
 											)}
 										</div>
 

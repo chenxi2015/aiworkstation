@@ -1,13 +1,31 @@
+import type {
+	MentionDocumentEntry,
+	MentionMaterialEntry,
+	MentionNoteEntry,
+} from "../../../../../stores/mentionIndexStore";
 import type { Folder } from "../../../types";
+
+export type MentionType =
+	| "folder"
+	| "bookmark"
+	| "note"
+	| "document"
+	| "material";
 
 export interface MentionCandidate {
 	id: string;
-	type: "folder" | "bookmark";
+	type: MentionType;
 	title: string;
 	subtitle?: string;
 	icon?: string;
 	url?: string;
 	folderId?: number;
+	/** note 类型的 Vault 相对路径 */
+	notePath?: string;
+	/** document 类型主键 */
+	documentId?: number;
+	/** material 类型主键 */
+	materialId?: number;
 	category?: string;
 	score?: number;
 	matchReason?: string;
@@ -249,4 +267,156 @@ export function searchMentionCandidates(
 	scoredList.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
 
 	return scoredList.slice(0, limit);
+}
+
+// ---------- 多源聚合（笔记 / 文档 / 素材） ----------
+
+/** 简单标题打分：完全 > 前缀 > 包含 > 多词 */
+function scoreTitle(
+	title: string,
+	q: string,
+	qClean: string,
+	terms: string[],
+): number {
+	const t = title.toLowerCase();
+	const tClean = t.replace(/\s+/g, "");
+	if (t === q || (qClean && tClean === qClean)) return 100;
+	if (t.startsWith(q) || (qClean && tClean.startsWith(qClean))) return 85;
+	if (t.includes(q) || (qClean && tClean.includes(qClean))) return 70;
+	let s = 0;
+	for (const term of terms) if (t.includes(term)) s += 25;
+	return s;
+}
+
+export interface AllSourceInput {
+	folders: Folder[];
+	notes: MentionNoteEntry[];
+	documents: MentionDocumentEntry[];
+	materials: MentionMaterialEntry[];
+}
+
+/** 每类在无查询时的默认展示条数 / 有查询时的各类配额 */
+const PER_GROUP_DEFAULT = 4;
+const PER_GROUP_SEARCH = 6;
+
+/**
+ * 跨模块多源 mention 检索：文件夹 + 书签 + 笔记 + 文档 + 素材。
+ * 返回按类型分组的扁平数组（组内按分数降序），供菜单分组渲染。
+ * 轻量标题级内存检索——mention 是「快速定位已知目标」，不走向量。
+ */
+export function searchAllMentionSources(
+	input: AllSourceInput,
+	query: string,
+): MentionCandidate[] {
+	const q = query.toLowerCase().trim();
+
+	// 无查询：各源给默认建议（书签/文件夹复用现有打分逻辑取顶部）
+	if (!q) {
+		const bm = searchMentionCandidates(
+			input.folders,
+			"",
+			PER_GROUP_DEFAULT * 2,
+		);
+		const notes: MentionCandidate[] = input.notes
+			.slice(0, PER_GROUP_DEFAULT)
+			.map((n) => ({
+				id: `mention_note_${n.relPath}`,
+				type: "note",
+				title: n.bare,
+				subtitle: n.dir || "根目录",
+				notePath: n.relPath,
+			}));
+		const docs: MentionCandidate[] = input.documents
+			.slice(0, PER_GROUP_DEFAULT)
+			.map((d) => ({
+				id: `mention_doc_${d.id}`,
+				type: "document",
+				title: d.title,
+				subtitle: d.subtitle,
+				documentId: d.id,
+			}));
+		const mats: MentionCandidate[] = input.materials
+			.slice(0, PER_GROUP_DEFAULT)
+			.map((m) => ({
+				id: `mention_mat_${m.id}`,
+				type: "material",
+				title: m.title,
+				subtitle: m.subtitle,
+				materialId: m.id,
+			}));
+		return [...bm, ...notes, ...docs, ...mats];
+	}
+
+	const qClean = q.replace(/\s+/g, "");
+	const terms = q.split(/\s+/).filter(Boolean);
+
+	// 1. 文件夹 + 书签（沿用现有加权检索）
+	const bmMatches = searchMentionCandidates(
+		input.folders,
+		query,
+		PER_GROUP_SEARCH * 2,
+	);
+
+	// 2. 笔记（文件名 + 目录路径）
+	const noteMatches: MentionCandidate[] = [];
+	for (const n of input.notes) {
+		const score =
+			scoreTitle(n.bare, q, qClean, terms) ||
+			scoreTitle(n.dir, q, qClean, terms) * 0.4;
+		if (score > 0) {
+			noteMatches.push({
+				id: `mention_note_${n.relPath}`,
+				type: "note",
+				title: n.bare,
+				subtitle: n.dir || "根目录",
+				notePath: n.relPath,
+				score,
+				matchReason: "笔记",
+			});
+		}
+	}
+	noteMatches.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+
+	// 3. 文档（标题）
+	const docMatches: MentionCandidate[] = [];
+	for (const d of input.documents) {
+		const score = scoreTitle(d.title, q, qClean, terms);
+		if (score > 0) {
+			docMatches.push({
+				id: `mention_doc_${d.id}`,
+				type: "document",
+				title: d.title,
+				subtitle: d.subtitle,
+				documentId: d.id,
+				score,
+				matchReason: "文档",
+			});
+		}
+	}
+	docMatches.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+
+	// 4. 素材（标题）
+	const matMatches: MentionCandidate[] = [];
+	for (const m of input.materials) {
+		const score = scoreTitle(m.title, q, qClean, terms);
+		if (score > 0) {
+			matMatches.push({
+				id: `mention_mat_${m.id}`,
+				type: "material",
+				title: m.title,
+				subtitle: m.subtitle,
+				materialId: m.id,
+				score,
+				matchReason: "素材",
+			});
+		}
+	}
+	matMatches.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+
+	return [
+		...bmMatches.slice(0, PER_GROUP_SEARCH),
+		...noteMatches.slice(0, PER_GROUP_SEARCH),
+		...docMatches.slice(0, PER_GROUP_SEARCH),
+		...matMatches.slice(0, PER_GROUP_SEARCH),
+	];
 }

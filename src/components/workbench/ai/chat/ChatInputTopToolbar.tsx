@@ -1,31 +1,74 @@
-import { Sparkles } from "lucide-react";
-import { memo } from "react";
+import { Button, Tooltip } from "@heroui/react";
+import { History, MessageSquarePlus } from "lucide-react";
+import { memo, useState } from "react";
+import { ModelSelectDropdown } from "./ModelSelectDropdown";
 
 export interface ChatInputTopToolbarProps {
 	displayModel: string;
+	onOpenHistory?: () => void;
+	onNewChat?: () => void;
 }
 
 /**
  * Top action toolbar above the chat input card:
- * Displays the active model badge cleanly without duplicate scope pills.
+ * 左侧模型切换下拉，右侧会话历史与新建对话快捷入口（对齐主流 AI 输入框布局）。
  */
 export const ChatInputTopToolbar = memo(function ChatInputTopToolbar({
 	displayModel,
+	onOpenHistory,
+	onNewChat,
 }: ChatInputTopToolbarProps) {
+	// 本地镜像当前模型，切换后立即刷新展示（设置已持久化，无需父组件干预）
+	const [model, setModel] = useState(displayModel);
+
 	return (
-		<div className="flex items-center gap-1.5 min-w-0 overflow-hidden px-0.5">
-			{/* Model Badge */}
-			<div
-				className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-surface-secondary/70 border border-border/60 text-[11px] font-medium text-foreground/90 shadow-2xs select-none shrink-0"
-				title={`当前模型: ${displayModel}`}
-			>
-				<span className="w-4 h-4 rounded-full bg-gradient-to-tr from-violet-500 via-indigo-500 to-fuchsia-500 flex items-center justify-center text-white shrink-0 shadow-2xs">
-					<Sparkles className="w-2.5 h-2.5" />
-				</span>
-				<span className="max-w-[120px] truncate text-[10px] font-semibold text-foreground/80">
-					{displayModel}
-				</span>
-			</div>
+		<div className="flex items-center justify-between gap-1.5 min-w-0 overflow-hidden px-0.5">
+			{/* Model Switcher */}
+			<ModelSelectDropdown currentModel={model} onModelChange={setModel} />
+
+			{/* Right: History & New Chat quick actions */}
+			{(onOpenHistory || onNewChat) && (
+				<div className="flex items-center gap-0.5 shrink-0">
+					{onOpenHistory && (
+						<Tooltip>
+							<Tooltip.Trigger>
+								<Button
+									variant="ghost"
+									size="sm"
+									isIconOnly
+									className="h-6 w-6 p-0 text-muted hover:text-foreground hover:bg-surface-secondary/80 rounded-lg cursor-pointer transition-colors"
+									onPress={onOpenHistory}
+									aria-label="历史对话记录"
+								>
+									<History className="w-3.5 h-3.5" />
+								</Button>
+							</Tooltip.Trigger>
+							<Tooltip.Content className="text-xs py-1 px-2">
+								历史记录
+							</Tooltip.Content>
+						</Tooltip>
+					)}
+					{onNewChat && (
+						<Tooltip>
+							<Tooltip.Trigger>
+								<Button
+									variant="ghost"
+									size="sm"
+									isIconOnly
+									className="h-6 w-6 p-0 text-muted hover:text-foreground hover:bg-surface-secondary/80 rounded-lg cursor-pointer transition-colors"
+									onPress={onNewChat}
+									aria-label="新建对话"
+								>
+									<MessageSquarePlus className="w-3.5 h-3.5" />
+								</Button>
+							</Tooltip.Trigger>
+							<Tooltip.Content className="text-xs py-1 px-2">
+								新建对话
+							</Tooltip.Content>
+						</Tooltip>
+					)}
+				</div>
+			)}
 		</div>
 	);
 });

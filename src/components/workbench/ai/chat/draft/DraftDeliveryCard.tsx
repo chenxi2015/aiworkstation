@@ -27,13 +27,13 @@ import {
 	fetchObsidianTree,
 	invalidateObsidianTreeCache,
 } from "../../../../../services/api/obsidianClient";
-import { ConfirmDialog } from "../../../ConfirmDialog";
-import { AiMarkdownRenderer } from "../../shared/AiMarkdownRenderer";
 import {
 	collectAllFolders,
 	type VaultFolderItem,
 } from "../../../../obsidian/tree/vaultTreeUtils";
 import type { ObsidianTreeNode } from "../../../../obsidian/types";
+import { ConfirmDialog } from "../../../ConfirmDialog";
+import { AiMarkdownRenderer } from "../../shared/AiMarkdownRenderer";
 
 export interface DraftDeliveryCardProps {
 	draft: ChatDraftPayload;
@@ -196,9 +196,7 @@ export const DraftDeliveryCard = memo(function DraftDeliveryCard({
 						: "笔记";
 			toast.success(`已保存至 Obsidian ${successLabel}：${res.relPath}`);
 		} catch (err: unknown) {
-			toast.danger(
-				err instanceof Error ? err.message : "保存至 Obsidian 失败",
-			);
+			toast.danger(err instanceof Error ? err.message : "保存至 Obsidian 失败");
 		} finally {
 			setIsActionLoading(false);
 		}
@@ -420,11 +418,7 @@ export const DraftDeliveryCard = memo(function DraftDeliveryCard({
 						) : (
 							<NotebookPen className="w-3.5 h-3.5 mr-1" />
 						)}
-						{isExcalidraw
-							? "存为画板"
-							: isCanvas
-								? "存为白板"
-								: "存为笔记"}
+						{isExcalidraw ? "存为画板" : isCanvas ? "存为白板" : "存为笔记"}
 					</Button>
 
 					<Button
@@ -481,7 +475,11 @@ export const DraftDeliveryCard = memo(function DraftDeliveryCard({
 									<pre className="text-xs text-muted font-mono whitespace-pre-wrap break-all select-text">
 										{(() => {
 											try {
-												return JSON.stringify(JSON.parse(previewContent), null, 2);
+												return JSON.stringify(
+													JSON.parse(previewContent),
+													null,
+													2,
+												);
 											} catch {
 												return previewContent;
 											}
