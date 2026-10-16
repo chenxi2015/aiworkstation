@@ -9,6 +9,7 @@ const TYPE_LABELS: Record<string, string> = {
 	folder: "文件夹",
 	note: "Obsidian 笔记",
 	document: "创作文档",
+	file: "上传附件/文档",
 	material: "素材",
 	image: "图片",
 	skill: "技能规范(Skill)",
@@ -26,17 +27,17 @@ function buildWebpageGuidance(contextItems: ChatContextItem[]): string {
 	return "\n\n★ 重要指引：用户在当前上下文中提供了具体的网址链接。如果用户的提问涉及深度分析该网页、总结文章、提取要点或了解项目详情，请【默认首选】调用 `crawl_webpage_via_extension` 工具（浏览器插件静默爬虫，携带真实登录态 Cookie，可穿透 SPA 渲染与反爬限制，返回整洁 Markdown 正文；插件离线时会自动降级，无需顾虑）抓取该网址的真实正文，然后向用户输出有深度、有条理的分析报告！仅当该工具明确返回失败时，才退而使用 `read_webpage_content` 轻量通道。";
 }
 
-/** 上传文档附件的正文预览注入（素材库导入的 Word/PDF/Excel/TXT 等，已在前端提取纯文本） */
+/** 上传文档附件的正文预览注入（Word/PDF/Excel/TXT/MD/Canvas/Excalidraw 等，已在本地解析提取纯文本） */
 function buildUploadedDocsPrompt(contextItems: ChatContextItem[]): string {
 	const blocks: string[] = [];
 	for (const item of contextItems) {
-		if (item.type !== "file") continue;
+		if (item.type !== "file" && item.type !== "document") continue;
 		const preview = item.data?.contentPreview;
 		if (typeof preview !== "string" || preview.length === 0) continue;
-		blocks.push(`### 上传文档：《${item.title}》\n"""\n${preview}\n"""`);
+		blocks.push(`### 附件/文档：《${item.title}》\n"""\n${preview}\n"""`);
 	}
 	if (blocks.length === 0) return "";
-	return `\n- 【用户上传文档的正文内容（素材库导入，已提取为纯文本，直接基于其回答即可，无需调用任何读取工具）】:\n${blocks.join("\n\n")}`;
+	return `\n- 【用户上传/注入的文件与画板正文（已解析提取为纯文本，直接基于其分析回答即可，无需调用读取工具）】:\n${blocks.join("\n\n")}`;
 }
 
 function buildImageGuidance(contextItems: ChatContextItem[]): string {

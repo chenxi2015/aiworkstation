@@ -264,11 +264,20 @@ export function useAiChat(options?: UseAiChatOptions) {
 					? sendOptions.contextItems
 					: [...contextItems];
 
+			const hasOnlyImages =
+				activeAttachments.length > 0 &&
+				activeAttachments.every((item) => item.type === "image");
+			const hasImages = activeAttachments.some(
+				(item) => item.type === "image" || item.data?.materialKind === "image",
+			);
+			const defaultPrompt = hasOnlyImages
+				? "请分析附带的图片内容，详细提取图中的文字、关键信息与图表细节"
+				: hasImages
+					? "请结合附带的图片与上下文进行深入分析与说明"
+					: "请结合上述引用的上下文进行深度分析与总结";
+
 			const textToSend =
-				rawText ||
-				(activeAttachments.length > 0
-					? "请结合上述引用的上下文进行深度分析与总结"
-					: "");
+				rawText || (activeAttachments.length > 0 ? defaultPrompt : "");
 
 			if (!textToSend) return;
 

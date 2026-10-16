@@ -2,6 +2,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ObsidianTreeNode } from "./types";
 import { FlatRow } from "./tree/VaultTreeRow";
+import { isImageFile, vaultAssetUrl } from "./utils/vaultFileUtils";
 import {
 	canMoveEntry,
 	collectFolderPaths,
@@ -79,7 +80,31 @@ export const VaultTree = memo(function VaultTree({
 	const handleDragStart = useCallback(
 		(e: React.DragEvent, node: ObsidianTreeNode) => {
 			e.dataTransfer.setData("text/plain", node.relPath);
-			e.dataTransfer.effectAllowed = "move";
+			try {
+				e.dataTransfer.setData(
+					"application/x-obsidian-note",
+					JSON.stringify({
+						relPath: node.relPath,
+						name: node.name,
+						kind: node.kind,
+					}),
+				);
+				if (isImageFile(node.relPath) || isImageFile(node.name)) {
+					const assetUrl = vaultAssetUrl(node.relPath);
+					e.dataTransfer.setData("text/uri-list", assetUrl);
+					e.dataTransfer.setData(
+						"application/x-obsidian-image",
+						JSON.stringify({
+							src: assetUrl,
+							alt: node.name,
+							relPath: node.relPath,
+						}),
+					);
+				}
+			} catch {
+				// Ignore serialization failure if any
+			}
+			e.dataTransfer.effectAllowed = "copyMove";
 			setDraggedNode(node);
 		},
 		[],

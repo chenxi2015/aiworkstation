@@ -5,6 +5,7 @@ import type {
 	AgentStep,
 	AgentStreamEvent,
 } from "./agentTypes.ts";
+import { resolveImagePartsFromContext } from "./multimodal/resolveImages.ts";
 import { prepareRagAgentContext, resolveLlmConfig } from "./ragContext.ts";
 import { createAgentTools } from "./tools/registry.ts";
 import { type AgentToolHooks, getAgentToolMetadata } from "./tools/types.ts";
@@ -167,42 +168,41 @@ export async function runAgentStream(
 		strictFallbackWarning: false,
 	});
 
-	// Message history with multimodal image support
-	const imageItems = (params.contextItems || []).filter(
-		(item) => item.type === "image" && Boolean(item.thumbnail),
-	);
-
+	// Multimodal image support for current turn
+	const currentImageParts = resolveImagePartsFromContext(params.contextItems);
 	let userContent: any = q;
-	if (imageItems.length > 0) {
-		const parts: any[] = [{ type: "text", content: q }];
-		for (const img of imageItems) {
-			const thumbnail = img.thumbnail!;
-			const match = thumbnail.match(/^data:([^;]+);base64,(.+)$/);
-			if (match) {
-				parts.push({
-					type: "image",
-					source: { type: "data", value: match[2], mimeType: match[1] },
-				});
-			} else {
-				parts.push({
-					type: "image",
-					source: { type: "url", value: thumbnail },
-				});
-			}
-		}
-		userContent = parts;
+	if (currentImageParts.length > 0) {
+		userContent = [{ type: "text", content: q }, ...currentImageParts];
 	}
 
+	// Multimodal image support for history messages (preserving images in recent user turn)
+	const filteredHistory = history
+		.filter(
+			(h) => h.role === "user" || h.role === "assistant" || h.role === "tool",
+		)
+		.slice(-4);
+
 	const messages: any[] = [
-		...history
-			.filter(
-				(h) => h.role === "user" || h.role === "assistant" || h.role === "tool",
-			)
-			.slice(-4)
-			.map((h) => ({
+		...filteredHistory.map((h, idx) => {
+			if (h.role === "user" && h.contextItems && h.contextItems.length > 0) {
+				const historyImageParts = resolveImagePartsFromContext(h.contextItems);
+				// Retain full image data for the most recent historical user message to enable visual continuation
+				const isRecentUserTurn = idx >= filteredHistory.length - 2;
+				if (historyImageParts.length > 0 && isRecentUserTurn) {
+					return {
+						role: "user" as const,
+						content: [
+							{ type: "text", content: h.content },
+							...historyImageParts,
+						],
+					};
+				}
+			}
+			return {
 				role: h.role as "user" | "assistant" | "tool",
 				content: h.content,
-			})),
+			};
+		}),
 		{ role: "user", content: userContent },
 	];
 

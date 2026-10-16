@@ -56,6 +56,7 @@ export interface AgentChatParams {
 	history?: Array<{
 		role: "user" | "assistant" | "tool" | "system";
 		content: string;
+		contextItems?: ChatContextItem[];
 	}>;
 	embeddingConfig?: EmbeddingConfig;
 	llmConfig?: {

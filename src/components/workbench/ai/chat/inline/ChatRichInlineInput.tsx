@@ -38,7 +38,7 @@ export interface ChatRichInlineInputProps {
 	placeholder?: string;
 	onSend: () => void;
 	onChangeText?: (text: string) => void;
-	onTriggerMention: (query: string | null) => void;
+	onTriggerMention?: (query: string | null) => void;
 	onTriggerSlash: (query: string | null) => void;
 	isMenuOpen: boolean;
 	onMenuKeyDown?: (e: React.KeyboardEvent) => boolean;
@@ -48,17 +48,16 @@ export interface ChatRichInlineInputProps {
 
 /**
  * Modern inline rich input powered by TipTap.
- * Seamlessly integrates inline Skill badges and Mention tokens inside the text flow (matching 图一).
+ * Seamlessly integrates inline Skill badges inside the text flow.
  */
 export const ChatRichInlineInput = forwardRef<
 	ChatRichInlineInputHandle,
 	ChatRichInlineInputProps
 >(function ChatRichInlineInput(
 	{
-		placeholder = "发消息、输入 @ 引用，输入 / 载入 Skills...",
+		placeholder = "发消息、拖入文件，输入 / 载入 Skills...",
 		onSend,
 		onChangeText,
-		onTriggerMention,
 		onTriggerSlash,
 		isMenuOpen,
 		onMenuKeyDown,
@@ -76,33 +75,18 @@ export const ChatRichInlineInput = forwardRef<
 	const onMenuKeyDownRef = useRef(onMenuKeyDown);
 	onMenuKeyDownRef.current = onMenuKeyDown;
 
-	// Check trigger character (@ or /) before cursor
+	// Check trigger character (/) before cursor
 	const checkTriggers = useCallback(
 		(editorInstance: Editor | null) => {
 			if (!editorInstance) return;
 			const { from } = editorInstance.state.selection;
-			// Get up to 40 characters before cursor to detect mention / slash
+			// Get up to 40 characters before cursor to detect slash command
 			const textBefore = editorInstance.state.doc.textBetween(
 				Math.max(0, from - 40),
 				from,
 				"\n",
 				"\0",
 			);
-
-			// Check @ mention
-			const lastAtIndex = textBefore.lastIndexOf("@");
-			if (
-				lastAtIndex !== -1 &&
-				(lastAtIndex === 0 || /\s/.test(textBefore[lastAtIndex - 1]))
-			) {
-				const query = textBefore.slice(lastAtIndex + 1);
-				if (!query.includes(" ") && !query.includes("\n")) {
-					onTriggerMention(query);
-					onTriggerSlash(null);
-					return;
-				}
-			}
-			onTriggerMention(null);
 
 			// Check / slash skill
 			const lastSlashIndex = textBefore.lastIndexOf("/");
@@ -118,7 +102,7 @@ export const ChatRichInlineInput = forwardRef<
 			}
 			onTriggerSlash(null);
 		},
-		[onTriggerMention, onTriggerSlash],
+		[onTriggerSlash],
 	);
 
 	const editor = useEditor({
@@ -283,25 +267,9 @@ export const ChatRichInlineInput = forwardRef<
 	const insertMention = useCallback(
 		(item: ChatContextItem) => {
 			if (!editor) return;
-			const { from } = editor.state.selection;
-			const textBefore = editor.state.doc.textBetween(
-				Math.max(0, from - 40),
-				from,
-				"\n",
-				"\0",
-			);
-			const atIdx = textBefore.lastIndexOf("@");
-
-			let deleteFrom = from;
-			if (atIdx !== -1) {
-				const charCount = textBefore.length - atIdx;
-				deleteFrom = from - charCount;
-			}
-
 			editor
 				.chain()
 				.focus()
-				.deleteRange({ from: deleteFrom, to: from })
 				.insertContent({
 					type: "mentionInlineNode",
 					attrs: {
@@ -313,10 +281,8 @@ export const ChatRichInlineInput = forwardRef<
 				})
 				.insertContent(" ")
 				.run();
-
-			onTriggerMention(null);
 		},
-		[editor, onTriggerMention],
+		[editor],
 	);
 
 	const removeTrigger = useCallback(

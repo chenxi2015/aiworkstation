@@ -1,5 +1,5 @@
 import { useDroppable } from "@dnd-kit/react";
-import { useStore } from "@tanstack/react-store";
+import { toast } from "@heroui/react";
 import { Paperclip } from "lucide-react";
 import {
 	type ClipboardEvent,
@@ -14,10 +14,6 @@ import {
 } from "react";
 
 import { WorkbenchStorageService } from "../../../../services/workbenchStorage";
-import {
-	loadMentionIndex,
-	mentionIndexStore,
-} from "../../../../stores/mentionIndexStore";
 import type { ChatContextItem } from "../../../../types/chatContext";
 import { SlashSkillMenu } from "../../../common/slash/SlashSkillMenu";
 import {
@@ -27,7 +23,6 @@ import {
 import { CHAT_INPUT_DROP_ID } from "../../dnd/dndUtils";
 import type { Category, Folder } from "../../types";
 import { ChatContextBar } from "./ChatContextBar";
-import { ChatContextMentionMenu } from "./ChatContextMentionMenu";
 import { ChatInputBottomBar } from "./ChatInputBottomBar";
 import { ChatInputTopToolbar } from "./ChatInputTopToolbar";
 import type { ActiveChatScope } from "./chatScopeTypes";
@@ -35,7 +30,16 @@ import {
 	ChatRichInlineInput,
 	type ChatRichInlineInputHandle,
 } from "./inline/ChatRichInlineInput";
-import { searchAllMentionSources } from "./utils/mentionSearch";
+import {
+	getUnsupportedFileReason,
+	importChatFile,
+	isImportableChatFile,
+} from "./utils/chatFileImport";
+import { createChatImageContextItem } from "./utils/chatImageCompress";
+import {
+	isImageFile,
+	vaultAssetUrl,
+} from "../../../obsidian/utils/vaultFileUtils";
 
 export interface ChatInputAreaProps {
 	input: string;
@@ -101,10 +105,9 @@ export const ChatInputArea = memo(function ChatInputArea({
 	model,
 	activeScope,
 	onToggleScope,
-	folders = [],
+	folders: _folders = [],
 	contextItems = [],
 	onRemoveContextItem,
-	onClearContextItems,
 	onAttachContextItem,
 	onNavigateToFolder,
 }: ChatInputAreaProps) {
@@ -119,12 +122,8 @@ export const ChatInputArea = memo(function ChatInputArea({
 		id: CHAT_INPUT_DROP_ID,
 	});
 
-	// Native drag state for desktop images and external files
+	// Native drag state for desktop images, external files, and notes
 	const [isNativeDragOver, setIsNativeDragOver] = useState(false);
-
-	// Context Mention Menu (@ mention) state
-	const [mentionQuery, setMentionQuery] = useState<string | null>(null);
-	const [mentionSelectedIndex, setMentionSelectedIndex] = useState<number>(0);
 
 	// Slash Command / Skill Menu (/ slash) state
 	const [slashQuery, setSlashQuery] = useState<string | null>(null);
@@ -136,33 +135,18 @@ export const ChatInputArea = memo(function ChatInputArea({
 
 	const { filteredItems: slashCandidates } = useSlashSkills(slashQuery);
 
-	// 跨模块 mention 索引（笔记/文档/素材），首次打开菜单时惰性加载
-	const mentionIndex = useStore(mentionIndexStore);
+	// Ensure native drag state resets if drag ends outside or is cancelled
 	useEffect(() => {
-		if (
-			mentionQuery !== null &&
-			!mentionIndex.loaded &&
-			!mentionIndex.loading
-		) {
-			void loadMentionIndex();
-		}
-	}, [mentionQuery, mentionIndex.loaded, mentionIndex.loading]);
+		const handleGlobalDragEnd = () => {
+			setIsNativeDragOver(false);
+		};
+		window.addEventListener("dragend", handleGlobalDragEnd);
+		return () => {
+			window.removeEventListener("dragend", handleGlobalDragEnd);
+		};
+	}, []);
 
-	// Compute active mention candidates（跨模块多源聚合）
-	const activeCandidates = useMemo(() => {
-		if (mentionQuery === null) return [];
-		return searchAllMentionSources(
-			{
-				folders,
-				notes: mentionIndex.notes,
-				documents: mentionIndex.documents,
-				materials: mentionIndex.materials,
-			},
-			mentionQuery,
-		);
-	}, [mentionQuery, folders, mentionIndex]);
-
-	const isMenuOpen = mentionQuery !== null || slashQuery !== null;
+	const isMenuOpen = slashQuery !== null;
 
 	// 将当前 scope（当前文档/笔记/素材/文件夹）合成为内建 chip 插入上下文栏开头；
 	// × 掉即 detach（等价于原「切换到全局」）。替代旧 scope pill 的表达。
@@ -212,38 +196,211 @@ export const ChatInputArea = memo(function ChatInputArea({
 		}
 	}, [input]);
 
-	// Handle native file drop (e.g. dragging images/files from desktop)
+	// Handle native file and note drop
 	const handleNativeDrop = useCallback(
-		(e: DragEvent<HTMLDivElement>) => {
-			if (!onAttachContextItem) return;
-			const files = e.dataTransfer.files;
-			if (!files || files.length === 0) return;
-
+		async (e: DragEvent<HTMLDivElement>) => {
 			e.preventDefault();
 			e.stopPropagation();
 			setIsNativeDragOver(false);
 
-			for (let i = 0; i < files.length; i++) {
-				const file = files[i];
-				if (file.type.startsWith("image/")) {
-					const reader = new FileReader();
-					reader.onload = () => {
-						onAttachContextItem({
-							id: `img_${Date.now()}_${i}`,
-							type: "image",
-							title: file.name,
-							subtitle: `${Math.round(file.size / 1024)} KB`,
-							thumbnail: reader.result as string,
-						});
+			if (!onAttachContextItem) return;
+
+			// 1. Check native files (dragged from OS desktop or file manager)
+			const files = e.dataTransfer.files;
+			if (files && files.length > 0) {
+				for (let i = 0; i < files.length; i++) {
+					const file = files[i];
+					if (!isImportableChatFile(file)) {
+						const reason = getUnsupportedFileReason(file);
+						toast.warning(reason);
+						continue;
+					}
+					try {
+						const item = await importChatFile(file, i);
+						if (item) {
+							onAttachContextItem(item);
+						}
+					} catch (err) {
+						toast.danger(
+							err instanceof Error ? err.message : `「${file.name}」解析失败`,
+						);
+					}
+				}
+				return;
+			}
+
+			// 2. Check dragged image directly from Obsidian editor preview
+			const imageRaw = e.dataTransfer.getData("application/x-obsidian-image");
+			if (imageRaw) {
+				try {
+					const parsed = JSON.parse(imageRaw) as {
+						src: string;
+						alt?: string;
+						relPath?: string;
 					};
-					reader.readAsDataURL(file);
-				} else {
+					if (parsed.src) {
+						const title =
+							parsed.alt ||
+							(parsed.relPath ? parsed.relPath.split("/").pop() : "") ||
+							"笔记图片";
+						onAttachContextItem({
+							id: `img_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+							type: "image",
+							title,
+							subtitle: "笔记图片",
+							thumbnail: parsed.src,
+							url: parsed.src,
+							notePath: parsed.relPath,
+						});
+						toast.success(`已添加图片「${title}」为对话上下文`);
+						return;
+					}
+				} catch (err) {
+					console.warn("[ChatInputArea] Parse dropped image error:", err);
+				}
+			}
+
+			// 3. Check Obsidian note / canvas / image dragged from vault tree
+			const noteRaw = e.dataTransfer.getData("application/x-obsidian-note");
+			if (noteRaw) {
+				try {
+					const parsed = JSON.parse(noteRaw) as {
+						relPath: string;
+						name: string;
+						kind?: "file" | "folder";
+					};
+					if (parsed.relPath) {
+						// 3a. If dragged vault node is an image file
+						if (isImageFile(parsed.relPath) || isImageFile(parsed.name || "")) {
+							const assetUrl = vaultAssetUrl(parsed.relPath);
+							const title =
+								parsed.name || parsed.relPath.split("/").pop() || "笔记图片";
+							onAttachContextItem({
+								id: `img_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+								type: "image",
+								title,
+								subtitle: "笔记图片",
+								thumbnail: assetUrl,
+								url: assetUrl,
+								notePath: parsed.relPath,
+								data: {
+									vaultRelPath: parsed.relPath,
+								},
+							});
+							toast.success(`已添加图片「${title}」为对话上下文`);
+							return;
+						}
+
+						const isCanvas = parsed.relPath.toLowerCase().endsWith(".canvas");
+						const isExcalidraw = parsed.relPath.toLowerCase().endsWith(".excalidraw");
+						const isFolder = parsed.kind === "folder";
+						const subtitle = isFolder
+							? "笔记文件夹"
+							: isCanvas
+								? "白板画布"
+								: isExcalidraw
+									? "手绘草图"
+									: "笔记";
+						onAttachContextItem({
+							id: `note_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+							type: "note",
+							title: parsed.name || parsed.relPath,
+							subtitle,
+							notePath: parsed.relPath,
+						});
+						toast.success(`已添加「${parsed.name || parsed.relPath}」为对话上下文`);
+						return;
+					}
+				} catch (err) {
+					console.warn("[ChatInputArea] Parse dropped note error:", err);
+				}
+			}
+
+			// 4. Fallback check plain text or URI list (dragged links or paths)
+			const uriList = e.dataTransfer.getData("text/uri-list")?.trim();
+			const text = e.dataTransfer.getData("text/plain")?.trim();
+			const targetUri = uriList || text || "";
+
+			if (targetUri) {
+				// 4a. Check if target is an obsidian asset API link: /api/obsidian/asset?path=...
+				if (targetUri.includes("/api/obsidian/asset")) {
+					try {
+						const urlObj = new URL(targetUri, "http://localhost");
+						const p =
+							urlObj.searchParams.get("path") ||
+							urlObj.searchParams.get("name") ||
+							"";
+						const name = p.split("/").pop() || "笔记图片";
+						onAttachContextItem({
+							id: `img_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+							type: "image",
+							title: name,
+							subtitle: "笔记图片",
+							thumbnail: targetUri,
+							url: targetUri,
+							notePath: p,
+						});
+						toast.success(`已添加图片「${name}」为对话上下文`);
+						return;
+					} catch {}
+				}
+
+				// 4b. Check if target is a direct image file path
+				if (isImageFile(targetUri)) {
+					const fileName = targetUri.split("/").pop() || targetUri;
+					const assetUrl = vaultAssetUrl(targetUri);
 					onAttachContextItem({
-						id: `file_${Date.now()}_${i}`,
-						type: "document",
-						title: file.name,
-						subtitle: `${(file.size / 1024).toFixed(1)} KB`,
+						id: `img_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+						type: "image",
+						title: fileName,
+						subtitle: "笔记图片",
+						thumbnail: assetUrl,
+						url: assetUrl,
+						notePath: targetUri,
 					});
+					toast.success(`已添加图片「${fileName}」为对话上下文`);
+					return;
+				}
+
+				// 4c. Check if target is a wikilink like ![[image.png]]
+				const wikilinkMatch = targetUri.match(/!?\[\[(.*?)\]\]/);
+				if (wikilinkMatch) {
+					const inner = wikilinkMatch[1].trim();
+					if (isImageFile(inner)) {
+						const fileName = inner.split("/").pop() || inner;
+						const assetUrl = vaultAssetUrl(inner);
+						onAttachContextItem({
+							id: `img_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+							type: "image",
+							title: fileName,
+							subtitle: "笔记图片",
+							thumbnail: assetUrl,
+							url: assetUrl,
+							notePath: inner,
+						});
+						toast.success(`已添加图片「${fileName}」为对话上下文`);
+						return;
+					}
+				}
+
+				// 4d. Fallback check plain text (if dropped path matches vault note)
+				if (
+					targetUri.endsWith(".md") ||
+					targetUri.endsWith(".canvas") ||
+					targetUri.endsWith(".excalidraw")
+				) {
+					const fileName = targetUri.split("/").pop() || targetUri;
+					const isCanvas = targetUri.toLowerCase().endsWith(".canvas");
+					const isExcalidraw = targetUri.toLowerCase().endsWith(".excalidraw");
+					const subtitle = isCanvas ? "白板画布" : isExcalidraw ? "手绘草图" : "笔记";
+					onAttachContextItem({
+						id: `note_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+						type: "note",
+						title: fileName,
+						subtitle,
+						notePath: targetUri,
+					});
+					toast.success(`已添加「${fileName}」为对话上下文`);
 				}
 			}
 		},
@@ -252,24 +409,22 @@ export const ChatInputArea = memo(function ChatInputArea({
 
 	// Handle paste events (e.g. clipboard images)
 	const handlePaste = useCallback(
-		(e: ClipboardEvent<HTMLDivElement>) => {
+		async (e: ClipboardEvent<HTMLDivElement>) => {
 			const items = e.clipboardData.items;
 			for (let i = 0; i < items.length; i++) {
 				if (items[i].type.indexOf("image") !== -1) {
 					const file = items[i].getAsFile();
 					if (file && onAttachContextItem) {
 						e.preventDefault();
-						const reader = new FileReader();
-						reader.onload = () => {
+						try {
+							const item = await createChatImageContextItem(file, i);
 							onAttachContextItem({
-								id: `img_${Date.now()}_${i}`,
-								type: "image",
-								title: "剪贴板截图",
-								subtitle: `${Math.round(file.size / 1024)} KB`,
-								thumbnail: reader.result as string,
+								...item,
+								title: item.title === "截图" ? "剪贴板截图" : item.title,
 							});
-						};
-						reader.readAsDataURL(file);
+						} catch (err) {
+							console.warn("[ChatInputArea] Paste image error:", err);
+						}
 					}
 				}
 			}
@@ -278,23 +433,6 @@ export const ChatInputArea = memo(function ChatInputArea({
 	);
 
 	const isDropTargetActive = isDropTarget || isNativeDragOver;
-
-	// Insert chosen mention item as inline token (folders go to top context cards)
-	const handleSelectMention = useCallback(
-		(cand: ChatContextItem) => {
-			if (cand.type === "folder") {
-				// @文件夹放在上面作为上下文卡片
-				onAttachContextItem?.(cand);
-				inlineEditorRef.current?.removeTrigger("@");
-			} else {
-				inlineEditorRef.current?.insertMention(cand);
-			}
-			setMentionQuery(null);
-			setHasEditorContent(true);
-			setTimeout(() => inlineEditorRef.current?.focus(), 30);
-		},
-		[onAttachContextItem],
-	);
 
 	// Insert chosen slash item as inline skill badge
 	const handleSelectSlash = useCallback((item: SlashItem) => {
@@ -338,60 +476,9 @@ export const ChatInputArea = memo(function ChatInputArea({
 				}
 			}
 
-			// Mention menu
-			if (mentionQuery !== null && activeCandidates.length > 0) {
-				if (e.key === "ArrowDown") {
-					e.preventDefault();
-					setMentionSelectedIndex((prev) =>
-						prev + 1 < activeCandidates.length ? prev + 1 : 0,
-					);
-					return true;
-				}
-				if (e.key === "ArrowUp") {
-					e.preventDefault();
-					setMentionSelectedIndex((prev) =>
-						prev - 1 >= 0 ? prev - 1 : activeCandidates.length - 1,
-					);
-					return true;
-				}
-				if (e.key === "Enter" && !e.shiftKey) {
-					e.preventDefault();
-					const target = activeCandidates[mentionSelectedIndex];
-					if (target) {
-						handleSelectMention({
-							id: target.id,
-							type: target.type,
-							title: target.title,
-							subtitle: target.subtitle,
-							url: target.url,
-							folderId: target.folderId,
-							notePath: target.notePath,
-							documentId: target.documentId,
-							materialId: target.materialId,
-							icon: target.icon,
-						});
-					}
-					return true;
-				}
-				if (e.key === "Escape") {
-					e.preventDefault();
-					setMentionQuery(null);
-					return true;
-				}
-			}
-
 			return false;
 		},
-		[
-			slashQuery,
-			slashCandidates,
-			slashSelectedIndex,
-			handleSelectSlash,
-			mentionQuery,
-			activeCandidates,
-			mentionSelectedIndex,
-			handleSelectMention,
-		],
+		[slashQuery, slashCandidates, slashSelectedIndex, handleSelectSlash],
 	);
 
 	// Send message handler: serializes inline tokens, collects skills/mentions, passes them directly to onSend
@@ -441,25 +528,13 @@ export const ChatInputArea = memo(function ChatInputArea({
 			return "对上述引用的上下文提问，或输入要求...";
 		}
 		if (activeScope?.isActive) {
-			return `针对当前${SCOPE_TYPE_LABELS[activeScope.type] || "内容"}提问，或输入 @ 引用...`;
+			return `针对当前${SCOPE_TYPE_LABELS[activeScope.type] || "内容"}提问，输入 / 载入 Skills...`;
 		}
-		return "发消息、输入 @ 引用，输入 / 载入 Skills...";
+		return "发消息、拖入文件，输入 / 载入 Skills...";
 	}, [contextItems.length, activeScope]);
 
 	return (
 		<div className="p-3 bg-surface/50 backdrop-blur-xs shrink-0 flex flex-col gap-2 relative z-10">
-			{/* Dropdown Mention Menu for @ mentions */}
-			<ChatContextMentionMenu
-				isOpen={mentionQuery !== null}
-				query={mentionQuery || ""}
-				folders={folders}
-				candidates={activeCandidates}
-				selectedIndex={mentionSelectedIndex}
-				onSelectIndexChange={setMentionSelectedIndex}
-				onSelect={handleSelectMention}
-				onClose={() => setMentionQuery(null)}
-			/>
-
 			{/* Dropdown Slash Menu for / skills & commands */}
 			<SlashSkillMenu
 				isOpen={slashQuery !== null}
@@ -503,19 +578,18 @@ export const ChatInputArea = memo(function ChatInputArea({
 					</div>
 				)}
 
-				{/* Injected Context Attachment Chips（内建 scope chip + 书签/文件夹/图片/文件） */}
+				{/* Injected Context Attachment Chips（内建 scope chip + 书签/文件夹/图片/文件/笔记） */}
 				{mergedContextItems.length > 0 && (
-					<div className="mb-1 pb-1 border-b border-border/50">
+					<div className="mb-1 pb-1">
 						<ChatContextBar
 							items={mergedContextItems}
 							onRemove={handleRemoveContextItem}
-							onClearAll={onClearContextItems}
 							onNavigateToFolder={onNavigateToFolder}
 						/>
 					</div>
 				)}
 
-				{/* Modern Inline Rich Input Area: Tokens flow seamlessly with typing text (图一) */}
+				{/* Modern Inline Rich Input Area: Tokens flow seamlessly with typing text */}
 				<div className="px-0.5 py-0.5 min-h-[24px] flex items-start">
 					<ChatRichInlineInput
 						ref={inlineEditorRef}
@@ -525,10 +599,6 @@ export const ChatInputArea = memo(function ChatInputArea({
 							const hasTokens = !inlineEditorRef.current?.isEmpty();
 							setHasEditorContent(hasTokens);
 							onChangeInput(text);
-						}}
-						onTriggerMention={(query) => {
-							setMentionQuery(query);
-							setMentionSelectedIndex(0);
 						}}
 						onTriggerSlash={(query) => {
 							setSlashQuery(query);
@@ -552,7 +622,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 
 			{/* Footer Hints */}
 			<div className="flex items-center justify-between px-1 text-[10px] text-muted/70">
-				<span>可直接拖入书签、文件夹或图片 · Enter 发送</span>
+				<span>可直接拖入书签、文件夹、笔记或文件 · Enter 发送</span>
 				<span className="hidden sm:inline truncate max-w-[200px]">
 					RAG 本地知识库驱动
 				</span>

@@ -1,21 +1,10 @@
 import { Tooltip, toast } from "@heroui/react";
-import {
-	Box,
-	Check,
-	Copy,
-	ExternalLink,
-	Folder as FolderIcon,
-	Globe,
-	Pencil,
-	Sparkles,
-	Trash2,
-	ZoomIn,
-} from "lucide-react";
+import { Check, Copy, Pencil, Sparkles, Trash2 } from "lucide-react";
 import { memo, useMemo, useState } from "react";
 import type { ChatItem } from "../../../../../hooks/ai/useAiChat";
 import type { Category } from "../../../types";
-import { useImagePreview } from "../../shared/ImagePreviewModal";
 import { UrlLinkifiedText } from "../../shared/UrlLinkifiedText";
+import { ChatContextBar } from "../ChatContextBar";
 import { MessageEditInlineInput } from "../inline/MessageEditInlineInput";
 
 /** Parses any legacy split practice prefix and duplicate skill headers from raw content */
@@ -84,12 +73,24 @@ export const UserMessageBubble = memo(function UserMessageBubble({
 }: UserMessageBubbleProps) {
 	const [isEditing, setIsEditing] = useState(false);
 	const [copied, setCopied] = useState(false);
-	const { openPreview } = useImagePreview();
 
 	const { splitBadge, cleanContent } = useMemo(
 		() => parseSplitMessageContent(msg.content),
 		[msg.content],
 	);
+
+	/** Filter out redundant skill chips if already present as inline token in message text */
+	const displayContextItems = useMemo(() => {
+		if (!msg.contextItems || msg.contextItems.length === 0) return [];
+		const hasInlineSkill =
+			msg.content && /\[Skill:\s*[^\]]+\]/i.test(msg.content);
+		return msg.contextItems.filter((item) => {
+			if ((item.type as string) === "skill" && hasInlineSkill) {
+				return false;
+			}
+			return true;
+		});
+	}, [msg.contextItems, msg.content]);
 
 	const handleCopy = () => {
 		navigator.clipboard.writeText(cleanContent);
@@ -107,174 +108,15 @@ export const UserMessageBubble = memo(function UserMessageBubble({
 
 	return (
 		<div className="w-full flex flex-col items-end gap-1 group relative my-2">
-			{/* Context attachments chips always visible (edit mode or normal) */}
-			{msg.contextItems && msg.contextItems.length > 0 && (
-				<div className="flex flex-wrap gap-1 mb-0.5 justify-end max-w-[85%] sm:max-w-[75%]">
-					{msg.contextItems.map((ci) => {
-						const isLink = ci.type === "bookmark" || Boolean(ci.url);
-						const isFolder = ci.type === "folder";
-
-						if ((ci.type as string) === "split_practice") {
-							return (
-								<div
-									key={ci.id}
-									className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-accent/10 border border-accent/30 text-[10px] text-accent font-medium select-none shadow-2xs"
-									title="来自双栏演练画布"
-								>
-									<Sparkles className="w-3 h-3 text-accent shrink-0" />
-									<span className="truncate max-w-[160px] font-medium">
-										{ci.title}
-									</span>
-								</div>
-							);
-						}
-
-						if (isLink && ci.url) {
-							return (
-								<div
-									key={ci.id}
-									className="inline-flex items-center gap-1 pl-2 pr-1.5 py-0.5 rounded-lg bg-surface-secondary/90 hover:bg-accent/10 border border-border/60 hover:border-accent/40 text-[10px] text-foreground/80 hover:text-accent transition-all group/chip select-none hover:scale-[1.02] active:scale-[0.98]"
-								>
-									<a
-										href={ci.url}
-										target="_blank"
-										rel="noopener noreferrer"
-										onClick={(e) => e.stopPropagation()}
-										className="inline-flex items-center gap-1 min-w-0 max-w-[150px] cursor-pointer"
-										title={`点击在新标签页打开：${ci.url}`}
-									>
-										{ci.icon ? (
-											<img
-												src={ci.icon}
-												alt=""
-												className="w-3 h-3 rounded-sm object-contain shrink-0"
-												onError={(e) => {
-													(e.currentTarget as HTMLElement).style.display =
-														"none";
-												}}
-											/>
-										) : (
-											<Globe className="w-3 h-3 text-accent shrink-0" />
-										)}
-										<span className="truncate font-medium group-hover/chip:underline">
-											{ci.title}
-										</span>
-										<ExternalLink className="w-2.5 h-2.5 opacity-60 group-hover/chip:opacity-100 shrink-0" />
-									</a>
-
-									{typeof ci.folderId === "number" && onNavigateToFolder && (
-										<button
-											type="button"
-											onClick={(e) => {
-												e.stopPropagation();
-												e.preventDefault();
-												onNavigateToFolder(
-													ci.folderId ?? null,
-													ci.category as Category,
-												);
-												toast.success("已定位到书签所在文件夹");
-											}}
-											className="p-0.5 rounded hover:bg-amber-500/20 text-muted hover:text-amber-600 dark:hover:text-amber-400 transition-colors shrink-0 cursor-pointer"
-											title="在工作台中定位所在文件夹"
-										>
-											<FolderIcon className="w-2.5 h-2.5" />
-										</button>
-									)}
-								</div>
-							);
-						}
-
-						if (isFolder && typeof ci.folderId === "number") {
-							return (
-								<button
-									key={ci.id}
-									type="button"
-									onClick={(e) => {
-										e.stopPropagation();
-										if (onNavigateToFolder) {
-											onNavigateToFolder(
-												ci.folderId ?? null,
-												ci.category as Category,
-											);
-											toast.success(`已定位到「${ci.title}」文件夹`);
-										}
-									}}
-									className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 hover:border-amber-500/50 text-[10px] text-amber-700 dark:text-amber-300 transition-all cursor-pointer group/chip select-none hover:scale-[1.02] active:scale-[0.98]"
-									title={`点击在工作台中定位并打开「${ci.title}」文件夹`}
-								>
-									<span className="font-medium">📁</span>
-									<span className="truncate max-w-[130px] font-medium group-hover/chip:underline">
-										{ci.title}
-									</span>
-								</button>
-							);
-						}
-
-						if (ci.type === "image" && ci.thumbnail) {
-							return (
-								<button
-									key={ci.id}
-									type="button"
-									onClick={(e) => {
-										e.stopPropagation();
-										openPreview({
-											src: ci.thumbnail || "",
-											title: ci.title,
-											subtitle: ci.subtitle,
-										});
-									}}
-									className="inline-flex items-center gap-1.5 pl-1.5 pr-2 py-0.5 rounded-lg bg-surface-secondary/90 hover:bg-surface-secondary border border-border/70 hover:border-accent/40 text-[10px] text-foreground/80 hover:text-foreground transition-all cursor-pointer select-none group/img-chip hover:scale-[1.02] active:scale-[0.98] shadow-2xs"
-									title={`${ci.title} · 点击预览图片`}
-								>
-									<img
-										src={ci.thumbnail}
-										alt=""
-										className="w-3.5 h-3.5 rounded object-cover border border-border/50 shrink-0"
-									/>
-									<span className="truncate max-w-[130px] font-medium group-hover/img-chip:underline">
-										{ci.title}
-									</span>
-									<ZoomIn className="w-2.5 h-2.5 opacity-50 group-hover/img-chip:opacity-100 text-accent shrink-0" />
-								</button>
-							);
-						}
-
-						// Skill context item chip - only render if not already present inline in msg.content
-						if ((ci.type as string) === "skill") {
-							// If message text already embeds [Skill: ...], avoid redundant chip display
-							const hasInlineSkill =
-								msg.content && /\[Skill:\s*[^\]]+\]/i.test(msg.content);
-							if (hasInlineSkill) {
-								return null;
-							}
-
-							return (
-								<div
-									key={ci.id}
-									className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/15 border border-blue-500/30 text-[10px] text-blue-600 dark:text-blue-400 transition-all select-none"
-									title={`已加载技能: ${ci.title}`}
-								>
-									<Box className="w-3 h-3 shrink-0" />
-									<span className="truncate max-w-[130px] font-medium">
-										{ci.title}
-									</span>
-								</div>
-							);
-						}
-
-						return (
-							<div
-								key={ci.id}
-								className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-surface-secondary border border-border/60 text-[10px] text-foreground/80 select-none"
-								title={ci.title}
-							>
-								<span className="text-accent font-medium">📎</span>
-								<span className="truncate max-w-[130px] font-medium">
-									{ci.title}
-								</span>
-							</div>
-						);
-					})}
+			{/* Context attachments cards (复用 ChatContextBar，展示大圆角文件/图片卡片) */}
+			{displayContextItems.length > 0 && (
+				<div className="mb-0.5 max-w-[85%] sm:max-w-[75%]">
+					<ChatContextBar
+						items={displayContextItems}
+						layout="wrap"
+						align="right"
+						onNavigateToFolder={onNavigateToFolder}
+					/>
 				</div>
 			)}
 

@@ -59,7 +59,7 @@ export const ChatInputTopToolbar = memo(function ChatInputTopToolbar({
 									onPress={onNewChat}
 									aria-label="新建对话"
 								>
-									<MessageSquarePlus className="w-3.5 h-3.5" />
+									<MessageSquarePlus className="w-3.5 h-3.5 text-purple-600" />
 								</Button>
 							</Tooltip.Trigger>
 							<Tooltip.Content className="text-xs py-1 px-2">

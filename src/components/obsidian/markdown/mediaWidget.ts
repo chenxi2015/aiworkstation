@@ -219,6 +219,24 @@ export class MediaWidget extends WidgetType {
 			img.src = src;
 			img.alt = alt;
 			img.loading = "lazy";
+			img.draggable = true;
+			img.addEventListener("dragstart", (e) => {
+				if (e.dataTransfer) {
+					e.dataTransfer.setData("text/plain", src);
+					e.dataTransfer.setData("text/uri-list", src);
+					try {
+						e.dataTransfer.setData(
+							"application/x-obsidian-image",
+							JSON.stringify({
+								src,
+								alt: alt || "笔记图片",
+								relPath: this.props.noteRelPath,
+							}),
+						);
+					} catch {}
+					e.dataTransfer.effectAllowed = "copy";
+				}
+			});
 			img.onerror = () => {
 				wrap.textContent = `🖼 无法加载：${alt || src}`;
 				wrap.classList.add("cm-live-media-error");

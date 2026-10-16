@@ -1,8 +1,7 @@
-import { Button, Dropdown, toast, Tooltip } from "@heroui/react";
+import { Button, Dropdown, Tooltip, toast } from "@heroui/react";
 import {
 	ArrowUp,
 	FileUp,
-	ImagePlus,
 	LibraryBig,
 	Plus,
 	Square,
@@ -10,7 +9,11 @@ import {
 import { memo, useRef, useState } from "react";
 import type { ChatContextItem } from "../../../../types/chatContext";
 import { MaterialLibraryPicker } from "./MaterialLibraryPicker";
-import { importChatFile, isImportableChatFile } from "./utils/chatFileImport";
+import {
+	getUnsupportedFileReason,
+	importChatFile,
+	isImportableChatFile,
+} from "./utils/chatFileImport";
 
 export interface ChatInputBottomBarProps {
 	isLoading: boolean;
@@ -32,58 +35,22 @@ export const ChatInputBottomBar = memo(function ChatInputBottomBar({
 	onStop,
 	onAttachContextItem,
 }: ChatInputBottomBarProps) {
-	// 隐藏的文件选择器（仅图片）
+	// 统一的文件选择器（支持图片、Word/PDF/Excel/TXT/CSV 等文档）
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
-	// 本地文档上传选择器（Word/PDF/Excel/TXT，提取纯文本进对话）
-	const docInputRef = useRef<HTMLInputElement | null>(null);
 	// 创作素材库选择对话框（从素材库导入已有素材）
 	const [materialPickerOpen, setMaterialPickerOpen] = useState(false);
 
-	const handlePickImages = () => {
+	const handlePickFile = () => {
 		fileInputRef.current?.click();
 	};
 
-	const handlePickDocs = () => {
-		docInputRef.current?.click();
-	};
-
-	const handleFilesChosen = (files: FileList | null) => {
+	const handleFilesChosen = async (files: FileList | null) => {
 		if (!files || !onAttachContextItem) return;
-		for (let i = 0; i < files.length; i++) {
-			const file = files[i];
-			if (!file.type.startsWith("image/")) continue;
-			const reader = new FileReader();
-			reader.onload = () => {
-				onAttachContextItem({
-					id: `img_${Date.now()}_${i}`,
-					type: "image",
-					title: file.name,
-					subtitle: `${Math.round(file.size / 1024)} KB`,
-					thumbnail: reader.result as string,
-				});
-			};
-			reader.readAsDataURL(file);
-		}
-		// 重置以便连续选同一文件也能触发 change
-		if (fileInputRef.current) fileInputRef.current.value = "";
-	};
-
-	/**
-	 * 本地文档上传：提取纯文本注入对话上下文。
-	 * 音频/视频刻意不支持——当前 AI 走 OpenAI 兼容 chat 协议，消息体没有音/视频输入段，
-	 * 且本地无 ASR 转写流水线，模型无法读取其内容；选择时明确 toast 告知原因。
-	 */
-	const handleDocsChosen = async (files: FileList | null) => {
-		if (!files || !onAttachContextItem) return;
-		let rejectedMedia = 0;
 		for (let i = 0; i < files.length; i++) {
 			const file = files[i];
 			if (!isImportableChatFile(file)) {
-				if (file.type.startsWith("audio/") || file.type.startsWith("video/")) {
-					rejectedMedia++;
-				} else {
-					toast.warning(`「${file.name}」格式暂不支持（仅支持图片与文档）`);
-				}
+				const reason = getUnsupportedFileReason(file);
+				toast.warning(reason);
 				continue;
 			}
 			try {
@@ -95,12 +62,7 @@ export const ChatInputBottomBar = memo(function ChatInputBottomBar({
 				);
 			}
 		}
-		if (rejectedMedia > 0) {
-			toast.warning(
-				`已跳过 ${rejectedMedia} 个音视频文件：当前模型接口不支持读取音视频内容（需 ASR 转写能力，后续版本支持）`,
-			);
-		}
-		if (docInputRef.current) docInputRef.current.value = "";
+		if (fileInputRef.current) fileInputRef.current.value = "";
 	};
 
 	return (
@@ -109,28 +71,25 @@ export const ChatInputBottomBar = memo(function ChatInputBottomBar({
 			<div className="flex items-center gap-1.5">
 				{onAttachContextItem && (
 					<>
+						{/* 统一上传文件：图片 / 办公文档 / 笔记与画板 / 纯文本代码 */}
 						<input
 							ref={fileInputRef}
 							type="file"
-							accept="image/*"
+							accept="image/*,.txt,.md,.markdown,.csv,.json,.log,.yaml,.yml,.xml,.html,.css,.ts,.tsx,.js,.jsx,.py,.sql,.docx,.pdf,.xlsx,.xls,.canvas,.excalidraw"
 							multiple
 							className="hidden"
-							onChange={(e) => handleFilesChosen(e.target.files)}
-						/>
-						{/* 本地文档上传：Word/PDF/Excel/TXT 提取纯文本进对话（音视频因模型接口限制不支持，选中时 toast 说明） */}
-						<input
-							ref={docInputRef}
-							type="file"
-							accept="image/*,.txt,.md,.markdown,.csv,.json,.log,.docx,.pdf,.xlsx,.xls"
-							multiple
-							className="hidden"
-							onChange={(e) => void handleDocsChosen(e.target.files)}
+							onChange={(e) => void handleFilesChosen(e.target.files)}
 						/>
 						{/* 素材库导入：从创作模块素材库挑选已有素材（SQLite 托管，服务端按 id 取全文注入） */}
 						<MaterialLibraryPicker
 							isOpen={materialPickerOpen}
 							onClose={() => setMaterialPickerOpen(false)}
-							onPick={(item) => onAttachContextItem(item)}
+							onPick={(item) => onAttachContextItem?.(item)}
+							onPickBatch={(items) => {
+								for (const item of items) {
+									onAttachContextItem?.(item);
+								}
+							}}
 						/>
 						<Dropdown>
 							<Dropdown.Trigger
@@ -145,26 +104,16 @@ export const ChatInputBottomBar = memo(function ChatInputBottomBar({
 							>
 								<Dropdown.Menu aria-label="添加附件">
 									<Dropdown.Item
-										id="upload-image"
-										textValue="上传图片"
-										onAction={handlePickImages}
+										id="upload-file"
+										textValue="上传文件"
+										onAction={handlePickFile}
 									>
 										<div className="flex items-center gap-2.5 py-1">
-											<ImagePlus className="w-4 h-4 text-blue-500 shrink-0" />
-											<span className="text-xs font-medium">上传图片</span>
-										</div>
-									</Dropdown.Item>
-									<Dropdown.Item
-										id="upload-doc"
-										textValue="上传文档"
-										onAction={handlePickDocs}
-									>
-										<div className="flex items-center gap-2.5 py-1">
-											<FileUp className="w-4 h-4 text-emerald-500 shrink-0" />
+											<FileUp className="w-4 h-4 text-blue-500 shrink-0" />
 											<div className="flex flex-col min-w-0">
-												<span className="text-xs font-medium">上传文档</span>
+												<span className="text-xs font-medium">上传文件</span>
 												<span className="text-[10px] text-muted/70">
-													Word / PDF / Excel / TXT 提取正文
+													图片 / 文档 / Canvas / MD / 表格 / 代码
 												</span>
 											</div>
 										</div>

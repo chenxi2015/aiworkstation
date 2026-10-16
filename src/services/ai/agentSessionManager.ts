@@ -12,7 +12,6 @@ import type {
 import type { ChatContextItem } from "../../types/chatContext";
 import { streamAgentChat } from "../api/agentStreamClient";
 import {
-	type ChatMessage,
 	type ChatSession,
 	WorkbenchStorageService,
 } from "../workbenchStorage";
@@ -199,11 +198,12 @@ class AgentSessionManager {
 		this.abortControllers.set(sessionId, controller);
 
 		try {
-			const history: ChatMessage[] = options.newChat
+			const history = options.newChat
 				? []
 				: historyBase.slice(-8).map((m) => ({
 						role: m.role,
 						content: m.content,
+						contextItems: m.contextItems,
 					}));
 
 			const settings = WorkbenchStorageService.getSettings();
