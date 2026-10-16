@@ -68,6 +68,7 @@ export function executeMove(args: MoveInput): ToolExecutionResult {
 }
 
 export const moveToolDef = toolDefinition({
+	metadata: { executionClass: "global-headless" },
 	name: "fs_move",
 	description:
 		"移动或重命名本地文件/目录（同盘秒移）。目标已存在时默认报错，需显式 overwrite: true 才覆盖。",

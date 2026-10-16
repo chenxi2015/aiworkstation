@@ -3,8 +3,8 @@ import {
 	layoutAiElements,
 } from "../../../components/obsidian/canvas/canvasLayoutEngine.ts";
 import type { CanvasData } from "../../../components/obsidian/canvas/canvasUtils.ts";
-import { createDraft } from "../drafts/draftStore.ts";
 import { readVaultNote, saveVaultNote } from "../../services/obsidian/note.ts";
+import { createDraft } from "../drafts/draftStore.ts";
 import type {
 	CanvasCreateElementsInput,
 	DraftCanvasInput,

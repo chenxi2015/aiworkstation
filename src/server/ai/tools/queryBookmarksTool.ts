@@ -192,8 +192,9 @@ export function executeQueryBookmarks(
  * Tool Definition for TanStack AI
  */
 export const queryBookmarksToolDef = toolDefinition({
+	metadata: { executionClass: "global-headless" },
 	name: "query_bookmarks",
 	description:
-		"按时间范围（今天/昨天/本周/上周/本月/最近7天等）、指定日期、所属分类/文件夹、标签或关键词，精准查询用户本地 SQLite 知识库中收藏的书签与工具列表。支持通过 purpose 参数指定是向用户呈现还是供 Agent 内部规划盘点。",
+		"按时间范围（今天/昨天/本周/上周/本月/最近7天等）、指定日期、所属分类/文件夹、标签或关键词，精准查询用户本地 SQLite 知识库中收藏的书签与工具列表。支持通过 purpose 参数指定是向用户呈现还是供 Agent 内部规划盘点。当用户说「查询/检索/搜索/找出/列出/有哪些书签、收藏、链接、工具」时使用本工具。",
 	inputSchema: queryBookmarksInputSchema,
 });

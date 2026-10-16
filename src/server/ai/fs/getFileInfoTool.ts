@@ -53,6 +53,7 @@ export function executeGetFileInfo(
 }
 
 export const getFileInfoToolDef = toolDefinition({
+	metadata: { executionClass: "global-headless" },
 	name: "fs_get_file_info",
 	description: "查询本地文件或目录的元信息：类型、大小、创建时间、修改时间。",
 	inputSchema: getFileInfoInputSchema,

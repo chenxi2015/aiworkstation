@@ -117,6 +117,7 @@ export function executeAddTagsToBookmarks(
  * Tool Definition for TanStack AI
  */
 export const addTagsToBookmarksToolDef = toolDefinition({
+	metadata: { executionClass: "global-headless" },
 	name: "add_tags_to_bookmarks",
 	description:
 		"给书签打标签。支持单计划（bookmarkIds/itemNamesOrUrls + tags）与批量计划（plans 数组）。标签不存在时自动创建。仅做'追加'，不清除书签已有标签。",

@@ -100,6 +100,7 @@ export function executeReadFile(args: ReadFileInput): ToolExecutionResult {
 }
 
 export const readFileToolDef = toolDefinition({
+	metadata: { executionClass: "global-headless" },
 	name: "fs_read_file",
 	description:
 		"读取本地电脑上的文本文件内容（带行号，支持 startLine/endLine 分页读取大文件）。二进制文件会拒绝读取。修改文件前必须先读取确认内容。",

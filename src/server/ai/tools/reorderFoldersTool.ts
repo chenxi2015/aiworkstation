@@ -163,6 +163,7 @@ export function executeReorderFolders(
  * Tool Definition for TanStack AI
  */
 export const reorderFoldersToolDef = toolDefinition({
+	metadata: { executionClass: "global-headless" },
 	name: "reorder_folders",
 	description:
 		"对同一层级（某个分类顶层或某个父文件夹内）的文件夹进行排序。支持显式名称顺序，或按名称/内容数量/创建时间快捷排序。当用户要求调整文件夹排列顺序时调用此工具。",

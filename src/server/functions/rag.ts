@@ -3,9 +3,9 @@ import { openaiCompatibleText } from "@tanstack/ai-openai/compatible";
 import { createServerFn } from "@tanstack/react-start";
 import type { SearchResultItem } from "../../components/workbench/types";
 import type { EmbeddingConfig } from "../../services/embeddingService";
-import { createBookmarkServerTools } from "../ai/bookmarkTools";
 import { buildFolderDossierSystemPrompt } from "../ai/prompts/index.ts";
 import { prepareRagAgentContext, resolveLlmConfig } from "../ai/ragContext.ts";
+import { createAgentTools } from "../ai/tools/registry.ts";
 import { workbenchDb } from "../db/sqlite.ts";
 
 export interface ChatMessage {
@@ -97,15 +97,20 @@ export const chatWithBookmarks = createServerFn({ method: "POST" })
 
 		let hasDbMutated = false;
 
-		// 3. Instantiate server tools with execution callbacks
-		const tools = createBookmarkServerTools({
-			onMutated: () => {
-				hasDbMutated = true;
+		// 3. Instantiate server tools with execution callbacks.
+		// Legacy non-streaming RPC: no active view context, so the registry
+		// provisions the globally-available headless tool subset.
+		const tools = createAgentTools(
+			{
+				onMutated: () => {
+					hasDbMutated = true;
+				},
+				onReferencesFound: (refs) => {
+					references = refs;
+				},
 			},
-			onReferencesFound: (refs) => {
-				references = refs;
-			},
-		});
+			{},
+		);
 
 		// 4. Create TanStack AI OpenAI-compatible adapter
 		const adapter = openaiCompatibleText(model, {

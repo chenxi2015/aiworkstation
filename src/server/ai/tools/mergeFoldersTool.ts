@@ -166,8 +166,9 @@ export function executeMergeFolders(
  * Tool Definition for TanStack AI
  */
 export const mergeFoldersToolDef = toolDefinition({
+	metadata: { executionClass: "global-headless" },
 	name: "merge_folders",
 	description:
-		"【高阶治理推荐】文件夹合并与知识归集工具。将多个源文件夹中的所有书签一键合并归拢到指定目标文件夹（若目标不存在则自动创建），并可自动清理旧的空壳文件夹。在分类结构重塑、冗余文件夹整合、主题合并时优先调用此工具，严禁拆分成多次移动和单点删除！",
+		"【高阶治理推荐】文件夹合并与知识归集工具。将多个源文件夹中的所有书签一键合并归拢到指定目标文件夹（若目标不存在则自动创建），并可自动清理旧的空壳文件夹。当用户说「合并/归并文件夹或目录」、或在分类结构重塑、冗余文件夹整合、主题合并时优先调用此工具，严禁拆分成多次移动和单点删除！",
 	inputSchema: mergeFoldersInputSchema,
 });

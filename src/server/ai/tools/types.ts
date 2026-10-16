@@ -56,12 +56,59 @@ export type ToolExecutionClass =
 	| "context-dependent";
 
 /**
+ * View prerequisite for a tool. The registry (`createAgentTools`) only
+ * registers a tool when the matching view state is active:
+ * - "canvas": an Obsidian .canvas board is currently open
+ * - "excalidraw": an .excalidraw board is currently open
+ * - "editor-document": an editor document is currently active
+ * - "obsidian-note": a plain (non-board) note is currently open
+ * - "rewrite-target": an editor document OR a plain note is active (the
+ *   paragraph-rewrite pipeline can drive either surface)
+ */
+export type ToolRequiredView =
+	| "canvas"
+	| "excalidraw"
+	| "editor-document"
+	| "obsidian-note"
+	| "rewrite-target";
+
+/**
+ * Client-side dispatch directive attached to a tool. Emitted on step.action so
+ * the chat client can route live bridge actions (canvas rendering, rewrite
+ * pipeline, draft delivery card) without name-prefix guessing.
+ */
+export type ToolClientAction = "canvas" | "rewrite" | "draft";
+
+/**
+ * Static metadata declared on each toolDefinition's `metadata` field.
+ * Drives precise tool provisioning (requiresView) and client dispatch
+ * (clientAction). executionClass is documentary.
+ */
+export interface AgentToolMetadata {
+	executionClass: ToolExecutionClass;
+	requiresView?: ToolRequiredView;
+	clientAction?: ToolClientAction;
+}
+
+/** Read the AgentToolMetadata of a tool definition or instantiated tool. */
+export function getAgentToolMetadata(
+	tool: unknown,
+): AgentToolMetadata | undefined {
+	const meta = (tool as { metadata?: Record<string, unknown> } | null)
+		?.metadata;
+	return meta as AgentToolMetadata | undefined;
+}
+
+/**
  * Lifecycle hooks for server tool execution
  */
-export interface BookmarkToolHooks {
+export interface AgentToolHooks {
 	onMutated?: () => void;
 	onReferencesFound?: (references: SearchResultItem[]) => void;
-	onToolStart?: (toolName: string, args: Record<string, unknown>) => string | void;
+	onToolStart?: (
+		toolName: string,
+		args: Record<string, unknown>,
+	) => string | undefined;
 	onToolEnd?: (
 		toolName: string,
 		summary: string,

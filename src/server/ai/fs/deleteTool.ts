@@ -101,6 +101,7 @@ export function executeDelete(args: DeleteInput): ToolExecutionResult {
 }
 
 export const deleteToolDef = toolDefinition({
+	metadata: { executionClass: "global-headless" },
 	name: "fs_delete",
 	description:
 		"删除本地文件或目录。默认先移入回收目录 ~/.aiworkstation/.trash/（可恢复）；仅当 permanent: true 时才彻底删除。删除非空目录需 recursive: true。",

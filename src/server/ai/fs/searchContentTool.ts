@@ -232,6 +232,7 @@ export function executeSearchContent(
 }
 
 export const searchContentToolDef = toolDefinition({
+	metadata: { executionClass: "global-headless" },
 	name: "fs_search_content",
 	description:
 		"在本地文件内容中搜索包含指定文本的行（grep 式）。默认只扫描常见文本类文件（.md/.txt/.json/.ts 等），可用 filePattern 限定文件名（如 *.md），useRegex 支持正则。不传 path 时全局搜索用户常用目录。返回 路径:行号: 内容预览。超大文件与二进制自动跳过。",

@@ -119,6 +119,7 @@ export function executeDeleteFolder(
  * Tool Definition for TanStack AI
  */
 export const deleteFolderToolDef = toolDefinition({
+	metadata: { executionClass: "global-headless" },
 	name: "delete_folder",
 	description:
 		"删除一个或多个文件夹。支持单个文件夹删除（folderName）或批量删除（folderNames）。默认保留书签（移回未分类池）并提升子文件夹；仅当明确要求连内容一起删除时才设置 deleteBookmarks=true。需要删除多个文件夹时必须使用 folderNames 数组一次性完成，严禁重复多次单步调用！",

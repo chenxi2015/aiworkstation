@@ -355,8 +355,9 @@ export function executeMoveBookmarks(
  * Tool Definition for TanStack AI
  */
 export const moveBookmarksToFolderToolDef = toolDefinition({
+	metadata: { executionClass: "global-headless" },
 	name: "move_bookmarks_to_folder",
 	description:
-		"将书签整理移入或关联复用到目标文件夹。支持单目标模式（targetFolderName + itemNamesOrUrls/itemIds/tags）以及多目标批量分发模式（batchPlans: [{ targetFolderName, itemNamesOrUrls }]）。支持 mode='move'（整理剪切）与 mode='link'（任务装配引用，保留原位置）。当需要同时将书签分别归类到多个不同文件夹时，必须使用 batchPlans 一次性完成，严禁拆为多次单步调用！",
+		"将书签整理移入或关联复用到目标文件夹。支持单目标模式（targetFolderName + itemNamesOrUrls/itemIds/tags）以及多目标批量分发模式（batchPlans: [{ targetFolderName, itemNamesOrUrls }]）。支持 mode='move'（整理剪切）与 mode='link'（任务装配引用，保留原位置）。当需要同时将书签分别归类到多个不同文件夹时，必须使用 batchPlans 一次性完成，严禁拆为多次单步调用！当用户说「把/将某些书签、收藏移动到/移入/归档到/整理到某文件夹」时使用本工具。",
 	inputSchema: moveBookmarksToFolderInputSchema,
 });

@@ -73,11 +73,15 @@ export function resolveImageGenConfig(
 	const db = readDbSettings();
 	const provider = overrides.provider || db?.imageProvider || "doubao";
 	const apiKey =
-		overrides.apiKey?.trim() || db?.imageApiKey?.trim() || db?.apiKey?.trim() || "";
+		overrides.apiKey?.trim() ||
+		db?.imageApiKey?.trim() ||
+		db?.apiKey?.trim() ||
+		"";
 
 	let defaultBaseUrl = "https://ark.cn-beijing.volces.com/api/v3";
 	if (provider === "openai") defaultBaseUrl = "https://api.openai.com/v1";
-	else if (provider === "siliconflow") defaultBaseUrl = "https://api.siliconflow.cn/v1";
+	else if (provider === "siliconflow")
+		defaultBaseUrl = "https://api.siliconflow.cn/v1";
 
 	const baseUrl = (
 		overrides.baseUrl?.trim() ||
@@ -90,7 +94,7 @@ export function resolveImageGenConfig(
 		db?.imageModel?.trim() ||
 		(provider === "doubao" ? "doubao-seed-image" : "dall-e-3");
 
-	const skillPath = overrides.skillPath?.trim() || db?.imageSkillPath?.trim() || "";
+	const skillPath =
+		overrides.skillPath?.trim() || db?.imageSkillPath?.trim() || "";
 	return { apiKey, baseUrl, model, provider, skillPath };
 }
-

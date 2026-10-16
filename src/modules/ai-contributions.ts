@@ -20,13 +20,6 @@ export interface AiModuleContribution {
 	persona?: string;
 	/** @deprecated 使用 persona 字段，此字段保留作向后兼容 alias */
 	systemPromptHint: string;
-	/**
-	 * 该模块优先展示的 Agent Tool 列表（软分层：仅影响 LLM 工具列表排序，
-	 * 不做硬过滤排除；意图路由命中的工具跨模块强制放行）。
-	 * 工具执行依赖分类（global-headless / content-generating / context-dependent）
-	 * 由工具自身注册元数据声明，见 server/ai/tools。
-	 */
-	tools?: string[];
 	/** 聊天空态的快捷提问建议（客户端使用） */
 	promptSuggestions: string[];
 	/** 该模块下允许附加到对话的上下文类型 */
@@ -40,16 +33,6 @@ export const GLOBAL_AI_CONTRIBUTION: AiModuleContribution = {
 	code: "global",
 	systemPromptHint:
 		"用户未聚焦于特定模块。以全局知识库视角工作：检索、治理与问答均面向全库资产。",
-	tools: [
-		"query_bookmarks",
-		"get_stats",
-		"create_folder",
-		"move_bookmarks_to_folder",
-		"merge_folders",
-		"web_search",
-		"web_fetch",
-		"read_webpage_content",
-	],
 	promptSuggestions: [
 		"检索我收藏的所有关于 AI、自动化与大模型相关的开源项目与工具",
 		"盘点我最近收藏的前端开发框架、组件库与实用资源",
@@ -64,13 +47,6 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 		code: "workbench",
 		systemPromptHint:
 			"用户正在「工作台」首页。偏向宏观视角：资产盘点、趋势洞察、待整理建议与快捷入口推荐。",
-		tools: [
-			"query_bookmarks",
-			"get_stats",
-			"web_search",
-		"web_fetch",
-			"read_webpage_content",
-		],
 		promptSuggestions: [
 			"给我一份当前知识库资产的宏观盘点与健康度报告",
 			"未分类缓冲池里有哪些值得优先整理的内容？",
@@ -82,26 +58,6 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 		code: "bookmarks",
 		systemPromptHint:
 			"用户正在「书签」模块。偏向检索与治理：混合检索、文件夹归类、去重合并、死链清理与批量整理。",
-		tools: [
-			"query_bookmarks",
-			"create_folder",
-			"update_folder",
-			"move_bookmarks_to_folder",
-			"move_folder",
-			"reorder_folders",
-			"remove_bookmarks_from_folder",
-			"delete_folder",
-			"merge_folders",
-			"get_stats",
-			"read_webpage_content",
-			"crawl_webpage_via_extension",
-			"create_tags",
-			"add_tags_to_bookmarks",
-			"remove_tags",
-			"rename_or_merge_tags",
-			"web_search",
-		"web_fetch",
-		],
 		promptSuggestions: [
 			"检索我收藏的所有关于 AI、自动化与大模型相关的开源项目与工具",
 			"盘点我最近收藏的前端开发框架、组件库与实用资源",
@@ -114,13 +70,6 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 		code: "creator",
 		systemPromptHint:
 			"用户正在「创作」板块（素材库/创作台/归档/工具箱/热点雷达）。偏向内容生产：管理素材、从收藏库检索选题、提炼观点、生成二创草稿（推文/小红书/脚本），并提醒人工确认后再发布。创作台编辑态下由 editor 写作人格接管（页面桥接）。",
-		tools: [
-			"query_bookmarks",
-			"read_webpage_content",
-			"crawl_webpage_via_extension",
-			"web_search",
-		"web_fetch",
-		],
 		promptSuggestions: [
 			"从我的收藏里挖掘 3 个值得二创的选题并给出切入角度",
 			"基于我收藏的 AI 工具资料，起草一条小红书风格的推荐帖",
@@ -140,13 +89,6 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 		code: "learn",
 		systemPromptHint:
 			"用户正在「学习」模块。偏向学习辅助：聚合学习资源、梳理知识脉络、对比概念、规划学习路径。",
-		tools: [
-			"query_bookmarks",
-			"read_webpage_content",
-			"crawl_webpage_via_extension",
-			"web_search",
-		"web_fetch",
-		],
 		promptSuggestions: [
 			"梳理我收藏的学习资源，按主题规划一条学习路径",
 			"我收藏的某个领域资料里有哪些核心概念需要优先掌握？",
@@ -157,25 +99,9 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 		code: "editor",
 		persona: `你是用户的「AI 写作搭档」，当前正在协助深度加工一篇文档。
 你的核心能力：理解文档上下文、提出结构改写建议、帮助扩写/缩写/换风格、从知识库检索可引用的素材。
-红线：对文档的任何改写必须经用户确认，AI 只给建议和草稿，写入操作（rewrite_document）需人工批准。`,
+红线：对文档的任何改写必须经用户确认，AI 只给建议和草稿，全文/段落改写统一走 trigger_paragraph_rewrite 流式流水线（双栏 Diff 审阅），严禁直接覆写数据库。`,
 		systemPromptHint:
 			"用户正在「创作」模块。偏向写作协同：理解当前文档上下文、AI 辅助改写（需人工确认）、检索素材引用、版本快照管理。",
-		tools: [
-			"read_document",
-			"list_documents",
-			"update_document_title",
-			"draft_article",
-			"trigger_paragraph_rewrite",
-			"insert_document_block",
-			"edit_document_paragraph",
-			"generate_mermaid_diagram",
-			"generate_data_chart",
-			"web_search",
-		"web_fetch",
-			"query_bookmarks",
-			"read_webpage_content",
-			"crawl_webpage_via_extension",
-		],
 		promptSuggestions: [
 			"基于本文核心观点与素材进行深度二创（洗稿重构），生成一篇全新稿件",
 			"根据全文提炼 5 个高点击爆款标题，并选最优的一个直接更新为文章标题",
@@ -223,24 +149,6 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 			"对当前笔记全文进行精细润色，纠正语病并优化行文逻辑",
 			"提炼并总结当前笔记的核心要点与结构脉络",
 		],
-		tools: [
-			"trigger_paragraph_rewrite",
-			"draft_canvas",
-			"canvas_create_elements",
-			"canvas_create_group",
-			"canvas_update_node",
-			"canvas_tidy_layout",
-			"canvas_center_view",
-			"draft_excalidraw",
-			"excalidraw_draw_elements",
-			"excalidraw_update_element",
-			"excalidraw_clear_canvas",
-			"excalidraw_center_view",
-			"read_webpage_content",
-			"query_bookmarks",
-			"web_search",
-		"web_fetch",
-		],
 		contextItemTypes: ["bookmark", "folder", "tag", "image", "file"],
 	},
 
@@ -248,13 +156,6 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 		code: "ecommerce",
 		systemPromptHint:
 			"用户正在「电商」模块。偏向选品与运营：聚合选品素材、竞品信息、运营工具，辅助生成选品对比与文案。",
-		tools: [
-			"query_bookmarks",
-			"read_webpage_content",
-			"crawl_webpage_via_extension",
-			"web_search",
-		"web_fetch",
-		],
 		promptSuggestions: [
 			"整理我收藏的电商运营工具，按用途分类并推荐组合",
 			"基于收藏素材做一份选品对比矩阵",
@@ -265,14 +166,6 @@ export const AI_MODULE_CONTRIBUTIONS: Record<string, AiModuleContribution> = {
 		code: "skills",
 		systemPromptHint:
 			"用户正在「Skills」模块。偏向技能资产管理：检索本地 skills、解释用途、建议组合与落库整理。",
-		tools: [
-			"fs_list_directory",
-			"fs_read_file",
-			"fs_search_content",
-			"fs_search_files",
-			"fs_get_file_info",
-			"read_skill_resource",
-		],
 		promptSuggestions: [
 			"盘点我本地的 skills，按能力域分组并说明各自用途",
 			"哪些 skills 适合组合成一条内容生产流水线？",

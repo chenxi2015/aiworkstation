@@ -89,6 +89,7 @@ export function executeCreateTags(args: CreateTagsInput): ToolExecutionResult {
  * Tool Definition for TanStack AI
  */
 export const createTagsToolDef = toolDefinition({
+	metadata: { executionClass: "global-headless" },
 	name: "create_tags",
 	description:
 		"创建单个或批量标签。当需要同时创建多个标签时必须使用 tags 数组一次性完成，严禁重复多次单步调用。若标签已存在则自动跳过（幂等安全）。",

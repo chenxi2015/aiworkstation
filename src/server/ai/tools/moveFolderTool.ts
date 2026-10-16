@@ -187,6 +187,7 @@ export function executeMoveFolder(args: MoveFolderInput): ToolExecutionResult {
  * Tool Definition for TanStack AI
  */
 export const moveFolderToolDef = toolDefinition({
+	metadata: { executionClass: "global-headless" },
 	name: "move_folder",
 	description:
 		"移动单个或批量文件夹。支持：1. 把一个或多个文件夹（folderNames）移动到指定导航分类（尤其是移到「工作台」开启当前工作，或归类到其他领域）；2. 把多个文件夹同时移入另一个文件夹（建立嵌套父子分组，如统一移入「大前端」）；3. 把嵌套文件夹移回分类顶层。需要移动多个文件夹时必须使用 folderNames 数组一次性完成，严禁重复多次单步调用！",

@@ -1,32 +1,6 @@
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
-import {
-	executeDraftExcalidraw,
-	headlessDrawExcalidrawElements,
-} from "./headlessExcalidraw.ts";
-import { wrapExecution } from "./index.ts";
-import type {
-	BookmarkToolHooks,
-	ToolExecutionClass,
-	ToolExecutionResult,
-} from "./types.ts";
-
-/** Execution dependency metadata, keyed by tool name */
-export const EXCALIDRAW_TOOL_CLASSES: Record<string, ToolExecutionClass> = {
-	draft_excalidraw: "content-generating",
-	excalidraw_draw_elements: "content-generating",
-	excalidraw_update_element: "context-dependent",
-	excalidraw_clear_canvas: "context-dependent",
-	excalidraw_center_view: "context-dependent",
-};
-
-/** Runtime context for dual-path execution decisions */
-export interface ExcalidrawToolRuntime {
-	/** Currently open note path in the obsidian module, if any */
-	activeNotePath?: string;
-	/** Current AI conversation session ID for decoupled draft containment */
-	sessionId?: string;
-}
+import type { ToolExecutionResult } from "./types.ts";
 
 export const excalidrawElementSchema = z.object({
 	id: z.string().describe("Unique identifier for this element"),
@@ -108,9 +82,10 @@ export function executeExcalidrawDrawElements(
 }
 
 export const excalidrawDrawElementsToolDef = toolDefinition({
+	metadata: { executionClass: "content-generating", clientAction: "canvas" },
 	name: "excalidraw_draw_elements",
 	description:
-		"【仅用于修改当前已打开的画板】在当前已打开的 Excalidraw 画板中批量追加手绘图形节点或连线。严禁在新建画板流程中调用本工具！新建画板必须单步调用 draft_excalidraw 一次性生成完整草稿卡片。",
+		"【仅用于修改当前已打开的画板】在当前已打开的 Excalidraw 画板中批量追加手绘图形节点或连线。当用户说「绘制/画/创建/添加/补充/梳理图形、图表、流程、架构、关系、模型、时序、系统」到当前画板时使用本工具。严禁在新建画板流程中调用本工具！新建画板必须单步调用 draft_excalidraw 一次性生成完整草稿卡片。",
 	inputSchema: excalidrawDrawInputSchema,
 });
 
@@ -150,9 +125,10 @@ export const draftExcalidrawInputSchema = z.object({
 export type DraftExcalidrawInput = z.input<typeof draftExcalidrawInputSchema>;
 
 export const draftExcalidrawToolDef = toolDefinition({
+	metadata: { executionClass: "content-generating", clientAction: "draft" },
 	name: "draft_excalidraw",
 	description:
-		"【新建画板唯一入口】在一步内规划并生成完整的 Excalidraw 手绘流程图、系统架构图或推演图草稿。草稿暂存本地草稿区，以交互卡片形式交付用户确认后落盘保存并打开。严禁分步创建空画板，严禁后续再调用 excalidraw_draw_elements，必须在所有分析完成后一次性调用本工具产出完整图形草稿。",
+		"【新建画板唯一入口】在一步内规划并生成完整的 Excalidraw 手绘流程图、系统架构图或推演图草稿。当用户说「新建/创建/建个/建一个/新开 Excalidraw 画板」时必须调用本工具。草稿暂存本地草稿区，以交互卡片形式交付用户确认后落盘保存并打开。严禁分步创建空画板，严禁后续再调用 excalidraw_draw_elements，必须在所有分析完成后一次性调用本工具产出完整图形草稿。",
 	inputSchema: draftExcalidrawInputSchema,
 });
 
@@ -185,8 +161,14 @@ export function executeExcalidrawUpdateElement(
 }
 
 export const excalidrawUpdateElementToolDef = toolDefinition({
+	metadata: {
+		executionClass: "context-dependent",
+		requiresView: "excalidraw",
+		clientAction: "canvas",
+	},
 	name: "excalidraw_update_element",
-	description: "更新 Excalidraw 画板中指定图形元素的文字内容或配色样式。",
+	description:
+		"更新 Excalidraw 画板中指定图形元素的文字内容或配色样式。当用户说「修改/更新/改一下画板中某个图形的文字或颜色」时使用本工具。",
 	inputSchema: excalidrawUpdateElementInputSchema,
 });
 
@@ -203,8 +185,14 @@ export function executeExcalidrawClearCanvas(): ToolExecutionResult {
 }
 
 export const excalidrawClearCanvasToolDef = toolDefinition({
+	metadata: {
+		executionClass: "context-dependent",
+		requiresView: "excalidraw",
+		clientAction: "canvas",
+	},
 	name: "excalidraw_clear_canvas",
-	description: "清空当前 Excalidraw 画板的所有图形元素。",
+	description:
+		"清空当前 Excalidraw 画板的所有图形元素。当用户说「清空/清掉/重置画板或画布内容」时使用本工具。",
 	inputSchema: excalidrawClearCanvasInputSchema,
 });
 
@@ -237,96 +225,13 @@ export function executeExcalidrawCenterView(
 }
 
 export const excalidrawCenterViewToolDef = toolDefinition({
+	metadata: {
+		executionClass: "context-dependent",
+		requiresView: "excalidraw",
+		clientAction: "canvas",
+	},
 	name: "excalidraw_center_view",
 	description:
-		"将当前 Excalidraw 画板视野平移并缩放到所有图形中央；可传入 elementIds 仅聚焦指定元素。",
+		"将当前 Excalidraw 画板视野平移并缩放到所有图形中央；可传入 elementIds 仅聚焦指定元素。当用户说「居中/视野移到中央/画板内容居中显示」时使用本工具。",
 	inputSchema: excalidrawCenterViewInputSchema,
 });
-
-export function createExcalidrawServerTools(
-	hooks?: BookmarkToolHooks,
-	runtime?: ExcalidrawToolRuntime,
-) {
-	const activeNotePath = runtime?.activeNotePath;
-	const sessionId = runtime?.sessionId;
-	const boardOpen = Boolean(activeNotePath?.endsWith(".excalidraw"));
-
-	return [
-		draftExcalidrawToolDef.server((args) =>
-			wrapExecution(
-				"draft_excalidraw",
-				args,
-				() => executeDraftExcalidraw(args, sessionId),
-				hooks,
-			),
-		),
-		excalidrawDrawElementsToolDef.server((args) =>
-			wrapExecution(
-				"excalidraw_draw_elements",
-				args,
-				async () => {
-					const targetPath = args.targetPath;
-					if (!boardOpen && !targetPath) {
-						throw new Error(
-							"当前未打开任何 Excalidraw 画板。excalidraw_draw_elements 仅用于修改当前已打开的画板，严禁用于新建画板。如需新建画板，请调用 draft_excalidraw 一次性生成完整草稿卡片。",
-						);
-					}
-					if (boardOpen && (!targetPath || targetPath === activeNotePath)) {
-						// Live path: frontend bridge renders with animation on currently open board
-						return executeExcalidrawDrawElements(args);
-					}
-					return headlessDrawExcalidrawElements(
-						args,
-						targetPath ?? activeNotePath,
-					);
-				},
-				hooks,
-			),
-		),
-		excalidrawUpdateElementToolDef.server((args) =>
-			wrapExecution(
-				"excalidraw_update_element",
-				args,
-				() => {
-					if (!boardOpen) {
-						throw new Error(
-							"该操作需要目标画板正处于打开状态。请先跳转到笔记模块打开对应画板，再执行此操作。",
-						);
-					}
-					return executeExcalidrawUpdateElement(args);
-				},
-				hooks,
-			),
-		),
-		excalidrawClearCanvasToolDef.server((args) =>
-			wrapExecution(
-				"excalidraw_clear_canvas",
-				args,
-				() => {
-					if (!boardOpen) {
-						throw new Error(
-							"该操作需要目标画板正处于打开状态。请先跳转到笔记模块打开对应画板，再执行此操作。",
-						);
-					}
-					return executeExcalidrawClearCanvas();
-				},
-				hooks,
-			),
-		),
-		excalidrawCenterViewToolDef.server((args) =>
-			wrapExecution(
-				"excalidraw_center_view",
-				args,
-				() => {
-					if (!boardOpen) {
-						throw new Error(
-							"该操作需要目标画板正处于打开状态。请先跳转到笔记模块打开对应画板，再执行此操作。",
-						);
-					}
-					return executeExcalidrawCenterView(args);
-				},
-				hooks,
-			),
-		),
-	];
-}

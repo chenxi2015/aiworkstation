@@ -191,8 +191,9 @@ export function executeCreateFolder(
  * Tool Definition for TanStack AI
  */
 export const createFolderToolDef = toolDefinition({
+	metadata: { executionClass: "global-headless" },
 	name: "create_folder",
 	description:
-		"在本地 SQLite 数据库中创建单个或批量主题文件夹。支持单个创建（name）或批量创建（folders: [{name, category?, desc?}]）。当需要同时创建多个文件夹时必须使用 folders 数组一次性完成，严禁重复多次单步调用！",
+		"在本地 SQLite 数据库中创建单个或批量主题文件夹。支持单个创建（name）或批量创建（folders: [{name, category?, desc?}]）。当需要同时创建多个文件夹时必须使用 folders 数组一次性完成，严禁重复多次单步调用！当用户说「新建/创建/建一个文件夹、目录或分类」时使用本工具。",
 	inputSchema: createFolderInputSchema,
 });

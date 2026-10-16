@@ -1,100 +1,4 @@
-import {
-	addTagsToBookmarksInputSchema,
-	addTagsToBookmarksToolDef,
-	executeAddTagsToBookmarks,
-} from "./addTagsToBookmarksTool.ts";
-import {
-	crawlWebpageViaExtensionInputSchema,
-	crawlWebpageViaExtensionToolDef,
-	executeCrawlWebpageViaExtension,
-} from "./crawlWebpageViaExtensionTool.ts";
-import {
-	createFolderInputSchema,
-	createFolderToolDef,
-	executeCreateFolder,
-} from "./createFolderTool.ts";
-import {
-	createTagsInputSchema,
-	createTagsToolDef,
-	executeCreateTags,
-} from "./createTagsTool.ts";
-import {
-	deleteFolderInputSchema,
-	deleteFolderToolDef,
-	executeDeleteFolder,
-} from "./deleteFolderTool.ts";
-import {
-	executeGetStats,
-	type GetStatsInput,
-	getStatsInputSchema,
-	getStatsToolDef,
-} from "./getStatsTool.ts";
-import {
-	executeMergeFolders,
-	mergeFoldersInputSchema,
-	mergeFoldersToolDef,
-} from "./mergeFoldersTool.ts";
-import {
-	executeMoveBookmarks,
-	moveBookmarksToFolderInputSchema,
-	moveBookmarksToFolderToolDef,
-} from "./moveBookmarksTool.ts";
-import {
-	executeMoveFolder,
-	moveFolderInputSchema,
-	moveFolderToolDef,
-} from "./moveFolderTool.ts";
-import {
-	executeQueryBookmarks,
-	queryBookmarksInputSchema,
-	queryBookmarksToolDef,
-} from "./queryBookmarksTool.ts";
-import {
-	executeReadWebpage,
-	readWebpageInputSchema,
-	readWebpageToolDef,
-} from "./readWebpageTool.ts";
-import {
-	executeRemoveBookmarks,
-	removeBookmarksFromFolderToolDef,
-	removeBookmarksInputSchema,
-} from "./removeBookmarksTool.ts";
-import {
-	executeRemoveTags,
-	removeTagsInputSchema,
-	removeTagsToolDef,
-} from "./removeTagsTool.ts";
-import {
-	executeRenameOrMergeTags,
-	renameOrMergeTagsInputSchema,
-	renameOrMergeTagsToolDef,
-} from "./renameOrMergeTagsTool.ts";
-import {
-	executeReorderFolders,
-	reorderFoldersInputSchema,
-	reorderFoldersToolDef,
-} from "./reorderFoldersTool.ts";
-import {
-	executeReadSkillResource,
-	readSkillResourceInputSchema,
-	readSkillResourceToolDef,
-} from "./skillResourceTool.ts";
-import type { BookmarkToolHooks, ToolExecutionResult } from "./types.ts";
-import {
-	executeUpdateFolder,
-	updateFolderInputSchema,
-	updateFolderToolDef,
-} from "./updateFolderTool.ts";
-import {
-	executeWebFetch,
-	webFetchInputSchema,
-	webFetchToolDef,
-} from "./webFetchTool.ts";
-import {
-	executeWebSearch,
-	webSearchInputSchema,
-	webSearchToolDef,
-} from "./webSearchTool.ts";
+import type { AgentToolHooks, ToolExecutionResult } from "./types.ts";
 
 export * from "./addTagsToBookmarksTool.ts";
 export * from "./chartTool.ts";
@@ -121,13 +25,18 @@ export * from "./webFetchTool.ts";
 export * from "./webSearchTool.ts";
 
 /**
- * Generic execution wrapper that logs metrics and dispatches lifecycle hooks
+ * Generic execution wrapper that logs metrics and dispatches lifecycle hooks.
+ *
+ * Tool failures are returned to the model as an error tool-result string
+ * instead of throwing, so the agent loop keeps running and the model can
+ * recover (retry with different args, pick another tool, or explain the
+ * failure to the user). Only aborts propagate as exceptions.
  */
 export async function wrapExecution<TArgs>(
 	toolName: string,
 	args: TArgs,
 	executor: () => ToolExecutionResult | Promise<ToolExecutionResult>,
-	hooks?: BookmarkToolHooks,
+	hooks?: AgentToolHooks,
 ): Promise<string> {
 	const start = Date.now();
 	const stepId = hooks?.onToolStart?.(
@@ -153,266 +62,21 @@ export async function wrapExecution<TArgs>(
 		);
 		return res.summary;
 	} catch (err: unknown) {
+		// User-initiated aborts must interrupt the loop, not feed back to the model
+		if (err instanceof Error && err.name === "AbortError") {
+			throw err;
+		}
 		const durationMs = Date.now() - start;
 		const errMsg = err instanceof Error ? err.message : String(err);
+		const failureSummary = `执行失败: ${errMsg}`;
 		hooks?.onToolEnd?.(
 			toolName,
-			`执行失败: ${errMsg}`,
+			failureSummary,
 			false,
 			durationMs,
 			undefined,
 			typeof stepId === "string" ? stepId : undefined,
 		);
-		throw err;
+		return failureSummary;
 	}
-}
-
-/**
- * Server Tools Factory: Create executable server tools with injected execution hooks
- */
-export function createBookmarkServerTools(
-	hooks?: BookmarkToolHooks,
-	activeSkillDir?: string,
-) {
-	return [
-		queryBookmarksToolDef.server((args) =>
-			wrapExecution(
-				"query_bookmarks",
-				args,
-				() => executeQueryBookmarks(args),
-				hooks,
-			),
-		),
-		createFolderToolDef.server((args) =>
-			wrapExecution(
-				"create_folder",
-				args,
-				() => executeCreateFolder(args),
-				hooks,
-			),
-		),
-		moveBookmarksToFolderToolDef.server((args) =>
-			wrapExecution(
-				"move_bookmarks_to_folder",
-				args,
-				() => executeMoveBookmarks(args),
-				hooks,
-			),
-		),
-		updateFolderToolDef.server((args) =>
-			wrapExecution(
-				"update_folder",
-				args,
-				() => executeUpdateFolder(args),
-				hooks,
-			),
-		),
-		moveFolderToolDef.server((args) =>
-			wrapExecution("move_folder", args, () => executeMoveFolder(args), hooks),
-		),
-		reorderFoldersToolDef.server((args) =>
-			wrapExecution(
-				"reorder_folders",
-				args,
-				() => executeReorderFolders(args),
-				hooks,
-			),
-		),
-		removeBookmarksFromFolderToolDef.server((args) =>
-			wrapExecution(
-				"remove_bookmarks_from_folder",
-				args,
-				() => executeRemoveBookmarks(args),
-				hooks,
-			),
-		),
-		deleteFolderToolDef.server((args) =>
-			wrapExecution(
-				"delete_folder",
-				args,
-				() => executeDeleteFolder(args),
-				hooks,
-			),
-		),
-		mergeFoldersToolDef.server((args) =>
-			wrapExecution(
-				"merge_folders",
-				args,
-				() => executeMergeFolders(args),
-				hooks,
-			),
-		),
-		getStatsToolDef.server((args) =>
-			wrapExecution(
-				"get_stats",
-				args,
-				() => executeGetStats((args || {}) as GetStatsInput),
-				hooks,
-			),
-		),
-		readWebpageToolDef.server((args) =>
-			wrapExecution(
-				"read_webpage_content",
-				args,
-				() => executeReadWebpage(args),
-				hooks,
-			),
-		),
-		crawlWebpageViaExtensionToolDef.server((args) =>
-			wrapExecution(
-				"crawl_webpage_via_extension",
-				args,
-				() => executeCrawlWebpageViaExtension(args),
-				hooks,
-			),
-		),
-		readSkillResourceToolDef.server((args) =>
-			wrapExecution(
-				"read_skill_resource",
-				args,
-				() => executeReadSkillResource(args, activeSkillDir),
-				hooks,
-			),
-		),
-		createTagsToolDef.server((args) =>
-			wrapExecution("create_tags", args, () => executeCreateTags(args), hooks),
-		),
-		addTagsToBookmarksToolDef.server((args) =>
-			wrapExecution(
-				"add_tags_to_bookmarks",
-				args,
-				() => executeAddTagsToBookmarks(args),
-				hooks,
-			),
-		),
-		removeTagsToolDef.server((args) =>
-			wrapExecution("remove_tags", args, () => executeRemoveTags(args), hooks),
-		),
-		renameOrMergeTagsToolDef.server((args) =>
-			wrapExecution(
-				"rename_or_merge_tags",
-				args,
-				() => executeRenameOrMergeTags(args),
-				hooks,
-			),
-		),
-		webSearchToolDef.server((args) =>
-			wrapExecution("web_search", args, () => executeWebSearch(args), hooks),
-		),
-		webFetchToolDef.server((args) =>
-			wrapExecution("web_fetch", args, () => executeWebFetch(args), hooks),
-		),
-	];
-}
-
-/**
- * Backward-compatible single tool dispatcher
- */
-export async function executeBookmarkToolCall(
-	toolCallId: string,
-	toolName: string,
-	argsJson: string | Record<string, unknown>,
-): Promise<ToolExecutionResult & { toolCallId: string }> {
-	let parsedArgs: Record<string, unknown> = {};
-	if (typeof argsJson === "string") {
-		try {
-			parsedArgs = JSON.parse(argsJson || "{}");
-		} catch {
-			parsedArgs = {};
-		}
-	} else {
-		parsedArgs = argsJson || {};
-	}
-
-	let result: ToolExecutionResult;
-	switch (toolName) {
-		case "get_stats":
-			result = executeGetStats(getStatsInputSchema.parse(parsedArgs));
-			break;
-		case "query_bookmarks":
-			result = executeQueryBookmarks(
-				queryBookmarksInputSchema.parse(parsedArgs),
-			);
-			break;
-		case "create_tags":
-			result = executeCreateTags(createTagsInputSchema.parse(parsedArgs));
-			break;
-		case "add_tags_to_bookmarks":
-			result = executeAddTagsToBookmarks(
-				addTagsToBookmarksInputSchema.parse(parsedArgs),
-			);
-			break;
-		case "remove_tags":
-			result = executeRemoveTags(removeTagsInputSchema.parse(parsedArgs));
-			break;
-		case "rename_or_merge_tags":
-			result = executeRenameOrMergeTags(
-				renameOrMergeTagsInputSchema.parse(parsedArgs),
-			);
-			break;
-		case "create_folder":
-			result = executeCreateFolder(createFolderInputSchema.parse(parsedArgs));
-			break;
-		case "move_bookmarks_to_folder":
-			result = executeMoveBookmarks(
-				moveBookmarksToFolderInputSchema.parse(parsedArgs),
-			);
-			break;
-		case "merge_folders":
-			result = executeMergeFolders(mergeFoldersInputSchema.parse(parsedArgs));
-			break;
-		case "update_folder":
-			result = executeUpdateFolder(updateFolderInputSchema.parse(parsedArgs));
-			break;
-		case "move_folder":
-			result = executeMoveFolder(moveFolderInputSchema.parse(parsedArgs));
-			break;
-		case "reorder_folders":
-			result = executeReorderFolders(
-				reorderFoldersInputSchema.parse(parsedArgs),
-			);
-			break;
-		case "remove_bookmarks_from_folder":
-			result = executeRemoveBookmarks(
-				removeBookmarksInputSchema.parse(parsedArgs),
-			);
-			break;
-		case "delete_folder":
-			result = executeDeleteFolder(deleteFolderInputSchema.parse(parsedArgs));
-			break;
-		case "read_webpage_content":
-			result = await executeReadWebpage(
-				readWebpageInputSchema.parse(parsedArgs),
-			);
-			break;
-		case "crawl_webpage_via_extension":
-			result = await executeCrawlWebpageViaExtension(
-				crawlWebpageViaExtensionInputSchema.parse(parsedArgs),
-			);
-			break;
-		case "read_skill_resource":
-			result = await executeReadSkillResource(
-				readSkillResourceInputSchema.parse(parsedArgs),
-			);
-			break;
-		case "web_search":
-			result = await executeWebSearch(webSearchInputSchema.parse(parsedArgs));
-			break;
-		case "web_fetch":
-			result = await executeWebFetch(webFetchInputSchema.parse(parsedArgs));
-			break;
-		default:
-			result = {
-				toolName,
-				summary: `未知工具名称: ${toolName}`,
-				items: [],
-				references: [],
-				isMutation: false,
-			};
-	}
-
-	return {
-		...result,
-		toolCallId,
-	};
 }

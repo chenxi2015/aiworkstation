@@ -1,33 +1,6 @@
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
-import {
-	executeDraftCanvas,
-	headlessCreateCanvasElements,
-} from "./headlessCanvas.ts";
-import { wrapExecution } from "./index.ts";
-import type {
-	BookmarkToolHooks,
-	ToolExecutionClass,
-	ToolExecutionResult,
-} from "./types.ts";
-
-/** Execution dependency metadata, keyed by tool name */
-export const CANVAS_TOOL_CLASSES: Record<string, ToolExecutionClass> = {
-	draft_canvas: "content-generating",
-	canvas_create_elements: "content-generating",
-	canvas_create_group: "context-dependent",
-	canvas_update_node: "context-dependent",
-	canvas_tidy_layout: "context-dependent",
-	canvas_center_view: "context-dependent",
-};
-
-/** Runtime context for dual-path execution decisions */
-export interface CanvasToolRuntime {
-	/** Currently open note path in the obsidian module, if any */
-	activeNotePath?: string;
-	/** Current AI conversation session ID for decoupled draft containment */
-	sessionId?: string;
-}
+import type { ToolExecutionResult } from "./types.ts";
 
 export const canvasNodeSchema = z.object({
 	id: z
@@ -144,9 +117,10 @@ export function executeCanvasCreateElements(
 }
 
 export const canvasCreateElementsToolDef = toolDefinition({
+	metadata: { executionClass: "content-generating", clientAction: "canvas" },
 	name: "canvas_create_elements",
 	description:
-		"【仅用于修改当前已打开的白板】在当前打开的 Obsidian Canvas 白板中批量追加节点与连线（支持思维导图、架构流程图、知识对比卡片等）。严禁在新建白板流程中调用本工具！新建白板必须单步调用 draft_canvas 一次性生成完整草稿卡片。",
+		"【仅用于修改当前已打开的白板】在当前打开的 Obsidian Canvas 白板中批量追加节点与连线（支持思维导图、架构流程图、知识对比卡片等）。当用户说「创建/添加/补充/绘制/梳理节点、脑图、思维导图、架构、流程」到当前白板时使用本工具。严禁在新建白板流程中调用本工具！新建白板必须单步调用 draft_canvas 一次性生成完整草稿卡片。",
 	inputSchema: canvasCreateElementsInputSchema,
 });
 
@@ -176,8 +150,14 @@ export function executeCanvasUpdateNode(
 }
 
 export const canvasUpdateNodeToolDef = toolDefinition({
+	metadata: {
+		executionClass: "context-dependent",
+		requiresView: "canvas",
+		clientAction: "canvas",
+	},
 	name: "canvas_update_node",
-	description: "更新 Obsidian Canvas 白板中指定卡片的文本内容或颜色样式。",
+	description:
+		"更新 Obsidian Canvas 白板中指定卡片的文本内容或颜色样式。当用户说「修改/更新白板中某个卡片的文字或颜色」时使用本工具。",
 	inputSchema: canvasUpdateNodeInputSchema,
 });
 
@@ -219,9 +199,14 @@ export function executeCanvasTidyLayout(
 }
 
 export const canvasTidyLayoutToolDef = toolDefinition({
+	metadata: {
+		executionClass: "context-dependent",
+		requiresView: "canvas",
+		clientAction: "canvas",
+	},
 	name: "canvas_tidy_layout",
 	description:
-		"对当前 Obsidian Canvas 白板进行一键排版规整（标准化卡片尺寸、消除节点重叠碰撞、吸附网格对齐、并优化连线锚点与方向）。",
+		"对当前 Obsidian Canvas 白板进行一键排版规整（标准化卡片尺寸、消除节点重叠碰撞、吸附网格对齐、并优化连线锚点与方向）。当用户说「规整/排版/对齐/重排/整理白板/优化布局或连线/切换布局模式」时使用本工具。",
 	inputSchema: canvasTidyLayoutInputSchema,
 });
 
@@ -250,9 +235,14 @@ export function executeCanvasCenterView(
 }
 
 export const canvasCenterViewToolDef = toolDefinition({
+	metadata: {
+		executionClass: "context-dependent",
+		requiresView: "canvas",
+		clientAction: "canvas",
+	},
 	name: "canvas_center_view",
 	description:
-		"将当前 Obsidian Canvas 白板视野平移并缩放到整张白板内容中央；可传 targetNodeIds 仅聚焦指定节点。不修改节点坐标或白板文件内容。",
+		"将当前 Obsidian Canvas 白板视野平移并缩放到整张白板内容中央；可传 targetNodeIds 仅聚焦指定节点。不修改节点坐标或白板文件内容。当用户说「居中/视野移到中央/内容居中显示」时使用本工具。",
 	inputSchema: canvasCenterViewInputSchema,
 });
 
@@ -287,6 +277,11 @@ export function executeCanvasCreateGroup(
 }
 
 export const canvasCreateGroupToolDef = toolDefinition({
+	metadata: {
+		executionClass: "context-dependent",
+		requiresView: "canvas",
+		clientAction: "canvas",
+	},
 	name: "canvas_create_group",
 	description:
 		"在当前 Obsidian Canvas 白板中为指定的一组已有节点创建矩形分组框（容器），前端自动计算外接包围盒并自适应内边距，实现模块化区域划分。",
@@ -319,111 +314,9 @@ export const draftCanvasInputSchema = z.object({
 export type DraftCanvasInput = z.input<typeof draftCanvasInputSchema>;
 
 export const draftCanvasToolDef = toolDefinition({
+	metadata: { executionClass: "content-generating", clientAction: "draft" },
 	name: "draft_canvas",
 	description:
-		"【新建白板唯一入口】在一步内规划并生成完整的 Obsidian Canvas 白板脑图、架构图或对比卡片草稿。草稿暂存本地草稿区，以交付卡片形式供用户确认后落盘保存并打开。严禁分步创建空白白板，严禁后续再调用 canvas_create_elements，必须在所有分析完成后一次性调用本工具产出完整白板草稿。",
+		"【新建白板唯一入口】在一步内规划并生成完整的 Obsidian Canvas 白板脑图、架构图或对比卡片草稿。当用户说「新建/创建/建个/建一个/新开白板或 Canvas」时必须调用本工具。草稿暂存本地草稿区，以交付卡片形式供用户确认后落盘保存并打开。严禁分步创建空白白板，严禁后续再调用 canvas_create_elements，必须在所有分析完成后一次性调用本工具产出完整白板草稿。",
 	inputSchema: draftCanvasInputSchema,
 });
-
-export function createCanvasServerTools(
-	hooks?: BookmarkToolHooks,
-	runtime?: CanvasToolRuntime,
-) {
-	const activeNotePath = runtime?.activeNotePath;
-	const sessionId = runtime?.sessionId;
-	const boardOpen = Boolean(activeNotePath?.endsWith(".canvas"));
-
-	return [
-		draftCanvasToolDef.server((args) =>
-			wrapExecution(
-				"draft_canvas",
-				args,
-				() => executeDraftCanvas(args, sessionId),
-				hooks,
-			),
-		),
-		canvasCreateElementsToolDef.server((args) =>
-			wrapExecution(
-				"canvas_create_elements",
-				args,
-				async () => {
-					const targetPath = args.targetPath;
-					if (!boardOpen && !targetPath) {
-						throw new Error(
-							"当前未打开任何 Canvas 白板。canvas_create_elements 仅用于修改当前已打开的白板，严禁用于新建白板。如需新建白板，请调用 draft_canvas 一次性生成完整草稿卡片。",
-						);
-					}
-					if (boardOpen && (!targetPath || targetPath === activeNotePath)) {
-						// Live path: frontend bridge renders with animation on currently open canvas
-						return executeCanvasCreateElements(args);
-					}
-					return headlessCreateCanvasElements(
-						args,
-						targetPath ?? activeNotePath,
-					);
-				},
-				hooks,
-			),
-		),
-		canvasCreateGroupToolDef.server((args) =>
-			wrapExecution(
-				"canvas_create_group",
-				args,
-				() => {
-					if (!boardOpen) {
-						throw new Error(
-							"该操作需要目标白板正处于打开状态。请先跳转到笔记模块打开对应白板，再执行此操作。",
-						);
-					}
-					return executeCanvasCreateGroup(args);
-				},
-				hooks,
-			),
-		),
-		canvasUpdateNodeToolDef.server((args) =>
-			wrapExecution(
-				"canvas_update_node",
-				args,
-				() => {
-					if (!boardOpen) {
-						throw new Error(
-							"该操作需要目标白板正处于打开状态。请先跳转到笔记模块打开对应白板，再执行此操作。",
-						);
-					}
-					return executeCanvasUpdateNode(args);
-				},
-				hooks,
-			),
-		),
-		canvasTidyLayoutToolDef.server((args) =>
-			wrapExecution(
-				"canvas_tidy_layout",
-				args,
-				() => {
-					if (!boardOpen) {
-						throw new Error(
-							"该操作需要目标白板正处于打开状态。请先跳转到笔记模块打开对应白板，再执行此操作。",
-						);
-					}
-					return executeCanvasTidyLayout(args);
-				},
-				hooks,
-			),
-		),
-		canvasCenterViewToolDef.server((args) =>
-			wrapExecution(
-				"canvas_center_view",
-				args,
-				() => {
-					if (!boardOpen) {
-						throw new Error(
-							"该操作需要目标白板正处于打开状态。请先跳转到笔记模块打开对应白板，再执行此操作。",
-						);
-					}
-					return executeCanvasCenterView(args);
-				},
-				hooks,
-			),
-		),
-	];
-}

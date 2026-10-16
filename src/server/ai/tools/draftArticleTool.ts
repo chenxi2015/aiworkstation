@@ -64,8 +64,9 @@ export async function executeDraftArticle(
 }
 
 export const draftArticleToolDef = toolDefinition({
+	metadata: { executionClass: "content-generating", clientAction: "draft" },
 	name: "draft_article",
 	description:
-		"从零撰写长文，或将对话探讨、素材、搜索结果整理/汇总为独立文档/简报草稿并以卡片形式交付给用户。产出的正文会先暂存至本地草稿区，等待用户确认落点（存为创作文档、存为笔记或丢弃），不直接写入数据库或笔记库。",
+		"从零撰写长文，或将对话探讨、素材、搜索结果整理/汇总为独立文档/简报草稿并以卡片形式交付给用户。当用户说「新建/创建/写/起草/撰写/生成/整理/汇总/总结为文档、文章、稿件、长文、推文、文案、简报或草稿」，或「以XX为主题/为题写一篇文章」时必须调用本工具。产出的正文会先暂存至本地草稿区，等待用户确认落点（存为创作文档、存为笔记或丢弃），不直接写入数据库或笔记库。",
 	inputSchema: draftArticleInputSchema,
 });

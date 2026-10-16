@@ -100,6 +100,7 @@ export function executeGenerateMermaidDiagram(
 }
 
 export const generateMermaidDiagramToolDef = toolDefinition({
+	metadata: { executionClass: "content-generating" },
 	name: "generate_mermaid_diagram",
 	description:
 		"生成符合标准 Mermaid 语法的技术图表（流程图、时序图、系统架构图、状态机图、甘特图等），并可直接插入到文章正文相应段落。当用户要求「画一张架构图」、「用流程图说明」、「插入时序图」或需要用图形直观表达逻辑时调用。",

@@ -71,6 +71,7 @@ export function executeRenameOrMergeTags(
  * Tool Definition for TanStack AI
  */
 export const renameOrMergeTagsToolDef = toolDefinition({
+	metadata: { executionClass: "global-headless" },
 	name: "rename_or_merge_tags",
 	description:
 		"标签治理工具：将源标签批量重命名或合并为目标标签（所有携带源标签的书签自动改挂目标标签），随后清理源标签。例如把 'jvm'、'JVM虚拟机' 统一合并为 'JVM'。",

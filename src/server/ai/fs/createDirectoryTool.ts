@@ -39,6 +39,7 @@ export function executeCreateDirectory(
 }
 
 export const createDirectoryToolDef = toolDefinition({
+	metadata: { executionClass: "global-headless" },
 	name: "fs_create_directory",
 	description: "在本地创建目录，不存在的父级目录会一并自动创建。",
 	inputSchema: createDirectoryInputSchema,

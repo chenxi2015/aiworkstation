@@ -31,8 +31,6 @@ export interface RagAgentParams {
 	activeMaterialId?: number;
 	/** Relative path of the obsidian note currently active in the page */
 	activeNotePath?: string;
-	/** Continue building the agent prompt when an explicit tool action needs no RAG results. */
-	allowEmptyBookmarkContext?: boolean;
 }
 
 /**
@@ -50,7 +48,6 @@ export async function prepareRagAgentContext(
 		activeDocumentId,
 		activeMaterialId,
 		activeNotePath,
-		allowEmptyBookmarkContext,
 	} = params;
 
 	// 1. Semantic bookmark RAG retrieval (pure data + early-exit fallback)
@@ -59,7 +56,15 @@ export async function prepareRagAgentContext(
 		contextItems,
 	});
 
-	if (retrieval.emptyFallbackMessage && !allowEmptyBookmarkContext) {
+	// The empty-library fallback only short-circuits pure bookmark Q&A. When
+	// the user has supplied other context (attachments, an active document or
+	// note), the agent can still do useful work (creation tools are headless),
+	// so we proceed with an empty snippet section instead of bailing out.
+	const hasOtherContext =
+		contextItems.length > 0 ||
+		Boolean(activeDocumentId) ||
+		Boolean(activeNotePath);
+	if (retrieval.emptyFallbackMessage && !hasOtherContext) {
 		return {
 			systemPrompt: "",
 			contextReferences: [],

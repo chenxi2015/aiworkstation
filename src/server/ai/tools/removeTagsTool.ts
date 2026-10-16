@@ -73,6 +73,7 @@ export function executeRemoveTags(args: RemoveTagsInput): ToolExecutionResult {
  * Tool Definition for TanStack AI
  */
 export const removeTagsToolDef = toolDefinition({
+	metadata: { executionClass: "global-headless" },
 	name: "remove_tags",
 	description:
 		"移除标签。两种模式：1. 仅传入 bookmarkIds + tags：从指定书签上摘除这些标签；2. 仅传入 tags 且 deleteGlobal=true：从全库删除这些标签并解除所有书签关联。",

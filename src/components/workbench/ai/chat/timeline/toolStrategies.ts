@@ -318,18 +318,9 @@ export const TOOL_STRATEGIES: Record<string, ToolStrategy> = {
 		actionText: "已读取文档",
 		targetText: extractTargetText(args),
 	}),
-	rewrite_document: () => ({
-		Icon: Pencil,
-		actionText: "重写了文档",
-	}),
 	edit_document_paragraph: () => ({
 		Icon: Pencil,
 		actionText: "编辑了文档段落",
-	}),
-	trigger_document_create: (args) => ({
-		Icon: Pencil,
-		actionText: "创建了文档",
-		targetText: extractTargetText(args),
 	}),
 	trigger_paragraph_rewrite: () => ({
 		Icon: Pencil,

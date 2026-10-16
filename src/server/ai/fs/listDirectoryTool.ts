@@ -114,6 +114,7 @@ export function executeListDirectory(
 }
 
 export const listDirectoryToolDef = toolDefinition({
+	metadata: { executionClass: "global-headless" },
 	name: "fs_list_directory",
 	description:
 		"列出本地电脑某个目录下的文件和子目录（树状展示，支持递归深度控制）。用于了解目录结构。路径支持 ~ 开头表示用户主目录。",

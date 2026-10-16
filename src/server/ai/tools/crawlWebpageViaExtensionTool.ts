@@ -277,6 +277,7 @@ export async function executeCrawlWebpageViaExtension(
  * TanStack AI Tool Definition for silent webpage crawling via the extension
  */
 export const crawlWebpageViaExtensionToolDef = toolDefinition({
+	metadata: { executionClass: "global-headless" },
 	name: "crawl_webpage_via_extension",
 	description:
 		"抓取网页正文的【默认首选】工具：通过 Chrome 插件在后台静默打开标签页抓取（携带用户真实登录态 Cookie，可突破 SPA 动态渲染与反爬限制），支持指定 CSS 选择器精准提取选区并返回整洁 Markdown 正文；插件未安装或离线时会自动降级为原生 fetch 抓取，保证有结果返回。三种用法按场景选择：①默认 content 模式——凡是需要阅读网页/文章/链接正文的场景，一律优先使用；②用户要「完整全文/不加工的原始内容/保存网页」时——务必传 fullPage: true，完整正文会保存为本地 Markdown 文件并返回文件路径，不要在 content 模式下分段反复抓取；③用户要页面的特定结构化区域（如导航菜单、评论列表、侧边栏等）时——先 mode='skeleton' 获取页面结构骨架（不返回正文），选定目标区块后再带 selector 参数精准提取。仅在本工具明确返回失败后，才使用 read_webpage_content 兜底排查。重要：本工具每次调用开销较大（需新开页面渲染，约 5-15 秒），同一 URL 的结果会缓存 10 分钟；只要返回内容开头标注「成功抓取」，无论是否标注「已截断」，都视为抓取成功，禁止对同一 URL 重复调用本工具，直接基于已有内容回答用户。",

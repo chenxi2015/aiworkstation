@@ -73,6 +73,7 @@ export function executeUpdateFolder(
  * Tool Definition for TanStack AI
  */
 export const updateFolderToolDef = toolDefinition({
+	metadata: { executionClass: "global-headless" },
 	name: "update_folder",
 	description: "修改已有文件夹的名称、所属分类或描述信息。",
 	inputSchema: updateFolderInputSchema,

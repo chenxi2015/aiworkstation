@@ -152,6 +152,7 @@ export function executeSearchFiles(
 }
 
 export const searchFilesToolDef = toolDefinition({
+	metadata: { executionClass: "global-headless" },
 	name: "fs_search_files",
 	description:
 		"在本地搜索文件和文件夹：按名称模式递归匹配（支持 * 通配符，如 *.md、invoice*）。不传 path 时自动全局搜索用户常用目录（桌面/文稿/下载等，不含隐藏目录）；type 参数可限定只搜文件或只搜文件夹；搜索隐藏目录（如 ~/.aiworkstation）时将其显式作为 path 传入即可自动包含隐藏条目。自动跳过 node_modules/.git 等目录，返回完整路径列表。",

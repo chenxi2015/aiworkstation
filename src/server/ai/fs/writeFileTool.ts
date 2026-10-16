@@ -50,6 +50,7 @@ export function executeWriteFile(args: WriteFileInput): ToolExecutionResult {
 }
 
 export const writeFileToolDef = toolDefinition({
+	metadata: { executionClass: "global-headless" },
 	name: "fs_write_file",
 	description:
 		"在本地创建新文件或覆盖/追加写入已有文件（父目录自动创建）。注意：覆盖会丢失原内容，只想修改局部时请优先用 fs_patch_file。",

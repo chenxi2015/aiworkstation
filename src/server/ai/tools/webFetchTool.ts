@@ -5,10 +5,7 @@ import { getFetchOrchestrator } from "../search/fetch/orchestrator.ts";
 import type { ToolExecutionResult } from "./types.ts";
 
 export const webFetchInputSchema = z.object({
-	url: z
-		.string()
-		.url()
-		.describe("要抓取的网页 URL（http/https）"),
+	url: z.string().url().describe("要抓取的网页 URL（http/https）"),
 });
 
 export type WebFetchInput = z.input<typeof webFetchInputSchema>;
@@ -75,6 +72,7 @@ ${result.markdown}${truncationNote}`;
 }
 
 export const webFetchToolDef = toolDefinition({
+	metadata: { executionClass: "global-headless" },
 	name: "web_fetch",
 	description:
 		"抓取任意网页并转换为干净的 Markdown 正文。当 web_search 返回了感兴趣的链接、需要深读全文，或用户直接提供了一个 URL 需要阅读时使用。",

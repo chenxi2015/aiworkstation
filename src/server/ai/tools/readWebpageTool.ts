@@ -174,6 +174,7 @@ export async function executeReadWebpage(
  * TanStack AI Tool Definition for reading and scraping web pages
  */
 export const readWebpageToolDef = toolDefinition({
+	metadata: { executionClass: "global-headless" },
 	name: "read_webpage_content",
 	description:
 		"轻量级原生 fetch 网页抓取（不携带登录态，易被 SPA 动态渲染与反爬拦截导致正文为空）。仅在 crawl_webpage_via_extension 插件爬虫明确返回失败时，作为兜底排查手段使用；常规网页正文抓取请优先使用 crawl_webpage_via_extension。重要：只要返回内容开头标注「成功抓取」，无论是否标注「已截断」，都视为抓取成功，禁止对同一 URL 重复调用抓取类工具，直接基于已有内容回答用户。",

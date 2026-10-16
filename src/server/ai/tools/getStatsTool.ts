@@ -16,9 +16,10 @@ export const getStatsInputSchema = z.object({
 export type GetStatsInput = z.infer<typeof getStatsInputSchema>;
 
 export const getStatsToolDef = toolDefinition({
+	metadata: { executionClass: "global-headless" },
 	name: "get_stats",
 	description:
-		"获取个人知识库的宏观统计与架构全景（涵盖主分类列表及各分类下的文件夹、书签总数、未分类数量、常用标签分布与健康诊断）。当用户询问知识库体量、询问'当前分类太细/如何重组分类'、需要盘点整体结构、或要求分析知识库健康度时主动调用此工具。",
+		"获取个人知识库的宏观统计与架构全景（涵盖主分类列表及各分类下的文件夹、书签总数、未分类数量、常用标签分布与健康诊断）。当用户询问知识库体量（如「统计/盘点/总量/规模/有多少收藏」）、询问'当前分类太细/如何重组分类'、需要盘点整体结构、或要求分析知识库健康度时主动调用此工具。",
 	inputSchema: getStatsInputSchema,
 });
 

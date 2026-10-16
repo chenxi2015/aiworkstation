@@ -103,6 +103,7 @@ export async function executeWebSearch(
 }
 
 export const webSearchToolDef = toolDefinition({
+	metadata: { executionClass: "global-headless" },
 	name: "web_search",
 	description:
 		"通过互联网搜索最新资讯、技术文档、实时新闻、行业报告与事实论据。当需要查证事实、获取外部最新参考信息、或者用户提问当前文档库未收录的新知识时调用。",

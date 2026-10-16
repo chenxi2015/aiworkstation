@@ -1,24 +1,21 @@
-import type { AgentStepNavigation } from "../../types/agent";
-import type { ChatContextItem } from "../../types/chatContext";
-import type {
-	AgentChatParams,
-	AgentStep,
-} from "../../types/agent";
-import type {
-	ChatItem,
-	ChatMessagePart,
-} from "../../hooks/ai/useChatMessages";
+import type { ChatItem, ChatMessagePart } from "../../hooks/ai/useChatMessages";
 import {
 	agentSessionActions,
 	agentSessionStore,
 } from "../../stores/agentSessionStore";
+import { workbenchContextStore } from "../../stores/workbenchContextStore";
+import type {
+	AgentChatParams,
+	AgentStep,
+	AgentStepNavigation,
+} from "../../types/agent";
+import type { ChatContextItem } from "../../types/chatContext";
 import { streamAgentChat } from "../api/agentStreamClient";
 import {
 	type ChatMessage,
 	type ChatSession,
 	WorkbenchStorageService,
 } from "../workbenchStorage";
-import { workbenchContextStore } from "../../stores/workbenchContextStore";
 
 export interface AgentSessionCallbacks {
 	onMessageSent?: () => void;
@@ -172,9 +169,13 @@ class AgentSessionManager {
 
 		const session = agentSessionActions.ensureSession(sessionId);
 		const historyBase =
-			options.baseMessages !== undefined ? options.baseMessages : session.messages;
+			options.baseMessages !== undefined
+				? options.baseMessages
+				: session.messages;
 
-		const nextMessages = options.newChat ? [userMsg] : [...historyBase, userMsg];
+		const nextMessages = options.newChat
+			? [userMsg]
+			: [...historyBase, userMsg];
 
 		// Initial assistant placeholder
 		const initialAssistantMsg: ChatItem = {
@@ -288,9 +289,14 @@ class AgentSessionManager {
 			);
 		} catch (error: any) {
 			if (error.name === "AbortError" || controller.signal.aborted) {
-				console.log(`[AgentSessionManager] Session ${sessionId} aborted by user`);
+				console.log(
+					`[AgentSessionManager] Session ${sessionId} aborted by user`,
+				);
 			} else {
-				console.error(`[AgentSessionManager] Session ${sessionId} Error:`, error);
+				console.error(
+					`[AgentSessionManager] Session ${sessionId} Error:`,
+					error,
+				);
 				this.handleError(sessionId, error.message || "请求发生未知异常");
 			}
 		} finally {
@@ -307,15 +313,9 @@ class AgentSessionManager {
 		step: AgentStep,
 		callbacks?: AgentSessionCallbacks,
 	) {
-		// Dynamically route client actions based on the tool's action directive
-		const actionType =
-			step.action ||
-			(step.toolName === "trigger_paragraph_rewrite"
-				? "rewrite"
-				: step.toolName.startsWith("canvas_") ||
-						step.toolName.startsWith("excalidraw_")
-					? "canvas"
-					: undefined);
+		// Client actions route purely on the server-declared action directive
+		// (tool metadata.clientAction → step.action); no name-prefix guessing.
+		const actionType = step.action;
 
 		if (actionType === "rewrite") {
 			const instruction =
@@ -394,7 +394,11 @@ class AgentSessionManager {
 				: (() => {
 						let didReplace = false;
 						return updatedSteps.map((s) => {
-							if (!didReplace && s.toolName === step.toolName && s.status === "running") {
+							if (
+								!didReplace &&
+								s.toolName === step.toolName &&
+								s.status === "running"
+							) {
 								didReplace = true;
 								return step;
 							}
@@ -427,7 +431,11 @@ class AgentSessionManager {
 							return {
 								...p,
 								steps: p.steps.map((s) => {
-									if (!didReplace && s.toolName === step.toolName && s.status === "running") {
+									if (
+										!didReplace &&
+										s.toolName === step.toolName &&
+										s.status === "running"
+									) {
 										didReplace = true;
 										return step;
 									}
@@ -560,7 +568,9 @@ class AgentSessionManager {
 					{
 						...last,
 						isStreaming: false,
-						content: last.content ? `${last.content}\n\n${errorText}` : errorText,
+						content: last.content
+							? `${last.content}\n\n${errorText}`
+							: errorText,
 					},
 				];
 			}

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
+import { syncDraftFileToIndex } from "../drafts/draftStore.ts";
 import type { ToolExecutionResult } from "../tools/types.ts";
 import {
 	assertWritablePath,
@@ -10,7 +11,6 @@ import {
 	restoreLineEndings,
 	writeTextAtomicSync,
 } from "./fsSafety.ts";
-import { syncDraftFileToIndex } from "../drafts/draftStore.ts";
 
 export const patchFileInputSchema = z.object({
 	path: z.string().describe("要修改的文件路径，支持 ~ 开头"),
@@ -74,6 +74,7 @@ export function executePatchFile(args: PatchFileInput): ToolExecutionResult {
 }
 
 export const patchFileToolDef = toolDefinition({
+	metadata: { executionClass: "global-headless" },
 	name: "fs_patch_file",
 	description:
 		"对本地文本文件做局部精确修改：把唯一出现的 oldText 替换为 newText（replaceAll: true 可全部替换）。自动兼容 CRLF/LF 换行差异并保持原文件换行风格。修改文件局部内容时优先使用本工具而非整文件覆盖。修改前必须先 fs_read_file。",

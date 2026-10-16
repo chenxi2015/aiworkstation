@@ -44,6 +44,7 @@ export async function executeOpenInOs(
 }
 
 export const openInOsToolDef = toolDefinition({
+	metadata: { executionClass: "global-headless" },
 	name: "fs_open_in_os",
 	description:
 		"在宿主操作系统的文件管理器（macOS 访达 / Windows 资源管理器 / Linux 文件管理器）中打开指定目录或定位高亮指定文件。",

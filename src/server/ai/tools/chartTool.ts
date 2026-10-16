@@ -110,6 +110,7 @@ export function executeGenerateDataChart(
 }
 
 export const generateDataChartToolDef = toolDefinition({
+	metadata: { executionClass: "content-generating" },
 	name: "generate_data_chart",
 	description:
 		"生成数据可视化图表（柱状图、折线图、面积图、饼图、雷达图），并可直接插入到文章正文相应段落。当用户要求「画一张数据对比图」、「把数据做成图表」、「插入趋势图/占比图」或需要用统计图表表达数据时调用。注意：逻辑关系/流程/架构类图形请用 generate_mermaid_diagram。",

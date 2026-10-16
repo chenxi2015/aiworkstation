@@ -2,8 +2,8 @@ import {
 	generateExcalidrawElements,
 	type SharedRawElement,
 } from "../../../shared/excalidraw/elementFactory.ts";
-import { createDraft } from "../drafts/draftStore.ts";
 import { readVaultNote, saveVaultNote } from "../../services/obsidian/note.ts";
+import { createDraft } from "../drafts/draftStore.ts";
 import type {
 	DraftExcalidrawInput,
 	ExcalidrawDrawInput,

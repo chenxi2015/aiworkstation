@@ -106,6 +106,7 @@ export function executeRemoveBookmarks(
  * Tool Definition for TanStack AI
  */
 export const removeBookmarksFromFolderToolDef = toolDefinition({
+	metadata: { executionClass: "global-headless" },
 	name: "remove_bookmarks_from_folder",
 	description:
 		"把书签从指定文件夹中移出（回到未分类池）。支持按书签 ID、名称/URL 关键词批量移出，或 removeAll 清空整个文件夹。当用户要求把某些链接移出分组、解散文件夹内容时调用此工具。",

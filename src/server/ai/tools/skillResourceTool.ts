@@ -76,6 +76,7 @@ export async function executeReadSkillResource(
 }
 
 export const readSkillResourceToolDef = toolDefinition({
+	metadata: { executionClass: "global-headless" },
 	name: "read_skill_resource",
 	description:
 		"从本机本地磁盘直接读取已激活 Agent 技能的参考文档、设计规范、主题组件库模板或脚本（例如 references/theme-red-white.md 等）。严禁为了获取技能文档而调用网络爬虫，请一律优先使用本工具从本地读取！",
