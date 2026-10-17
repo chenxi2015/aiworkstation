@@ -87,7 +87,11 @@ export async function prepareRagAgentContext(
 	// Active obsidian note (injected via PageBridge or attached note context item)
 	const activeNotePrompt = await resolveActiveNotePrompt(effectiveNotePath);
 	const { attachmentsPrompt, draggedDocumentPrompt } =
-		await resolveAttachmentsPrompt(contextItems, params.question);
+		await resolveAttachmentsPrompt(
+			contextItems,
+			params.question,
+			effectiveNotePath,
+		);
 
 	const documentContextPrompt = activeDocumentPrompt || draggedDocumentPrompt;
 	const combinedContextPrompt =

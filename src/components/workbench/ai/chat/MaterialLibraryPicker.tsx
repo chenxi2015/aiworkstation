@@ -1,4 +1,4 @@
-import { Input, Modal } from "@heroui/react";
+import { Input, Modal, toast } from "@heroui/react";
 import {
 	Check,
 	Eye,
@@ -15,7 +15,10 @@ import {
 	fetchMaterialFolders,
 	fetchMaterials,
 } from "../../../../services/api/creatorClient";
-import type { ChatContextItem } from "../../../../types/chatContext";
+import {
+	type ChatContextItem,
+	MAX_CHAT_ATTACHMENTS,
+} from "../../../../types/chatContext";
 import { MaterialAudioModal } from "../../../creator/materials/MaterialAudioModal";
 import { MaterialDocModal } from "../../../creator/materials/MaterialDocModal";
 import { MaterialImageModal } from "../../../creator/materials/MaterialImageModal";
@@ -43,6 +46,8 @@ export interface MaterialLibraryPickerProps {
 	onPick: (item: ChatContextItem) => void;
 	/** 批量多选素材后附加（可选，未传时回退为循环调用 onPick） */
 	onPickBatch?: (items: ChatContextItem[]) => void;
+	/** Maximum selectable count based on remaining quota */
+	maxSelectable?: number;
 }
 
 /** Initial page size and batch step for incremental scroll loading */
@@ -153,6 +158,7 @@ export function MaterialLibraryPicker({
 	onClose,
 	onPick,
 	onPickBatch,
+	maxSelectable = MAX_CHAT_ATTACHMENTS,
 }: MaterialLibraryPickerProps) {
 	const [materials, setMaterials] = useState<Material[]>([]);
 	const [folders, setFolders] = useState<MaterialFolder[]>([]);
@@ -258,17 +264,26 @@ export function MaterialLibraryPicker({
 	const folderName = (id: number | null | undefined) =>
 		folders.find((f) => f.id === id)?.name;
 
-	const toggleSelect = useCallback((id: number) => {
-		setSelectedIds((prev) => {
-			const next = new Set(prev);
-			if (next.has(id)) {
-				next.delete(id);
-			} else {
-				next.add(id);
-			}
-			return next;
-		});
-	}, []);
+	const toggleSelect = useCallback(
+		(id: number) => {
+			setSelectedIds((prev) => {
+				const next = new Set(prev);
+				if (next.has(id)) {
+					next.delete(id);
+				} else {
+					if (maxSelectable !== undefined && next.size >= maxSelectable) {
+						toast.warning(
+							`最多还能选择 ${maxSelectable} 个附件（上限 ${MAX_CHAT_ATTACHMENTS} 个）`,
+						);
+						return prev;
+					}
+					next.add(id);
+				}
+				return next;
+			});
+		},
+		[maxSelectable],
+	);
 
 	const isAllFilteredSelected =
 		filtered.length > 0 && filtered.every((m) => selectedIds.has(m.id));
@@ -283,11 +298,22 @@ export function MaterialLibraryPicker({
 		} else {
 			setSelectedIds((prev) => {
 				const next = new Set(prev);
-				for (const m of filtered) next.add(m.id);
+				let reachedMax = false;
+				for (const m of filtered) {
+					if (next.has(m.id)) continue;
+					if (maxSelectable !== undefined && next.size >= maxSelectable) {
+						reachedMax = true;
+						break;
+					}
+					next.add(m.id);
+				}
+				if (reachedMax) {
+					toast.warning(`已选满可用附件上限（${maxSelectable} 个）`);
+				}
 				return next;
 			});
 		}
-	}, [isAllFilteredSelected, filtered]);
+	}, [isAllFilteredSelected, filtered, maxSelectable]);
 
 	const toContextItem = (m: Material): ChatContextItem => {
 		const kind = getMaterialKind(m);
@@ -310,6 +336,12 @@ export function MaterialLibraryPicker({
 	};
 
 	const handlePickSingle = (m: Material) => {
+		if (maxSelectable !== undefined && maxSelectable <= 0) {
+			toast.warning(
+				`最多只能添加 ${MAX_CHAT_ATTACHMENTS} 个附件，请先移除已有附件`,
+			);
+			return;
+		}
 		onPick(toContextItem(m));
 		onClose();
 	};
@@ -317,7 +349,11 @@ export function MaterialLibraryPicker({
 	const handlePickBatch = () => {
 		const picked = materials.filter((m) => selectedIds.has(m.id));
 		if (picked.length === 0) return;
-		const items = picked.map(toContextItem);
+		const safePicked =
+			maxSelectable !== undefined && picked.length > maxSelectable
+				? picked.slice(0, maxSelectable)
+				: picked;
+		const items = safePicked.map(toContextItem);
 		if (onPickBatch) {
 			onPickBatch(items);
 		} else {
@@ -386,6 +422,13 @@ export function MaterialLibraryPicker({
 							</Modal.Heading>
 						</Modal.Header>
 						<Modal.Body className="flex-1 overflow-hidden flex flex-col gap-2 mt-2">
+							{/* Upper Limit Warning Banner */}
+							{maxSelectable <= 0 && (
+								<div className="px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs flex items-center justify-between shrink-0">
+									<span>当前附件已达上限（{MAX_CHAT_ATTACHMENTS} 个），请先在对话框中移除部分附件</span>
+								</div>
+							)}
+
 							{/* 搜索 */}
 							<div className="flex items-center gap-2 shrink-0">
 								<Input
@@ -683,6 +726,11 @@ export function MaterialLibraryPicker({
 										{selectedIds.size}
 									</span>
 									<span>项素材</span>
+									{maxSelectable !== undefined && (
+										<span className="text-[11px] text-muted/70">
+											（最多可选 {maxSelectable} 项）
+										</span>
+									)}
 								</div>
 								<div className="flex items-center gap-2">
 									<button

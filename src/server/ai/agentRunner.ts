@@ -174,7 +174,7 @@ export async function runAgentStream(
 	});
 
 	// Multimodal image support for current turn
-	const currentImageParts = resolveImagePartsFromContext(params.contextItems);
+	const currentImageParts = await resolveImagePartsFromContext(params.contextItems);
 	let userContent: any = q;
 	if (currentImageParts.length > 0) {
 		userContent = [{ type: "text", content: q }, ...currentImageParts];
@@ -188,26 +188,28 @@ export async function runAgentStream(
 		.slice(-4);
 
 	const messages: any[] = [
-		...filteredHistory.map((h, idx) => {
-			if (h.role === "user" && h.contextItems && h.contextItems.length > 0) {
-				const historyImageParts = resolveImagePartsFromContext(h.contextItems);
-				// Retain full image data for the most recent historical user message to enable visual continuation
-				const isRecentUserTurn = idx >= filteredHistory.length - 2;
-				if (historyImageParts.length > 0 && isRecentUserTurn) {
-					return {
-						role: "user" as const,
-						content: [
-							{ type: "text", content: h.content },
-							...historyImageParts,
-						],
-					};
+		...(await Promise.all(
+			filteredHistory.map(async (h, idx) => {
+				if (h.role === "user" && h.contextItems && h.contextItems.length > 0) {
+					const historyImageParts = await resolveImagePartsFromContext(h.contextItems);
+					// Retain full image data for the most recent historical user message to enable visual continuation
+					const isRecentUserTurn = idx >= filteredHistory.length - 2;
+					if (historyImageParts.length > 0 && isRecentUserTurn) {
+						return {
+							role: "user" as const,
+							content: [
+								{ type: "text", content: h.content },
+								...historyImageParts,
+							],
+						};
+					}
 				}
-			}
-			return {
-				role: h.role as "user" | "assistant" | "tool",
-				content: h.content,
-			};
-		}),
+				return {
+					role: h.role as "user" | "assistant" | "tool",
+					content: h.content,
+				};
+			}),
+		)),
 		{ role: "user", content: userContent },
 	];
 

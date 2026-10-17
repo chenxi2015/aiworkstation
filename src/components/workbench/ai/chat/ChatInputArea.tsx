@@ -14,7 +14,10 @@ import {
 } from "react";
 
 import { WorkbenchStorageService } from "../../../../services/workbenchStorage";
-import type { ChatContextItem } from "../../../../types/chatContext";
+import {
+	type ChatContextItem,
+	MAX_CHAT_ATTACHMENTS,
+} from "../../../../types/chatContext";
 import { SlashSkillMenu } from "../../../common/slash/SlashSkillMenu";
 import {
 	type SlashItem,
@@ -61,6 +64,7 @@ export interface ChatInputAreaProps {
 	onRemoveContextItem?: (id: string) => void;
 	onClearContextItems?: () => void;
 	onAttachContextItem?: (item: ChatContextItem) => void;
+	onAttachContextItems?: (items: ChatContextItem[]) => void;
 	onNavigateToFolder?: (
 		folderId: number | null,
 		category?: Category,
@@ -109,8 +113,31 @@ export const ChatInputArea = memo(function ChatInputArea({
 	contextItems = [],
 	onRemoveContextItem,
 	onAttachContextItem,
+	onAttachContextItems,
 	onNavigateToFolder,
 }: ChatInputAreaProps) {
+	// Unified attachment helper ensuring batch handling and limits
+	const attachItems = useCallback(
+		(items: ChatContextItem[]) => {
+			if (!items || items.length === 0) return;
+			if (onAttachContextItems) {
+				onAttachContextItems(items);
+			} else if (onAttachContextItem) {
+				for (const item of items) {
+					onAttachContextItem(item);
+				}
+			}
+		},
+		[onAttachContextItems, onAttachContextItem],
+	);
+
+	const attachSingleItem = useCallback(
+		(item: ChatContextItem) => {
+			attachItems([item]);
+		},
+		[attachItems],
+	);
+
 	const currentSettings =
 		typeof window !== "undefined"
 			? WorkbenchStorageService.getSettings()
@@ -217,11 +244,17 @@ export const ChatInputArea = memo(function ChatInputArea({
 			e.stopPropagation();
 			setIsNativeDragOver(false);
 
-			if (!onAttachContextItem) return;
+			if (!onAttachContextItem && !onAttachContextItems) return;
+
+			if (contextItems.length >= MAX_CHAT_ATTACHMENTS) {
+				toast.warning(`最多只能添加 ${MAX_CHAT_ATTACHMENTS} 个附件`);
+				return;
+			}
 
 			// 1. Check native files (dragged from OS desktop or file manager)
 			const files = e.dataTransfer.files;
 			if (files && files.length > 0) {
+				const parsedItems: ChatContextItem[] = [];
 				for (let i = 0; i < files.length; i++) {
 					const file = files[i];
 					if (!isImportableChatFile(file)) {
@@ -232,13 +265,16 @@ export const ChatInputArea = memo(function ChatInputArea({
 					try {
 						const item = await importChatFile(file, i);
 						if (item) {
-							onAttachContextItem(item);
+							parsedItems.push(item);
 						}
 					} catch (err) {
 						toast.danger(
 							err instanceof Error ? err.message : `「${file.name}」解析失败`,
 						);
 					}
+				}
+				if (parsedItems.length > 0) {
+					attachItems(parsedItems);
 				}
 				return;
 			}
@@ -257,7 +293,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 							parsed.alt ||
 							(parsed.relPath ? parsed.relPath.split("/").pop() : "") ||
 							"笔记图片";
-						onAttachContextItem({
+						attachSingleItem({
 							id: `img_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
 							type: "image",
 							title,
@@ -289,7 +325,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 							const assetUrl = vaultAssetUrl(parsed.relPath);
 							const title =
 								parsed.name || parsed.relPath.split("/").pop() || "笔记图片";
-							onAttachContextItem({
+							attachSingleItem({
 								id: `img_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
 								type: "image",
 								title,
@@ -315,7 +351,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 								: isExcalidraw
 									? "手绘草图"
 									: "笔记";
-						onAttachContextItem({
+						attachSingleItem({
 							id: `note_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
 							type: "note",
 							title: parsed.name || parsed.relPath,
@@ -345,7 +381,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 							urlObj.searchParams.get("name") ||
 							"";
 						const name = p.split("/").pop() || "笔记图片";
-						onAttachContextItem({
+						attachSingleItem({
 							id: `img_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
 							type: "image",
 							title: name,
@@ -363,7 +399,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 				if (isImageFile(targetUri)) {
 					const fileName = targetUri.split("/").pop() || targetUri;
 					const assetUrl = vaultAssetUrl(targetUri);
-					onAttachContextItem({
+					attachSingleItem({
 						id: `img_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
 						type: "image",
 						title: fileName,
@@ -383,7 +419,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 					if (isImageFile(inner)) {
 						const fileName = inner.split("/").pop() || inner;
 						const assetUrl = vaultAssetUrl(inner);
-						onAttachContextItem({
+						attachSingleItem({
 							id: `img_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
 							type: "image",
 							title: fileName,
@@ -407,7 +443,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 					const isCanvas = targetUri.toLowerCase().endsWith(".canvas");
 					const isExcalidraw = targetUri.toLowerCase().endsWith(".excalidraw");
 					const subtitle = isCanvas ? "白板画布" : isExcalidraw ? "手绘草图" : "笔记";
-					onAttachContextItem({
+					attachSingleItem({
 						id: `note_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
 						type: "note",
 						title: fileName,
@@ -418,21 +454,25 @@ export const ChatInputArea = memo(function ChatInputArea({
 				}
 			}
 		},
-		[onAttachContextItem],
+		[attachSingleItem, attachItems, onAttachContextItem, onAttachContextItems, contextItems.length],
 	);
 
 	// Handle paste events (e.g. clipboard images)
 	const handlePaste = useCallback(
 		async (e: ClipboardEvent<HTMLDivElement>) => {
+			if (contextItems.length >= MAX_CHAT_ATTACHMENTS) {
+				toast.warning(`最多只能添加 ${MAX_CHAT_ATTACHMENTS} 个附件`);
+				return;
+			}
 			const items = e.clipboardData.items;
 			for (let i = 0; i < items.length; i++) {
 				if (items[i].type.indexOf("image") !== -1) {
 					const file = items[i].getAsFile();
-					if (file && onAttachContextItem) {
+					if (file && (onAttachContextItem || onAttachContextItems)) {
 						e.preventDefault();
 						try {
 							const item = await createChatImageContextItem(file, i);
-							onAttachContextItem({
+							attachSingleItem({
 								...item,
 								title: item.title === "截图" ? "剪贴板截图" : item.title,
 							});
@@ -443,7 +483,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 				}
 			}
 		},
-		[onAttachContextItem],
+		[attachSingleItem, onAttachContextItem, onAttachContextItems, contextItems.length],
 	);
 
 	const isDropTargetActive = isDropTarget || isNativeDragOver;
@@ -662,13 +702,19 @@ export const ChatInputArea = memo(function ChatInputArea({
 					canSend={canSend}
 					onSend={handleSendMessage}
 					onStop={onStop}
-					onAttachContextItem={onAttachContextItem}
+					onAttachContextItem={attachSingleItem}
+					onAttachContextItems={attachItems}
+					contextItemsCount={contextItems.length}
 				/>
 			</section>
 
 			{/* Footer Hints */}
 			<div className="flex items-center justify-between px-1 text-[10px] text-muted/70">
-				<span>可直接拖入书签、文件夹、笔记或文件 · Enter 发送</span>
+				<span>
+					{contextItems.length > 0
+						? `已添加 ${contextItems.length}/${MAX_CHAT_ATTACHMENTS} 个附件 · Enter 发送`
+						: "可直接拖入书签、文件夹、笔记或文件 · Enter 发送"}
+				</span>
 				<span className="hidden sm:inline truncate max-w-[200px]">
 					RAG 本地知识库驱动
 				</span>

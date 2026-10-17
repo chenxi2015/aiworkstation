@@ -264,6 +264,7 @@ export const ChatWithBookmarksPanel = forwardRef<
 		setMessages,
 		contextItems,
 		addContextItem,
+		addContextItems,
 		removeContextItem,
 		clearContextItems,
 	} = useAiChat({
@@ -803,6 +804,7 @@ export const ChatWithBookmarksPanel = forwardRef<
 						onRemoveContextItem={removeContextItem}
 						onClearContextItems={clearContextItems}
 						onAttachContextItem={addContextItem}
+						onAttachContextItems={addContextItems}
 						onNavigateToFolder={onNavigateToFolder}
 					/>
 				</div>

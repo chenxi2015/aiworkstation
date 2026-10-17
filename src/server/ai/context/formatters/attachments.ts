@@ -1,6 +1,15 @@
-import type { ChatContextItem } from "../../../../types/chatContext.ts";
+import {
+	type ChatContextItem,
+	MAX_CHAT_ATTACHMENTS,
+} from "../../../../types/chatContext.ts";
 import { workbenchDb } from "../../../db/sqlite.ts";
+import { readVaultNote } from "../../../services/obsidian/note.ts";
 import { loadSkillContextBundle } from "../../../services/skills/index.ts";
+import {
+	formatCanvasContext,
+	formatExcalidrawContext,
+	MAX_PROMPT_DOC_CHARS,
+} from "./activeNote.ts";
 
 // ---------- Type labels ----------
 
@@ -27,25 +36,103 @@ function buildWebpageGuidance(contextItems: ChatContextItem[]): string {
 	return "\n\n★ 重要指引：用户在当前上下文中提供了具体的网址链接。如果用户的提问涉及深度分析该网页、总结文章、提取要点或了解项目详情，请【默认首选】调用 `crawl_webpage_via_extension` 工具（浏览器插件静默爬虫，携带真实登录态 Cookie，可穿透 SPA 渲染与反爬限制，返回整洁 Markdown 正文；插件离线时会自动降级，无需顾虑）抓取该网址的真实正文，然后向用户输出有深度、有条理的分析报告！仅当该工具明确返回失败时，才退而使用 `read_webpage_content` 轻量通道。";
 }
 
-/** 上传文档附件的正文预览注入（Word/PDF/Excel/TXT/MD/Canvas/Excalidraw 等，已在本地解析提取纯文本） */
-function buildUploadedDocsPrompt(contextItems: ChatContextItem[]): string {
+/** 上传文档附件与附加上下文笔记的正文注入（保留 MD 原生格式或画板结构化 JSON） */
+async function buildUploadedDocsPrompt(
+	contextItems: ChatContextItem[],
+	activeNotePath?: string | null,
+): Promise<string> {
 	const blocks: string[] = [];
 	for (const item of contextItems) {
-		if (item.type !== "file" && item.type !== "document") continue;
-		const preview = item.data?.contentPreview;
-		if (typeof preview !== "string" || preview.length === 0) continue;
-		blocks.push(`### 附件/文档：《${item.title}》\n"""\n${preview}\n"""`);
+		if (item.type === "file" || item.type === "document") {
+			let preview = item.data?.contentPreview;
+			if (
+				(!preview || typeof preview !== "string") &&
+				item.type === "document" &&
+				item.documentId != null
+			) {
+				const doc = workbenchDb.getDocument(item.documentId);
+				if (doc) {
+					preview = doc.contentText || "";
+				}
+			}
+			if (typeof preview === "string" && preview.length > 0) {
+				const label = item.type === "document" ? "创作文档" : "附件/文档";
+				blocks.push(`### ${label}：《${item.title}》\n"""\n${preview}\n"""`);
+			}
+		} else if (item.type === "note" && item.notePath) {
+			// Avoid duplicating the primary active note if already injected via resolveActiveNotePrompt
+			if (activeNotePath && item.notePath === activeNotePath) continue;
+
+			try {
+				const note = await readVaultNote(item.notePath);
+				if (note && note.content) {
+					if (/\.canvas$/i.test(item.notePath)) {
+						blocks.push(
+							formatCanvasContext(note.relPath, note.name, note.content),
+						);
+					} else if (/\.excalidraw(\.md)?$/i.test(item.notePath)) {
+						blocks.push(
+							formatExcalidrawContext(note.relPath, note.name, note.content),
+						);
+					} else {
+						let preview = note.content.trim() || "(空笔记)";
+						let notice = "";
+						if (preview.length > MAX_PROMPT_DOC_CHARS) {
+							preview = preview.slice(0, MAX_PROMPT_DOC_CHARS);
+							notice = `\n…（笔记字数较多，已截取前 ${MAX_PROMPT_DOC_CHARS} 字展示）`;
+						}
+						blocks.push(
+							`### 附加上下文笔记：《${note.name}》(${note.relPath})\n完整正文：\n"""\n${preview}${notice}\n"""`,
+						);
+					}
+				}
+			} catch (err) {
+				console.warn(
+					"[buildUploadedDocsPrompt] Failed to read attached note:",
+					err,
+				);
+			}
+		}
 	}
 	if (blocks.length === 0) return "";
-	return `\n- 【用户上传/注入的文件与画板正文（已解析提取为纯文本，直接基于其分析回答即可，无需调用读取工具）】:\n${blocks.join("\n\n")}`;
+	return `\n- 【用户上传/注入的文件、文档与画板正文（已提取完整正文/语义结构，直接基于其分析回答即可，无需调用读取工具）】:\n${blocks.join("\n\n")}`;
 }
 
-function buildImageGuidance(contextItems: ChatContextItem[]): string {
+function buildVisualMediaGuidance(contextItems: ChatContextItem[]): string {
 	const hasImage = contextItems.some(
 		(item) => item.type === "image" && Boolean(item.thumbnail),
 	);
-	if (!hasImage) return "";
-	return "\n\n★ 重要视觉指引：用户在当前提问中附带了完整的图片/截图。如果用户的提问涉及提取图片文字（OCR）、分析截图、描述设计或解释图表，你可以直接基于接收到的图像内容给出完整、准确的分析与文字提取结果！";
+	const hasVideo = contextItems.some(
+		(item) =>
+			(item.type === "material" && item.data?.materialKind === "video") ||
+			(item.type === "file" &&
+				item.title &&
+				/\.(mp4|mov|webm|mkv|m4v|flv|avi)$/i.test(item.title)),
+	);
+	const hasBoard = contextItems.some(
+		(item) =>
+			(item.notePath && /\.(canvas|excalidraw(\.md)?)$/i.test(item.notePath)) ||
+			(item.title && /\.(canvas|excalidraw(\.md)?)$/i.test(item.title)),
+	);
+
+	const parts: string[] = [];
+	if (hasImage) {
+		parts.push(
+			"★ 重要图像视觉指引：用户在当前提问中附带了完整的图片/截图。如果提问涉及提取图片文字（OCR）、分析截图、描述设计或解释图表，你可以直接基于接收到的图像内容给出完整、准确的分析与文字提取结果！",
+		);
+	}
+	if (hasVideo) {
+		parts.push(
+			"★ 视频视觉与多模态指引：用户在当前提问中附带了视频素材。系统已自动提取该视频的关键帧/首帧画面传给多模态大模型。你可以直接结合该画面的视觉场景、主体内容、色调与文字，配合视频元数据（文件名、大小、路径）进行分析与解答！",
+		);
+	}
+	if (hasBoard) {
+		parts.push(
+			"★ 画板与白板架构指引：用户在当前上下文中附带了白板/画板（Canvas / Excalidraw）。你可以基于其节点卡片、文本内容与连线流向进行结构总结、方案解读或图表重组！",
+		);
+	}
+
+	return parts.length > 0 ? `\n\n${parts.join("\n\n")}` : "";
 }
 
 /** 素材库导入的素材正文注入（服务端按 materialId 从 SQLite 直接取全文摘要，模型免调工具） */
@@ -179,6 +266,7 @@ function buildDraggedDocumentPrompt(contextItems: ChatContextItem[]): string {
 export async function resolveAttachmentsPrompt(
 	contextItems: ChatContextItem[],
 	userQuery = "",
+	activeNotePath?: string | null,
 ): Promise<{
 	attachmentsPrompt: string;
 	draggedDocumentPrompt: string;
@@ -187,14 +275,23 @@ export async function resolveAttachmentsPrompt(
 		return { attachmentsPrompt: "", draggedDocumentPrompt: "" };
 	}
 
-	const webpageGuidance = buildWebpageGuidance(contextItems);
-	const imageGuidance = buildImageGuidance(contextItems);
-	const entityGuidance = buildEntityGuidance(contextItems);
-	const skillsPrompt = await buildSkillsPrompt(contextItems, userQuery);
-	const uploadedDocsPrompt = buildUploadedDocsPrompt(contextItems);
-	const libraryMaterialsPrompt = buildLibraryMaterialsPrompt(contextItems);
+	// Constrain context items to MAX_CHAT_ATTACHMENTS to prevent prompt explosion
+	const safeItems =
+		contextItems.length > MAX_CHAT_ATTACHMENTS
+			? contextItems.slice(0, MAX_CHAT_ATTACHMENTS)
+			: contextItems;
 
-	const itemLines = contextItems
+	const webpageGuidance = buildWebpageGuidance(safeItems);
+	const visualMediaGuidance = buildVisualMediaGuidance(safeItems);
+	const entityGuidance = buildEntityGuidance(safeItems);
+	const skillsPrompt = await buildSkillsPrompt(safeItems, userQuery);
+	const uploadedDocsPrompt = await buildUploadedDocsPrompt(
+		safeItems,
+		activeNotePath,
+	);
+	const libraryMaterialsPrompt = buildLibraryMaterialsPrompt(safeItems);
+
+	const itemLines = safeItems
 		.map((item, i) => {
 			const typeLabel = getTypeLabel(item.type);
 			const detail = item.url
@@ -203,14 +300,18 @@ export async function resolveAttachmentsPrompt(
 					? ` (${item.subtitle})`
 					: "";
 			const imageNotice =
-				item.type === "image" && item.thumbnail ? " [已附带完整图像数据]" : "";
+				item.type === "image" && item.thumbnail
+					? " [已附带完整图像数据]"
+					: item.type === "material" && item.data?.materialKind === "video"
+						? " [已提取关键帧画面]"
+						: "";
 			return `  ${i + 1}. [${typeLabel}] 《${item.title}》${detail}${imageNotice}`;
 		})
 		.join("\n");
 
-	const attachmentsPrompt = `\n- 【用户显式注入的上下文实体（重点优先参考）】:\n${itemLines}\n提示：用户在本次提问中显式拖入或引用了以上实体作为上下文，请在回答或调用工具时优先围绕这些目标进行深度剖析、总结或比对。${webpageGuidance}${imageGuidance}${entityGuidance}${skillsPrompt}${uploadedDocsPrompt}${libraryMaterialsPrompt}`;
+	const attachmentsPrompt = `\n- 【用户显式注入的上下文实体（重点优先参考）】:\n${itemLines}\n提示：用户在本次提问中显式拖入或引用了以上实体作为上下文，请在回答或调用工具时优先围绕这些目标进行深度剖析、总结或比对。${webpageGuidance}${visualMediaGuidance}${entityGuidance}${skillsPrompt}${uploadedDocsPrompt}${libraryMaterialsPrompt}`;
 
-	const draggedDocumentPrompt = buildDraggedDocumentPrompt(contextItems);
+	const draggedDocumentPrompt = buildDraggedDocumentPrompt(safeItems);
 
 	return { attachmentsPrompt, draggedDocumentPrompt };
 }

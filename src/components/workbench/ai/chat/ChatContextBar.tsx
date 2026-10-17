@@ -5,13 +5,14 @@ import {
 	Folder as FolderIcon,
 	Globe,
 	LayoutDashboard,
+	PenSquare,
 	Sparkles,
 	Tag,
 	X,
 } from "lucide-react";
 import { memo, useState } from "react";
+import { fetchMaterials } from "../../../../services/api/creatorClient";
 import type { ChatContextItem } from "../../../../types/chatContext";
-import type { Material } from "../../../creator/types";
 import { MaterialAudioModal } from "../../../creator/materials/MaterialAudioModal";
 import { MaterialDocModal } from "../../../creator/materials/MaterialDocModal";
 import { MaterialImageModal } from "../../../creator/materials/MaterialImageModal";
@@ -23,13 +24,13 @@ import {
 	getMaterialKind,
 	getVideoAssets,
 } from "../../../creator/materials/utils";
-import { fetchMaterials } from "../../../../services/api/creatorClient";
-import type { Category } from "../../types";
-import { useImagePreview } from "../shared/ImagePreviewModal";
+import type { Material } from "../../../creator/types";
 import {
 	isImageFile,
 	vaultAssetUrl,
 } from "../../../obsidian/utils/vaultFileUtils";
+import type { Category } from "../../types";
+import { useImagePreview } from "../shared/ImagePreviewModal";
 
 export interface ChatContextBarProps {
 	items: ChatContextItem[];
@@ -54,15 +55,12 @@ export function resolveAttachmentImage(item: ChatContextItem): {
 			? vaultAssetUrl(item.notePath)
 			: "";
 	const titleImgSrc =
-		!noteImgSrc && isImageFile(item.title)
-			? vaultAssetUrl(item.title)
-			: "";
+		!noteImgSrc && isImageFile(item.title) ? vaultAssetUrl(item.title) : "";
 	const imgSrc = item.thumbnail || item.url || noteImgSrc || titleImgSrc || "";
 	const isImage = Boolean(
 		imgSrc &&
 			(item.type === "image" ||
-				(item.type === "material" &&
-					item.data?.materialKind === "image") ||
+				(item.type === "material" && item.data?.materialKind === "image") ||
 				(item.notePath && isImageFile(item.notePath)) ||
 				isImageFile(item.title) ||
 				Boolean(item.thumbnail)),
@@ -72,7 +70,10 @@ export function resolveAttachmentImage(item: ChatContextItem): {
 
 /** 获取卡片左上角的文件格式或类型徽章（自适应明亮与暗黑模式，贴合图一） */
 function renderFileTypeBadge(item: ChatContextItem) {
-	if (item.id === "__active_scope__" || item.id?.startsWith("__active_scope__")) {
+	if (
+		item.id === "__active_scope__" ||
+		item.id?.startsWith("__active_scope__")
+	) {
 		return (
 			<div className="w-4 h-4 rounded-md bg-blue-500/15 text-blue-600 dark:bg-blue-500/25 dark:text-blue-400 flex items-center justify-center">
 				<Sparkles className="w-2.5 h-2.5" />
@@ -160,6 +161,16 @@ function renderFileTypeBadge(item: ChatContextItem) {
 			</div>
 		);
 	}
+	if (item.type === "document") {
+		return (
+			<div
+				className="w-5 h-5 rounded-md bg-amber-500/15 dark:bg-amber-500/25 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0"
+				title="创作文档"
+			>
+				<PenSquare className="w-3 h-3" />
+			</div>
+		);
+	}
 	if (item.type === "folder") {
 		return (
 			<FolderIcon className="w-4 h-4 text-amber-500 fill-amber-500/20 shrink-0" />
@@ -200,7 +211,9 @@ function renderFileTypeBadge(item: ChatContextItem) {
 			</span>
 		);
 	}
-	return <FileText className="w-4 h-4 text-zinc-500 dark:text-zinc-400 shrink-0" />;
+	return (
+		<FileText className="w-4 h-4 text-zinc-500 dark:text-zinc-400 shrink-0" />
+	);
 }
 
 export interface ChatContextCardProps {
@@ -466,4 +479,3 @@ export const ChatContextBar = memo(function ChatContextBar({
 		</>
 	);
 });
-

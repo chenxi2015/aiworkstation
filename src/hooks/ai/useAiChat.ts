@@ -2,8 +2,12 @@ import { toast } from "@heroui/react";
 import { useSelector } from "@tanstack/react-store";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AgentStepNavigation } from "../../types/agent.ts";
-import type { ChatContextItem } from "../../types/chatContext";
+import {
+	type ChatContextItem,
+	MAX_CHAT_ATTACHMENTS,
+} from "../../types/chatContext";
 import type {
+
 	Category,
 	Folder,
 	SearchResultItem,
@@ -117,21 +121,47 @@ export function useAiChat(options?: UseAiChatOptions) {
 		};
 	}, []);
 
-	// Context items management
-	const addContextItem = useCallback((item: ChatContextItem) => {
+	// Context items management (constrained to MAX_CHAT_ATTACHMENTS)
+	const addContextItems = useCallback((items: ChatContextItem[]) => {
+		if (!items || items.length === 0) return;
 		setContextItems((prev) => {
-			if (
-				prev.some(
-					(existing) =>
-						existing.id === item.id ||
-						(item.url && existing.url && existing.url === item.url),
-				)
-			) {
+			const existingIds = new Set(prev.map((i) => i.id));
+			const existingUrls = new Set(
+				prev.map((i) => i.url).filter(Boolean) as string[],
+			);
+			const toAdd: ChatContextItem[] = [];
+			for (const item of items) {
+				if (
+					existingIds.has(item.id) ||
+					(item.url && existingUrls.has(item.url))
+				) {
+					continue;
+				}
+				toAdd.push(item);
+			}
+			if (toAdd.length === 0) return prev;
+
+			const available = MAX_CHAT_ATTACHMENTS - prev.length;
+			if (available <= 0) {
+				toast.warning(`最多只能添加 ${MAX_CHAT_ATTACHMENTS} 个附件`);
 				return prev;
 			}
-			return [...prev, item];
+			if (toAdd.length > available) {
+				toast.warning(
+					`最多支持 ${MAX_CHAT_ATTACHMENTS} 个附件，已添加前 ${available} 个`,
+				);
+				return [...prev, ...toAdd.slice(0, available)];
+			}
+			return [...prev, ...toAdd];
 		});
 	}, []);
+
+	const addContextItem = useCallback(
+		(item: ChatContextItem) => {
+			addContextItems([item]);
+		},
+		[addContextItems],
+	);
 
 	const removeContextItem = useCallback((id: string) => {
 		setContextItems((prev) => prev.filter((item) => item.id !== id));
@@ -451,6 +481,7 @@ export function useAiChat(options?: UseAiChatOptions) {
 		setMessages,
 		contextItems,
 		addContextItem,
+		addContextItems,
 		removeContextItem,
 		clearContextItems,
 	};

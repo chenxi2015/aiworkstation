@@ -13,6 +13,13 @@ export type ChatContextType =
 	| "skill"
 	| "split_practice";
 
+/**
+ * Maximum allowed attachments for a single chat turn.
+ * Aligns with mainstream LLM client standards (e.g. 10 attachments).
+ */
+export const MAX_CHAT_ATTACHMENTS = 10;
+
+
 export interface ChatContextItem {
 	/** Unique identifier for keying in UI and state */
 	id: string;
