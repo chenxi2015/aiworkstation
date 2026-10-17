@@ -50,7 +50,7 @@ export const AgentStepTimeline = memo(function AgentStepTimeline({
 				<button
 					type="button"
 					onClick={() => setIsOpen((prev) => !prev)}
-					className="inline-flex items-center gap-1.5 py-0.5 px-1 -ml-1 rounded text-xs text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors cursor-pointer mb-0.5"
+					className="inline-flex items-center gap-1.5 py-0.5 px-1 -ml-1 rounded text-sm text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors cursor-pointer mb-0.5"
 				>
 					{isStreaming ? (
 						<Loader2 className="w-3 h-3 animate-spin text-neutral-400 shrink-0" />

@@ -4,7 +4,9 @@ import { useSelector } from "@tanstack/react-store";
 import {
 	History,
 	Loader2,
+	MessageSquare,
 	MessageSquarePlus,
+	Palette,
 	PanelRightClose,
 } from "lucide-react";
 import {
@@ -22,6 +24,9 @@ import { useItemFolderAssign } from "../../../../hooks/ai/useItemFolderAssign";
 import { getAiContribution } from "../../../../modules/ai-contributions";
 import { getModuleByCode } from "../../../../modules/registry";
 import { fetchSkillDetail } from "../../../../services/api/skillsClient";
+import { requestVisualImageGeneration } from "../../../../services/api/visualGenClient";
+import { VisualHistoryStorageService } from "../../../../services/storage/visualHistoryStorage";
+import { WorkbenchStorageService } from "../../../../services/workbenchStorage";
 import { agentSessionStore } from "../../../../stores/agentSessionStore";
 import {
 	workbenchContextActions,
@@ -29,6 +34,15 @@ import {
 } from "../../../../stores/workbenchContextStore";
 import type { ChatContextItem } from "../../../../types/chatContext";
 import type { PageBridge } from "../../../../types/pageBridge";
+import type {
+	VisualAspectRatio,
+	VisualChatSession,
+	VisualGenerationItem,
+	VisualMediaType,
+	VisualPendingRequest,
+	VisualQuality,
+	VisualResolution,
+} from "../../../../types/visualGeneration";
 import { AiAssistantLogoIcon } from "../../Icons";
 import type {
 	Category,
@@ -39,6 +53,10 @@ import type {
 import { CATEGORIES } from "../../types";
 import { ImagePreviewProvider } from "../shared/ImagePreviewModal";
 import { ItemFolderAssignPopover } from "../shared/ItemFolderAssignPopover";
+import { VisualGenerationGallery } from "../visual/VisualGenerationGallery";
+import { VisualGenerationInputCard } from "../visual/VisualGenerationInputCard";
+import { VisualHistoryDrawer } from "../visual/VisualHistoryDrawer";
+import { VisualInputTopToolbar } from "../visual/VisualInputTopToolbar";
 import { ChatHistoryDrawer } from "./ChatHistoryDrawer";
 import { ChatInputArea } from "./ChatInputArea";
 import { ChatMessageList } from "./ChatMessageList";
@@ -155,6 +173,190 @@ export const ChatWithBookmarksPanel = forwardRef<
 	const inputRef = useRef<HTMLTextAreaElement | null>(null);
 	const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
 	const navigate = useNavigate();
+
+	// Active Assistant Mode: 'chat' (对话/Agent) vs 'visual' (视觉生图)
+	const [activeMode, setActiveMode] = useState<"chat" | "visual">("chat");
+	const [isVisualHistoryOpen, setIsVisualHistoryOpen] =
+		useState<boolean>(false);
+	const [visualSessions, setVisualSessions] = useState<VisualChatSession[]>(
+		() => VisualHistoryStorageService.getSessions(),
+	);
+	const [currentVisualSession, setCurrentVisualSession] =
+		useState<VisualChatSession>(() =>
+			VisualHistoryStorageService.getCurrentSession(),
+		);
+	const [isVisualGenerating, setIsVisualGenerating] = useState(false);
+	const [pendingVisualRequest, setPendingVisualRequest] =
+		useState<VisualPendingRequest | null>(null);
+	const [visualExternalPrompt, setVisualExternalPrompt] = useState<string>("");
+	const [currentVisualModel, setCurrentVisualModel] = useState<string>(() => {
+		const s = WorkbenchStorageService.getSettings();
+		return s.imageModel || "doubao-seed-image";
+	});
+
+	// Handle visual generation request (image or video)
+	const handleGenerateVisual = async (payload: {
+		prompt: string;
+		mediaType: VisualMediaType;
+		aspectRatio: string;
+		resolution: string;
+		quality?: VisualQuality;
+		duration?: number;
+		referenceImage?: string;
+	}) => {
+		setIsVisualGenerating(true);
+		setPendingVisualRequest({
+			id: `pending-${Date.now()}`,
+			prompt: payload.prompt,
+			mediaType: payload.mediaType,
+			aspectRatio: payload.aspectRatio,
+			resolution: payload.resolution,
+			referenceImage: payload.referenceImage,
+		});
+
+		// Extract previous turn within current session for context linkage
+		const lastTurn =
+			currentVisualSession.items.length > 0
+				? currentVisualSession.items[currentVisualSession.items.length - 1]
+				: null;
+
+		try {
+			const res = await requestVisualImageGeneration({
+				prompt: payload.prompt,
+				previousPrompt: lastTurn?.prompt,
+				mediaType: payload.mediaType,
+				aspectRatio: payload.aspectRatio as VisualAspectRatio,
+				resolution: payload.resolution as VisualResolution,
+				quality: payload.quality,
+				duration: payload.duration,
+				referenceImage:
+					payload.referenceImage || (lastTurn?.url ? lastTurn.url : undefined),
+			});
+
+			if (res.success && res.images.length > 0) {
+				for (const img of res.images) {
+					const item: VisualGenerationItem = {
+						id: img.id,
+						url: img.url,
+						mediaType: payload.mediaType,
+						prompt: res.prompt,
+						aspectRatio: img.aspectRatio,
+						resolution: img.resolution,
+						quality: img.quality,
+						duration: img.duration,
+						model: res.model,
+						provider: res.provider,
+						createdAt: Date.now(),
+					};
+					VisualHistoryStorageService.addItemToCurrentSession(item);
+				}
+				const updatedSession = VisualHistoryStorageService.getCurrentSession();
+				setCurrentVisualSession(updatedSession);
+				setVisualSessions(VisualHistoryStorageService.getSessions());
+				toast.success(
+					payload.mediaType === "video" ? "视频生成成功！" : "图像生成成功！",
+				);
+			} else {
+				toast.danger(res.error || "生成失败，请检查多媒体模型配置");
+			}
+		} catch (err) {
+			console.error("[ChatWithBookmarksPanel] visual gen error:", err);
+			toast.danger("生成请求异常，请检查网络或配置");
+		} finally {
+			setIsVisualGenerating(false);
+			setPendingVisualRequest(null);
+		}
+	};
+
+	const handleDeleteVisualItem = (id: string) => {
+		const updated =
+			VisualHistoryStorageService.removeItemFromCurrentSession(id);
+		setCurrentVisualSession(updated);
+		setVisualSessions(VisualHistoryStorageService.getSessions());
+	};
+
+	const handleDeleteVisualItems = (ids: Set<string>) => {
+		const updated =
+			VisualHistoryStorageService.removeItemsFromCurrentSession(ids);
+		setCurrentVisualSession(updated);
+		setVisualSessions(VisualHistoryStorageService.getSessions());
+		toast.success(`已删除 ${ids.size} 条记录`);
+	};
+
+	const handleEditAndResendVisualItem = async (
+		targetItem: VisualGenerationItem,
+		newPrompt: string,
+	) => {
+		const trimmed = newPrompt.trim();
+		if (!trimmed) return;
+		if (isVisualGenerating) {
+			toast.warning("正在生成中，请稍候...");
+			return;
+		}
+
+		// Truncate current session to items before targetItem (matching text chat onEditAndResend)
+		const currentItems = currentVisualSession.items;
+		const targetIndex = currentItems.findIndex((it) => it.id === targetItem.id);
+		const baseItems =
+			targetIndex >= 0 ? currentItems.slice(0, targetIndex) : currentItems;
+
+		const updatedSession: VisualChatSession = {
+			...currentVisualSession,
+			items: baseItems,
+			updatedAt: Date.now(),
+		};
+		VisualHistoryStorageService.saveSession(updatedSession);
+		setCurrentVisualSession(updatedSession);
+		setVisualSessions(VisualHistoryStorageService.getSessions());
+
+		// Trigger generation with edited prompt and original turn's media settings
+		await handleGenerateVisual({
+			prompt: trimmed,
+			mediaType: targetItem.mediaType || "image",
+			aspectRatio: targetItem.aspectRatio,
+			resolution: targetItem.resolution,
+			quality: targetItem.quality as VisualQuality | undefined,
+			duration: targetItem.duration,
+		});
+	};
+
+	const handleClearAllVisual = () => {
+		VisualHistoryStorageService.clear();
+		const updated = VisualHistoryStorageService.getCurrentSession();
+		setCurrentVisualSession(updated);
+		setVisualSessions(VisualHistoryStorageService.getSessions());
+		toast.info("已清空当前视觉对话的生图记录");
+	};
+
+	const handleSelectVisualSession = (session: VisualChatSession) => {
+		const target = VisualHistoryStorageService.switchSession(session.id);
+		if (target) {
+			setCurrentVisualSession(target);
+			setVisualSessions(VisualHistoryStorageService.getSessions());
+		}
+	};
+
+	const handleNewVisualChat = () => {
+		const newSession = VisualHistoryStorageService.createSession();
+		setCurrentVisualSession(newSession);
+		setVisualSessions(VisualHistoryStorageService.getSessions());
+		setVisualExternalPrompt("");
+		toast.success("已开启新视觉对话");
+	};
+
+	const handleDeleteVisualSession = (sessionId: string) => {
+		const nextSession = VisualHistoryStorageService.deleteSession(sessionId);
+		setCurrentVisualSession(nextSession);
+		setVisualSessions(VisualHistoryStorageService.getSessions());
+		toast.success("已删除该视觉对话");
+	};
+
+	const handleClearAllVisualSessions = () => {
+		const newSession = VisualHistoryStorageService.clearAllSessions();
+		setCurrentVisualSession(newSession);
+		setVisualSessions(VisualHistoryStorageService.getSessions());
+		toast.success("已清空所有视觉对话历史");
+	};
 
 	// Check if there are other background sessions currently running or unread
 	const hasBackgroundRunning = useSelector(agentSessionStore, (s) =>
@@ -616,59 +818,128 @@ export const ChatWithBookmarksPanel = forwardRef<
 				<div className="h-12 px-3.5 bg-surface/80 backdrop-blur-md shrink-0 flex items-center justify-between z-10 window-drag-region select-none">
 					<div className="flex items-center gap-2 min-w-0 window-no-drag">
 						<AiAssistantLogoIcon className="w-6 h-6 shrink-0" />
-						<h3 className="font-bold text-xs text-foreground tracking-tight shrink-0">
-							AI 助手
-						</h3>
-						{/* Current module context badge */}
-						<span className="text-[10px] text-muted bg-surface-secondary/80 border border-border/60 px-2 py-0.5 rounded-full truncate max-w-[130px] select-none">
-							{currentModuleLabel}
-						</span>
+						{/* Mode Switcher: 对话 vs 视觉 */}
+						<div className="inline-flex items-center p-0.5 rounded-full bg-surface-secondary/70 border border-border/60">
+							<button
+								type="button"
+								onClick={() => setActiveMode("chat")}
+								className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium transition-all cursor-pointer ${
+									activeMode === "chat"
+										? "bg-surface text-foreground font-semibold shadow-2xs"
+										: "text-muted hover:text-foreground"
+								}`}
+							>
+								<MessageSquare className="w-3 h-3" />
+								<span>对话</span>
+							</button>
+							<button
+								type="button"
+								onClick={() => setActiveMode("visual")}
+								className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium transition-all cursor-pointer ${
+									activeMode === "visual"
+										? "bg-surface text-foreground font-semibold shadow-2xs"
+										: "text-muted hover:text-foreground"
+								}`}
+							>
+								<Palette className="w-3 h-3 text-amber-500" />
+								<span>视觉</span>
+							</button>
+						</div>
+
+						{/* Current module context badge in chat mode */}
+						{activeMode === "chat" && (
+							<span className="text-[10px] text-muted bg-surface-secondary/80 border border-border/60 px-2 py-0.5 rounded-full truncate max-w-[95px] select-none">
+								{currentModuleLabel}
+							</span>
+						)}
 					</div>
 
 					{/* Right actions: New Chat & History */}
 					<div className="flex items-center gap-1 shrink-0 window-no-drag">
-						<Tooltip>
-							<Tooltip.Trigger>
-								<Button
-									variant="ghost"
-									size="sm"
-									isIconOnly
-									className="h-7 w-7 p-0 text-muted hover:text-foreground hover:bg-surface-secondary/80 rounded-lg cursor-pointer transition-colors"
-									onPress={() => createNewChat()}
-									aria-label="新建对话"
-								>
-									<MessageSquarePlus className="w-3.5 h-3.5" />
-								</Button>
-							</Tooltip.Trigger>
-							<Tooltip.Content className="text-xs py-1 px-2">
-								新建对话
-							</Tooltip.Content>
-						</Tooltip>
+						{activeMode === "chat" ? (
+							<>
+								<Tooltip>
+									<Tooltip.Trigger>
+										<Button
+											variant="ghost"
+											size="sm"
+											isIconOnly
+											className="h-7 w-7 p-0 text-muted hover:text-foreground hover:bg-surface-secondary/80 rounded-lg cursor-pointer transition-colors"
+											onPress={() => createNewChat()}
+											aria-label="新建对话"
+										>
+											<MessageSquarePlus className="w-3.5 h-3.5" />
+										</Button>
+									</Tooltip.Trigger>
+									<Tooltip.Content className="text-xs py-1 px-2">
+										新建对话
+									</Tooltip.Content>
+								</Tooltip>
 
-						<Tooltip>
-							<Tooltip.Trigger>
-								<Button
-									variant="ghost"
-									size="sm"
-									isIconOnly
-									className="relative h-7 w-7 p-0 text-muted hover:text-foreground hover:bg-surface-secondary/80 rounded-lg cursor-pointer transition-colors"
-									onPress={() => setIsHistoryOpen(true)}
-									aria-label="历史对话记录"
-								>
-									{hasBackgroundRunning ? (
-										<Loader2 className="w-3.5 h-3.5 text-accent animate-spin" />
-									) : (
-										<History className="w-3.5 h-3.5" />
-									)}
-									{hasBackgroundUnread && !hasBackgroundRunning && (
-										<span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-accent" />
-									)}
-								</Button>
-							</Tooltip.Trigger>
-							<Tooltip.Content className="text-xs py-1 px-2">
-								{hasBackgroundRunning ? "后台有正在运行的会话" : "历史记录"}
-							</Tooltip.Content>
-						</Tooltip>
+								<Tooltip>
+									<Tooltip.Trigger>
+										<Button
+											variant="ghost"
+											size="sm"
+											isIconOnly
+											className="relative h-7 w-7 p-0 text-muted hover:text-foreground hover:bg-surface-secondary/80 rounded-lg cursor-pointer transition-colors"
+											onPress={() => setIsHistoryOpen(true)}
+											aria-label="历史对话记录"
+										>
+											{hasBackgroundRunning ? (
+												<Loader2 className="w-3.5 h-3.5 text-accent animate-spin" />
+											) : (
+												<History className="w-3.5 h-3.5" />
+											)}
+											{hasBackgroundUnread && !hasBackgroundRunning && (
+												<span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-accent" />
+											)}
+										</Button>
+									</Tooltip.Trigger>
+									<Tooltip.Content className="text-xs py-1 px-2">
+										{hasBackgroundRunning ? "后台有正在运行的会话" : "历史记录"}
+									</Tooltip.Content>
+								</Tooltip>
+							</>
+						) : (
+							<>
+								<Tooltip>
+									<Tooltip.Trigger>
+										<Button
+											variant="ghost"
+											size="sm"
+											isIconOnly
+											className="h-7 w-7 p-0 text-muted hover:text-foreground hover:bg-surface-secondary/80 rounded-lg cursor-pointer transition-colors"
+											onPress={handleNewVisualChat}
+											aria-label="新建视觉对话"
+										>
+											<MessageSquarePlus className="w-3.5 h-3.5 text-amber-500" />
+										</Button>
+									</Tooltip.Trigger>
+									<Tooltip.Content className="text-xs py-1 px-2">
+										新建视觉对话
+									</Tooltip.Content>
+								</Tooltip>
+
+								<Tooltip>
+									<Tooltip.Trigger>
+										<Button
+											variant="ghost"
+											size="sm"
+											isIconOnly
+											className="relative h-7 w-7 p-0 text-muted hover:text-foreground hover:bg-surface-secondary/80 rounded-lg cursor-pointer transition-colors"
+											onPress={() => setIsVisualHistoryOpen(true)}
+											aria-label="视觉历史记录"
+										>
+											<History className="w-3.5 h-3.5" />
+										</Button>
+									</Tooltip.Trigger>
+									<Tooltip.Content className="text-xs py-1 px-2">
+										视觉历史记录
+									</Tooltip.Content>
+								</Tooltip>
+							</>
+						)}
 
 						{onCollapse && (
 							<Tooltip>
@@ -692,73 +963,151 @@ export const ChatWithBookmarksPanel = forwardRef<
 					</div>
 				</div>
 
-				{/* Chat Main Body: fills remaining height without tabs */}
-				<div className="flex-1 min-h-0 flex flex-col">
-					{/* Message History & Cards */}
-					<ChatMessageList
-						messages={messages}
-						isLoading={isLoading}
-						pageBridge={pageBridge}
-						currentSessionId={currentSessionId}
-						selectedFolder={selectedFolder}
-						scopeMode={scopeMode}
-						selectedRefKeys={folderAssign.selectedItemKeys}
-						messagesEndRef={messagesEndRef}
-						onEditAndResend={editAndResendMessage}
-						onEditOnly={editMessage}
-						onResend={resendMessage}
-						onDelete={deleteMessage}
-						onDeleteMessages={deleteMessages}
-						onToggleRefCheck={folderAssign.toggleSelectItem}
-						onToggleSelectGroup={folderAssign.toggleSelectGroup}
-						onOpenAssignSingle={folderAssign.openAssignSingle}
-						onOpenAssignMultiple={folderAssign.openAssignMultiple}
-						modulePrompts={moduleContribution.promptSuggestions}
-						activeModule={resolvedModule}
-						onSelectPrompt={(p) => handleSendPrompt(p)}
-						folders={folders}
-						onNavigateToFolder={onNavigateToFolder}
-						onConfirmProposal={handleConfirmProposal}
-						onDismissProposal={handleDismissProposal}
-						onDraftStatusChange={handleDraftStatusChange}
-					/>
+				{/* Assistant Main Body: Chat Mode vs Visual Mode */}
+				{activeMode === "chat" ? (
+					<div className="flex-1 min-h-0 flex flex-col">
+						{/* Message History & Cards */}
+						<ChatMessageList
+							messages={messages}
+							isLoading={isLoading}
+							pageBridge={pageBridge}
+							currentSessionId={currentSessionId}
+							selectedFolder={selectedFolder}
+							scopeMode={scopeMode}
+							selectedRefKeys={folderAssign.selectedItemKeys}
+							messagesEndRef={messagesEndRef}
+							onEditAndResend={editAndResendMessage}
+							onEditOnly={editMessage}
+							onResend={resendMessage}
+							onDelete={deleteMessage}
+							onDeleteMessages={deleteMessages}
+							onToggleRefCheck={folderAssign.toggleSelectItem}
+							onToggleSelectGroup={folderAssign.toggleSelectGroup}
+							onOpenAssignSingle={folderAssign.openAssignSingle}
+							onOpenAssignMultiple={folderAssign.openAssignMultiple}
+							modulePrompts={moduleContribution.promptSuggestions}
+							activeModule={resolvedModule}
+							onSelectPrompt={(p) => handleSendPrompt(p)}
+							folders={folders}
+							onNavigateToFolder={onNavigateToFolder}
+							onConfirmProposal={handleConfirmProposal}
+							onDismissProposal={handleDismissProposal}
+							onDraftStatusChange={handleDraftStatusChange}
+						/>
 
-					{/* Shared In-Place Folder Assignment Drawer */}
-					<ItemFolderAssignPopover
-						assigningItems={folderAssign.assigningItems}
-						folders={folders}
-						categories={categories}
-						isCreateMode={folderAssign.isCreateMode}
-						newFolderName={folderAssign.newFolderName}
-						newFolderCategory={folderAssign.newFolderCategory}
-						folderFilterQuery={folderAssign.folderFilterQuery}
-						isProcessingMove={folderAssign.isProcessingMove}
-						onToggleCreateMode={() =>
-							folderAssign.setIsCreateMode(!folderAssign.isCreateMode)
-						}
-						onChangeNewFolderName={folderAssign.setNewFolderName}
-						onChangeNewFolderCategory={folderAssign.setNewFolderCategory}
-						onChangeFilterQuery={folderAssign.setFolderFilterQuery}
-						onClose={folderAssign.closeAssign}
-						onMoveToExistingFolder={(targetFolder: Folder) =>
-							folderAssign.moveToExistingFolder(
-								targetFolder,
-								(moved: SearchResultItem[]) => {
-									updateMessageReferences(moved, targetFolder);
-								},
-							)
-						}
-						onCreateFolderAndMove={() =>
-							folderAssign.createFolderAndMove(
-								(newFolder: Folder, moved: SearchResultItem[]) => {
-									updateMessageReferences(moved, newFolder);
-								},
-							)
-						}
-						variant="drawer"
-					/>
+						{/* Shared In-Place Folder Assignment Drawer */}
+						<ItemFolderAssignPopover
+							assigningItems={folderAssign.assigningItems}
+							folders={folders}
+							categories={categories}
+							isCreateMode={folderAssign.isCreateMode}
+							newFolderName={folderAssign.newFolderName}
+							newFolderCategory={folderAssign.newFolderCategory}
+							folderFilterQuery={folderAssign.folderFilterQuery}
+							isProcessingMove={folderAssign.isProcessingMove}
+							onToggleCreateMode={() =>
+								folderAssign.setIsCreateMode(!folderAssign.isCreateMode)
+							}
+							onChangeNewFolderName={folderAssign.setNewFolderName}
+							onChangeNewFolderCategory={folderAssign.setNewFolderCategory}
+							onChangeFilterQuery={folderAssign.setFolderFilterQuery}
+							onClose={folderAssign.closeAssign}
+							onMoveToExistingFolder={(targetFolder: Folder) =>
+								folderAssign.moveToExistingFolder(
+									targetFolder,
+									(moved: SearchResultItem[]) => {
+										updateMessageReferences(moved, targetFolder);
+									},
+								)
+							}
+							onCreateFolderAndMove={() =>
+								folderAssign.createFolderAndMove(
+									(newFolder: Folder, moved: SearchResultItem[]) => {
+										updateMessageReferences(moved, newFolder);
+									},
+								)
+							}
+							variant="drawer"
+						/>
 
-					{/* History Sessions Slide-over Drawer */}
+
+
+						{/* Bottom Input Area with Top Action Bar */}
+						<ChatInputArea
+							input={input}
+							isLoading={isLoading}
+							hasMessages={messages.length > 0}
+							inputRef={inputRef}
+							onChangeInput={setInput}
+							onSend={async (extraContextItems, promptText) => {
+								// Resolve skill content before sending
+								let resolvedItems = extraContextItems;
+								if (extraContextItems && extraContextItems.length > 0) {
+									resolvedItems =
+										await resolveSkillContextItems(extraContextItems);
+								}
+								handleSendPrompt(promptText, {
+									contextItems: resolvedItems
+										? [...contextItems, ...resolvedItems]
+										: undefined,
+								});
+							}}
+							onStop={stopChat}
+							onOpenHistory={() => setIsHistoryOpen(true)}
+							onNewChat={createNewChat}
+							onClearHistory={clearHistory}
+							model={settings?.model}
+							activeScope={activeScope}
+							onToggleScope={handleToggleScope}
+							contextItems={contextItems}
+							folders={folders}
+							onRemoveContextItem={removeContextItem}
+							onClearContextItems={clearContextItems}
+							onAttachContextItem={addContextItem}
+							onAttachContextItems={addContextItems}
+							onNavigateToFolder={onNavigateToFolder}
+						/>
+					</div>
+				) : (
+					<div className="flex-1 min-h-0 flex flex-col justify-between relative">
+						{/* Visual Generation History Gallery */}
+						<VisualGenerationGallery
+							items={currentVisualSession.items}
+							pendingRequest={pendingVisualRequest}
+							pageBridge={pageBridge}
+							onDeleteItem={handleDeleteVisualItem}
+							onDeleteItems={handleDeleteVisualItems}
+							onEditAndResend={handleEditAndResendVisualItem}
+							onClearAll={handleClearAllVisual}
+							onSelectPrompt={(p) => setVisualExternalPrompt(p)}
+						/>
+
+						{/* Bottom Visual Input Area with Top Toolbar and Footer Hints */}
+						<div className="p-3 bg-surface/50 backdrop-blur-xs shrink-0 flex flex-col gap-2 relative z-10">
+							<VisualInputTopToolbar
+								currentModel={currentVisualModel}
+								onModelChange={(model) => setCurrentVisualModel(model)}
+								onOpenHistory={() => setIsVisualHistoryOpen(true)}
+								onNewChat={handleNewVisualChat}
+							/>
+							<VisualGenerationInputCard
+								isGenerating={isVisualGenerating}
+								externalPrompt={visualExternalPrompt}
+								onGenerate={handleGenerateVisual}
+							/>
+							{/* Footer Hints matching chat input area */}
+							<div className="flex items-center justify-between px-1 text-[10px] text-muted/70">
+								<span>支持以图生图与图生视频 · Enter 发送</span>
+								<span className="hidden sm:inline truncate max-w-[200px]">
+									多模态视觉模型驱动
+								</span>
+							</div>
+						</div>
+					</div>
+				)}
+
+				{/* In-sidebar bottom-sheet drawers scoped to AI panel */}
+				{activeMode === "chat" && (
 					<ChatHistoryDrawer
 						isOpen={isHistoryOpen}
 						sessions={sessions}
@@ -771,43 +1120,20 @@ export const ChatWithBookmarksPanel = forwardRef<
 						onExportAll={exportAllSessionsToJson}
 						onExportSession={exportSessionToJson}
 					/>
+				)}
 
-					{/* Bottom Input Area with Top Action Bar */}
-					<ChatInputArea
-						input={input}
-						isLoading={isLoading}
-						hasMessages={messages.length > 0}
-						inputRef={inputRef}
-						onChangeInput={setInput}
-						onSend={async (extraContextItems, promptText) => {
-							// Resolve skill content before sending
-							let resolvedItems = extraContextItems;
-							if (extraContextItems && extraContextItems.length > 0) {
-								resolvedItems =
-									await resolveSkillContextItems(extraContextItems);
-							}
-							handleSendPrompt(promptText, {
-								contextItems: resolvedItems
-									? [...contextItems, ...resolvedItems]
-									: undefined,
-							});
-						}}
-						onStop={stopChat}
-						onOpenHistory={() => setIsHistoryOpen(true)}
-						onNewChat={createNewChat}
-						onClearHistory={clearHistory}
-						model={settings?.model}
-						activeScope={activeScope}
-						onToggleScope={handleToggleScope}
-						contextItems={contextItems}
-						folders={folders}
-						onRemoveContextItem={removeContextItem}
-						onClearContextItems={clearContextItems}
-						onAttachContextItem={addContextItem}
-						onAttachContextItems={addContextItems}
-						onNavigateToFolder={onNavigateToFolder}
+				{activeMode === "visual" && (
+					<VisualHistoryDrawer
+						isOpen={isVisualHistoryOpen}
+						sessions={visualSessions}
+						currentSessionId={currentVisualSession.id}
+						onClose={() => setIsVisualHistoryOpen(false)}
+						onSelectSession={handleSelectVisualSession}
+						onNewSession={handleNewVisualChat}
+						onDeleteSession={handleDeleteVisualSession}
+						onClearAllSessions={handleClearAllVisualSessions}
 					/>
-				</div>
+				)}
 			</aside>
 		</ImagePreviewProvider>
 	);

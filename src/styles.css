@@ -1456,3 +1456,51 @@ html.electron-mac .workbench-top-header {
 html.electron-mac .workbench-top-nav {
 	margin-right: 4rem;
 }
+
+/* ── Visual Generation Animated Gradient & Shimmer Effects ─────────────── */
+@keyframes visual-gradient-shift {
+	0% {
+		background-position: 0% 50%;
+	}
+	50% {
+		background-position: 100% 50%;
+	}
+	100% {
+		background-position: 0% 50%;
+	}
+}
+
+@keyframes visual-shimmer-sweep {
+	0% {
+		transform: translateX(-150%) skewX(-15deg);
+	}
+	100% {
+		transform: translateX(150%) skewX(-15deg);
+	}
+}
+
+@keyframes visual-glow-pulse {
+	0%,
+	100% {
+		opacity: 0.35;
+		transform: scale(1);
+	}
+	50% {
+		opacity: 0.75;
+		transform: scale(1.02);
+	}
+}
+
+.animate-visual-gradient {
+	background-size: 260% 260%;
+	animation: visual-gradient-shift 7s ease infinite;
+}
+
+.animate-visual-shimmer {
+	animation: visual-shimmer-sweep 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.animate-visual-glow {
+	animation: visual-glow-pulse 3.5s ease-in-out infinite;
+}
+

@@ -88,6 +88,7 @@ export interface MessageEditInlineInputProps {
 	onSave: (newContent: string) => void;
 	onCancel: () => void;
 	isLoading?: boolean;
+	submitTooltip?: string;
 }
 
 /**
@@ -99,6 +100,7 @@ export const MessageEditInlineInput = memo(function MessageEditInlineInput({
 	onSave,
 	onCancel,
 	isLoading = false,
+	submitTooltip,
 }: MessageEditInlineInputProps) {
 	const onSaveRef = useRef(onSave);
 	onSaveRef.current = onSave;
@@ -199,7 +201,7 @@ export const MessageEditInlineInput = memo(function MessageEditInlineInput({
 					</button>
 				</Tooltip.Trigger>
 				<Tooltip.Content className="text-[10px] py-0.5 px-1.5">
-					保存并重新提问 (Enter)
+					{submitTooltip || "保存并重新提问 (Enter)"}
 				</Tooltip.Content>
 			</Tooltip>
 		</div>

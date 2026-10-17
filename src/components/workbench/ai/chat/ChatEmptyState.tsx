@@ -54,7 +54,7 @@ function HeroIllustration() {
 			<GemSmoke
 				width={200}
 				height={200}
-				image="https://shaders.paper.design/images/logos/diamond.svg"
+				image="/diamond.svg"
 				colors={["#333333", "#e7e6df"]}
 				colorBack="#f0efea"
 				colorInner="#fafaf5"
