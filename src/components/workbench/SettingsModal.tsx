@@ -86,7 +86,8 @@ const SETTING_TABS: SettingTabItem[] = [
 	{
 		id: "media",
 		label: "视觉模型",
-		description: "配置封面生图、视频生成等多媒体 AI 模型（豆包、FLUX、DALL-E）",
+		description:
+			"配置封面生图、视频生成等多媒体 AI 模型（Nano Banana、豆包 Seedream、OpenAI GPT-Image / DALL-E、FLUX）",
 		icon: Sparkles,
 	},
 	{
@@ -140,7 +141,7 @@ const INITIAL_FORM_DATA: ModelSettingsFormData = {
 	imageProvider: "doubao",
 	imageApiKey: "",
 	imageBaseUrl: "https://ark.cn-beijing.volces.com/api/v3",
-	imageModel: "doubao-seed-image",
+	imageModel: "doubao-seedream-5-0-flash-260915",
 	imageSkillPath: "",
 };
 
@@ -238,7 +239,8 @@ export function SettingsModal({
 			imageApiKey: settings.imageApiKey || "",
 			imageBaseUrl:
 				settings.imageBaseUrl || "https://ark.cn-beijing.volces.com/api/v3",
-			imageModel: settings.imageModel || "doubao-seed-image",
+			imageModel:
+				settings.imageModel || "doubao-seedream-5-0-flash-260915",
 			imageSkillPath: settings.imageSkillPath || "",
 		});
 		setFilesRootDir(settings.filesRootDir ?? settings.downloadsDir ?? "");
@@ -263,9 +265,10 @@ export function SettingsModal({
 		setMediaModelList(
 			Array.from(
 				new Set(
-					[settings.imageModel || "doubao-seed-image", ...mediaPreset].filter(
-						Boolean,
-					),
+					[
+						settings.imageModel || "doubao-seedream-5-0-flash-260915",
+						...mediaPreset,
+					].filter(Boolean),
 				),
 			),
 		);
@@ -327,7 +330,8 @@ export function SettingsModal({
 			imageBaseUrl:
 				formData.imageBaseUrl?.trim() ||
 				"https://ark.cn-beijing.volces.com/api/v3",
-			imageModel: formData.imageModel?.trim() || "doubao-seed-image",
+			imageModel:
+				formData.imageModel?.trim() || "doubao-seedream-5-0-flash-260915",
 			imageSkillPath: formData.imageSkillPath || "",
 			filesRootDir: filesRootDir.trim() || undefined,
 			downloadsDir: undefined,

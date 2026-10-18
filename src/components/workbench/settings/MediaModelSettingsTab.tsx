@@ -14,7 +14,6 @@ import {
 	toast,
 } from "@heroui/react";
 import {
-	Check,
 	Eye,
 	EyeOff,
 	Globe,
@@ -49,6 +48,38 @@ interface MediaModelSettingsTabProps {
 	onSave?: () => void;
 	showSkillAssociation?: boolean;
 }
+
+// Provider feature description and highlight tips
+const PROVIDER_FEATURE_TIPS: Record<
+	string,
+	{ badge: string; description: string }
+> = {
+	doubao: {
+		badge: "火山方舟 Seedream 旗舰",
+		description:
+			"全面支持 Seedream 5.0 Flash 及 4.0 系列，对中文意境及成语古诗理解深厚，支持 2K/4K 超清渲染。",
+	},
+	nanobanana: {
+		badge: "Google Gemini 原生图像",
+		description:
+			"业界领先的 Nano Banana / Gemini 图像架构，具备精准文字渲染排版、角色一致性及自然语言多轮编辑，支持官方端点与主流中转。",
+	},
+	openai: {
+		badge: "OpenAI GPT-Image / DALL-E",
+		description:
+			"新一代原生多模态视觉生成 gpt-image-2 与 dall-e-3，高质感摄影光影与精准图内文字排版。",
+	},
+	siliconflow: {
+		badge: "FLUX.1 开源顶流",
+		description:
+			"支持 FLUX.1 schnell / dev / pro 与 SD 3.5 Large，毫秒级快速推理与极致画质。",
+	},
+	custom: {
+		badge: "OpenAI 兼容接口",
+		description:
+			"适配所有兼容 /v1/images/generations 规范的生图或视频中转端点及自建服务。",
+	},
+};
 
 // Module-level cache to preserve fetched media models across dialog open/close
 const fetchedMediaModelsCache: Record<string, string[]> = {};
@@ -282,7 +313,7 @@ export function MediaModelSettingsTab({
 					</div>
 					<div className="flex items-center gap-2 min-w-0 flex-wrap sm:flex-nowrap">
 						<span className="text-sm font-semibold text-foreground whitespace-nowrap shrink-0">
-							生图生效模型：
+							当前默认模型：
 						</span>
 						<span
 							title={data.imageModel || "doubao-seed-image"}
@@ -307,21 +338,21 @@ export function MediaModelSettingsTab({
 				</div>
 			</div>
 
-			{/* Provider Selection Tabs - Identical to Image 1 */}
+			{/* Provider Selection Tabs */}
 			<div className="flex flex-col gap-2.5">
 				<Tabs
 					selectedKey={editingProviderId}
 					onSelectionChange={(k) => setEditingProviderId(String(k))}
 					className="w-full"
 				>
-					<Tabs.ListContainer>
-						<Tabs.List>
+					<Tabs.ListContainer className="overflow-x-auto no-scrollbar pb-1">
+						<Tabs.List className="flex flex-nowrap min-w-max gap-1">
 							{MEDIA_PROVIDERS.map((provider: ProviderPreset) => {
 								return (
 									<Tabs.Tab
 										key={provider.id}
 										id={provider.id}
-										className="w-auto"
+										className="w-auto whitespace-nowrap shrink-0"
 									>
 										<span>{provider.name}</span>
 										<Tabs.Indicator />
@@ -332,6 +363,23 @@ export function MediaModelSettingsTab({
 					</Tabs.ListContainer>
 				</Tabs>
 			</div>
+
+			{/* Feature Note for Current Provider */}
+			{PROVIDER_FEATURE_TIPS[editingProviderId] && (
+				<div className="flex items-start gap-2.5 p-3 rounded-xl border border-border/60 bg-surface-secondary/40 text-xs">
+					<Sparkles className="w-4 h-4 text-accent shrink-0 mt-0.5" />
+					<div className="flex flex-col gap-0.5">
+						<div className="flex items-center gap-2">
+							<span className="font-semibold text-foreground">
+								{PROVIDER_FEATURE_TIPS[editingProviderId].badge}
+							</span>
+						</div>
+						<span className="text-muted text-[11px] leading-relaxed">
+							{PROVIDER_FEATURE_TIPS[editingProviderId].description}
+						</span>
+					</div>
+				</div>
+			)}
 
 			{/* Section: Selected Provider Configuration - Identical to Image 1 */}
 			<div className="flex flex-col gap-4">
@@ -467,46 +515,44 @@ export function MediaModelSettingsTab({
 						</InputGroup>
 					</TextField>
 
-					{/* Model Selector with Action Buttons - Identical to Image 1 */}
-					<div className="flex flex-col gap-1.5">
-						<Label className="text-xs font-medium text-foreground">
-							生图模型名称
-						</Label>
+					{/* Model Selector & Direct Input with Presets */}
+					<div className="flex flex-col gap-2">
+						<div className="flex items-center justify-between">
+							<Label className="text-xs font-medium text-foreground">
+								生图模型名称
+							</Label>
+							<span className="text-[10px] text-muted">
+								可直接输入模型名称/接入点 ID，或点击下方快捷预设
+							</span>
+						</div>
+
 						<div className="flex items-center gap-2">
 							<div className="flex-1 min-w-0">
-								<Select
-									aria-label="生图模型名称"
-									selectedKey={currentConfig.model}
-									onSelectionChange={(key) => {
-										if (key) updateCurrentProviderField("model", String(key));
-									}}
+								<TextField
+									value={currentConfig.model}
+									onChange={(val) => updateCurrentProviderField("model", val)}
 									className="w-full"
-									placeholder="请选择一个模型"
 								>
-									<SelectTrigger className="w-full shadow-none bg-transparent border border-border/80 hover:border-foreground/40 rounded-lg font-mono text-xs">
-										<SelectValue />
-									</SelectTrigger>
-									<SelectPopover className="rounded-xl border border-border bg-surface p-1 shadow-lg max-h-60 overflow-y-auto min-w-[240px]">
-										<ListBox>
-											{availableModels.map((m) => (
-												<ListBoxItem key={m} id={m} textValue={m}>
-													<div className="flex items-center justify-between w-full font-mono text-xs">
-														<span>{m}</span>
-														{m === currentConfig.model && (
-															<Check className="w-3.5 h-3.5 text-accent" />
-														)}
-													</div>
-												</ListBoxItem>
-											))}
-										</ListBox>
-									</SelectPopover>
-								</Select>
+									<InputGroup className="bg-transparent border border-border/80 hover:border-foreground/40 focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/20 rounded-lg shadow-none">
+										<InputGroup.Prefix className="pl-3">
+											<Sparkles className="w-3.5 h-3.5 text-muted" />
+										</InputGroup.Prefix>
+										<InputGroup.Input
+											type="text"
+											placeholder={
+												currentEditingProvider.models[0] ||
+												"例如：doubao-seedream-5-0-flash-260915 或 gpt-image-2"
+											}
+											className="bg-transparent font-mono text-xs"
+										/>
+									</InputGroup>
+								</TextField>
 							</div>
 
 							<Button
 								type="button"
 								variant="outline"
-								className="rounded-lg"
+								className="rounded-lg text-xs"
 								isDisabled={loadingMediaModels}
 								onPress={handleFetchMediaModels}
 							>
@@ -518,6 +564,33 @@ export function MediaModelSettingsTab({
 								<span>{loadingMediaModels ? "获取中..." : "获取模型"}</span>
 							</Button>
 						</div>
+
+						{/* Quick Preset Model Chips */}
+						{availableModels.length > 0 && (
+							<div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+								<span className="text-[10px] text-muted shrink-0">
+									常用模型:
+								</span>
+								{availableModels.map((m) => {
+									const isSelected = currentConfig.model === m;
+									return (
+										<button
+											key={m}
+											type="button"
+											onClick={() => updateCurrentProviderField("model", m)}
+											className={`text-[11px] font-mono px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
+												isSelected
+													? "bg-accent/15 border-accent text-accent font-semibold shadow-2xs"
+													: "bg-surface-secondary/60 border-border/70 text-foreground/80 hover:bg-surface-secondary hover:border-border hover:text-foreground"
+											}`}
+											title={`点击快速填入 ${m}`}
+										>
+											{m}
+										</button>
+									);
+								})}
+							</div>
+						)}
 
 						<Description className="text-[11px] text-muted">
 							用于一键发布文章时生成封面图及多媒体素材，点击「设为默认模型」可将当前服务商切换为默认生图引擎。

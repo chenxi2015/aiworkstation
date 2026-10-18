@@ -33,7 +33,7 @@ export const VisualGenerationGallery = memo(function VisualGenerationGallery({
 	onDeleteItem,
 	onDeleteItems,
 	onEditAndResend,
-	onClearAll,
+	onClearAll: _onClearAll,
 	onSelectPrompt,
 }: VisualGenerationGalleryProps) {
 	const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -114,19 +114,10 @@ export const VisualGenerationGallery = memo(function VisualGenerationGallery({
 					<VisualEmptyState onSelectPrompt={onSelectPrompt || (() => {})} />
 				)}
 
-				{/* Top header stats and clear button */}
+				{/* Top header stats */}
 				{items.length > 0 && !isSelectMode && (
-					<div className="flex items-center justify-between px-1 py-0.5 text-[11px] text-muted select-none border-b border-border/30 mb-2">
+					<div className="flex items-center px-1 py-0.5 text-[11px] text-muted select-none border-b border-border/30 mb-2">
 						<span>共 {items.length} 条视觉对话</span>
-						{onClearAll && (
-							<button
-								type="button"
-								onClick={onClearAll}
-								className="text-[10px] text-muted hover:text-red-500 transition-colors cursor-pointer"
-							>
-								清空记录
-							</button>
-						)}
 					</div>
 				)}
 

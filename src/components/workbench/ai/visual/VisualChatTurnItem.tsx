@@ -38,6 +38,24 @@ export function getAspectRatioCss(ratio?: string): string {
 }
 
 /**
+ * Helper to extract clean user message text for chat bubble display,
+ * gracefully separating legacy dirty concatenated prompts.
+ */
+export function getDisplayUserPrompt(item: VisualGenerationItem): string {
+	if (item.userPrompt?.trim()) {
+		return item.userPrompt.trim();
+	}
+	const raw = item.prompt?.trim() || "";
+	if (raw.includes("画面修改与优化要求")) {
+		const parts = raw.split(/[,，]?\s*画面修改与优化要求[：:]\s*/);
+		if (parts.length >= 2 && parts[parts.length - 1]?.trim()) {
+			return parts[parts.length - 1].trim();
+		}
+	}
+	return raw;
+}
+
+/**
  * Single turn in the visual chat stream:
  * - Top-right: User prompt bubble matching UserMessageBubble style and hover actions.
  * - Bottom-left: Assistant generated image/video card with brand header, hover action bar and metadata.
@@ -58,9 +76,12 @@ export const VisualChatTurnItem = memo(function VisualChatTurnItem({
 	const [isEditing, setIsEditing] = useState(false);
 	const [copied, setCopied] = useState(false);
 
+	const displayPrompt = getDisplayUserPrompt(item);
+	const hasFusedContext = Boolean(item.prompt && displayPrompt !== item.prompt);
+
 	const handleCopyPrompt = async () => {
 		try {
-			await navigator.clipboard.writeText(item.prompt);
+			await navigator.clipboard.writeText(displayPrompt);
 			setCopied(true);
 			toast.success("已复制到剪贴板");
 			setTimeout(() => setCopied(false), 2000);
@@ -164,7 +185,7 @@ export const VisualChatTurnItem = memo(function VisualChatTurnItem({
 					</div>
 
 					<div className="text-xs text-foreground leading-relaxed line-clamp-2">
-						{item.prompt}
+						{displayPrompt}
 					</div>
 
 					<div className="flex items-center gap-2 pt-1">
@@ -200,7 +221,7 @@ export const VisualChatTurnItem = memo(function VisualChatTurnItem({
 			<div className="flex flex-col items-end gap-1 self-end w-full max-w-[85%] sm:max-w-[75%] group">
 				{isEditing ? (
 					<MessageEditInlineInput
-						initialContent={item.prompt}
+						initialContent={displayPrompt}
 						onSave={handleSaveEdit}
 						onCancel={() => setIsEditing(false)}
 						isLoading={isGenerating}
@@ -210,8 +231,24 @@ export const VisualChatTurnItem = memo(function VisualChatTurnItem({
 					<>
 						{/* Prompt card bubble matching UserMessageBubble */}
 						<div className="bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-2xl px-4 py-2 text-sm leading-relaxed font-normal shadow-2xs select-text">
-							{item.prompt}
+							{displayPrompt}
 						</div>
+
+						{/* If context prompt was inherited/fused, show subtle context indicator */}
+						{hasFusedContext && (
+							<Tooltip>
+								<Tooltip.Trigger>
+									<div className="flex items-center gap-1 text-[10px] text-muted/70 hover:text-foreground cursor-pointer transition-colors px-1 select-none">
+										<Sparkles className="w-2.5 h-2.5 text-amber-500/80" />
+										<span>已继承上下文提示词</span>
+									</div>
+								</Tooltip.Trigger>
+								<Tooltip.Content className="max-w-[280px] text-[11px] p-2 leading-relaxed">
+									<div className="font-medium text-foreground mb-1">底层生图提示词：</div>
+									<div className="text-muted line-clamp-4 select-text">{item.prompt}</div>
+								</Tooltip.Content>
+							</Tooltip>
+						)}
 
 						{/* User Action bar below bubble (Copy, Edit, Delete) with hover opacity */}
 						<div className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center gap-0.5 text-muted text-xs px-1">

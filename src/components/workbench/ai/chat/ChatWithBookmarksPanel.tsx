@@ -240,6 +240,7 @@ export const ChatWithBookmarksPanel = forwardRef<
 						url: img.url,
 						mediaType: payload.mediaType,
 						prompt: res.prompt,
+						userPrompt: payload.prompt,
 						aspectRatio: img.aspectRatio,
 						resolution: img.resolution,
 						quality: img.quality,

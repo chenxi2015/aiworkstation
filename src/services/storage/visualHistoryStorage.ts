@@ -9,6 +9,28 @@ const LEGACY_STORAGE_KEY = "aiworkstation_visual_history_records";
 const MAX_SESSIONS = 50;
 
 /**
+ * Normalizes session items by recovering userPrompt and cleaning legacy dirty prompts
+ */
+function normalizeSessionItems(items: VisualGenerationItem[]): VisualGenerationItem[] {
+	if (!Array.isArray(items)) return [];
+	return items.map((item) => {
+		if (!item.userPrompt && item.prompt && item.prompt.includes("画面修改与优化要求")) {
+			const parts = item.prompt.split(/[,，]?\s*画面修改与优化要求[：:]\s*/);
+			if (parts.length >= 2) {
+				const recoveredUserPrompt = parts[parts.length - 1].trim();
+				const recoveredPrompt = parts.slice(0, parts.length - 1).join("，").trim();
+				return {
+					...item,
+					userPrompt: recoveredUserPrompt || item.prompt,
+					prompt: recoveredPrompt || item.prompt,
+				};
+			}
+		}
+		return item;
+	});
+}
+
+/**
  * Storage service for managing multiple visual conversation sessions locally.
  * Supports auto-migration from legacy single-array history and preserves chronological order.
  */
@@ -23,7 +45,12 @@ export const VisualHistoryStorageService = {
 			if (raw) {
 				const parsed = JSON.parse(raw);
 				if (Array.isArray(parsed) && parsed.length > 0) {
-					return parsed.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+					return parsed
+						.map((s) => ({
+							...s,
+							items: normalizeSessionItems(s.items),
+						}))
+						.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
 				}
 			}
 
@@ -185,7 +212,7 @@ export const VisualHistoryStorageService = {
 			current.title.startsWith("新视觉对话") ||
 			current.title.startsWith("视觉对话")
 		) {
-			newTitle = item.prompt.trim().slice(0, 24) || "视觉创作";
+			newTitle = (item.userPrompt || item.prompt).trim().slice(0, 24) || "视觉创作";
 		}
 
 		const updatedSession: VisualChatSession = {

@@ -88,7 +88,7 @@ export const VisualGeneratingCard = memo(function VisualGeneratingCard({
 			{/* 2. Assistant Generating Placeholder Canvas (Aligned Left) */}
 			<div className="flex flex-col items-start gap-1.5 self-start w-full max-w-[440px]">
 				<div className="flex items-center gap-1.5 text-xs font-semibold text-neutral-800 dark:text-neutral-200 select-none pb-0.5">
-					<div className="w-4 h-4 rounded-full bg-gradient-to-tr from-accent to-primary flex items-center justify-center text-white text-[9px] shadow-2xs shrink-0">
+					<div className="w-4 h-4 rounded-full bg-gradient-to-tr from-amber-500 via-orange-500 to-rose-500 flex items-center justify-center text-white shrink-0 shadow-2xs">
 						<Sparkles className="w-2.5 h-2.5 text-white" />
 					</div>
 					<span>AI 视觉</span>

@@ -75,7 +75,38 @@ export const MEDIA_PROVIDERS: ProviderPreset[] = [
 		id: "doubao",
 		name: "豆包（Volcano Ark / 火山方舟）",
 		baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
-		models: ["doubao-seed-image", "doubao-seed-image-3.0", "doubao-seed-video"],
+		models: [
+			"doubao-seedream-5-0-flash-260915",
+			"doubao-seedream-5-0",
+			"doubao-seedream-4-0",
+			"doubao-seed-image-3.0",
+			"doubao-seed-image",
+			"doubao-seed-video",
+		],
+	},
+	{
+		id: "nanobanana",
+		name: "Nano Banana（Google Gemini 图像）",
+		baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+		models: [
+			"nano-banana-2",
+			"nano-banana-pro",
+			"gemini-3.1-flash-image",
+			"gemini-3-pro-image",
+			"imagen-3.0-generate-002",
+		],
+	},
+	{
+		id: "openai",
+		name: "OpenAI（GPT-Image / DALL-E）",
+		baseUrl: "https://api.openai.com/v1",
+		models: [
+			"gpt-image-2",
+			"gpt-image-1",
+			"gpt-image-2.5-sunburst",
+			"dall-e-3",
+			"dall-e-2",
+		],
 	},
 	{
 		id: "siliconflow",
@@ -84,14 +115,9 @@ export const MEDIA_PROVIDERS: ProviderPreset[] = [
 		models: [
 			"black-forest-labs/FLUX.1-schnell",
 			"black-forest-labs/FLUX.1-dev",
+			"black-forest-labs/FLUX.1-pro",
 			"stabilityai/stable-diffusion-3-5-large",
 		],
-	},
-	{
-		id: "openai",
-		name: "OpenAI（DALL-E）",
-		baseUrl: "https://api.openai.com/v1",
-		models: ["dall-e-3", "dall-e-2"],
 	},
 	{
 		id: "custom",

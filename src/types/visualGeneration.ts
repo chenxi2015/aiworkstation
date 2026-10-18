@@ -55,7 +55,8 @@ export interface VisualGenerationItem {
 	id: string;
 	url: string;
 	mediaType?: VisualMediaType; // "image" | "video"
-	prompt: string;
+	prompt: string; // Effective prompt used for actual generation
+	userPrompt?: string; // Original prompt inputted by user in this chat turn
 	aspectRatio: string;
 	resolution: string;
 	quality?: string;

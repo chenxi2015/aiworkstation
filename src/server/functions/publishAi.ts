@@ -211,6 +211,7 @@ export const generateAiCoverImages = createServerFn({ method: "POST" })
 			const isDoubao =
 				config.provider === "doubao" ||
 				config.model.includes("doubao") ||
+				config.model.includes("seedream") ||
 				config.baseUrl.includes("volces.com");
 
 			const buildRequestBody = (

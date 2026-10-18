@@ -1,5 +1,13 @@
 import { Heatmap } from "@paper-design/shaders-react";
-import { ArrowUpRight, Film, Palette, Sparkles, Wand2 } from "lucide-react";
+import {
+	ArrowUpRight,
+	Compass,
+	Flame,
+	Shirt,
+	Smile,
+	Sun,
+	Type,
+} from "lucide-react";
 import { memo, useState } from "react";
 
 export interface VisualEmptyStateProps {
@@ -8,7 +16,7 @@ export interface VisualEmptyStateProps {
 
 interface VisualInspirationItem {
 	id: string;
-	icon: typeof Sparkles;
+	icon: typeof Smile;
 	title: string;
 	badge: string;
 	subtitle: string;
@@ -17,64 +25,64 @@ interface VisualInspirationItem {
 
 const VISUAL_INSPIRATIONS: VisualInspirationItem[] = [
 	{
-		id: "swiss-poster",
-		icon: Palette,
-		title: "现代版式海报，瑞士极简风",
-		badge: "平面设计",
+		id: "capybara-emojis",
+		icon: Smile,
+		title: "水豚噜噜，3D十六宫格表情",
+		badge: "3D表情",
 		subtitle:
-			"A modern typographic poster combining Swiss style and experimental typography, high contrast, clean graphic design",
+			"生成4×4 十六宫格全新有趣夸张3D表情包，一系列可爱3dQ版水豚噜噜，白色背景，设计姿势和文字排版，以创造一套变化丰富的贴图，确保没有相似的贴图。各种情绪表情，不同的造型，各种动作，配上有趣的字句，所有文字清晰美观协调不能崩坏，开心等日常生活主题，兴奋，骑车，晚安，趴着睡觉，穿着雨衣，开心喝奶茶，洗澡，游泳，打球，手持饮料，具有开心表情、悲伤表情、戴眼镜、梳发髻发型、戴帽子等特征，简笔画，扁平插画，加入一些可爱的符号使表情更丰富，涂鸦风格，多巴胺色，线稿，大师手稿，杰作，超清纹理，光影美学，丰富层次感，细腻画质",
 		prompt:
-			"A modern typographic poster combining Swiss style and experimental typography, high contrast, clean graphic design",
+			"生成4×4 十六宫格全新有趣夸张3D表情包，一系列可爱3dQ版水豚噜噜，白色背景，设计姿势和文字排版，以创造一套变化丰富的贴图，确保没有相似的贴图。各种情绪表情，不同的造型，各种动作，配上有趣的字句，所有文字清晰美观协调不能崩坏，开心等日常生活主题，兴奋，骑车，晚安，趴着睡觉，穿着雨衣，开心喝奶茶，洗澡，游泳，打球，手持饮料，具有开心表情、悲伤表情、戴眼镜、梳发髻发型、戴帽子等特征，简笔画，扁平插画，加入一些可爱的符号使表情更丰富，涂鸦风格，多巴胺色，线稿，大师手稿，杰作，超清纹理，光影美学，丰富层次感，细腻画质",
 	},
 	{
-		id: "cyberpunk-desk",
-		icon: Sparkles,
-		title: "赛博朋克光影，未来工作台",
-		badge: "3D 概念",
+		id: "morning-poster",
+		icon: Sun,
+		title: "总监级早安海报，治愈暖橙光",
+		badge: "商业海报",
 		subtitle:
-			"赛博朋克风未来编程工作台，霓虹光影，机械键盘与全息投影，8K 超清壁纸",
+			"早安海报，商业级设计总监水准，早安主题正能量海报，超前设计思维，严格遵循美学三大构成与黄金比例，视觉冲击力极强，在众多海报中一眼脱颖而出；画面核心位置突出原创正能量标语“每一个清晨，都是重启热爱的序章。”，字体简约大气且富有力量感，标注日期“2025.11.9”（日期以简洁小号字体置于海报角落，不抢主体）；色彩搭配和谐高级，以暖橙渐变+柔白为基底，点缀低饱和金箔光泽，传递温暖治愈的正能量；装饰元素与主题强相关，仅加入极简线条勾勒的日出光影、悬浮的微光粒子、纤细的叶脉纹理，元素大小比例适配，细节精致不杂乱；无多余文字、无重复元素、无侵权设计，整体风格独特小众、富有思想深度，兼具艺术感与商业实用性，原创性拉满，引人深思。",
 		prompt:
-			"赛博朋克风未来编程工作台，霓虹光影，机械键盘与全息投影，8K 超清壁纸",
+			"早安海报，商业级设计总监水准，早安主题正能量海报，超前设计思维，严格遵循美学三大构成与黄金比例，视觉冲击力极强，在众多海报中一眼脱颖而出；画面核心位置突出原创正能量标语“每一个清晨，都是重启热爱的序章。”，字体简约大气且富有力量感，标注日期“2025.11.9”（日期以简洁小号字体置于海报角落，不抢主体）；色彩搭配和谐高级，以暖橙渐变+柔白为基底，点缀低饱和金箔光泽，传递温暖治愈的正能量；装饰元素与主题强相关，仅加入极简线条勾勒的日出光影、悬浮的微光粒子、纤细的叶脉纹理，元素大小比例适配，细节精致不杂乱；无多余文字、无重复元素、无侵权设计，整体风格独特小众、富有思想深度，兼具艺术感与商业实用性，原创性拉满，引人深思。",
 	},
 	{
-		id: "minimal-reading",
-		icon: Wand2,
-		title: "极简扁平插画，书房阅读",
-		badge: "插画艺术",
+		id: "sports-cover",
+		icon: Flame,
+		title: "潮流运动封面，试试又能怎",
+		badge: "潮流封面",
 		subtitle:
-			"极简扁平插画，一个人在书房安静阅读思考，柔和自然光与绿植，温暖氛围",
+			"自媒体封面设计，黑色背景干净简洁，画面中心是创意字体设计“试试又能怎”，白色字体，采用夸张的笔画弧度，造型充满动感且棱角分明，融合尖锐边缘与流畅曲线，部分笔画进行连接和共用笔画，笔画转角圆角处理并向外延伸，加入绿色线条和星星适当装饰，字体下方是仰视特写视角的黄色卡通形象，充满活力，穿着带有黄色标志的黑色运动鞋，正处于迈步的动态中，一只手抬起比出耶的手势，手势旁边有黄色爆炸边框英文“JUST DO IT”，整体色彩以黑白为主，黄色和绿色作为点缀，营造出欢快、运动的感觉，视觉冲击力强，适合运动活动宣传，街头涂鸦风格，现代运动插画结合",
 		prompt:
-			"极简扁平插画，一个人在书房安静阅读思考，柔和自然光与绿植，温暖氛围",
+			"自媒体封面设计，黑色背景干净简洁，画面中心是创意字体设计“试试又能怎”，白色字体，采用夸张的笔画弧度，造型充满动感且棱角分明，融合尖锐边缘与流畅曲线，部分笔画进行连接和共用笔画，笔画转角圆角处理并向外延伸，加入绿色线条和星星适当装饰，字体下方是仰视特写视角的黄色卡通形象，充满活力，穿着带有黄色标志的黑色运动鞋，正处于迈步的动态中，一只手抬起比出耶的手势，手势旁边有黄色爆炸边框英文“JUST DO IT”，整体色彩以黑白为主，黄色和绿色作为点缀，营造出欢快、运动的感觉，视觉冲击力强，适合运动活动宣传，街头涂鸦风格，现代运动插画结合",
 	},
 	{
-		id: "neural-network",
-		icon: Sparkles,
-		title: "发光神经网络，星空科技感",
-		badge: "科技艺术",
+		id: "travel-livestream-cover",
+		icon: Compass,
+		title: "拼贴风文旅封面，自驾游黔江",
+		badge: "文旅直播",
 		subtitle:
-			"浩瀚星空与发光神经网络，粒子流动，现代科技艺术概念图，虚幻引擎渲染",
+			"创作一张拼贴风文旅直播自媒体封面，背景融合黔江风景（油菜花田、山峦、古建筑、“黔江欢迎您” 木质路标）与手绘蓝天、太阳、云朵；排版采用分层布局，标识；中间用手写感字体呈现 “跨越山海 去黔江”，人物居中，下方大字突出 “一起出发吧！”；底部黄色块区域排版 “万车自驾游黔江 BE SELF-DRIVE”（搭配绿色自驾车插画）；整体色调以清新明快的蓝（天空）、绿（山峦、草地）、黄（油菜花、底部块）为主，风格结合拼贴元素与手绘趣味，传递黔江文旅直播的活力与吸引力。",
 		prompt:
-			"浩瀚星空与发光神经网络，粒子流动，现代科技艺术概念图，虚幻引擎渲染",
+			"创作一张拼贴风文旅直播自媒体封面，背景融合黔江风景（油菜花田、山峦、古建筑、“黔江欢迎您” 木质路标）与手绘蓝天、太阳、云朵；排版采用分层布局，标识；中间用手写感字体呈现 “跨越山海 去黔江”，人物居中，下方大字突出 “一起出发吧！”；底部黄色块区域排版 “万车自驾游黔江 BE SELF-DRIVE”（搭配绿色自驾车插画）；整体色调以清新明快的蓝（天空）、绿（山峦、草地）、黄（油菜花、底部块）为主，风格结合拼贴元素与手绘趣味，传递黔江文旅直播的活力与吸引力。",
 	},
 	{
-		id: "rainy-street-video",
-		icon: Film,
-		title: "电影大片镜头，雨夜街头动态",
-		badge: "动态视频",
+		id: "tutorial-typography",
+		icon: Type,
+		title: "涂鸦风创意字，封面万能公式",
+		badge: "字体设计",
 		subtitle:
-			"电影大片质感，雨夜霓虹街头，慢镜头运镜，水洼倒影与车流光斑，动态视频",
+			"设计一组 “新手教程 封面设计万能公式” 主题的手绘涂鸦风创意美术字组合，风格活泼醒目、具干货亲和力；“新手教程” 采用带毛边的卡通黑体美术字（笔画块面感强，边缘手绘粗糙，笔锋为块面化圆润 + 毛糙边缘）；主体 “封面设计 万能公式” 为粗壮块面的创意美术字（笔画饱满、边缘带刷痕式手绘肌理，笔锋呈粗犷随性的锋感），搭配小巧无衬线拼音字体；色彩以高饱和玫粉色为背景，紫色对话框为基底，“新手教程” 用黑色字体 + 白色带黑边对话框，主体字为白色，拼音与小字用黄色、黑色，营造对比强烈的吸睛干货氛围。",
 		prompt:
-			"电影大片质感，雨夜霓虹街头，慢镜头运镜，水洼倒影与车流光斑，动态视频",
+			"设计一组 “新手教程 封面设计万能公式” 主题的手绘涂鸦风创意美术字组合，风格活泼醒目、具干货亲和力；“新手教程” 采用带毛边的卡通黑体美术字（笔画块面感强，边缘手绘粗糙，笔锋为块面化圆润 + 毛糙边缘）；主体 “封面设计 万能公式” 为粗壮块面的创意美术字（笔画饱满、边缘带刷痕式手绘肌理，笔锋呈粗犷随性的锋感），搭配小巧无衬线拼音字体；色彩以高饱和玫粉色为背景，紫色对话框为基底，“新手教程” 用黑色字体 + 白色带黑边对话框，主体字为白色，拼音与小字用黄色、黑色，营造对比强烈的吸睛干货氛围。",
 	},
 	{
-		id: "glass-icon",
-		icon: Palette,
-		title: "三维立体图标，毛玻璃质感",
-		badge: "UI 质感",
+		id: "retro-care-guide",
+		icon: Shirt,
+		title: "复古手账拼贴，衣物养护技巧",
+		badge: "手账拼贴",
 		subtitle:
-			"3D 立体玻璃质感应用图标设计，柔和渐变微光，磨砂半透明材质，柔和阴影，4K 精致渲染",
+			"创作一张复古手账拼贴风的衣物养护类自媒体封面：背景为米黄色布纹肌理，搭配绿色手绘风边框 / 文字底；文案排版分层设计，顶部标注 “GAODING” 与 “稿定课堂”（复古字体 + 撕纸质感标签），主标题 “衣物养护小技巧” 以黑色粗体字衬绿色块突出展示，左侧辅 “GAODING KETANG” 复古标签；中间嵌入人物，穿搭图（照片底部带 “GAODING” 标识与箭头装饰）；底部用绿色椭圆框强调 “如何养护衣物？”，旁侧搭配 “简单技巧，一图看懂 >>>” 引导性文字；整体融合复古拼贴元素（拍立得、手写箭头、纹理底），色调清新柔和，传递出 “轻松学习衣物养护” 的实用感与活泼氛围。",
 		prompt:
-			"3D 立体玻璃质感应用图标设计，柔和渐变微光，磨砂半透明材质，柔和阴影，4K 精致渲染",
+			"创作一张复古手账拼贴风的衣物养护类自媒体封面：背景为米黄色布纹肌理，搭配绿色手绘风边框 / 文字底；文案排版分层设计，顶部标注 “GAODING” 与 “稿定课堂”（复古字体 + 撕纸质感标签），主标题 “衣物养护小技巧” 以黑色粗体字衬绿色块突出展示，左侧辅 “GAODING KETANG” 复古标签；中间嵌入人物，穿搭图（照片底部带 “GAODING” 标识与箭头装饰）；底部用绿色椭圆框强调 “如何养护衣物？”，旁侧搭配 “简单技巧，一图看懂 >>>” 引导性文字；整体融合复古拼贴元素（拍立得、手写箭头、纹理底），色调清新柔和，传递出 “轻松学习衣物养护” 的实用感与活泼氛围。",
 	},
 ];
 
@@ -88,7 +96,15 @@ function VisualHeroIllustration() {
 				width={200}
 				height={200}
 				image="/diamond.svg"
-  			colors={["#112069", "#1f3ca3", "#3265e7", "#6bd8ff", "#ffe77a", "#ff9a1f", "#ff4d00"]}
+				colors={[
+					"#112069",
+					"#1f3ca3",
+					"#3265e7",
+					"#6bd8ff",
+					"#ffe77a",
+					"#ff9a1f",
+					"#ff4d00",
+				]}
 				colorBack="#000000"
 				contour={0.5}
 				outerGlow={0.55}
@@ -127,7 +143,7 @@ export const VisualEmptyState = memo(function VisualEmptyState({
 			</h2>
 			<p className="text-xs text-muted leading-relaxed max-w-[320px] mb-5">
 				不只是一个生图工具——而是一位懂构图与创意的视觉设计搭档。输入画面描述，选择比例与视觉模型，开启多风格
-				AI 图像与视频生成。
+				AI 图像生成。
 			</p>
 
 			{/* Sider Claw Style Unified Minimalist Card Container */}
@@ -149,11 +165,11 @@ export const VisualEmptyState = memo(function VisualEmptyState({
 
 								{/* Content area */}
 								<div className="flex-1 min-w-0">
-									<div className="flex items-center justify-between gap-1.5">
-										<div className="text-xs font-semibold text-foreground group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors flex items-center gap-1.5">
-											<span>{item.title}</span>
+									<div className="flex items-center justify-between gap-1.5 min-w-0">
+										<div className="text-xs font-semibold text-foreground group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors flex items-center gap-1.5 min-w-0">
+											<span className="truncate">{item.title}</span>
 											{item.badge && (
-												<span className="text-[10px] font-normal px-1.5 py-0.2 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+												<span className="text-[10px] font-normal px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shrink-0 whitespace-nowrap">
 													{item.badge}
 												</span>
 											)}

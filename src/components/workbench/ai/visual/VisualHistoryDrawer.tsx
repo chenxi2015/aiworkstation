@@ -64,6 +64,7 @@ export function VisualHistoryDrawer({
 				s.items.some(
 					(item) =>
 						item.prompt.toLowerCase().includes(q) ||
+						(item.userPrompt && item.userPrompt.toLowerCase().includes(q)) ||
 						item.model.toLowerCase().includes(q),
 				)
 			) {
@@ -178,7 +179,7 @@ export function VisualHistoryDrawer({
 								<ImageIcon className="w-8 h-8 opacity-20 mb-2" />
 								<p className="text-xs">暂无视觉对话记录</p>
 								<p className="text-[10px] text-muted/80 mt-0.5">
-									生成图像或视频后将自动保存历史会话
+									生成图像后将自动保存历史会话
 								</p>
 							</div>
 						) : filteredSessions.length === 0 ? (

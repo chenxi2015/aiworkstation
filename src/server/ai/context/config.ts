@@ -82,6 +82,8 @@ export function resolveImageGenConfig(
 	if (provider === "openai") defaultBaseUrl = "https://api.openai.com/v1";
 	else if (provider === "siliconflow")
 		defaultBaseUrl = "https://api.siliconflow.cn/v1";
+	else if (provider === "nanobanana")
+		defaultBaseUrl = "https://generativelanguage.googleapis.com/v1beta";
 
 	const baseUrl = (
 		overrides.baseUrl?.trim() ||
@@ -89,10 +91,16 @@ export function resolveImageGenConfig(
 		defaultBaseUrl
 	).replace(/\/+$/, "");
 
+	let fallbackModel = "doubao-seedream-5-0-flash-260915";
+	if (provider === "openai") fallbackModel = "gpt-image-2";
+	else if (provider === "nanobanana") fallbackModel = "nano-banana-2";
+	else if (provider === "siliconflow")
+		fallbackModel = "black-forest-labs/FLUX.1-schnell";
+
 	const model =
 		overrides.model?.trim() ||
 		db?.imageModel?.trim() ||
-		(provider === "doubao" ? "doubao-seed-image" : "dall-e-3");
+		fallbackModel;
 
 	const skillPath =
 		overrides.skillPath?.trim() || db?.imageSkillPath?.trim() || "";

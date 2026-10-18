@@ -40,9 +40,36 @@ export interface GenerateVisualImageResult {
 		duration?: number;
 	}>;
 	prompt: string;
+	userPrompt?: string;
 	model: string;
 	provider: string;
 	error?: string;
+}
+
+/**
+ * Clean up legacy dirty prefixes/suffixes that may have been saved into previousPrompt
+ */
+function cleanLegacyPrompt(prompt: string): string {
+	return prompt
+		.replace(/[,，]?\s*画面修改与优化要求[：:]\s*/g, "，")
+		.replace(/^[，,\s]+|[，,\s]+$/g, "")
+		.trim();
+}
+
+/**
+ * Detect whether user prompt is simply requesting another generation/retry
+ * with the previous prompt without any specific semantic modification
+ * (e.g. "能在出一版吗？", "再来一张", "重新生成", "换个版本").
+ */
+function isPureRegenerationDirective(prompt: string): boolean {
+	const p = prompt.trim().toLowerCase();
+	const regeneratePatterns = [
+		/^(能[否|不能]?|可以)?(再|重新)?(生成|出|来|搞|做)(一[张版个]|几[张版个]|次)?(吗|吧|呢|呀|嗷)?[？?！!。.\s]*$/,
+		/^(重新生成|再来一次|再试一次|再来一[张版个]|重试|再画一[张幅个]|换一[张幅个]|再换一[张个]|换个版本)[？?！!。.\s]*$/,
+		/^(不满意|不怎么好看|不太行)[，,\s]*(重新[出画做生成]|再来一[张版个])[？?！!。.\s]*$/,
+		/^(regenerate|try again|another one|one more|retry)[.!?\s]*$/i,
+	];
+	return regeneratePatterns.some((pattern) => pattern.test(p));
 }
 
 /**
@@ -98,14 +125,22 @@ async function fuseContextPrompt(
 	}
 
 	const trimmedCurrent = currentPrompt.trim();
-	const trimmedPrev = previousPrompt.trim();
+	const cleanedPrev = cleanLegacyPrompt(previousPrompt);
+	if (!cleanedPrev) {
+		return trimmedCurrent;
+	}
 
-	// If current prompt doesn't look like an incremental modification, keep as is
+	// 1. If user is asking for pure regeneration/retry, reuse previous prompt directly
+	if (isPureRegenerationDirective(trimmedCurrent)) {
+		return cleanedPrev;
+	}
+
+	// 2. If current prompt doesn't look like an incremental modification, keep as is
 	if (!isContextualModification(trimmedCurrent)) {
 		return trimmedCurrent;
 	}
 
-	// Try fast LLM prompt refinement if LLM key is available
+	// 3. Try fast LLM prompt refinement if LLM key is available
 	try {
 		const llmConfig = resolveLlmConfig();
 		if (llmConfig.apiKey) {
@@ -121,11 +156,11 @@ async function fuseContextPrompt(
 						{
 							role: "system",
 							content:
-								"你是一个文生图提示词专家。用户正在对上一轮的图片进行连续迭代修改。上一轮画面的完整提示词是已知上下文，用户提出了新的修改或重绘要求。请根据用户的要求，将修改意图精准融入上一轮提示词中，输出一段用于文生图模型的完整高质量中文提示词。注意：直接输出融合后的提示词正文，严禁包含任何前缀、解释、引号或无关说明。",
+								"你是一个文生图提示词专家。用户正在对上一轮的图片进行连续迭代修改。上一轮画面的完整提示词是已知上下文，用户提出了新的修改或重绘要求。请根据用户的要求，将修改意图精准融入上一轮提示词中，输出一段用于文生图模型的完整高质量提示词。注意：直接输出融合后的提示词正文，严禁包含任何前缀、解释、引号或无关说明。",
 						},
 						{
 							role: "user",
-							content: `上一轮提示词：${trimmedPrev}\n当前修改要求：${trimmedCurrent}`,
+							content: `上一轮提示词：${cleanedPrev}\n当前修改要求：${trimmedCurrent}`,
 						},
 					],
 					temperature: 0.6,
@@ -146,8 +181,9 @@ async function fuseContextPrompt(
 		console.warn("[visualGen] LLM prompt fusion fallback:", err);
 	}
 
-	// Heuristic fusion fallback: combine context seamlessly
-	return `${trimmedPrev}，画面修改与优化要求：${trimmedCurrent}`;
+	// 4. Natural fallback fusion: combine without synthetic machine markers
+	const separator = /[a-zA-Z]/.test(cleanedPrev.slice(-10)) ? ", " : "，";
+	return `${cleanedPrev}${separator}${trimmedCurrent}`;
 }
 
 /**
@@ -165,6 +201,7 @@ export const generateVisualImage = createServerFn({ method: "POST" })
 				success: false,
 				images: [],
 				prompt: rawPrompt,
+				userPrompt: rawPrompt,
 				model: config.model,
 				provider: config.provider,
 				error:
@@ -177,6 +214,7 @@ export const generateVisualImage = createServerFn({ method: "POST" })
 				success: false,
 				images: [],
 				prompt: "",
+				userPrompt: "",
 				model: config.model,
 				provider: config.provider,
 				error: "提示词不能为空，请输入要生成的画面描述。",
@@ -201,22 +239,33 @@ export const generateVisualImage = createServerFn({ method: "POST" })
 		const isDoubao =
 			config.provider === "doubao" ||
 			config.model.includes("doubao") ||
+			config.model.includes("seedream") ||
 			config.baseUrl.includes("volces.com");
 
 		const isSiliconFlow =
 			config.provider === "siliconflow" ||
 			config.baseUrl.includes("siliconflow.cn");
 
-		const isDallE =
+		const isOpenAi =
 			config.provider === "openai" ||
 			config.model.includes("dall-e") ||
+			config.model.includes("gpt-image") ||
 			config.baseUrl.includes("openai.com");
 
+		const isNanoBanana =
+			config.provider === "nanobanana" ||
+			config.model.includes("nano-banana") ||
+			config.model.includes("banana");
+
 		// Endpoint selection: if video generation
+		const isGoogleNative =
+			isNanoBanana && config.baseUrl.includes("googleapis.com");
 		const endpoint =
 			mediaType === "video"
 				? `${config.baseUrl}/videos/generations`
-				: `${config.baseUrl}/images/generations`;
+				: isGoogleNative
+					? `${config.baseUrl}/models/${config.model}:predict?key=${encodeURIComponent(config.apiKey)}`
+					: `${config.baseUrl}/images/generations`;
 
 		let requestBody: Record<string, unknown>;
 
@@ -263,33 +312,44 @@ export const generateVisualImage = createServerFn({ method: "POST" })
 			if (data.referenceImage) {
 				requestBody.image = data.referenceImage;
 			}
-		} else if (isDallE) {
-			let dallESize = "1024x1024";
+		} else if (isOpenAi) {
+			let openAiSize = pixelSize || "1024x1024";
 			if (
 				ratio === "9:16" ||
 				ratio === "2:3" ||
 				ratio === "3:4" ||
 				ratio === "4:5"
 			) {
-				dallESize = "1024x1792";
+				openAiSize = "1024x1792";
 			} else if (
 				ratio === "16:9" ||
 				ratio === "3:2" ||
 				ratio === "4:3" ||
 				ratio === "21:9"
 			) {
-				dallESize = "1792x1024";
+				openAiSize = "1792x1024";
 			}
 			requestBody = {
 				model: config.model,
 				prompt,
 				n: 1,
-				size: dallESize,
+				size: openAiSize,
 				quality:
 					quality === "High" || quality === "xHigh" || quality === "Max"
 						? "hd"
 						: "standard",
 				response_format: "url",
+			};
+			if (data.referenceImage) {
+				requestBody.image = data.referenceImage;
+			}
+		} else if (isGoogleNative) {
+			requestBody = {
+				instances: [{ prompt }],
+				parameters: {
+					sampleCount: 1,
+					aspectRatio: ratio === "auto" ? "1:1" : ratio,
+				},
 			};
 		} else {
 			requestBody = {
@@ -327,6 +387,7 @@ export const generateVisualImage = createServerFn({ method: "POST" })
 					success: false,
 					images: [],
 					prompt,
+					userPrompt: rawPrompt,
 					model: config.model,
 					provider: config.provider,
 					error: `[${res.status}] ${parsedMsg}`,
@@ -335,12 +396,22 @@ export const generateVisualImage = createServerFn({ method: "POST" })
 
 			const json = (await res.json()) as {
 				data?: Array<{ url?: string; b64_json?: string; video_url?: string }>;
+				predictions?: Array<{ bytesBase64Encoded?: string; mimeType?: string }>;
 				video_url?: string;
 				url?: string;
 			};
 
-			const rawList =
+			const rawList: Array<{
+				url?: string;
+				b64_json?: string;
+				video_url?: string;
+			}> =
 				json.data ||
+				(json.predictions
+					? json.predictions.map((p) => ({
+							b64_json: p.bytesBase64Encoded,
+						}))
+					: null) ||
 				(json.video_url || json.url
 					? [{ url: json.video_url || json.url }]
 					: []);
@@ -377,6 +448,7 @@ export const generateVisualImage = createServerFn({ method: "POST" })
 					success: false,
 					images: [],
 					prompt,
+					userPrompt: rawPrompt,
 					model: config.model,
 					provider: config.provider,
 					error: "服务商未返回有效的媒体数据，请检查所选模型或提示词。",
@@ -387,6 +459,7 @@ export const generateVisualImage = createServerFn({ method: "POST" })
 				success: true,
 				images: items,
 				prompt,
+				userPrompt: rawPrompt,
 				model: config.model,
 				provider: config.provider,
 			};
@@ -396,6 +469,7 @@ export const generateVisualImage = createServerFn({ method: "POST" })
 				success: false,
 				images: [],
 				prompt,
+				userPrompt: rawPrompt,
 				model: config.model,
 				provider: config.provider,
 				error: `请求多媒体生成服务异常: ${msg}`,

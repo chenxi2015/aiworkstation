@@ -216,7 +216,7 @@ export function EmbeddingSettingsTab({
 					</div>
 					<div className="flex items-center gap-2">
 						<span className="text-sm font-semibold text-foreground">
-							向量当前生效模型：
+							当前默认模型：
 						</span>
 						<span className="text-xs font-mono font-medium text-foreground px-2 py-0.5 rounded-md border border-border/60 bg-transparent">
 							{data.embeddingModel || "BAAI/bge-m3"}
