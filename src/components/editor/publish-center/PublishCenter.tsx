@@ -1,5 +1,10 @@
-import { Button, Drawer, toast } from "@heroui/react";
-import { Loader2, Save, Send } from "lucide-react";
+import { Button, Checkbox, Drawer, Tooltip, toast } from "@heroui/react";
+import {
+	Loader2,
+	RefreshCw,
+	Save,
+	Send,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import {
 	fetchDocumentPublishDraft,
@@ -8,17 +13,20 @@ import {
 	publishToWechat,
 } from "../../../services/api/publishClient";
 import type { PlatformAccountInfo, PublishPlatform } from "../types";
-import { type CoverItem, CoverSection } from "./CoverSection";
+import { PlatformConfigForm } from "./PlatformConfigForm";
 import {
 	copyRedbookText,
 	copyTwitterText,
 	copyZhihuMarkdown,
 } from "./clipboardChannels";
-import { MetadataSection } from "./MetadataSection";
+import { ImagePreviewProvider } from "../../workbench/ai/shared/ImagePreviewModal";
 import {
+	type CoverItem,
+	PLATFORM_METAS,
+	type PlatformPublishConfig,
 	type PlatformPublishResult,
-	PublishPlatformSection,
-} from "./PublishPlatformSection";
+	type PublishCenterDraft,
+} from "./types";
 import { prepareWechatContent } from "./wechatFormatter";
 
 interface PublishCenterProps {
@@ -31,22 +39,9 @@ interface PublishCenterProps {
 	markdown: string;
 }
 
-interface PublishDraft {
-	docId: number;
-	publishTitle: string;
-	tags: string[];
-	author: string;
-	digest: string;
-	covers: CoverItem[];
-	selectedCoverIndex: number;
-	selectedPlatforms: Record<PublishPlatform, boolean>;
-	accountId: number | null;
-	updatedAt: number;
-}
+const getDraftKey = (docId: number) => `publish_center_draft_v2_${docId}`;
 
-const getDraftKey = (docId: number) => `publish_center_draft_${docId}`;
-
-const saveDraftToStorage = (docId: number, data: PublishDraft) => {
+const saveDraftToStorage = (docId: number, data: PublishCenterDraft) => {
 	try {
 		localStorage.setItem(
 			getDraftKey(docId),
@@ -57,7 +52,7 @@ const saveDraftToStorage = (docId: number, data: PublishDraft) => {
 	}
 };
 
-const loadDraftFromStorage = (docId: number): PublishDraft | null => {
+const loadDraftFromStorage = (docId: number): PublishCenterDraft | null => {
 	try {
 		const raw = localStorage.getItem(getDraftKey(docId));
 		if (!raw) return null;
@@ -72,6 +67,58 @@ const loadDraftFromStorage = (docId: number): PublishDraft | null => {
 	}
 };
 
+/**
+ * Creates default configuration dictionary for all supported platforms.
+ */
+function createDefaultConfigs(
+	initialTitle: string,
+	contentText: string,
+	defaultAccountId: number | null,
+): Record<PublishPlatform, PlatformPublishConfig> {
+	const baseTitle = initialTitle || "未命名文章";
+	const baseDigest = contentText.slice(0, 100).trim();
+
+	return {
+		wechat: {
+			enabled: true,
+			title: baseTitle,
+			tags: [],
+			author: "AI Workstation",
+			digest: baseDigest,
+			covers: [],
+			selectedCoverIndex: 0,
+			accountId: defaultAccountId,
+		},
+		redbook: {
+			enabled: true,
+			title: baseTitle.slice(0, 20),
+			tags: [],
+			author: "AI Workstation",
+			digest: "",
+			covers: [],
+			selectedCoverIndex: 0,
+		},
+		zhihu: {
+			enabled: false,
+			title: baseTitle,
+			tags: [],
+			author: "AI Workstation",
+			digest: baseDigest,
+			covers: [],
+			selectedCoverIndex: 0,
+		},
+		twitter: {
+			enabled: false,
+			title: baseTitle,
+			tags: [],
+			author: "AI Workstation",
+			digest: "",
+			covers: [],
+			selectedCoverIndex: 0,
+		},
+	};
+}
+
 export function PublishCenter({
 	isOpen,
 	onClose,
@@ -81,100 +128,134 @@ export function PublishCenter({
 	contentText,
 	markdown,
 }: PublishCenterProps) {
-	// Metadata states - initialized from the specific document props
-	const [publishTitle, setPublishTitle] = useState(
-		initialTitle || "未命名文章",
+	// Active platform tab
+	const [activePlatform, setActivePlatform] = useState<PublishPlatform>("wechat");
+
+	// Multi-platform independent configurations
+	const [configs, setConfigs] = useState<Record<PublishPlatform, PlatformPublishConfig>>(() =>
+		createDefaultConfigs(initialTitle, contentText, null),
 	);
-	const [tags, setTags] = useState<string[]>([]);
-	const [author, setAuthor] = useState("AI Workstation");
-	const [digest, setDigest] = useState(() => contentText.slice(0, 100).trim());
 
-	// Cover images states (4 candidate images)
-	const [covers, setCovers] = useState<CoverItem[]>([]);
-	const [selectedCoverIndex, setSelectedCoverIndex] = useState(0);
-
-	// Platform selection and accounts
-	const [selectedPlatforms, setSelectedPlatforms] = useState<
-		Record<PublishPlatform, boolean>
-	>({
-		wechat: true,
-		redbook: true,
-		zhihu: false,
-		twitter: false,
-	});
-
+	// Accounts and status states
 	const [accounts, setAccounts] = useState<PlatformAccountInfo[]>([]);
-	const [accountId, setAccountId] = useState<number | null>(null);
 	const [isPublishing, setIsPublishing] = useState(false);
 	const [isSavingDraft, setIsSavingDraft] = useState(false);
 
 	// Publishing results tracking
-	const [results, setResults] = useState<
-		Record<PublishPlatform, PlatformPublishResult>
-	>({
+	const [results, setResults] = useState<Record<PublishPlatform, PlatformPublishResult>>({
 		wechat: { platform: "wechat", status: "idle" },
 		redbook: { platform: "redbook", status: "idle" },
 		zhihu: { platform: "zhihu", status: "idle" },
 		twitter: { platform: "twitter", status: "idle" },
 	});
 
-	// Helper to apply draft content to form state
-	const applyDraft = (draft: PublishDraft) => {
-		if (draft.publishTitle) setPublishTitle(draft.publishTitle);
-		if (draft.tags) setTags(draft.tags);
-		if (draft.author) setAuthor(draft.author);
-		if (draft.digest !== undefined) setDigest(draft.digest);
-		// Filter out invalid or legacy auto-generated blank template covers
-		const validCovers = (draft.covers || []).filter(
+	// Apply draft data with smooth backward compatibility
+	const applyDraft = (draft: PublishCenterDraft) => {
+		if (draft.version === 2 && draft.platforms) {
+			setConfigs(draft.platforms);
+			if (draft.activePlatform) setActivePlatform(draft.activePlatform);
+			return;
+		}
+
+		// Backward compatibility for legacy v1 drafts
+		const legacyCovers: CoverItem[] = (draft.covers || []).filter(
 			(c) => Boolean(c?.url?.trim()) && !c.id?.startsWith("template-cover-"),
 		);
-		if (validCovers.length > 0) {
-			setCovers(validCovers);
-			setSelectedCoverIndex(
-				Math.min(draft.selectedCoverIndex ?? 0, validCovers.length - 1),
-			);
-		} else {
-			setCovers([]);
-			setSelectedCoverIndex(0);
-		}
-		if (draft.selectedPlatforms) {
-			setSelectedPlatforms(draft.selectedPlatforms);
-		}
-		if (draft.accountId) {
-			setAccountId(draft.accountId);
-		}
+		const legacySelectedPlatforms = draft.selectedPlatforms || {
+			wechat: true,
+			redbook: true,
+			zhihu: false,
+			twitter: false,
+		};
+
+		const upgraded: Record<PublishPlatform, PlatformPublishConfig> = {
+			wechat: {
+				enabled: Boolean(legacySelectedPlatforms.wechat),
+				title: draft.publishTitle || initialTitle || "未命名文章",
+				tags: draft.tags || [],
+				author: draft.author || "AI Workstation",
+				digest: draft.digest || contentText.slice(0, 100).trim(),
+				covers: legacyCovers,
+				selectedCoverIndex: draft.selectedCoverIndex ?? 0,
+				accountId: draft.accountId ?? null,
+			},
+			redbook: {
+				enabled: Boolean(legacySelectedPlatforms.redbook),
+				title: (draft.publishTitle || initialTitle || "未命名文章").slice(0, 20),
+				tags: draft.tags || [],
+				author: draft.author || "AI Workstation",
+				digest: "",
+				covers: legacyCovers,
+				selectedCoverIndex: draft.selectedCoverIndex ?? 0,
+			},
+			zhihu: {
+				enabled: Boolean(legacySelectedPlatforms.zhihu),
+				title: draft.publishTitle || initialTitle || "未命名文章",
+				tags: draft.tags || [],
+				author: draft.author || "AI Workstation",
+				digest: draft.digest || contentText.slice(0, 100).trim(),
+				covers: legacyCovers,
+				selectedCoverIndex: draft.selectedCoverIndex ?? 0,
+			},
+			twitter: {
+				enabled: Boolean(legacySelectedPlatforms.twitter),
+				title: draft.publishTitle || initialTitle || "未命名文章",
+				tags: draft.tags || [],
+				author: draft.author || "AI Workstation",
+				digest: "",
+				covers: legacyCovers,
+				selectedCoverIndex: draft.selectedCoverIndex ?? 0,
+			},
+		};
+
+		setConfigs(upgraded);
 	};
 
-	// Reset to initial document state if no draft exists
-	const resetToCleanDocState = () => {
-		setPublishTitle(initialTitle || "未命名文章");
-		setTags([]);
-		setAuthor("AI Workstation");
-		setDigest(contentText.slice(0, 100).trim());
-		setCovers([]);
-		setSelectedCoverIndex(0);
+	// Reset state when opening clean document
+	const resetCleanState = (wechatAccountId: number | null) => {
+		setConfigs(createDefaultConfigs(initialTitle, contentText, wechatAccountId));
+		setActivePlatform("wechat");
 	};
 
-	// Synchronize initial document title & digest, or restore saved draft from DB / cache
+	// Synchronize on drawer open
 	useEffect(() => {
 		if (isOpen) {
-			// 1. Fast restore from localStorage cache for this specific document
+			let defaultAccId: number | null = null;
+
+			// Fetch accounts
+			fetchPlatformAccounts().then((all) => {
+				const wechat = all.filter(
+					(a) => a.platform === "wechat-mp" && a.status === "active",
+				);
+				setAccounts(wechat);
+				if (wechat.length > 0) {
+					defaultAccId = wechat[0].id;
+					setConfigs((prev) => ({
+						...prev,
+						wechat: {
+							...prev.wechat,
+							accountId: prev.wechat.accountId ?? defaultAccId,
+						},
+					}));
+				}
+			});
+
+			// Restore from local cache first
 			const localDraft = loadDraftFromStorage(documentId);
 			if (localDraft) {
 				applyDraft(localDraft);
 			} else {
-				// Clean reset for document without draft
-				resetToCleanDocState();
+				resetCleanState(defaultAccId);
 			}
 
-			// 2. Authoritative sync from backend SQLite database for this documentId
+			// Restore from SQLite backend database
 			fetchDocumentPublishDraft(documentId).then((dbDraftJson) => {
 				if (dbDraftJson) {
 					try {
-						const dbDraft = JSON.parse(dbDraftJson) as PublishDraft;
+						const dbDraft = JSON.parse(dbDraftJson) as PublishCenterDraft;
 						if (dbDraft && (!dbDraft.docId || dbDraft.docId === documentId)) {
 							applyDraft(dbDraft);
-							saveDraftToStorage(documentId, { ...dbDraft, docId: documentId });
+							saveDraftToStorage(documentId, { ...dbDraft, docId: documentId, version: 2 });
 						}
 					} catch (e) {
 						console.warn("[PublishCenter] parse database draft error:", e);
@@ -182,88 +263,128 @@ export function PublishCenter({
 				}
 			});
 
-			// Reset platform result states
+			// Reset results
 			setResults({
 				wechat: { platform: "wechat", status: "idle" },
 				redbook: { platform: "redbook", status: "idle" },
 				zhihu: { platform: "zhihu", status: "idle" },
 				twitter: { platform: "twitter", status: "idle" },
 			});
-
-			// Load WeChat platform accounts
-			fetchPlatformAccounts().then((all) => {
-				const wechat = all.filter(
-					(a) => a.platform === "wechat-mp" && a.status === "active",
-				);
-				setAccounts(wechat);
-				if (wechat.length > 0 && !localDraft?.accountId) {
-					setAccountId(wechat[0].id);
-				}
-			});
 		}
 	}, [isOpen, documentId, initialTitle, contentText]);
 
-	// Toggle platform selection
-	const handleTogglePlatform = (platform: PublishPlatform) => {
-		setSelectedPlatforms((prev) => ({
+	// Update specific platform config
+	const handleUpdatePlatformConfig = (
+		platform: PublishPlatform,
+		updater: (prev: PlatformPublishConfig) => PlatformPublishConfig,
+	) => {
+		setConfigs((prev) => ({
 			...prev,
-			[platform]: !prev[platform],
+			[platform]: updater(prev[platform]),
 		}));
 	};
 
-	// Execute multi-platform publishing
+	// Toggle platform enabled for publishing
+	const handleTogglePlatformEnabled = (platform: PublishPlatform, e?: React.MouseEvent) => {
+		e?.stopPropagation();
+		setConfigs((prev) => ({
+			...prev,
+			[platform]: {
+				...prev[platform],
+				enabled: !prev[platform].enabled,
+			},
+		}));
+	};
+
+	// Sync content from WeChat platform to current target platform
+	const handleSyncFromWechat = (target: PublishPlatform) => {
+		const wechatConfig = configs.wechat;
+		setConfigs((prev) => {
+			const targetMeta = PLATFORM_METAS.find((m) => m.id === target);
+			const titleLimit = targetMeta?.titleMaxLength ?? 100;
+			return {
+				...prev,
+				[target]: {
+					...prev[target],
+					title: wechatConfig.title.slice(0, titleLimit),
+					tags: [...wechatConfig.tags],
+					author: wechatConfig.author,
+					digest: wechatConfig.digest,
+					covers: [...wechatConfig.covers],
+					selectedCoverIndex: wechatConfig.selectedCoverIndex,
+				},
+			};
+		});
+		toast.success(`已从微信公众号同步标题、标签与封面至【${PLATFORM_METAS.find((m) => m.id === target)?.name}】`);
+	};
+
+	// Confirm multi-platform publishing
 	const handleConfirmPublish = async () => {
+		const activePlatforms = Object.entries(configs).filter(
+			([_, cfg]) => cfg.enabled,
+		) as [PublishPlatform, PlatformPublishConfig][];
+
+		if (activePlatforms.length === 0) {
+			toast.warning("请至少勾选一个发布目标平台");
+			return;
+		}
+
 		setIsPublishing(true);
-		const selectedCover = covers[selectedCoverIndex]?.url || "";
 		const nowTime = new Date().toLocaleTimeString("zh-CN", {
 			hour: "2-digit",
 			minute: "2-digit",
 		});
 
-		// 1. WeChat Official Account Publishing
-		if (selectedPlatforms.wechat) {
+		for (const [platform, cfg] of activePlatforms) {
 			setResults((prev) => ({
 				...prev,
-				wechat: { platform: "wechat", status: "publishing", time: nowTime },
+				[platform]: { platform, status: "publishing", time: nowTime },
 			}));
 
-			if (!accountId) {
-				setResults((prev) => ({
-					...prev,
-					wechat: {
-						platform: "wechat",
-						status: "error",
-						message: "发布失败：未选择公众号账号，请在设置中心绑定公众号",
-						time: nowTime,
-					},
-				}));
-			} else if (!selectedCover) {
-				setResults((prev) => ({
-					...prev,
-					wechat: {
-						platform: "wechat",
-						status: "error",
-						message: "发布失败：请先生成或选择一张封面图",
-						time: nowTime,
-					},
-				}));
-			} else {
-				try {
-					// 预处理微信正文：图片转码为标准 PNG 并内联注入微信排版样式
-					const preparedContentHtml = await prepareWechatContent(contentHtml);
+			const selectedCover = cfg.covers[cfg.selectedCoverIndex]?.url || "";
 
+			// 1. WeChat Official Account
+			if (platform === "wechat") {
+				if (!cfg.accountId) {
+					setResults((prev) => ({
+						...prev,
+						wechat: {
+							platform: "wechat",
+							status: "error",
+							message: "发布失败：未选择公众号账号，请在设置中心绑定",
+							time: nowTime,
+						},
+					}));
+					continue;
+				}
+				if (!selectedCover) {
+					setResults((prev) => ({
+						...prev,
+						wechat: {
+							platform: "wechat",
+							status: "error",
+							message: "发布失败：请先生成或选择一张封面图",
+							time: nowTime,
+						},
+					}));
+					continue;
+				}
+
+				try {
+					const preparedContentHtml = await prepareWechatContent(contentHtml);
 					const record = await publishToWechat({
 						documentId,
-						accountId,
-						title: publishTitle,
-						author: author.trim() || "AI Workstation",
-						digest: digest.trim(),
+						accountId: cfg.accountId,
+						title: cfg.title,
+						author: cfg.author.trim() || "AI Workstation",
+						digest: cfg.digest.trim(),
 						contentHtml: preparedContentHtml,
 						coverImageDataUrl: selectedCover,
-						tags,
+						tags: cfg.tags,
 						publishMode: "draft",
 						confirmed: true,
 					});
+
 					setResults((prev) => ({
 						...prev,
 						wechat: {
@@ -288,137 +409,113 @@ export function PublishCenter({
 					}));
 				}
 			}
-		}
 
-		// 2. RedBook Publishing Package (Copy title, body, topics to clipboard)
-		if (selectedPlatforms.redbook) {
-			setResults((prev) => ({
-				...prev,
-				redbook: { platform: "redbook", status: "publishing", time: nowTime },
-			}));
-			try {
-				await copyRedbookText({
-					title: publishTitle.slice(0, 20),
-					body: contentText.slice(0, 1000),
-					topics: tags.slice(0, 6),
-				});
-				setResults((prev) => ({
-					...prev,
-					redbook: {
-						platform: "redbook",
-						status: "success",
-						message: "小红书图文文案与标签话题已复制到剪贴板，封面图已就绪",
-						time: nowTime,
-					},
-				}));
-			} catch (err) {
-				setResults((prev) => ({
-					...prev,
-					redbook: {
-						platform: "redbook",
-						status: "error",
-						message: `处理失败：${err instanceof Error ? err.message : String(err)}`,
-						time: nowTime,
-					},
-				}));
+			// 2. RedBook Publish Package
+			if (platform === "redbook") {
+				try {
+					await copyRedbookText({
+						title: cfg.title.slice(0, 20),
+						body: contentText.slice(0, 1000),
+						topics: cfg.tags.slice(0, 6),
+					});
+					setResults((prev) => ({
+						...prev,
+						redbook: {
+							platform: "redbook",
+							status: "success",
+							message: "小红书图文文案与标签话题已复制到剪贴板，封面已就绪",
+							time: nowTime,
+						},
+					}));
+				} catch (err) {
+					setResults((prev) => ({
+						...prev,
+						redbook: {
+							platform: "redbook",
+							status: "error",
+							message: `处理失败：${err instanceof Error ? err.message : String(err)}`,
+							time: nowTime,
+						},
+					}));
+				}
 			}
-		}
 
-		// 3. Zhihu Publishing Package
-		if (selectedPlatforms.zhihu) {
-			setResults((prev) => ({
-				...prev,
-				zhihu: { platform: "zhihu", status: "publishing", time: nowTime },
-			}));
-			try {
-				await copyZhihuMarkdown(
-					{
-						title: publishTitle,
-						intro: digest || contentText.slice(0, 100),
-					},
-					markdown,
-				);
-				setResults((prev) => ({
-					...prev,
-					zhihu: {
-						platform: "zhihu",
-						status: "success",
-						message: "知乎专栏 Markdown 内容已复制到剪贴板",
-						time: nowTime,
-					},
-				}));
-			} catch (err) {
-				setResults((prev) => ({
-					...prev,
-					zhihu: {
-						platform: "zhihu",
-						status: "error",
-						message: `处理失败：${err instanceof Error ? err.message : String(err)}`,
-						time: nowTime,
-					},
-				}));
+			// 3. Zhihu Publish Package
+			if (platform === "zhihu") {
+				try {
+					await copyZhihuMarkdown(
+						{
+							title: cfg.title,
+							intro: cfg.digest || contentText.slice(0, 100),
+						},
+						markdown,
+					);
+					setResults((prev) => ({
+						...prev,
+						zhihu: {
+							platform: "zhihu",
+							status: "success",
+							message: "知乎专栏 Markdown 内容已复制到剪贴板",
+							time: nowTime,
+						},
+					}));
+				} catch (err) {
+					setResults((prev) => ({
+						...prev,
+						zhihu: {
+							platform: "zhihu",
+							status: "error",
+							message: `处理失败：${err instanceof Error ? err.message : String(err)}`,
+							time: nowTime,
+						},
+					}));
+				}
 			}
-		}
 
-		// 4. X (Twitter) Publishing Package
-		if (selectedPlatforms.twitter) {
-			setResults((prev) => ({
-				...prev,
-				twitter: { platform: "twitter", status: "publishing", time: nowTime },
-			}));
-			try {
-				const tweetText = `${publishTitle}\n\n${contentText.slice(0, 180)}...\n\n${tags.map((t) => `#${t}`).join(" ")}`;
-				await copyTwitterText({
-					text: tweetText.slice(0, 260),
-				});
-				setResults((prev) => ({
-					...prev,
-					twitter: {
-						platform: "twitter",
-						status: "success",
-						message: "推文短文案已复制到剪贴板",
-						time: nowTime,
-					},
-				}));
-			} catch (err) {
-				setResults((prev) => ({
-					...prev,
-					twitter: {
-						platform: "twitter",
-						status: "error",
-						message: `处理失败：${err instanceof Error ? err.message : String(err)}`,
-						time: nowTime,
-					},
-				}));
+			// 4. X (Twitter) Publish Package
+			if (platform === "twitter") {
+				try {
+					const tweetText = `${cfg.title}\n\n${contentText.slice(0, 180)}...\n\n${cfg.tags.map((t) => `#${t}`).join(" ")}`;
+					await copyTwitterText({
+						text: tweetText.slice(0, 260),
+					});
+					setResults((prev) => ({
+						...prev,
+						twitter: {
+							platform: "twitter",
+							status: "success",
+							message: "推文短文案已复制到剪贴板",
+							time: nowTime,
+						},
+					}));
+				} catch (err) {
+					setResults((prev) => ({
+						...prev,
+						twitter: {
+							platform: "twitter",
+							status: "error",
+							message: `处理失败：${err instanceof Error ? err.message : String(err)}`,
+							time: nowTime,
+						},
+					}));
+				}
 			}
 		}
 
 		setIsPublishing(false);
-		toast.success("发布流程已执行完毕，请查看下方结果");
+		toast.success("已完成所选平台的发布流程，请查看结果反馈");
 	};
 
-	// Retry single platform
-	const handleRetryPlatform = async (platform: PublishPlatform) => {
-		if (platform === "wechat") {
-			await handleConfirmPublish();
-		}
-	};
-
-	// Save current state as publish draft into SQLite database & local cache
+	// Save draft to storage and database
 	const handleSaveDraft = async (showToast = true) => {
-		const draftData: PublishDraft = {
+		const draftData: PublishCenterDraft = {
 			docId: documentId,
-			publishTitle,
-			tags,
-			author,
-			digest,
-			covers,
-			selectedCoverIndex,
-			selectedPlatforms,
-			accountId,
+			version: 2,
+			activePlatform,
+			platforms: configs,
 			updatedAt: Date.now(),
 		};
-		// Cache locally first for instant resilience
+
 		saveDraftToStorage(documentId, draftData);
 
 		if (showToast) setIsSavingDraft(true);
@@ -429,7 +526,7 @@ export function PublishCenter({
 			);
 			if (showToast) {
 				if (ok) {
-					toast.success("草稿已成功保存到数据库");
+					toast.success("各平台独立草稿已保存到数据库");
 				} else {
 					toast.success("草稿已保存到本地缓存");
 				}
@@ -442,29 +539,30 @@ export function PublishCenter({
 		}
 	};
 
-	// Close with silent auto-save to database
+	// Close with silent auto-save
 	const handleCloseWithSave = () => {
-		if (covers.length > 0 || tags.length > 0 || publishTitle !== initialTitle) {
-			handleSaveDraft(false);
-		}
+		handleSaveDraft(false);
 		onClose();
 	};
 
-	const hasSelected = Object.values(selectedPlatforms).some(Boolean);
+	const enabledCount = Object.values(configs).filter((c) => c.enabled).length;
+	const currentMeta = PLATFORM_METAS.find((m) => m.id === activePlatform)!;
+	const currentConfig = configs[activePlatform];
 
 	return (
-		<Drawer.Backdrop
-			isOpen={isOpen}
-			onOpenChange={(open) => {
-				if (!open) handleCloseWithSave();
-			}}
-			variant="blur"
-			isDismissable
-		>
+		<ImagePreviewProvider>
+			<Drawer.Backdrop
+				isOpen={isOpen}
+				onOpenChange={(open) => {
+					if (!open) handleCloseWithSave();
+				}}
+				variant="blur"
+				isDismissable
+			>
 			<Drawer.Content placement="right">
 				<Drawer.Dialog className="h-full w-[94vw]! sm:w-[680px]! md:w-[740px]! bg-surface flex flex-col shadow-2xl border-l border-border">
 					{/* Drawer Header */}
-					<Drawer.Header className="flex flex-row items-center justify-between border-b border-border pb-3.5 shrink-0">
+					<Drawer.Header className="flex flex-row items-center justify-between border-b border-border pb-3 shrink-0">
 						<div className="flex items-center gap-2.5">
 							<div className="w-8 h-8 rounded-xl bg-accent-soft text-accent flex items-center justify-center shrink-0">
 								<Send className="w-4 h-4" />
@@ -475,72 +573,119 @@ export function PublishCenter({
 										一键发布
 									</Drawer.Heading>
 									<span
-										className="text-[11px] px-2 py-0.5 rounded-full bg-accent/10 text-accent font-medium max-w-[220px] truncate"
+										className="text-[11px] px-2 py-0.5 rounded-full bg-accent/10 text-accent font-medium max-w-[200px] truncate"
 										title={initialTitle}
 									>
 										{initialTitle || "未命名文档"}
 									</span>
 								</div>
 								<p className="text-xs text-muted">
-									生成精选封面 · AI 提炼标题与标签 · 多平台直发
+									各平台独立配置 · 灵活复用 · 多平台一键直发
 								</p>
 							</div>
 						</div>
 						<Drawer.CloseTrigger />
 					</Drawer.Header>
 
-					{/* Drawer Body with Clean Flowing Sections */}
-					<Drawer.Body className="p-6 flex-1 overflow-y-auto space-y-6">
-						{/* 1. Cover Section (4 Candidates, AI / Skills / Template) */}
-						<section className="space-y-2">
-							<CoverSection
-								title={publishTitle}
-								contentText={contentText}
-								authorName={author}
-								covers={covers}
-								selectedCoverIndex={selectedCoverIndex}
-								onSelectCover={setSelectedCoverIndex}
-								onCoversChange={setCovers}
-							/>
-						</section>
+					{/* Top Platform Tabs Bar */}
+					<div className="border-b border-border bg-surface-secondary/30 px-5 pt-3 pb-2.5 shrink-0">
+						<div className="flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
+							<div className="flex items-center gap-1.5 min-w-0">
+								{PLATFORM_METAS.map((meta) => {
+									const isCurrent = activePlatform === meta.id;
+									const isEnabled = configs[meta.id].enabled;
 
-						{/* 2. Metadata Section (Title & Tags with individual AI buttons) */}
-						<section className="space-y-2">
-							<MetadataSection
-								title={publishTitle}
-								onTitleChange={setPublishTitle}
-								tags={tags}
-								onTagsChange={setTags}
-								author={author}
-								onAuthorChange={setAuthor}
-								digest={digest}
-								onDigestChange={setDigest}
-								contentText={contentText}
-							/>
-						</section>
+									return (
+										<div
+											key={meta.id}
+											onClick={() => setActivePlatform(meta.id)}
+											className={`group relative flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium cursor-pointer transition-all select-none border ${
+												isCurrent
+													? "bg-surface text-foreground border-accent shadow-xs ring-1 ring-accent/20"
+													: "bg-surface/50 text-muted hover:text-foreground hover:bg-surface border-border/80"
+											}`}
+										>
+											{/* Platform Publish Checkbox */}
+											<div onClick={(e) => handleTogglePlatformEnabled(meta.id, e)}>
+												<Checkbox
+													isSelected={isEnabled}
+													onChange={() => handleTogglePlatformEnabled(meta.id)}
+													aria-label={`发布到 ${meta.name}`}
+													variant="secondary"
+												>
+													<Checkbox.Content>
+														<Checkbox.Control>
+															<Checkbox.Indicator />
+														</Checkbox.Control>
+													</Checkbox.Content>
+												</Checkbox>
+											</div>
 
-						{/* 3. Multi-platform Selection and Results */}
-						<section className="space-y-2">
-							<PublishPlatformSection
-								selectedPlatforms={selectedPlatforms}
-								onTogglePlatform={handleTogglePlatform}
-								accounts={accounts}
-								selectedAccountId={accountId}
-								onSelectAccountId={setAccountId}
-								results={results}
-								onRetryPlatform={handleRetryPlatform}
-							/>
-						</section>
+											{/* Icon & Label */}
+											<div className="w-4 h-4 rounded shrink-0 overflow-hidden flex items-center justify-center">
+												<img
+													src={meta.iconPath}
+													alt={meta.name}
+													className="w-full h-full object-contain"
+												/>
+											</div>
+											<span className="truncate">{meta.name}</span>
+
+											{/* Enabled dot indicator */}
+											{isEnabled && (
+												<span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
+											)}
+										</div>
+									);
+								})}
+							</div>
+
+							{/* Quick sync button for non-wechat platforms */}
+							{activePlatform !== "wechat" && (
+								<Tooltip>
+									<Tooltip.Trigger>
+										<Button
+											size="sm"
+											variant="ghost"
+											onPress={() => handleSyncFromWechat(activePlatform)}
+											className="h-7 px-2 text-[11px] font-medium text-accent hover:bg-accent/10 rounded-lg shrink-0"
+										>
+											<RefreshCw className="w-3 h-3 mr-1" />
+											从公众号同步
+										</Button>
+									</Tooltip.Trigger>
+									<Tooltip.Content className="text-xs py-1 px-2">
+										复用微信公众号设置的标题、标签与封面
+									</Tooltip.Content>
+								</Tooltip>
+							)}
+						</div>
+					</div>
+
+					{/* Drawer Body - Active Platform Configuration Form */}
+					<Drawer.Body className="p-6 flex-1 overflow-y-auto">
+						<PlatformConfigForm
+							key={activePlatform}
+							meta={currentMeta}
+							config={currentConfig}
+							onChangeConfig={(updater) =>
+								handleUpdatePlatformConfig(activePlatform, updater)
+							}
+							contentText={contentText}
+							accounts={accounts}
+							result={results[activePlatform]}
+							onRetry={handleConfirmPublish}
+						/>
 					</Drawer.Body>
 
 					{/* Drawer Footer with Fixed Publish Action */}
 					<Drawer.Footer className="border-t border-border pt-3.5 flex items-center justify-between shrink-0 bg-surface">
 						<span className="text-xs text-muted">
 							已选{" "}
-							<span className="font-medium text-foreground">
-								{Object.values(selectedPlatforms).filter(Boolean).length}
+							<span className="font-semibold text-foreground">
+								{enabledCount}
 							</span>{" "}
-							个平台 · 选定封面自动同步发布
+							个平台 · 基于各平台专属配置一键同步
 						</span>
 
 						<div className="flex items-center gap-2">
@@ -566,7 +711,7 @@ export function PublishCenter({
 								size="sm"
 								variant="primary"
 								isPending={isPublishing}
-								isDisabled={!hasSelected || isPublishing}
+								isDisabled={enabledCount === 0 || isPublishing}
 								onPress={handleConfirmPublish}
 								className="rounded-lg h-8 px-5 text-xs font-semibold shadow-xs"
 							>
@@ -582,5 +727,6 @@ export function PublishCenter({
 				</Drawer.Dialog>
 			</Drawer.Content>
 		</Drawer.Backdrop>
-	);
+	</ImagePreviewProvider>
+);
 }

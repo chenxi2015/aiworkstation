@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
-import { requestAiCoverImages } from "../../../services/api/publishClient";
+import { requestVisualImageGeneration } from "../../../services/api/visualGenClient";
 import { fetchSkillsOverview } from "../../../services/api/skillsClient";
 import { WorkbenchStorageService } from "../../../services/workbenchStorage";
 import type { ProviderModelConfig } from "../types";
@@ -278,9 +278,9 @@ export function MediaModelSettingsTab({
 
 		setTestingConnection(true);
 		try {
-			const res = await requestAiCoverImages({
-				title: "测试生图连通性",
-				contentText: "这是一条测试生图 API 接口连通性的验证请求。",
+			const res = await requestVisualImageGeneration({
+				prompt: "测试生图连通性：极简现代商业海报设计，发光的立方体，柔和环境光影，1k",
+				mediaType: "image",
 				configOverrides: {
 					provider: editingProviderId,
 					apiKey: apiKeyToTest,
@@ -289,7 +289,7 @@ export function MediaModelSettingsTab({
 				},
 			});
 
-			if (res.aiGenerated && res.images.length > 0) {
+			if (res.success && res.images && res.images.length > 0) {
 				toast.success("生图 API 连接成功！已成功返回测试生成结果");
 			} else {
 				toast.danger(`连接测试未成功：${res.error || "未返回图片数据"}`);

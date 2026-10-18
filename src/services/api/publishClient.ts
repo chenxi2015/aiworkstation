@@ -14,10 +14,7 @@ import {
 	type WechatPublishInput,
 } from "../../server/functions/publish";
 import {
-	generateAiCoverImages,
 	generatePublishMetadata,
-	type GenerateAiCoversInput,
-	type CoverImageResultItem,
 	type PublishMetadataInput,
 } from "../../server/functions/publishAi";
 
@@ -74,17 +71,6 @@ export async function requestPublishMetadata(input: PublishMetadataInput): Promi
 }> {
 	return generatePublishMetadata({ data: input });
 }
-
-/** 调用生图模型生成封面图 */
-export async function requestAiCoverImages(input: GenerateAiCoversInput): Promise<{
-	images: CoverImageResultItem[];
-	prompt: string;
-	aiGenerated: boolean;
-	error?: string;
-}> {
-	return generateAiCoverImages({ data: input });
-}
-export type { CoverImageResultItem };
 
 /** 从数据库获取文档的发布中心草稿 */
 export async function fetchDocumentPublishDraft(
