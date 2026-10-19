@@ -1,5 +1,6 @@
 import { Tooltip, toast } from "@heroui/react";
 import {
+	AlertCircle,
 	Check,
 	Copy,
 	Download,
@@ -73,6 +74,7 @@ export const VisualChatTurnItem = memo(function VisualChatTurnItem({
 }: VisualChatTurnItemProps) {
 	const { openPreview } = useImagePreview();
 	const [isImageLoaded, setIsImageLoaded] = useState(false);
+	const [isLoadError, setIsLoadError] = useState(false);
 	const [isEditing, setIsEditing] = useState(false);
 	const [copied, setCopied] = useState(false);
 
@@ -244,8 +246,12 @@ export const VisualChatTurnItem = memo(function VisualChatTurnItem({
 									</div>
 								</Tooltip.Trigger>
 								<Tooltip.Content className="max-w-[280px] text-[11px] p-2 leading-relaxed">
-									<div className="font-medium text-foreground mb-1">底层生图提示词：</div>
-									<div className="text-muted line-clamp-4 select-text">{item.prompt}</div>
+									<div className="font-medium text-foreground mb-1">
+										底层生图提示词：
+									</div>
+									<div className="text-muted line-clamp-4 select-text">
+										{item.prompt}
+									</div>
 								</Tooltip.Content>
 							</Tooltip>
 						)}
@@ -345,7 +351,7 @@ export const VisualChatTurnItem = memo(function VisualChatTurnItem({
 								}}
 							>
 								{/* Animated gradient placeholder when image is loading */}
-								{!isImageLoaded && (
+								{!isImageLoaded && !isLoadError && (
 									<div className="absolute inset-0 bg-gradient-to-r from-blue-400/25 via-purple-400/30 to-pink-400/25 animate-visual-gradient flex items-center justify-center">
 										{/* Shimmer sweep effect */}
 										<div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-visual-shimmer pointer-events-none" />
@@ -356,23 +362,39 @@ export const VisualChatTurnItem = memo(function VisualChatTurnItem({
 									</div>
 								)}
 
-								{/* biome-ignore lint/a11y/useKeyWithClickEvents: preview triggered by image click */}
-								<img
-									src={item.url}
-									alt={item.prompt}
-									loading="lazy"
-									onLoad={() => setIsImageLoaded(true)}
-									className={`w-full max-h-[380px] rounded-2xl object-contain transition-all duration-300 group-hover:scale-[1.01] cursor-pointer ${
-										isImageLoaded ? "opacity-100" : "opacity-0"
-									}`}
-									onClick={() =>
-										openPreview({
-											src: item.url,
-											title: item.prompt,
-											subtitle: `${item.model} · ${item.aspectRatio} · ${item.resolution}`,
-										})
-									}
-								/>
+								{isLoadError ? (
+									<div className="w-full py-10 px-4 flex flex-col items-center justify-center gap-2 text-center bg-surface-secondary/40 rounded-2xl border border-dashed border-border/60">
+										<AlertCircle className="w-5 h-5 text-amber-500/80" />
+										<span className="text-xs text-foreground font-medium">
+											媒体资源已失效或无法访问
+										</span>
+										<span className="text-[10px] text-muted max-w-[260px] leading-relaxed">
+											远端临时链接已超时过期，建议输入提示词重新生成
+										</span>
+									</div>
+								) : (
+									/* biome-ignore lint/a11y/useKeyWithClickEvents: preview triggered by image click */
+									<img
+										src={item.url}
+										alt={item.prompt}
+										loading="lazy"
+										onLoad={() => setIsImageLoaded(true)}
+										onError={() => {
+											setIsLoadError(true);
+											setIsImageLoaded(true);
+										}}
+										className={`w-full max-h-[380px] rounded-2xl object-contain transition-all duration-300 group-hover:scale-[1.01] cursor-pointer ${
+											isImageLoaded ? "opacity-100" : "opacity-0"
+										}`}
+										onClick={() =>
+											openPreview({
+												src: item.url,
+												title: item.prompt,
+												subtitle: `${item.model} · ${item.aspectRatio} · ${item.resolution}`,
+											})
+										}
+									/>
+								)}
 							</div>
 						)}
 
@@ -453,6 +475,11 @@ export const VisualChatTurnItem = memo(function VisualChatTurnItem({
 					{/* Minimalist Metadata Footer */}
 					<div className="px-3 py-1.5 flex items-center justify-between text-[10px] text-muted/70 select-none border-t border-border/30">
 						<div className="flex items-center gap-1.5">
+							{item.url.startsWith("/api/files/") && (
+								<span className="text-emerald-600 dark:text-emerald-400 font-medium">
+									本地存储
+								</span>
+							)}
 							{item.mediaType === "video" && (
 								<span className="text-purple-600 dark:text-purple-400 font-medium">
 									视频

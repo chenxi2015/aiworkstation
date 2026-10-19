@@ -61,3 +61,15 @@ export function getMaterialAssetsDir(materialId: number): string {
 export function getDocumentAssetsDir(documentId: number): string {
 	return join(getFilesRootDir(), "editor", "documents", String(documentId));
 }
+
+/** AI 视觉生成媒体保存目录：<filesRootDir>/visual/<images|videos> */
+export function getVisualMediaDir(
+	mediaType: "image" | "video" = "image",
+): string {
+	return join(
+		getFilesRootDir(),
+		"visual",
+		mediaType === "video" ? "videos" : "images",
+	);
+}
+

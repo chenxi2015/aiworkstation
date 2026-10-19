@@ -10,6 +10,7 @@ import {
 	resolveImageGenConfig,
 	resolveLlmConfig,
 } from "../ai/context/config.ts";
+import { persistVisualMediaLocally } from "../services/visualMediaStorage.ts";
 
 export interface GenerateVisualImageInput {
 	prompt: string;
@@ -455,9 +456,23 @@ export const generateVisualImage = createServerFn({ method: "POST" })
 				};
 			}
 
+			// Persist all generated images/videos to local filesRootDir/visual/...
+			const persistedItems = await Promise.all(
+				items.map(async (img) => {
+					const localUrl = await persistVisualMediaLocally(
+						img.url,
+						img.mediaType || mediaType,
+					);
+					return {
+						...img,
+						url: localUrl,
+					};
+				}),
+			);
+
 			return {
 				success: true,
-				images: items,
+				images: persistedItems,
 				prompt,
 				userPrompt: rawPrompt,
 				model: config.model,
@@ -475,4 +490,17 @@ export const generateVisualImage = createServerFn({ method: "POST" })
 				error: `请求多媒体生成服务异常: ${msg}`,
 			};
 		}
+	});
+
+/**
+ * Server Function: Localize a remote visual media URL into filesRootDir and return local route
+ */
+export const localizeVisualMediaFn = createServerFn({ method: "POST" })
+	.validator((data: { url: string; mediaType?: VisualMediaType }) => data)
+	.handler(async ({ data }): Promise<{ url: string }> => {
+		const localUrl = await persistVisualMediaLocally(
+			data.url,
+			data.mediaType || "image",
+		);
+		return { url: localUrl };
 	});

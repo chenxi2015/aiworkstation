@@ -27,9 +27,9 @@ import type { ChatContextItem } from "../../types/chatContext";
 import type { PageBridge } from "../../types/pageBridge";
 import { LoginModal } from "../cloud/LoginModal";
 import {
-	ChatWithBookmarksPanel,
-	type ChatWithBookmarksPanelRef,
-} from "../workbench/ai/chat/ChatWithBookmarksPanel";
+	AiAssistantPanel,
+	type AiAssistantPanelRef,
+} from "../workbench/ai/AiAssistantPanel";
 import {
 	WorkbenchDndProvider,
 	type WorkbenchDragData,
@@ -110,10 +110,10 @@ export interface AiPanelPageData {
 }
 
 export interface AiPanelApi {
-	sendPrompt: ChatWithBookmarksPanelRef["sendPrompt"];
+	sendPrompt: AiAssistantPanelRef["sendPrompt"];
 	focusInput: () => void;
 	openSearchTab: () => void;
-	openChatTab: ChatWithBookmarksPanelRef["openChatTab"];
+	openChatTab: AiAssistantPanelRef["openChatTab"];
 	addContextItem: (item: ChatContextItem) => void;
 	setScope: (scope: AiPanelScope) => void;
 	setPageData: (data: AiPanelPageData | null) => void;
@@ -189,7 +189,7 @@ export function AppShell({
 }) {
 	const router = useRouter();
 	const { isLoggedIn, isInitializing } = useCloudAuth();
-	const panelRef = useRef<ChatWithBookmarksPanelRef>(null);
+	const panelRef = useRef<AiAssistantPanelRef>(null);
 	const { panelWidth, isResizing, handleResizeStart } = useAiPanelResize();
 
 	const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -442,7 +442,7 @@ export function AppShell({
 							isCollapsed ? "ai-panel-hidden" : ""
 						} ${isResizing ? "" : "transition-[width] duration-300 ease-out"}`}
 					>
-						<ChatWithBookmarksPanel
+						<AiAssistantPanel
 							ref={panelRef}
 							panelWidth={panelWidth}
 							onResizeStart={handleResizeStart}

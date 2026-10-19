@@ -62,6 +62,34 @@ export interface ElectronAPI {
 	}>;
 	setWindowMode?: (mode: "login" | "main") => Promise<{ success: boolean }>;
 	getPathForFile?: (file: File) => string;
+	openRedbookLogin?: () => Promise<{
+		success: boolean;
+		user?: { id?: string; nickname?: string; avatar?: string };
+		error?: string;
+	}>;
+	switchRedbookAccount?: () => Promise<{
+		success: boolean;
+		user?: { id?: string; nickname?: string; avatar?: string };
+		error?: string;
+	}>;
+	checkRedbookStatus?: () => Promise<{
+		isLoggedIn: boolean;
+		user?: { id?: string; nickname?: string; avatar?: string };
+	}>;
+	openRedbookCreatorPage?: (url?: string) => Promise<{ success: boolean }>;
+	logoutRedbook?: () => Promise<{ success: boolean }>;
+	publishToRedbook?: (payload: {
+		title: string;
+		content: string;
+		topics?: string[];
+		images: string[];
+		mode?: "auto" | "fill_only";
+	}) => Promise<{
+		success: boolean;
+		mode?: "auto" | "fill_only";
+		message?: string;
+		error?: string;
+	}>;
 }
 
 declare global {

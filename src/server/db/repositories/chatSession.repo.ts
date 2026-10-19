@@ -51,25 +51,30 @@ export class ChatSessionRepository {
 			updated_at: string;
 		}>;
 
-		return rows.map((row) => {
-			let parsedMessages: T[] = [];
-			try {
-				parsedMessages = JSON.parse(row.messages || "[]");
-			} catch (err) {
-				console.warn(
-					`[ChatSessionRepository] Failed to parse messages for session ${row.id}:`,
-					err,
-				);
-			}
+		return rows
+			.map((row) => {
+				let parsedMessages: T[] = [];
+				try {
+					parsedMessages = JSON.parse(row.messages || "[]");
+				} catch (err) {
+					console.warn(
+						`[ChatSessionRepository] Failed to parse messages for session ${row.id}:`,
+						err,
+					);
+				}
 
-			return {
-				id: row.id,
-				title: row.title,
-				createdAt: row.created_at,
-				updatedAt: row.updated_at,
-				messages: sanitizeSessionMessages(parsedMessages),
-			};
-		});
+				return {
+					id: row.id,
+					title: row.title,
+					createdAt: row.created_at,
+					updatedAt: row.updated_at,
+					messages: sanitizeSessionMessages(parsedMessages),
+				};
+			})
+			.filter(
+				(session) =>
+					Array.isArray(session.messages) && session.messages.length > 0,
+			);
 	}
 
 	/**
@@ -111,6 +116,11 @@ export class ChatSessionRepository {
 	 * Upsert a single chat session
 	 */
 	saveSession<T = any>(session: ChatSessionRecord<T>): void {
+		if (!session.messages || session.messages.length === 0) {
+			// Do not persist empty chat sessions into DB
+			return;
+		}
+
 		const stmt = this.db.prepare(`
 			INSERT INTO chat_sessions (id, title, messages, created_at, updated_at)
 			VALUES (@id, @title, @messages, @createdAt, @updatedAt)

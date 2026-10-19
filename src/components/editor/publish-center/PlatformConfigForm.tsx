@@ -1,30 +1,12 @@
-import {
-	Button,
-	InputGroup,
-	Label,
-	ListBox,
-	ListBoxItem,
-	Select,
-	SelectPopover,
-	SelectTrigger,
-	SelectValue,
-	toast,
-} from "@heroui/react";
-import {
-	CheckCircle2,
-	ExternalLink,
-	FileText,
-	Hash,
-	Loader2,
-	RefreshCw,
-	Sparkles,
-	User,
-	XCircle,
-} from "lucide-react";
+import { Button, InputGroup, Label, toast } from "@heroui/react";
+import { FileText, Hash, Loader2, Sparkles, User } from "lucide-react";
 import { useEffect, useState } from "react";
 import { requestPublishMetadata } from "../../../services/api/publishClient";
 import type { PlatformAccountInfo, PublishPlatform } from "../types";
 import { PublishVisualSection } from "./PublishVisualSection";
+import { PublishResultCard } from "./components/PublishResultCard";
+import { RedbookConfigSection } from "./components/RedbookConfigSection";
+import { WechatConfigSection } from "./components/WechatConfigSection";
 import type {
 	PlatformMeta,
 	PlatformPublishConfig,
@@ -97,6 +79,7 @@ export function PlatformConfigForm({
 				title: config.title,
 				contentText,
 				mode: "title",
+				platform: meta.id as "wechat" | "redbook" | "zhihu" | "twitter",
 			});
 			if (res.titles && res.titles.length > 0) {
 				const candidate =
@@ -123,6 +106,7 @@ export function PlatformConfigForm({
 				title: config.title,
 				contentText,
 				mode: "tags",
+				platform: meta.id as "wechat" | "redbook" | "zhihu" | "twitter",
 			});
 			if (res.tags && res.tags.length > 0) {
 				const existing = parseTextToTags(tagsText);
@@ -150,14 +134,15 @@ export function PlatformConfigForm({
 				title: config.title,
 				contentText,
 				mode: "both",
+				platform: meta.id as "wechat" | "redbook" | "zhihu" | "twitter",
 			});
 			if (res.summary) {
-				const limit = meta.id === "wechat" ? 120 : 150;
+				const limit = meta.id === "wechat" ? 120 : meta.id === "redbook" ? 400 : 150;
 				onChangeConfig((prev) => ({
 					...prev,
 					digest: res.summary.slice(0, limit),
 				}));
-				toast.success(`已为【${meta.name}】生成核心摘要`);
+				toast.success(`已为【${meta.name}】提炼${meta.digestLabel}`);
 			}
 		} catch (err) {
 			toast.danger(`摘要提炼失败：${err instanceof Error ? err.message : String(err)}`);
@@ -276,7 +261,7 @@ export function PlatformConfigForm({
 				</InputGroup>
 			</div>
 
-			{/* 4. Article Digest (Placed before visual covers) */}
+			{/* 4. Article Digest */}
 			{meta.isDigestSupported && (
 				<div className="flex flex-col gap-1.5">
 					<div className="flex items-center justify-between">
@@ -310,7 +295,7 @@ export function PlatformConfigForm({
 				</div>
 			)}
 
-			{/* 5. Visual Section (Placed below digest as requested by user) */}
+			{/* 5. Visual Covers Section */}
 			<div className="pt-1">
 				<PublishVisualSection
 					title={config.title}
@@ -328,114 +313,31 @@ export function PlatformConfigForm({
 				/>
 			</div>
 
-			{/* 6. WeChat Specific Account Selector */}
+			{/* 6. Platform Specific Settings */}
 			{meta.id === "wechat" && (
-				<div className="p-3.5 rounded-xl border border-border/80 bg-surface-secondary/40 space-y-2">
-					<div className="flex items-center justify-between">
-						<Label className="text-xs font-semibold text-foreground">
-							关联微信公众号账号
-						</Label>
-						<span className="text-[10px] text-muted">官方草稿箱直接同步</span>
-					</div>
+				<WechatConfigSection
+					accounts={accounts}
+					selectedAccountId={config.accountId}
+					onSelectAccount={(accountId) =>
+						onChangeConfig((prev) => ({ ...prev, accountId }))
+					}
+				/>
+			)}
 
-					{accounts.length > 0 ? (
-						<Select
-							aria-label="选择微信公众号账号"
-							selectedKey={String(config.accountId ?? accounts[0]?.id ?? "")}
-							onSelectionChange={(key) => {
-								if (key != null) {
-									onChangeConfig((prev) => ({
-										...prev,
-										accountId: Number(key),
-									}));
-								}
-							}}
-							className="w-full"
-						>
-							<SelectTrigger className="w-full h-8 px-3 text-xs rounded-lg border border-border/80 bg-surface text-foreground flex items-center justify-between">
-								<SelectValue className="text-xs truncate leading-none" />
-							</SelectTrigger>
-							<SelectPopover className="rounded-xl border border-border bg-surface shadow-lg max-h-48 overflow-y-auto min-w-[200px] z-50">
-								<ListBox>
-									{accounts.map((acc) => (
-										<ListBoxItem
-											key={acc.id}
-											id={String(acc.id)}
-											textValue={acc.label}
-											className="text-xs rounded-lg cursor-pointer"
-										>
-											{acc.label}
-										</ListBoxItem>
-									))}
-								</ListBox>
-							</SelectPopover>
-						</Select>
-					) : (
-						<div className="p-2.5 rounded-lg border border-warning/30 bg-warning/5 text-warning text-xs flex items-center justify-between">
-							<span>未检测到绑定的公众号账号</span>
-							<span className="text-[11px] underline cursor-pointer">
-								前往设置中心绑定
-							</span>
-						</div>
-					)}
-				</div>
+			{meta.id === "redbook" && (
+				<RedbookConfigSection
+					publishMode={config.publishMode}
+					onChangePublishMode={(mode) =>
+						onChangeConfig((prev) => ({ ...prev, publishMode: mode }))
+					}
+				/>
 			)}
 
 			{/* 7. Platform Publishing Result Status Card */}
-			{result && result.status !== "idle" && (
-				<div
-					className={`p-3 rounded-xl border flex items-center justify-between text-xs animate-in fade-in ${
-						result.status === "success"
-							? "bg-emerald-500/5 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
-							: result.status === "error"
-								? "bg-red-500/5 border-red-500/30 text-red-600 dark:text-red-400"
-								: "bg-surface-secondary border-border text-foreground/80"
-					}`}
-				>
-					<div className="flex items-center gap-2">
-						{result.status === "publishing" && (
-							<Loader2 className="w-4 h-4 animate-spin text-accent" />
-						)}
-						{result.status === "success" && (
-							<CheckCircle2 className="w-4 h-4 text-emerald-500" />
-						)}
-						{result.status === "error" && (
-							<XCircle className="w-4 h-4 text-red-500" />
-						)}
-						<span className="font-medium">
-							{result.status === "publishing"
-								? "正在同步发布到此平台..."
-								: result.message || (result.status === "success" ? "发布成功" : "发布失败")}
-						</span>
-					</div>
-
-					<div className="flex items-center gap-2">
-						{result.url && (
-							<a
-								href={result.url}
-								target="_blank"
-								rel="noreferrer"
-								className="inline-flex items-center gap-1 text-[11px] underline hover:opacity-80"
-							>
-								<span>查看原文</span>
-								<ExternalLink className="w-3 h-3" />
-							</a>
-						)}
-						{result.status === "error" && onRetry && (
-							<Button
-								size="sm"
-								variant="outline"
-								onPress={() => onRetry(meta.id)}
-								className="h-6 px-2 text-[10px] rounded-md"
-							>
-								<RefreshCw className="w-2.5 h-2.5 mr-1" />
-								重试
-							</Button>
-						)}
-					</div>
-				</div>
-			)}
+			<PublishResultCard
+				result={result}
+				onRetry={onRetry ? () => onRetry(meta.id) : undefined}
+			/>
 		</div>
 	);
 }
-

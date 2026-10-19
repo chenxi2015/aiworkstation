@@ -6,6 +6,10 @@ import type {
 	NotePayload,
 	WorkbenchItem,
 } from "../../components/workbench/types.ts";
+import type {
+	VisualChatSession,
+	VisualGenerationItem,
+} from "../../types/visualGeneration.ts";
 import { closeDb, getDb } from "./connection.ts";
 import { BookmarkRepository } from "./repositories/bookmark.repo.ts";
 import {
@@ -26,6 +30,7 @@ import {
 	TagRepository,
 	type TagWithCount,
 } from "./repositories/tag.repo.ts";
+import { VisualSessionRepository } from "./repositories/visualSession.repo.ts";
 import type {
 	BookmarkQueryParams,
 	EmbeddingStats,
@@ -46,6 +51,7 @@ export class WorkbenchDatabase {
 	private creatorRepo!: CreatorRepository;
 	private documentRepo!: DocumentRepository;
 	private publishRepo!: PublishRepository;
+	private visualSessionRepo!: VisualSessionRepository;
 
 	private initRepositories(): void {
 		const db = getDb();
@@ -57,6 +63,7 @@ export class WorkbenchDatabase {
 		this.creatorRepo = new CreatorRepository(db);
 		this.documentRepo = new DocumentRepository(db);
 		this.publishRepo = new PublishRepository(db);
+		this.visualSessionRepo = new VisualSessionRepository(db);
 	}
 
 	constructor() {
@@ -274,6 +281,47 @@ export class WorkbenchDatabase {
 		sessions: ChatSessionRecord[];
 	} {
 		return this.chatSessionRepo.exportAllToJson();
+	}
+
+	// ================= Visual Session Operations =================
+	getAllVisualSessions(): VisualChatSession[] {
+		return this.visualSessionRepo.getAllSessions();
+	}
+
+	getVisualSessionById(id: string): VisualChatSession | null {
+		return this.visualSessionRepo.getSessionById(id);
+	}
+
+	saveVisualSession(session: VisualChatSession): void {
+		this.visualSessionRepo.saveSession(session);
+	}
+
+	addVisualItem(
+		sessionId: string,
+		item: VisualGenerationItem,
+		sessionTitle?: string,
+	): void {
+		this.visualSessionRepo.addItem(sessionId, item, sessionTitle);
+	}
+
+	removeVisualItem(itemId: string): void {
+		this.visualSessionRepo.removeItem(itemId);
+	}
+
+	removeVisualItems(itemIds: string[]): void {
+		this.visualSessionRepo.removeItems(itemIds);
+	}
+
+	deleteVisualSession(id: string): void {
+		this.visualSessionRepo.deleteSession(id);
+	}
+
+	clearAllVisualSessions(): void {
+		this.visualSessionRepo.clearAllSessions();
+	}
+
+	renameVisualSession(id: string, title: string): void {
+		this.visualSessionRepo.renameSession(id, title);
 	}
 
 	// ================= Tag Operations =================

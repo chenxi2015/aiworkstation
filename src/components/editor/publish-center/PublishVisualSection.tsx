@@ -241,7 +241,7 @@ export function PublishVisualSection({
 		}
 	};
 
-	const canSend = !isGenerating;
+	const canSend = !isGenerating && prompt.trim().length !== 0;
 
 	return (
 		<div className="flex flex-col gap-3">

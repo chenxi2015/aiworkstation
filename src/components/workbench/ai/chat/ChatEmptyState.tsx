@@ -35,7 +35,6 @@ interface PromptListItem {
 	title: string;
 	subtitle: string;
 	badge?: string;
-	actionText?: string;
 	onClick: () => void;
 }
 
@@ -269,7 +268,6 @@ export const ChatEmptyState = memo(function ChatEmptyState({
 					title: "二创洗稿，全新稿件",
 					subtitle: "打破原有句式与段落结构，深度去重重构，生成全新稿件。",
 					badge: "深度去重",
-					actionText: "立即二创 ↗",
 					onClick: () => {
 						void spinRewriteAction.onAction("");
 					},
@@ -283,7 +281,6 @@ export const ChatEmptyState = memo(function ChatEmptyState({
 					title: "全文润色，逐段精修",
 					subtitle: "逐段流式改写，保留图片视频并实时对照审阅。",
 					badge: "保护媒体",
-					actionText: "立即开始 ↗",
 					onClick: () => {
 						void rewriteAction.onAction("");
 					},
@@ -300,7 +297,6 @@ export const ChatEmptyState = memo(function ChatEmptyState({
 				title: action.emptyState.title,
 				subtitle: action.emptyState.subtitle,
 				badge: action.emptyState.badge,
-				actionText: action.emptyState.actionText,
 				onClick: () => {
 					void action.onAction("");
 				},
@@ -389,13 +385,7 @@ export const ChatEmptyState = memo(function ChatEmptyState({
 												</span>
 											)}
 										</div>
-										{item.actionText ? (
-											<span className="text-[11px] text-blue-600 dark:text-blue-400 font-medium flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform shrink-0">
-												{item.actionText}
-											</span>
-										) : (
-											<ArrowUpRight className="w-3.5 h-3.5 text-muted/30 group-hover:text-blue-600 dark:group-hover:text-blue-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all shrink-0" />
-										)}
+										<ArrowUpRight className="w-3.5 h-3.5 text-muted/30 group-hover:text-blue-600 dark:group-hover:text-blue-400 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all shrink-0" />
 									</div>
 									<div className="text-[11.5px] text-muted leading-relaxed mt-1.5 line-clamp-2">
 										{item.subtitle}

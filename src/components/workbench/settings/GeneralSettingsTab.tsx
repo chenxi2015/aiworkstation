@@ -342,7 +342,7 @@ export function GeneralSettingsTab() {
 					)}
 				</SettingsRow>
 
-				<SettingsRow title="语言" description="选择工作台界面的显示语言偏好。">
+				{/* <SettingsRow title="语言" description="选择工作台界面的显示语言偏好。">
 					<Select
 						aria-label="选择界面语言"
 						selectedKey={language}
@@ -370,7 +370,7 @@ export function GeneralSettingsTab() {
 							</ListBox>
 						</SelectPopover>
 					</Select>
-				</SettingsRow>
+				</SettingsRow> */}
 
 				<SettingsRow
 					title="外观模式"

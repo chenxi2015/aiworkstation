@@ -7,7 +7,7 @@ import { fetchObsidianTree } from "../services/api/obsidianClient";
 /**
  * `@` mention 多源索引：笔记 / 文档 / 素材的轻量标题级缓存。
  *
- * 书签/文件夹数据由 ChatWithBookmarksPanel 以 props 传入（已在内存），
+ * 书签/文件夹数据由 AiAssistantPanel 以 props 传入（已在内存），
  * 本 store 只补齐其余三个跨模块数据源，供 mention 菜单做纯内存前缀检索。
  * 只存标题 + 定位字段，不存正文，拉取成本可忽略。
  */

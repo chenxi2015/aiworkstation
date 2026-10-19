@@ -1,6 +1,7 @@
 import { Button, Tooltip } from "@heroui/react";
 import {
 	Clock,
+	Download,
 	Image as ImageIcon,
 	Palette,
 	Plus,
@@ -12,6 +13,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import type { VisualChatSession } from "../../../../types/visualGeneration.ts";
 import { ConfirmDialog } from "../../ConfirmDialog.tsx";
+import { DrawerPagination } from "../shared/DrawerPagination.tsx";
 
 export interface VisualHistoryDrawerProps {
 	isOpen: boolean;
@@ -22,7 +24,11 @@ export interface VisualHistoryDrawerProps {
 	onNewSession: () => void;
 	onDeleteSession: (sessionId: string) => void;
 	onClearAllSessions: () => void;
+	onExportAll?: () => void;
+	onExportSession?: (session: VisualChatSession) => void;
 }
+
+const PAGE_SIZE = 10;
 
 /**
  * In-sidebar bottom-sheet drawer for browsing and managing past AI visual generation conversation sessions
@@ -36,11 +42,14 @@ export function VisualHistoryDrawer({
 	onNewSession,
 	onDeleteSession,
 	onClearAllSessions,
+	onExportAll,
+	onExportSession,
 }: VisualHistoryDrawerProps) {
 	const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
 	const [sessionToDelete, setSessionToDelete] =
 		useState<VisualChatSession | null>(null);
 	const [searchQuery, setSearchQuery] = useState("");
+	const [currentPage, setCurrentPage] = useState(1);
 
 	// Close on Escape key press
 	useEffect(() => {
@@ -53,6 +62,13 @@ export function VisualHistoryDrawer({
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
 	}, [isOpen, onClose]);
+
+	// Reset page when search changes
+	useEffect(() => {
+		if (searchQuery !== undefined) {
+			setCurrentPage(1);
+		}
+	}, [searchQuery]);
 
 	const filteredSessions = useMemo(() => {
 		if (!searchQuery.trim()) return sessions;
@@ -73,6 +89,23 @@ export function VisualHistoryDrawer({
 			return false;
 		});
 	}, [sessions, searchQuery]);
+
+	// Pagination calculations
+	const totalItems = filteredSessions.length;
+	const totalPages = Math.ceil(totalItems / PAGE_SIZE) || 1;
+	const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+
+	// Fallback to previous page if current page became empty after item deletion
+	useEffect(() => {
+		if (currentPage > totalPages && totalPages > 0) {
+			setCurrentPage(totalPages);
+		}
+	}, [currentPage, totalPages]);
+
+	const paginatedSessions = useMemo(() => {
+		const startIndex = (safeCurrentPage - 1) * PAGE_SIZE;
+		return filteredSessions.slice(startIndex, startIndex + PAGE_SIZE);
+	}, [filteredSessions, safeCurrentPage]);
 
 	if (!isOpen) return null;
 
@@ -188,7 +221,7 @@ export function VisualHistoryDrawer({
 								<p className="text-xs">未找到匹配「{searchQuery}」的视觉会话</p>
 							</div>
 						) : (
-							filteredSessions.map((session) => {
+							paginatedSessions.map((session) => {
 								const isCurrent = session.id === currentSessionId;
 								const itemCount = session.items?.length || 0;
 								const latestItem =
@@ -246,19 +279,35 @@ export function VisualHistoryDrawer({
 														{session.title || "未命名视觉创作"}
 													</span>
 
-													{/* Delete action button */}
-													<button
-														type="button"
-														className="opacity-0 group-hover:opacity-100 p-1 text-muted hover:text-danger rounded transition-opacity cursor-pointer shrink-0"
-														onClick={(e) => {
-															e.stopPropagation();
-															setSessionToDelete(session);
-														}}
-														aria-label="删除此会话"
-														title="删除此会话"
-													>
-														<Trash2 className="w-3 h-3" />
-													</button>
+													{/* Action buttons (Export & Delete) */}
+													<div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+														{onExportSession && (
+															<button
+																type="button"
+																className="p-1 text-muted hover:text-accent rounded transition-colors cursor-pointer"
+																onClick={(e) => {
+																	e.stopPropagation();
+																	onExportSession(session);
+																}}
+																aria-label="导出此视觉对话 JSON"
+																title="导出此视觉对话 JSON"
+															>
+																<Download className="w-3 h-3" />
+															</button>
+														)}
+														<button
+															type="button"
+															className="p-1 text-muted hover:text-danger rounded transition-colors cursor-pointer"
+															onClick={(e) => {
+																e.stopPropagation();
+																setSessionToDelete(session);
+															}}
+															aria-label="删除此会话"
+															title="删除此会话"
+														>
+															<Trash2 className="w-3 h-3" />
+														</button>
+													</div>
 												</div>
 
 												{/* Meta info: timestamp & count */}
@@ -286,20 +335,43 @@ export function VisualHistoryDrawer({
 						)}
 					</div>
 
+					{/* Pagination Bar */}
+					<DrawerPagination
+						currentPage={safeCurrentPage}
+						totalPages={totalPages}
+						totalItems={totalItems}
+						pageSize={PAGE_SIZE}
+						onPageChange={setCurrentPage}
+					/>
+
 					{/* Footer Actions */}
 					{sessions.length > 0 && (
 						<div className="p-2.5 border-t border-border/80 bg-surface-secondary/30 shrink-0 flex items-center justify-between">
-							<Button
-								variant="ghost"
-								size="sm"
-								className="h-6 px-2 text-[10px] text-muted hover:text-danger rounded-md cursor-pointer flex items-center gap-1"
-								onPress={() => setIsClearConfirmOpen(true)}
-							>
-								<Trash2 className="w-3 h-3" />
-								<span>清空全部</span>
-							</Button>
+							<div className="flex items-center gap-2">
+								<Button
+									variant="ghost"
+									size="sm"
+									className="h-6 px-2 text-[10px] text-muted hover:text-danger rounded-md cursor-pointer flex items-center gap-1"
+									onPress={() => setIsClearConfirmOpen(true)}
+								>
+									<Trash2 className="w-3 h-3" />
+									<span>清空全部</span>
+								</Button>
 
-							<span className="text-[10px] text-muted">本地存储 · 离线可用</span>
+								{onExportAll && (
+									<Button
+										variant="ghost"
+										size="sm"
+										className="h-6 px-2 text-[10px] text-muted hover:text-accent rounded-md cursor-pointer flex items-center gap-1"
+										onPress={onExportAll}
+									>
+										<Download className="w-3 h-3" />
+										<span>导出全部 JSON</span>
+									</Button>
+								)}
+							</div>
+
+							<span className="text-[10px] text-muted">本地 SQLite 持久化</span>
 						</div>
 					)}
 				</div>

@@ -191,12 +191,22 @@ export function initSchema(db: SqliteDatabase): void {
       updated_at TEXT NOT NULL
     );
 
+    -- 16. Visual Generation Sessions table (AI 视觉对话会话，单表存储 items JSON)
+    CREATE TABLE IF NOT EXISTS visual_sessions (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      items TEXT NOT NULL DEFAULT '[]',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
     -- Indexes for fast queries
     CREATE INDEX IF NOT EXISTS idx_folders_category ON folders(category);
     CREATE INDEX IF NOT EXISTS idx_folder_items_folder_id ON folder_items(folder_id);
     CREATE INDEX IF NOT EXISTS idx_folder_items_item_id ON folder_items(item_id);
     CREATE INDEX IF NOT EXISTS idx_bookmarks_url ON bookmarks(url);
     CREATE INDEX IF NOT EXISTS idx_chat_sessions_updated_at ON chat_sessions(updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_visual_sessions_updated_at ON visual_sessions(updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_materials_status ON materials(status);
     CREATE INDEX IF NOT EXISTS idx_materials_folder_status ON materials(folder_id, status);
     CREATE INDEX IF NOT EXISTS idx_materials_updated ON materials(status, updated_at DESC);
@@ -363,6 +373,17 @@ export function initSchema(db: SqliteDatabase): void {
 				migrateTx();
 			}
 		}
+
+		// 视觉对话表单表模式（items JSON 列），清理废弃的 visual_items 关系表
+		const visualCols = db
+			.prepare("PRAGMA table_info(visual_sessions)")
+			.all() as Array<{ name: string }>;
+		if (visualCols.length > 0 && !visualCols.some((c) => c.name === "items")) {
+			db.exec(
+				"ALTER TABLE visual_sessions ADD COLUMN items TEXT NOT NULL DEFAULT '[]'",
+			);
+		}
+		db.exec("DROP TABLE IF EXISTS visual_items;");
 	} catch (err) {
 		console.warn("[DatabaseSchema] Migration pragma error:", err);
 	}

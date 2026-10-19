@@ -18,6 +18,7 @@ export interface PlatformPublishConfig {
 	covers: CoverItem[];
 	selectedCoverIndex: number;
 	accountId?: number | null; // WeChat MP specific account ID
+	publishMode?: "auto" | "fill_only"; // Redbook specific publishing mode
 }
 
 export interface PlatformPublishResult {
@@ -57,39 +58,40 @@ export const PLATFORM_METAS: PlatformMeta[] = [
 	{
 		id: "redbook",
 		name: "小红书",
-		badge: "图文发布包",
+		badge: "客户端原生直发",
 		iconPath: "/media/xiaohongshu.svg",
 		defaultRatio: "3:4",
 		titleMaxLength: 20,
 		titlePlaceholder: "小红书爆款标题（限20字内）...",
-		digestPlaceholder: "笔记前言/导语（可作为正文第一段）...",
+		digestPlaceholder: "输入或提炼具有小红书网感的开篇导读文案（将作为笔记正文描述）...",
 		digestLabel: "正文导读 / 开篇",
 		isDigestSupported: true,
 	},
-	{
-		id: "zhihu",
-		name: "知乎",
-		badge: "专栏发布包",
-		iconPath: "/media/zhihu.svg",
-		defaultRatio: "16:9",
-		titleMaxLength: 80,
-		titlePlaceholder: "知乎专栏标题...",
-		digestPlaceholder: "输入专栏引言或导语...",
-		digestLabel: "专栏导言",
-		isDigestSupported: true,
-	},
-	{
-		id: "twitter",
-		name: "X / Twitter",
-		badge: "社交推文包",
-		iconPath: "/media/TwitterX.svg",
-		defaultRatio: "16:9",
-		titleMaxLength: 100,
-		titlePlaceholder: "推文主标题或金句...",
-		digestPlaceholder: "推文核心观点或段落摘录...",
-		digestLabel: "推文要点提炼",
-		isDigestSupported: true,
-	},
+	// Temporarily hidden: Zhihu & Twitter
+	// {
+	// 	id: "zhihu",
+	// 	name: "知乎",
+	// 	badge: "专栏发布包",
+	// 	iconPath: "/media/zhihu.svg",
+	// 	defaultRatio: "16:9",
+	// 	titleMaxLength: 80,
+	// 	titlePlaceholder: "知乎专栏标题...",
+	// 	digestPlaceholder: "输入专栏引言或导语...",
+	// 	digestLabel: "专栏导言",
+	// 	isDigestSupported: true,
+	// },
+	// {
+	// 	id: "twitter",
+	// 	name: "X / Twitter",
+	// 	badge: "社交推文包",
+	// 	iconPath: "/media/TwitterX.svg",
+	// 	defaultRatio: "16:9",
+	// 	titleMaxLength: 100,
+	// 	titlePlaceholder: "推文主标题或金句...",
+	// 	digestPlaceholder: "推文核心观点或段落摘录...",
+	// 	digestLabel: "推文要点提炼",
+	// 	isDigestSupported: true,
+	// },
 ];
 
 export interface PublishCenterDraft {

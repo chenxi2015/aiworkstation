@@ -88,4 +88,40 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getPathForFile: (file: File): string => {
     return webUtils.getPathForFile(file);
   },
+
+  /** Open Xiaohongshu QR code login window */
+  openRedbookLogin: () => {
+    return ipcRenderer.invoke("redbook:login");
+  },
+
+  /** Switch Xiaohongshu account (clears credentials then shows QR login) */
+  switchRedbookAccount: () => {
+    return ipcRenderer.invoke("redbook:switch-account");
+  },
+
+  /** Check current Xiaohongshu login status */
+  checkRedbookStatus: () => {
+    return ipcRenderer.invoke("redbook:check-status");
+  },
+
+  /** Open Xiaohongshu creator service platform in a dedicated browser window */
+  openRedbookCreatorPage: (url?: string) => {
+    return ipcRenderer.invoke("redbook:open-creator-page", url);
+  },
+
+  /** Logout from Xiaohongshu session */
+  logoutRedbook: () => {
+    return ipcRenderer.invoke("redbook:logout");
+  },
+
+  /** Execute native Xiaohongshu note publishing via Electron Chromium */
+  publishToRedbook: (payload: {
+    title: string;
+    content: string;
+    topics?: string[];
+    images: string[];
+    mode?: "auto" | "fill_only";
+  }) => {
+    return ipcRenderer.invoke("redbook:publish", payload);
+  },
 });

@@ -14,6 +14,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ChatSession } from "../../../../services/workbenchStorage";
 import { agentSessionStore } from "../../../../stores/agentSessionStore";
 import { ConfirmDialog } from "../../ConfirmDialog";
+import { DrawerPagination } from "../shared/DrawerPagination";
 
 export interface ChatHistoryDrawerProps {
 	isOpen: boolean;
@@ -27,6 +28,8 @@ export interface ChatHistoryDrawerProps {
 	onExportAll?: () => void;
 	onExportSession?: (session: ChatSession) => void;
 }
+
+const PAGE_SIZE = 10;
 
 /**
  * In-sidebar bottom-sheet drawer for browsing and managing past AI conversation sessions
@@ -48,6 +51,7 @@ export function ChatHistoryDrawer({
 		null,
 	);
 	const [searchQuery, setSearchQuery] = useState("");
+	const [currentPage, setCurrentPage] = useState(1);
 	const runtimeSessions = useSelector(agentSessionStore, (s) => s.sessions);
 
 	// Close on Escape key press
@@ -61,6 +65,13 @@ export function ChatHistoryDrawer({
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
 	}, [isOpen, onClose]);
+
+	// Reset page when search changes
+	useEffect(() => {
+		if (searchQuery !== undefined) {
+			setCurrentPage(1);
+		}
+	}, [searchQuery]);
 
 	const filteredSessions = useMemo(() => {
 		if (!searchQuery.trim()) return sessions;
@@ -80,6 +91,23 @@ export function ChatHistoryDrawer({
 			return false;
 		});
 	}, [sessions, searchQuery]);
+
+	// Pagination calculations
+	const totalItems = filteredSessions.length;
+	const totalPages = Math.ceil(totalItems / PAGE_SIZE) || 1;
+	const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+
+	// Fallback to previous page if current page became empty after item deletion
+	useEffect(() => {
+		if (currentPage > totalPages && totalPages > 0) {
+			setCurrentPage(totalPages);
+		}
+	}, [currentPage, totalPages]);
+
+	const paginatedSessions = useMemo(() => {
+		const startIndex = (safeCurrentPage - 1) * PAGE_SIZE;
+		return filteredSessions.slice(startIndex, startIndex + PAGE_SIZE);
+	}, [filteredSessions, safeCurrentPage]);
 
 	if (!isOpen) return null;
 
@@ -195,7 +223,7 @@ export function ChatHistoryDrawer({
 								<p className="text-xs">未找到匹配「{searchQuery}」的历史会话</p>
 							</div>
 						) : (
-							filteredSessions.map((session) => {
+							paginatedSessions.map((session) => {
 								const isCurrent = session.id === currentSessionId;
 								const runtime = runtimeSessions[session.id];
 								const isRunning = runtime?.status === "running";
@@ -296,6 +324,15 @@ export function ChatHistoryDrawer({
 							})
 						)}
 					</div>
+
+					{/* Pagination Bar */}
+					<DrawerPagination
+						currentPage={safeCurrentPage}
+						totalPages={totalPages}
+						totalItems={totalItems}
+						pageSize={PAGE_SIZE}
+						onPageChange={setCurrentPage}
+					/>
 
 					{/* Footer Actions */}
 					{sessions.length > 0 && (

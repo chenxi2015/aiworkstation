@@ -52,21 +52,21 @@ const PLATFORM_CONFIGS: PublishPlatformConfig[] = [
 	{
 		id: "redbook",
 		name: "小红书",
-		badge: "图文发布包",
+		badge: "客户端原生直发",
 		iconPath: "/media/xiaohongshu.svg",
 	},
-	{
-		id: "zhihu",
-		name: "知乎",
-		badge: "专栏发布包",
-		iconPath: "/media/zhihu.svg",
-	},
-	{
-		id: "twitter",
-		name: "X / Twitter",
-		badge: "社交推文包",
-		iconPath: "/media/TwitterX.svg",
-	},
+	// {
+	// 	id: "zhihu",
+	// 	name: "知乎",
+	// 	badge: "专栏发布包",
+	// 	iconPath: "/media/zhihu.svg",
+	// },
+	// {
+	// 	id: "twitter",
+	// 	name: "X / Twitter",
+	// 	badge: "社交推文包",
+	// 	iconPath: "/media/TwitterX.svg",
+	// },
 ];
 
 export function PublishPlatformSection({
@@ -91,7 +91,7 @@ export function PublishPlatformSection({
 						选择发布目标平台
 					</Label>
 					<span className="text-[11px] text-muted">
-						支持公众号 API 官方同步，其他平台一键获取发布包
+						支持公众号 API 官方同步与小红书客户端原生直发
 					</span>
 				</div>
 

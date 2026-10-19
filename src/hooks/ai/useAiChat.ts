@@ -84,7 +84,10 @@ export function useAiChat(options?: UseAiChatOptions) {
 	const sessions: ChatSession<ChatItem>[] = useMemo(() => {
 		return sessionOrder
 			.map((id) => sessionsMap[id])
-			.filter((s): s is SessionRuntime => Boolean(s))
+			.filter(
+				(s): s is SessionRuntime =>
+					Boolean(s) && Array.isArray(s.messages) && s.messages.length > 0,
+			)
 			.map((s) => ({
 				id: s.id,
 				title: s.title,

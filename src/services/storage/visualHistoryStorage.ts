@@ -2,98 +2,86 @@ import type {
 	VisualChatSession,
 	VisualGenerationItem,
 } from "../../types/visualGeneration.ts";
+import {
+	clearAllVisualSessionsFromDb,
+	deleteVisualSessionFromDb,
+	fetchVisualSessionsFromDb,
+	removeVisualItemFromDb,
+	removeVisualItemsFromDb,
+	renameVisualSessionInDb,
+	saveVisualSessionToDb,
+} from "../api/visualSessionClient.ts";
 
-const SESSIONS_STORAGE_KEY = "aiworkstation_visual_sessions_v1";
 const ACTIVE_SESSION_STORAGE_KEY = "aiworkstation_active_visual_session_id";
-const LEGACY_STORAGE_KEY = "aiworkstation_visual_history_records";
-const MAX_SESSIONS = 50;
 
-/**
- * Normalizes session items by recovering userPrompt and cleaning legacy dirty prompts
- */
-function normalizeSessionItems(items: VisualGenerationItem[]): VisualGenerationItem[] {
-	if (!Array.isArray(items)) return [];
-	return items.map((item) => {
-		if (!item.userPrompt && item.prompt && item.prompt.includes("画面修改与优化要求")) {
-			const parts = item.prompt.split(/[,，]?\s*画面修改与优化要求[：:]\s*/);
-			if (parts.length >= 2) {
-				const recoveredUserPrompt = parts[parts.length - 1].trim();
-				const recoveredPrompt = parts.slice(0, parts.length - 1).join("，").trim();
-				return {
-					...item,
-					userPrompt: recoveredUserPrompt || item.prompt,
-					prompt: recoveredPrompt || item.prompt,
-				};
-			}
+// In-memory cache for ultra-fast synchronous UI access
+let cachedSessions: VisualChatSession[] = [];
+let currentDraftSession: VisualChatSession | null = null;
+let isInitialized = false;
+let initPromise: Promise<VisualChatSession[]> | null = null;
+const listeners = new Set<(sessions: VisualChatSession[]) => void>();
+
+function notifyListeners(): void {
+	for (const listener of listeners) {
+		try {
+			listener(cachedSessions);
+		} catch (err) {
+			console.warn("[VisualHistoryStorage] Listener error:", err);
 		}
-		return item;
-	});
+	}
 }
 
 /**
- * Storage service for managing multiple visual conversation sessions locally.
- * Supports auto-migration from legacy single-array history and preserves chronological order.
+ * Storage service for managing visual conversation sessions purely in SQLite database.
+ * Follows draft pattern: creating new sessions does NOT write empty sessions to DB or history list.
  */
 export const VisualHistoryStorageService = {
 	/**
-	 * Get all visual sessions, sorted by updatedAt descending (most recent first).
+	 * Subscribe to session updates
 	 */
-	getSessions(): VisualChatSession[] {
-		if (typeof window === "undefined") return [];
-		try {
-			const raw = localStorage.getItem(SESSIONS_STORAGE_KEY);
-			if (raw) {
-				const parsed = JSON.parse(raw);
-				if (Array.isArray(parsed) && parsed.length > 0) {
-					return parsed
-						.map((s) => ({
-							...s,
-							items: normalizeSessionItems(s.items),
-						}))
-						.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-				}
-			}
-
-			// Migration check from legacy single-array storage
-			const legacyRaw = localStorage.getItem(LEGACY_STORAGE_KEY);
-			if (legacyRaw) {
-				const legacyItems: VisualGenerationItem[] = JSON.parse(legacyRaw);
-				if (Array.isArray(legacyItems) && legacyItems.length > 0) {
-					// Sort chronologically ascending
-					const sortedItems = [...legacyItems].sort(
-						(a, b) => a.createdAt - b.createdAt,
-					);
-					const initialSession: VisualChatSession = {
-						id: `vsession_${Date.now()}`,
-						title: sortedItems[0]?.prompt?.slice(0, 24) || "视觉对话 1",
-						createdAt: sortedItems[0]?.createdAt || Date.now(),
-						updatedAt: Date.now(),
-						items: sortedItems,
-					};
-					this.saveSessions([initialSession]);
-					this.setActiveSessionId(initialSession.id);
-					return [initialSession];
-				}
-			}
-
-			return [];
-		} catch (err) {
-			console.warn("[VisualHistoryStorage] Failed to read sessions:", err);
-			return [];
-		}
+	subscribe(callback: (sessions: VisualChatSession[]) => void): () => void {
+		listeners.add(callback);
+		return () => listeners.delete(callback);
 	},
 
 	/**
-	 * Persist all visual sessions.
+	 * Initialize sessions from SQLite database
 	 */
-	saveSessions(sessions: VisualChatSession[]): void {
-		if (typeof window === "undefined") return;
-		try {
-			const trimmed = sessions.slice(0, MAX_SESSIONS);
-			localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(trimmed));
-		} catch (err) {
-			console.warn("[VisualHistoryStorage] Failed to save sessions:", err);
+	async initFromDb(): Promise<VisualChatSession[]> {
+		if (initPromise) return initPromise;
+
+		initPromise = (async () => {
+			const dbSessions = await fetchVisualSessionsFromDb();
+			cachedSessions = (dbSessions || [])
+				.filter((s) => s.items && s.items.length > 0)
+				.map((s) => ({
+					...s,
+					items: (s.items || []).sort((a, b) => a.createdAt - b.createdAt),
+				}));
+
+			isInitialized = true;
+			notifyListeners();
+			return cachedSessions;
+		})();
+
+		return initPromise;
+	},
+
+	/**
+	 * Synchronously get in-memory cached visual sessions, sorted by updatedAt descending.
+	 */
+	getSessions(): VisualChatSession[] {
+		if (!isInitialized && !initPromise && typeof window !== "undefined") {
+			this.initFromDb().catch(() => {});
 		}
+		return cachedSessions;
+	},
+
+	/**
+	 * Asynchronously fetch latest sessions directly from SQLite database.
+	 */
+	async fetchSessions(): Promise<VisualChatSession[]> {
+		return this.initFromDb();
 	},
 
 	/**
@@ -116,24 +104,24 @@ export const VisualHistoryStorageService = {
 		try {
 			localStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, id);
 		} catch {
-			// Ignore storage write failure
+			// Ignore
 		}
 	},
 
 	/**
-	 * Get the active session, or create a fresh one if none exists.
+	 * Get the active session, or create a fresh draft if none exists.
 	 */
 	getCurrentSession(): VisualChatSession {
 		const sessions = this.getSessions();
 		const activeId = this.getActiveSessionId();
 
+		if (currentDraftSession && currentDraftSession.id === activeId) {
+			return currentDraftSession;
+		}
+
 		if (activeId) {
 			const found = sessions.find((s) => s.id === activeId);
 			if (found) {
-				// Ensure items are chronologically ascending
-				found.items = [...found.items].sort(
-					(a, b) => a.createdAt - b.createdAt,
-				);
 				return found;
 			}
 		}
@@ -143,12 +131,12 @@ export const VisualHistoryStorageService = {
 			return sessions[0];
 		}
 
-		// Create a brand new session
 		return this.createSession();
 	},
 
 	/**
-	 * Create a new visual session and make it active.
+	 * Create a new visual session as an unpersisted draft.
+	 * Does not write to DB or cached history until generation succeeds.
 	 */
 	createSession(initialTitle = "新视觉对话"): VisualChatSession {
 		const newSession: VisualChatSession = {
@@ -159,10 +147,10 @@ export const VisualHistoryStorageService = {
 			items: [],
 		};
 
-		const sessions = this.getSessions();
-		const updated = [newSession, ...sessions];
-		this.saveSessions(updated);
+		currentDraftSession = newSession;
 		this.setActiveSessionId(newSession.id);
+		notifyListeners();
+
 		return newSession;
 	},
 
@@ -173,46 +161,47 @@ export const VisualHistoryStorageService = {
 		const sessions = this.getSessions();
 		const found = sessions.find((s) => s.id === sessionId);
 		if (found) {
+			currentDraftSession = null;
 			this.setActiveSessionId(found.id);
-			found.items = [...found.items].sort((a, b) => a.createdAt - b.createdAt);
+			notifyListeners();
 			return found;
 		}
 		return null;
 	},
 
 	/**
-	 * Save or update a specific session.
+	 * Save or update a specific session in SQLite.
 	 */
 	saveSession(session: VisualChatSession): void {
-		const sessions = this.getSessions();
-		const filtered = sessions.filter((s) => s.id !== session.id);
-		// Keep items chronologically sorted
-		session.items = [...session.items].sort(
-			(a, b) => a.createdAt - b.createdAt,
-		);
-		const updated = [session, ...filtered];
-		this.saveSessions(updated);
+		if (!session.items || session.items.length === 0) return;
+
+		const filtered = cachedSessions.filter((s) => s.id !== session.id);
+		cachedSessions = [session, ...filtered];
+		notifyListeners();
+
+		saveVisualSessionToDb(session).catch((err) => {
+			console.error(
+				"[VisualHistoryStorage] Failed to save session to DB:",
+				err,
+			);
+		});
 	},
 
 	/**
-	 * Append a new generated item into the current session in chronological order.
+	 * Append a new generated item into the current session and persist to SQLite.
 	 */
 	addItemToCurrentSession(item: VisualGenerationItem): VisualChatSession {
 		const current = this.getCurrentSession();
-		const existing = current.items.filter((i) => i.id !== item.id);
-		// Append to the end to maintain chronological sequence
-		const updatedItems = [...existing, item].sort(
-			(a, b) => a.createdAt - b.createdAt,
-		);
+		const updatedItems = [...current.items, item];
 
-		// If this is the first turn or default title, derive title from prompt
 		let newTitle = current.title;
 		if (
 			current.items.length === 0 ||
 			current.title.startsWith("新视觉对话") ||
 			current.title.startsWith("视觉对话")
 		) {
-			newTitle = (item.userPrompt || item.prompt).trim().slice(0, 24) || "视觉创作";
+			newTitle =
+				(item.userPrompt || item.prompt).trim().slice(0, 24) || "视觉创作";
 		}
 
 		const updatedSession: VisualChatSession = {
@@ -222,12 +211,24 @@ export const VisualHistoryStorageService = {
 			items: updatedItems,
 		};
 
-		this.saveSession(updatedSession);
+		if (currentDraftSession?.id === updatedSession.id) {
+			currentDraftSession = null;
+		}
+
+		const filtered = cachedSessions.filter((s) => s.id !== updatedSession.id);
+		cachedSessions = [updatedSession, ...filtered];
+		this.setActiveSessionId(updatedSession.id);
+		notifyListeners();
+
+		saveVisualSessionToDb(updatedSession).catch((err) => {
+			console.error("[VisualHistoryStorage] Failed to save session to DB:", err);
+		});
+
 		return updatedSession;
 	},
 
 	/**
-	 * Remove a specific item from the current session.
+	 * Remove a specific item from the current session and SQLite.
 	 */
 	removeItemFromCurrentSession(itemId: string): VisualChatSession {
 		const current = this.getCurrentSession();
@@ -237,12 +238,23 @@ export const VisualHistoryStorageService = {
 			updatedAt: Date.now(),
 			items: updatedItems,
 		};
-		this.saveSession(updatedSession);
+
+		const filtered = cachedSessions.filter((s) => s.id !== updatedSession.id);
+		cachedSessions = [updatedSession, ...filtered];
+		notifyListeners();
+
+		removeVisualItemFromDb(itemId).catch((err) => {
+			console.error(
+				"[VisualHistoryStorage] Failed to remove item from DB:",
+				err,
+			);
+		});
+
 		return updatedSession;
 	},
 
 	/**
-	 * Remove multiple items from the current session.
+	 * Remove multiple items from the current session and SQLite.
 	 */
 	removeItemsFromCurrentSession(
 		itemIds: string[] | Set<string>,
@@ -255,22 +267,40 @@ export const VisualHistoryStorageService = {
 			updatedAt: Date.now(),
 			items: updatedItems,
 		};
-		this.saveSession(updatedSession);
+
+		const filtered = cachedSessions.filter((s) => s.id !== updatedSession.id);
+		cachedSessions = [updatedSession, ...filtered];
+		notifyListeners();
+
+		removeVisualItemsFromDb(Array.from(idSet)).catch((err) => {
+			console.error(
+				"[VisualHistoryStorage] Failed to batch remove items from DB:",
+				err,
+			);
+		});
+
 		return updatedSession;
 	},
 
 	/**
-	 * Delete a session by ID. If current session is deleted, switches to next available or creates new.
+	 * Delete a session by ID from SQLite.
 	 */
 	deleteSession(sessionId: string): VisualChatSession {
-		const sessions = this.getSessions().filter((s) => s.id !== sessionId);
-		this.saveSessions(sessions);
+		cachedSessions = cachedSessions.filter((s) => s.id !== sessionId);
+		notifyListeners();
+
+		deleteVisualSessionFromDb(sessionId).catch((err) => {
+			console.error(
+				"[VisualHistoryStorage] Failed to delete session from DB:",
+				err,
+			);
+		});
 
 		const activeId = this.getActiveSessionId();
 		if (activeId === sessionId || !activeId) {
-			if (sessions.length > 0) {
-				this.setActiveSessionId(sessions[0].id);
-				return sessions[0];
+			if (cachedSessions.length > 0) {
+				this.setActiveSessionId(cachedSessions[0].id);
+				return cachedSessions[0];
 			}
 			return this.createSession();
 		}
@@ -279,52 +309,62 @@ export const VisualHistoryStorageService = {
 	},
 
 	/**
-	 * Clear all sessions and start a new blank session.
+	 * Clear all sessions from SQLite and start a new blank session.
 	 */
 	clearAllSessions(): VisualChatSession {
+		cachedSessions = [];
 		if (typeof window !== "undefined") {
 			try {
-				localStorage.removeItem(SESSIONS_STORAGE_KEY);
 				localStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
-				localStorage.removeItem(LEGACY_STORAGE_KEY);
-			} catch (err) {
-				console.warn("[VisualHistoryStorage] Failed to clear:", err);
+			} catch {
+				// Ignore
 			}
 		}
+
+		clearAllVisualSessionsFromDb().catch((err) => {
+			console.error(
+				"[VisualHistoryStorage] Failed to clear sessions from DB:",
+				err,
+			);
+		});
+
 		return this.createSession();
 	},
 
 	/**
-	 * Rename a session.
+	 * Rename a session in SQLite.
 	 */
 	renameSession(sessionId: string, newTitle: string): void {
-		const sessions = this.getSessions();
-		const target = sessions.find((s) => s.id === sessionId);
+		const cleanTitle = newTitle.trim();
+		const target = cachedSessions.find((s) => s.id === sessionId);
 		if (target) {
-			target.title = newTitle.trim() || target.title;
+			target.title = cleanTitle || target.title;
 			target.updatedAt = Date.now();
-			this.saveSession(target);
+			notifyListeners();
+
+			renameVisualSessionInDb(sessionId, target.title).catch((err) => {
+				console.error(
+					"[VisualHistoryStorage] Failed to rename session in DB:",
+					err,
+				);
+			});
 		}
 	},
 
 	// ── Backward Compatible Facade Methods ─────────────────────────────────
 
-	/** Legacy compatibility: get items of current session */
 	getHistory(): VisualGenerationItem[] {
 		return this.getCurrentSession().items;
 	},
 
-	/** Legacy compatibility: add item */
 	addItem(item: VisualGenerationItem): void {
 		this.addItemToCurrentSession(item);
 	},
 
-	/** Legacy compatibility: remove item */
 	removeItem(id: string): void {
 		this.removeItemFromCurrentSession(id);
 	},
 
-	/** Legacy compatibility: clear items of current session */
 	clear(): void {
 		const current = this.getCurrentSession();
 		const updated: VisualChatSession = {
@@ -334,4 +374,51 @@ export const VisualHistoryStorageService = {
 		};
 		this.saveSession(updated);
 	},
+
+	/**
+	 * Export all visual generation sessions as JSON file
+	 */
+	exportAllSessionsToJson(): void {
+		const sessions = this.getSessions();
+		const nowFormatted = new Date().toISOString().slice(0, 10);
+		const filename = `aiworkstation_visual_history_${nowFormatted}.json`;
+		downloadJsonFile(filename, {
+			exportedAt: new Date().toISOString(),
+			version: "1.0",
+			totalSessions: sessions.length,
+			sessions,
+		});
+	},
+
+	/**
+	 * Export a single visual session as JSON file
+	 */
+	exportSessionToJson(session: VisualChatSession): void {
+		const dateTag = new Date().toISOString().slice(0, 10);
+		const cleanTitle = (session.title || "visual")
+			.replace(/[\\/:*?"<>|]/g, "_")
+			.slice(0, 30);
+		const filename = `${cleanTitle}_${dateTag}.json`;
+		downloadJsonFile(filename, {
+			exportedAt: new Date().toISOString(),
+			session,
+		});
+	},
 };
+
+/**
+ * Helper to trigger browser download of JSON file
+ */
+function downloadJsonFile(filename: string, data: unknown): void {
+	if (typeof window === "undefined") return;
+	const jsonStr = JSON.stringify(data, null, 2);
+	const blob = new Blob([jsonStr], { type: "application/json;charset=utf-8;" });
+	const url = URL.createObjectURL(blob);
+	const link = document.createElement("a");
+	link.href = url;
+	link.download = filename;
+	document.body.appendChild(link);
+	link.click();
+	document.body.removeChild(link);
+	URL.revokeObjectURL(url);
+}

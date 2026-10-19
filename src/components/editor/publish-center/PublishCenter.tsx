@@ -15,10 +15,10 @@ import {
 import type { PlatformAccountInfo, PublishPlatform } from "../types";
 import { PlatformConfigForm } from "./PlatformConfigForm";
 import {
-	copyRedbookText,
 	copyTwitterText,
 	copyZhihuMarkdown,
 } from "./clipboardChannels";
+import { redbookService } from "../../../services/publish/redbookService";
 import { ImagePreviewProvider } from "../../workbench/ai/shared/ImagePreviewModal";
 import {
 	type CoverItem,
@@ -94,7 +94,7 @@ function createDefaultConfigs(
 			title: baseTitle.slice(0, 20),
 			tags: [],
 			author: "AI Workstation",
-			digest: "",
+			digest: baseDigest,
 			covers: [],
 			selectedCoverIndex: 0,
 		},
@@ -153,7 +153,14 @@ export function PublishCenter({
 	const applyDraft = (draft: PublishCenterDraft) => {
 		if (draft.version === 2 && draft.platforms) {
 			setConfigs(draft.platforms);
-			if (draft.activePlatform) setActivePlatform(draft.activePlatform);
+			if (
+				draft.activePlatform &&
+				PLATFORM_METAS.some((m) => m.id === draft.activePlatform)
+			) {
+				setActivePlatform(draft.activePlatform);
+			} else {
+				setActivePlatform(PLATFORM_METAS[0]?.id || "wechat");
+			}
 			return;
 		}
 
@@ -184,7 +191,7 @@ export function PublishCenter({
 				title: (draft.publishTitle || initialTitle || "未命名文章").slice(0, 20),
 				tags: draft.tags || [],
 				author: draft.author || "AI Workstation",
-				digest: "",
+				digest: draft.digest || contentText.slice(0, 100).trim(),
 				covers: legacyCovers,
 				selectedCoverIndex: draft.selectedCoverIndex ?? 0,
 			},
@@ -321,7 +328,8 @@ export function PublishCenter({
 	// Confirm multi-platform publishing
 	const handleConfirmPublish = async () => {
 		const activePlatforms = Object.entries(configs).filter(
-			([_, cfg]) => cfg.enabled,
+			([platform, cfg]) =>
+				cfg.enabled && PLATFORM_METAS.some((m) => m.id === platform),
 		) as [PublishPlatform, PlatformPublishConfig][];
 
 		if (activePlatforms.length === 0) {
@@ -410,20 +418,36 @@ export function PublishCenter({
 				}
 			}
 
-			// 2. RedBook Publish Package
+			// 2. RedBook Native Client Publish via redbookService
 			if (platform === "redbook") {
 				try {
-					await copyRedbookText({
-						title: cfg.title.slice(0, 20),
-						body: contentText.slice(0, 1000),
-						topics: cfg.tags.slice(0, 6),
+					// Collect all candidate cover and content images
+					const images: string[] = [];
+					if (cfg.covers && cfg.covers.length > 0) {
+						for (const c of cfg.covers) {
+							if (c.url) images.push(c.url);
+						}
+					} else if (selectedCover) {
+						images.push(selectedCover);
+					}
+
+					// Use user-configured digest (正文导读 / 开篇) as note content
+					const noteContent = cfg.digest.trim() || contentText;
+
+					const res = await redbookService.publish({
+						title: cfg.title,
+						content: noteContent,
+						topics: cfg.tags,
+						images,
+						mode: cfg.publishMode || "fill_only",
 					});
+
 					setResults((prev) => ({
 						...prev,
 						redbook: {
 							platform: "redbook",
-							status: "success",
-							message: "小红书图文文案与标签话题已复制到剪贴板，封面已就绪",
+							status: res.success ? "success" : "error",
+							message: res.message,
 							time: nowTime,
 						},
 					}));
@@ -545,9 +569,10 @@ export function PublishCenter({
 		onClose();
 	};
 
-	const enabledCount = Object.values(configs).filter((c) => c.enabled).length;
-	const currentMeta = PLATFORM_METAS.find((m) => m.id === activePlatform)!;
-	const currentConfig = configs[activePlatform];
+	const enabledCount = PLATFORM_METAS.filter((m) => configs[m.id]?.enabled).length;
+	const currentMeta =
+		PLATFORM_METAS.find((m) => m.id === activePlatform) || PLATFORM_METAS[0];
+	const currentConfig = configs[currentMeta?.id || activePlatform] || configs.wechat;
 
 	return (
 		<ImagePreviewProvider>
