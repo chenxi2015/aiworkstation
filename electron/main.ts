@@ -4,6 +4,7 @@ import { startNitroServer, stopNitroServer } from "./server.js";
 import { destroyTray, setupTray } from "./tray.js";
 import { setupAutoUpdater } from "./updater.js";
 import { setupRedbookPublishIPC } from "./publish/index.js";
+import { destroyElectronCrawler, setupElectronCrawler } from "./crawler/index.js";
 import { createMainWindow, focusMainWindow, setIsQuitting, showMainWindow } from "./window.js";
 
 // Disable automation flags that websites (e.g. Xiaohongshu) use to reject Electron/headless browsers
@@ -39,6 +40,7 @@ if (!gotLock) {
 			setupTray();
 			setupAutoUpdater();
 			setupRedbookPublishIPC();
+			setupElectronCrawler(serverPort);
 		} catch (err) {
 			console.error("[electron] Startup failed:", err);
 			dialog.showErrorBox(
@@ -68,6 +70,7 @@ if (!gotLock) {
 
 	const cleanup = () => {
 		destroyTray();
+		destroyElectronCrawler();
 		stopNitroServer();
 	};
 

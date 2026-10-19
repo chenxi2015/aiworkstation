@@ -26,11 +26,13 @@ export async function handleChatStreamRequest(
 	res.write(": sse-connected\n\n");
 
 	const abortController = new AbortController();
-	res.on("close", () => {
-		if (!res.writableEnded) {
+	const handleDisconnect = () => {
+		if (!res.writableEnded && !abortController.signal.aborted) {
 			abortController.abort();
 		}
-	});
+	};
+
+	res.on("close", handleDisconnect);
 
 	try {
 		const rawBody = await readJsonBody(req);
@@ -54,6 +56,7 @@ export async function handleChatStreamRequest(
 			res.write(`data: ${JSON.stringify(errEvent)}\n\n`);
 		}
 	} finally {
+		res.off("close", handleDisconnect);
 		if (!res.writableEnded && !res.closed) {
 			res.end();
 		}

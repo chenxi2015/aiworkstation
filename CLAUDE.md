@@ -49,7 +49,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **`functions/`**：TanStack Start Server Functions（`createServerFn` RPC），按模块分文件（workbench、dashboard、obsidian、editor、creator、publish、rag、skills…）。前端通过它读写 SQLite 与本地文件。
 - **`db/`**：`better-sqlite3` 连接、原生 SQL schema 与幂等迁移（`schema.ts`）、`repositories/`。数据库文件 `.aiworkstation/workbench.db`。AI 密钥等配置也存 SQLite（`settings` 表），**不用 .env**。
 - **`api/`**：给 Chrome 扩展的 HTTP API（`/api/collect`、`/api/crawler` 等）。`router.ts` 是共享路由表，dev 下经 `extensionApiPlugin`（Vite middleware）挂载，Node 生产下经 `extensionApi.nitro.ts` 挂载——**改 API 路由只需改 `router.ts` + `handlers/`，两个入口自动同步**。
-- **`ai/`**：TanStack AI 编排层。`tools/`（30+ 个 Agent 工具：书签批量治理、merge_folders、标签治理、web_search、read_webpage、crawl_webpage_via_extension、Excalidraw/Canvas/文档工具）、`prompts/`（System Prompt 与交付契约）、`drafts/`、`search/`（混合 RAG：0.6 向量 + 0.4 BM25）。
+- **`ai/`**：TanStack AI 编排层。`tools/`（30+ 个 Agent 工具：书签批量治理、merge_folders、标签治理、web_search、read_webpage、crawl_webpage、Excalidraw/Canvas/文档工具）、`prompts/`（System Prompt 与交付契约）、`drafts/`、`search/`（混合 RAG：0.6 向量 + 0.4 BM25）。
 - **`services/obsidian/`**：本地 Obsidian Vault 文件服务——直接读写真实 `.md` 文件树，**不进 SQLite**（PROJECT.md 决策 #8），删除必须走系统回收站（决策 #9）。
 
 ### 前端结构

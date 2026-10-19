@@ -1,13 +1,16 @@
-import { ScrollShadow } from "@heroui/react";
+import { ScrollShadow, toast } from "@heroui/react";
 import { useNavigate } from "@tanstack/react-router";
 import {
 	ChevronDown,
 	ChevronRight,
 	Loader2,
+	Square,
 	SquareArrowOutUpRight,
 } from "lucide-react";
 import { memo } from "react";
 import { formatDurationMs } from "../../../../../lib/utils.ts";
+import { agentSessionManager } from "../../../../../services/ai/agentSessionManager.ts";
+import { agentSessionStore } from "../../../../../stores/agentSessionStore.ts";
 import { AiMarkdownRenderer } from "../../shared/AiMarkdownRenderer.tsx";
 import { extractDiffStat, formatStepAction } from "./toolStrategies.ts";
 import type { AgentStepItemProps } from "./types.ts";
@@ -33,6 +36,15 @@ export const AgentStepItem = memo(function AgentStepItem({
 	const hasDetails =
 		Boolean(step.args && Object.keys(step.args).length > 0) ||
 		Boolean(step.summary);
+
+	const handleStopCurrentStep = (e: React.MouseEvent) => {
+		e.stopPropagation();
+		const activeId = agentSessionStore.state.activeSessionId;
+		if (activeId) {
+			agentSessionManager.stopSession(activeId);
+			toast.info("已终止当前操作");
+		}
+	};
 
 	return (
 		<div className="group/item">
@@ -70,18 +82,31 @@ export const AgentStepItem = memo(function AgentStepItem({
 					</div>
 				</div>
 
-				{/* Duration and inspect toggle */}
-				<div className="flex items-center gap-1.5 text-neutral-400 shrink-0 ml-2 opacity-50 group-hover/item:opacity-100 transition-opacity">
+				{/* Right: Stop button if running, or duration and inspect toggle */}
+				<div className="flex items-center gap-1.5 shrink-0 ml-2">
+					{step.status === "running" && (
+						<button
+							type="button"
+							onClick={handleStopCurrentStep}
+							className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium text-danger hover:text-white bg-danger/10 hover:bg-danger border border-danger/25 transition-all cursor-pointer shadow-2xs"
+							title="终止当前命令/操作"
+						>
+							<Square className="w-2 h-2 fill-current" />
+							<span>终止</span>
+						</button>
+					)}
 					{step.durationMs != null && step.durationMs > 0 && (
-						<span className="text-[11px] font-mono">
+						<span className="text-[11px] font-mono text-neutral-400 opacity-60">
 							{formatDurationMs(step.durationMs)}
 						</span>
 					)}
-					{isExpanded ? (
-						<ChevronDown className="w-3 h-3" />
-					) : (
-						<ChevronRight className="w-3 h-3" />
-					)}
+					<span className="text-neutral-400 opacity-50 group-hover/item:opacity-100 transition-opacity">
+						{isExpanded ? (
+							<ChevronDown className="w-3 h-3" />
+						) : (
+							<ChevronRight className="w-3 h-3" />
+						)}
+					</span>
 				</div>
 			</button>
 

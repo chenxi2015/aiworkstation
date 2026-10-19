@@ -52,9 +52,9 @@ import {
 	generateDataChartToolDef,
 } from "./chartTool.ts";
 import {
-	crawlWebpageViaExtensionToolDef,
-	executeCrawlWebpageViaExtension,
-} from "./crawlWebpageViaExtensionTool.ts";
+	crawlWebpageToolDef,
+	executeCrawlWebpage,
+} from "./crawlWebpageTool.ts";
 import {
 	editDocumentParagraphToolDef,
 	executeEditDocumentParagraph,
@@ -84,6 +84,7 @@ import {
 	executeExcalidrawDrawElements,
 	executeExcalidrawUpdateElement,
 } from "./excalidrawTools.ts";
+import { executeCommand, executeCommandToolDef } from "./executeCommandTool.ts";
 import type { GetStatsInput } from "./getStatsTool.ts";
 import {
 	executeDraftCanvas,
@@ -158,6 +159,8 @@ export interface ToolRuntimeContext {
 	sessionId?: string;
 	/** Active skill directory for read_skill_resource */
 	activeSkillDir?: string;
+	/** Abort signal for cancelling active tool executions like shell commands */
+	signal?: AbortSignal;
 }
 
 type NamedDef = { name: string; metadata?: Record<string, unknown> };
@@ -416,13 +419,13 @@ export function createAgentTools(
 				),
 		},
 		{
-			def: crawlWebpageViaExtensionToolDef,
+			def: crawlWebpageToolDef,
 			make: () =>
-				crawlWebpageViaExtensionToolDef.server((args) =>
+				crawlWebpageToolDef.server((args) =>
 					wrapExecution(
-						"crawl_webpage_via_extension",
+						"crawl_webpage",
 						args,
-						() => executeCrawlWebpageViaExtension(args),
+						() => executeCrawlWebpage(args),
 						hooks,
 					),
 				),
@@ -558,6 +561,19 @@ export function createAgentTools(
 						"fs_open_in_os",
 						args,
 						() => executeOpenInOs(args),
+						hooks,
+					),
+				),
+		},
+		// ---------- 系统命令执行（全局 headless 执行） ----------
+		{
+			def: executeCommandToolDef,
+			make: () =>
+				executeCommandToolDef.server((args) =>
+					wrapExecution(
+						"execute_command",
+						args,
+						() => executeCommand(args, ctx.signal),
 						hooks,
 					),
 				),

@@ -1,4 +1,5 @@
 import { readVaultNote } from "../../../services/obsidian/note.ts";
+import { resolveVaultNoteAbsPath } from "../../../services/obsidian/vault.ts";
 
 /** Safe character limit for prompt text injection to avoid context overflow */
 export const MAX_PROMPT_DOC_CHARS = 50_000;
@@ -29,6 +30,7 @@ export async function resolveActiveNotePrompt(
 			return formatExcalidrawContext(note.relPath, note.name, note.content);
 		}
 
+		const absPath = resolveVaultNoteAbsPath(note.relPath);
 		const wordCount = note.content.length;
 		let preview = note.content.trim() || "(空笔记/暂无内容)";
 		let notice = "";
@@ -37,8 +39,12 @@ export async function resolveActiveNotePrompt(
 			notice = `\n\n…（笔记正文共 ${wordCount} 字，已截取前 ${MAX_PROMPT_DOC_CHARS} 字放入上下文，以保障大模型问答性能）`;
 		}
 
+		const pathHeader = absPath
+			? `  - 本地文件绝对路径: ${absPath}\n  - 文件相对路径: ${note.relPath}`
+			: `  - 文件相对路径: ${note.relPath}`;
+
 		return `\n- 【当前正在查看/编辑的活跃 Obsidian 笔记（用户当前屏幕聚焦，最高优先级）】:
-  - 文件相对路径: ${note.relPath}
+${pathHeader}
   - 笔记标题: 《${note.name}》
   - 当前字数: ${wordCount} 字
   - 完整正文（包含 Wiki 双链 [[...]]、Markdown 结构、代码块、图片等）:

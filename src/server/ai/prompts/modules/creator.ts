@@ -33,7 +33,7 @@ export const creatorPrompt: ModulePromptDefinition = {
 	toolGuidelines: `## 创作工具调用准则
 
 - 调用 \`query_bookmarks\` 检索具有爆款潜力的热门技术、工具或行业趋势素材
-- 调用 \`crawl_webpage_via_extension\` 或 \`read_webpage_content\` 深度提纯原帖精髓，提炼独特的二创角度
+- 调用 \`crawl_webpage\` 或 \`read_webpage_content\` 深度提纯原帖精髓，提炼独特的二创角度
 - 调用 \`web_search\` 补充实时热点话题与竞品动态
 - 素材检索时将 \`purpose\` 设为 \`"internal_inspection"\` 以静默摸底，确认选题可行后再展示给用户`,
 };

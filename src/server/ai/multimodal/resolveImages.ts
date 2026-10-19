@@ -4,7 +4,7 @@ import path from "node:path";
 import type { ChatContextItem } from "../../../types/chatContext.ts";
 import { DB_DIR } from "../../db/connection.ts";
 import { workbenchDb } from "../../db/sqlite.ts";
-import { getFilesRootDir } from "../../services/filesRoot.ts";
+import { resolveAssetAbsPath } from "../../services/filesRoot.ts";
 import { extractCoverFrame } from "../../services/nativeFfmpeg.ts";
 import { resolveObsidianVaultDir } from "../../services/obsidian/vault.ts";
 
@@ -155,38 +155,6 @@ export function resolveBoardVisualAsDataUri(
 		console.warn("[resolveImages] Failed to resolve board visual:", err);
 	}
 	return null;
-}
-
-/**
- * Resolves absolute path for a managed or external asset
- */
-function resolveAssetAbsPath(asset: {
-	storageMode?: string | null;
-	sourcePath?: string | null;
-	relPath: string;
-	materialId?: number | null;
-}): string | null {
-	if (asset.storageMode === "external") {
-		return asset.sourcePath ? path.resolve(asset.sourcePath) : null;
-	}
-
-	const filesRoot = getFilesRootDir();
-	let absPath = path.resolve(filesRoot, asset.relPath);
-	if (
-		(!fs.existsSync(absPath) || !fs.statSync(absPath).isFile()) &&
-		asset.materialId
-	) {
-		const fallback = path.resolve(
-			filesRoot,
-			"creator",
-			"materials",
-			String(asset.materialId),
-			asset.relPath,
-		);
-		if (fs.existsSync(fallback)) absPath = fallback;
-	}
-
-	return fs.existsSync(absPath) && fs.statSync(absPath).isFile() ? absPath : null;
 }
 
 /**

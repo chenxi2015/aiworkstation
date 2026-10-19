@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, statSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 import { workbenchDb } from "../../db/sqlite.ts";
 import { expandHome } from "../skills/roots.ts";
@@ -32,6 +32,22 @@ export function resolveObsidianVaultDir(explicitDir?: string): {
 		getConfiguredVaultDir() ||
 		DEFAULT_OBSIDIAN_VAULT_DIR;
 	return { path: resolve(expandHome(configured)), configured };
+}
+
+/**
+ * Resolves the absolute file system path for an Obsidian note by its relPath.
+ * Returns null if the file does not exist on disk.
+ */
+export function resolveVaultNoteAbsPath(relPath?: string | null): string | null {
+	if (!relPath) return null;
+	try {
+		const { path: root } = resolveObsidianVaultDir();
+		if (!existsSync(root)) return null;
+		const absPath = resolve(root, relPath);
+		return existsSync(absPath) && statSync(absPath).isFile() ? absPath : null;
+	} catch {
+		return null;
+	}
 }
 
 /**

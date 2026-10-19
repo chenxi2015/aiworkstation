@@ -241,7 +241,7 @@ extensions/aicollector/ # Chrome 插件（WXT 框架）：background / content /
 | `reorder_folders` | 文件夹视觉排序 | 传入有序 ID 数组，直接保存排列 | ✅ 已实现 |
 | `update_folder` | 更新文件夹属性与描述 | 修改单个或特定文件夹元信息 | ✅ 已实现 |
 | `remove_bookmarks_from_folder` | 从文件夹移出书签 | 移回未分类或清空目录 | ✅ 已实现 |
-| `crawl_webpage_via_extension` | 调度 Chrome 插件静默抓取网页 | 突破 SPA/反爬/需登录限制，支持指定 CSS 选择器定向提纯 Markdown | ✅ 已实现 |
+| `crawl_webpage` | **深度抓取网页正文 Markdown** | 内置 Chromium / Cloud Reader / 原生 fetch 级联兜底，支持指定 CSS 选择器定向提纯与全页落盘 | ✅ 已实现 |
 | `draft_article` | **从零撰写长文或素材汇总草稿** | 服务端全量生成正文并暂存本地草稿区，通过交付卡片由用户确认落点（存为创作文档/存为笔记/丢弃） | ✅ 已实现 |
 | `draft_canvas` | **单步规划并生成 Canvas 白板脑图/卡片草稿** | 一步完成节点组织、连线计算与逻辑分组，生成完整白板草稿交付卡片，确认后原子写入 Vault | ✅ 已实现 |
 | `canvas_create_elements` | Canvas 白板批量创建节点与连线（已打开画布） | 向当前已打开的白板中追加节点/架构/脑图，前端自动排版与实时渲染，支持 Cmd+Z | ✅ 已实现 |
@@ -304,7 +304,7 @@ extensions/aicollector/ # Chrome 插件（WXT 框架）：background / content /
    - **阶段二（✅ 已完成）**：RAG 智能问答侧栏（Chat with Bookmarks）+ 文件夹一键专题综述提炼 + ReAct Tool Calling（4 Tools）
    - **阶段三（✅ 已完成）**：浏览器原生书签导入同步（BookmarkSyncModal）+ 死链巡检（DeadLinksModal + maintenance 后台扫描）+ ReAct Tool 扩展至 8 个
 3. **M3 智能爬虫与 Browser Co-Pilot（🚧 进行中）**：
-   - **阶段一（✅ 已完成）**：实现工作台 ➔ `aicollector` 的静默爬虫通信通道（内存 Job 队列 + 插件长轮询 `/api/crawler`），后台秒级开合 Tab 提纯 Markdown，突破 SPA 渲染与登录态屏障，接入 `crawl_webpage_via_extension` Tool（插件离线自动降级原生 fetch）
+   - **阶段一（✅ 已完成）**：实现工作台深度抓取通道（内置无头 Chromium + 云端 Reader / 原生 fetch 级联兜底），突破 SPA 渲染屏障，接入 `crawl_webpage` Tool（支持选择器定向提纯与完整正文落盘）
    - **阶段二（选区规则 Recipe）**：插件可视化点选 ➔ 生成并持久化选择器模板规则库 ➔ AI 对话按规则定向爬取指定板块
    - **阶段三（浏览器原子动作）**：扩展 `click`/`scroll`/`type` 指令集，支持翻页连续抓取与多标签页协同调研
 4. **M4 创作与二创矩阵**：

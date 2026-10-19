@@ -3,7 +3,6 @@ import { injectContentScriptsIntoOpenTabs } from '../src/background/contentScrip
 import { registerMessageHandlers } from '../src/background/messageRouter';
 import { registerTabLifecycleListeners } from '../src/background/tabLifecycle';
 import { registerWebRequestSniffer } from '../src/background/webRequestSniffer';
-import { startCrawlerLoop } from '../src/services/crawlerClient';
 
 /**
  * Background service worker entry: thin wiring layer only.
@@ -47,11 +46,4 @@ export default defineBackground(() => {
 
   // 6. Passive network sniffer for video streams across all frames and workers
   registerWebRequestSniffer();
-
-  // 7. Silent crawler channel: long-poll workbench server for crawl jobs
-  try {
-    startCrawlerLoop();
-  } catch (err) {
-    console.warn('[AI Collector] Failed to start crawler loop:', err);
-  }
 });

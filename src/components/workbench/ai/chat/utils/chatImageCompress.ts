@@ -127,12 +127,15 @@ export async function createChatImageContextItem(
 	seq: number,
 ): Promise<ChatContextItem> {
 	const { dataUrl, sizeFormatted, name } = await prepareChatImage(file);
+	const nativePath = typeof (file as { path?: string }).path === "string" ? (file as { path?: string }).path : undefined;
 	return {
 		id: `img_${Date.now()}_${seq}`,
 		type: "image",
 		title: name,
 		subtitle: sizeFormatted,
 		thumbnail: dataUrl,
+		filePath: nativePath,
+		data: nativePath ? { filePath: nativePath } : undefined,
 	};
 }
 

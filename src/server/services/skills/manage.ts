@@ -2,10 +2,12 @@ import { execFile } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
+import { unzipSync } from "fflate";
 import type {
 	InstallSkillResult,
 	UninstallSkillResult,
 } from "../../../components/skills/types.ts";
+import { getEnrichedEnv } from "../system/index.ts";
 import { openInOs } from "../systemOpener.ts";
 import { clearOverviewCache } from "./overview.ts";
 import { DEFAULT_SKILL_ROOTS, expandHome } from "./roots.ts";
@@ -218,31 +220,22 @@ export async function installSkill(
 			await execFileAsync(
 				"git",
 				["clone", "--depth", "1", repoUrl.trim(), safeDirName],
-				{ cwd: destRoot, timeout: 60_000 },
+				{ cwd: destRoot, timeout: 60_000, env: getEnrichedEnv() },
 			);
 		} else if (mode === "upload") {
 			await fs.mkdir(targetSkillDir, { recursive: true });
 
 			if (zipBase64) {
-				// Handle zip archive upload
-				const os = await import("node:os");
-				const tempZipPath = path.join(
-					os.tmpdir(),
-					`skill-upload-${Date.now()}-${safeDirName}.zip`,
-				);
+				// Handle zip archive upload via pure-JS cross-platform unzipping
 				const buffer = Buffer.from(zipBase64, "base64");
-				await fs.writeFile(tempZipPath, buffer);
+				const unzipped = unzipSync(new Uint8Array(buffer));
 
-				try {
-					await execFileAsync("unzip", [
-						"-q",
-						"-o",
-						tempZipPath,
-						"-d",
-						targetSkillDir,
-					]);
-				} finally {
-					await fs.rm(tempZipPath, { force: true }).catch(() => {});
+				for (const [relPath, fileData] of Object.entries(unzipped)) {
+					// Skip pure directory entries
+					if (relPath.endsWith("/")) continue;
+					const targetFilePath = path.join(targetSkillDir, relPath);
+					await fs.mkdir(path.dirname(targetFilePath), { recursive: true });
+					await fs.writeFile(targetFilePath, fileData);
 				}
 
 				// Check if unzipped into a single child directory

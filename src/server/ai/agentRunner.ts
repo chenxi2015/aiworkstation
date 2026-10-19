@@ -121,6 +121,7 @@ export async function runAgentStream(
 		activeNotePath: effectiveNotePath,
 		sessionId: params.sessionId,
 		activeSkillDir,
+		signal,
 	});
 	for (const tool of tools) {
 		const name = (tool as { name?: string }).name;

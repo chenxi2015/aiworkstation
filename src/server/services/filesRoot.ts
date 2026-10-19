@@ -1,3 +1,4 @@
+import { existsSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { workbenchDb } from "../db/sqlite.ts";
@@ -71,5 +72,41 @@ export function getVisualMediaDir(
 		"visual",
 		mediaType === "video" ? "videos" : "images",
 	);
+}
+
+/**
+ * Resolves the absolute file system path for a material/document asset.
+ * Checks external storage sourcePath, managed filesRootDir relative path,
+ * and fallback material directory locations. Returns null if file not found.
+ */
+export function resolveAssetAbsPath(asset: {
+	storageMode?: string | null;
+	sourcePath?: string | null;
+	relPath: string;
+	materialId?: number | null;
+}): string | null {
+	if (asset.storageMode === "external") {
+		return asset.sourcePath && existsSync(asset.sourcePath)
+			? resolve(asset.sourcePath)
+			: null;
+	}
+
+	const filesRoot = getFilesRootDir();
+	let absPath = resolve(filesRoot, asset.relPath);
+	if (
+		(!existsSync(absPath) || !statSync(absPath).isFile()) &&
+		asset.materialId
+	) {
+		const fallback = resolve(
+			filesRoot,
+			"creator",
+			"materials",
+			String(asset.materialId),
+			asset.relPath,
+		);
+		if (existsSync(fallback)) absPath = fallback;
+	}
+
+	return existsSync(absPath) && statSync(absPath).isFile() ? absPath : null;
 }
 

@@ -50,6 +50,51 @@ const initialState: AgentSessionState = {
 
 export const agentSessionStore = new Store<AgentSessionState>(initialState);
 
+/**
+ * Sanitize restored messages to ensure no dangling running state hangs forever
+ */
+function sanitizeRestoredMessages(messages?: ChatItem[]): ChatItem[] {
+	if (!messages || messages.length === 0) return [];
+	return messages.map((m) => {
+		if (!m.steps && !m.parts && !m.isStreaming) return m;
+
+		const cleanedSteps = m.steps?.map((s) =>
+			s.status === "running"
+				? {
+						...s,
+						status: "failed" as const,
+						summary: s.summary || "[已随会话重置终止]",
+					}
+				: s,
+		);
+
+		const cleanedParts = m.parts?.map((p) => {
+			if (p.type === "step_group") {
+				return {
+					...p,
+					steps: p.steps.map((s) =>
+						s.status === "running"
+							? {
+									...s,
+									status: "failed" as const,
+									summary: s.summary || "[已随会话重置终止]",
+								}
+							: s,
+					),
+				};
+			}
+			return p;
+		});
+
+		return {
+			...m,
+			isStreaming: false,
+			steps: cleanedSteps,
+			parts: cleanedParts,
+		};
+	});
+}
+
 export const agentSessionActions = {
 	/**
 	 * Change current active session displayed in UI
@@ -108,10 +153,17 @@ export const agentSessionActions = {
 				order.push(ds.id);
 				// Preserve runtime status if session is already running in memory
 				const existing = sessionsMap[ds.id];
+				const rawMessages = existing?.messages?.length
+					? existing.messages
+					: ds.messages || [];
+
 				sessionsMap[ds.id] = {
 					id: ds.id,
 					title: ds.title || "新对话",
-					messages: existing?.messages?.length ? existing.messages : ds.messages || [],
+					messages:
+						existing?.status === "running"
+							? rawMessages
+							: sanitizeRestoredMessages(rawMessages),
 					status: existing?.status || "idle",
 					createdAt: ds.createdAt,
 					updatedAt: ds.updatedAt,
@@ -160,7 +212,7 @@ export const agentSessionActions = {
 		const newSession: SessionRuntime = {
 			id,
 			title: initialTitle,
-			messages: initialMessages,
+			messages: sanitizeRestoredMessages(initialMessages),
 			status: "idle",
 		};
 

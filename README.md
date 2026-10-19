@@ -76,7 +76,7 @@ AI Workstation 打通了**浏览器采集端**、**本地知识治理中心**、
 - **Executive Dashboard 成果看板交付契约**：
   - 拒绝过程碎碎念流水账；
   - 产出标准的专业报告：**成效指标看板 ➔ 架构矩阵全景 ➔ 代表性资产亮点 ➔ 启发式演进指引**。
-- **外脑探索**：集成网页读取（`read_webpage_content`）、插件静默抓取（`crawl_webpage_via_extension`）与联网搜索（`web_search`）。
+- **外脑探索**：集成网页读取（`read_webpage_content`）、深度网页抓取（`crawl_webpage`）与联网搜索（`web_search`）。
 
 ### 4. 📝 AI 富文本创作中心 (`/editor`)
 - **现代编辑器内核**：基于 TipTap 3 + TailwindCSS Typography 构建，支持表格、任务列表、代码块高亮与 Mermaid 流程图渲染。

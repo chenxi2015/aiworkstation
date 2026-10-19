@@ -351,9 +351,9 @@ export const TOOL_STRATEGIES: Record<string, ToolStrategy> = {
 		actionText: "读取了网页",
 		targetText: extractTargetText(args),
 	}),
-	crawl_webpage_via_extension: (args) => ({
+	crawl_webpage: (args) => ({
 		Icon: Globe,
-		actionText: "采集了网页",
+		actionText: "抓取了网页",
 		targetText: extractTargetText(args),
 	}),
 	read_skill_resource: (args) => ({

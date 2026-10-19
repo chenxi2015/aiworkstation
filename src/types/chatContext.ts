@@ -39,6 +39,8 @@ export interface ChatContextItem {
 	materialId?: number;
 	/** Optional document id if type === 'document' */
 	documentId?: number;
+	/** Optional local absolute file path for desktop-attached or local disk resources */
+	filePath?: string;
 	/** Optional category code for folder navigation */
 	category?: string;
 	/** Optional tag name if type === 'tag' */

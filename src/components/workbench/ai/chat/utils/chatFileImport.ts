@@ -136,10 +136,16 @@ export function getUnsupportedFileReason(file: File): string {
 export function isImportableChatFile(file: File): boolean {
 	if (file.type.startsWith("image/")) return true;
 	const ext = getExtension(file.name);
+	const hasNativePath = typeof (file as { path?: string }).path === "string" && Boolean((file as { path?: string }).path);
 	if (
 		file.type.startsWith("audio/") ||
 		file.type.startsWith("video/") ||
-		MEDIA_EXTS.has(ext) ||
+		MEDIA_EXTS.has(ext)
+	) {
+		// Allow local media files in desktop environment where direct file path is available
+		return hasNativePath;
+	}
+	if (
 		ARCHIVE_EXTS.has(ext) ||
 		BINARY_EXEC_EXTS.has(ext) ||
 		ext === "doc"
@@ -292,6 +298,26 @@ export async function importChatFile(
 		return null;
 	}
 
+	const nativePath = typeof (file as { path?: string }).path === "string" ? (file as { path?: string }).path : undefined;
+	const ext = getExtension(file.name);
+
+	// Handle desktop local media files that have direct absolute paths
+	if (nativePath && (file.type.startsWith("video/") || file.type.startsWith("audio/") || MEDIA_EXTS.has(ext))) {
+		const isVideo = file.type.startsWith("video/") || ["mp4", "mov", "avi", "mkv", "webm", "flv", "m4v", "wmv"].includes(ext);
+		return {
+			id: `media_${Date.now()}_${seq}`,
+			type: "file",
+			title: file.name,
+			subtitle: `${formatBytes(file.size)} · 本地${isVideo ? "视频" : "音频"}`,
+			filePath: nativePath,
+			data: {
+				filePath: nativePath,
+				fileSize: file.size,
+				mediaKind: isVideo ? "video" : "audio",
+			},
+		};
+	}
+
 	const text = await extractDocumentText(file);
 	const truncated = text.slice(0, DOC_TEXT_PREVIEW_LIMIT);
 	const suffix =
@@ -304,7 +330,9 @@ export async function importChatFile(
 		type: "file",
 		title: file.name,
 		subtitle: `${formatBytes(file.size)} · ${text.length} 字`,
+		filePath: nativePath,
 		data: {
+			filePath: nativePath,
 			contentPreview: truncated + suffix,
 			fileSize: file.size,
 			charCount: text.length,

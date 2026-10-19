@@ -23,6 +23,6 @@ export const learnPrompt: ModulePromptDefinition = {
 	toolGuidelines: `## 学习模块工具调用准则
 
 - 调用 \`query_bookmarks\` 汇总特定技术方向（如前端架构、系统底层、AI 大模型）的教程与学习笔记
-- 调用 \`crawl_webpage_via_extension\` 或 \`read_webpage_content\` 深度提取教程正文，辅助用户理解学习材料
+- 调用 \`crawl_webpage\` 或 \`read_webpage_content\` 深度提取教程正文，辅助用户理解学习材料
 - 调用 \`web_search\` 补充用户知识库中缺失的高质量学习资源`,
 };

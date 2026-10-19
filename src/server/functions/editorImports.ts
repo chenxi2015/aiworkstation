@@ -6,7 +6,7 @@ import {
 	MAX_READ_BYTES,
 	resolveUserPath,
 } from "../ai/fs/fsSafety.ts";
-import { executeCrawlWebpageViaExtension } from "../ai/tools/crawlWebpageViaExtensionTool.ts";
+import { executeCrawlWebpage } from "../ai/tools/crawlWebpageTool.ts";
 
 export interface ObsidianNoteItem {
 	relativePath: string;
@@ -16,7 +16,7 @@ export interface ObsidianNoteItem {
 }
 
 /**
- * Server Function: 网页 URL 导入（复用插件爬虫通道与降级策略）
+ * Server Function: 网页 URL 导入（复用爬虫通道与降级策略）
  */
 export const importWebpageToEditor = createServerFn({ method: "POST" })
 	.validator((data: { url: string }) => data)
@@ -40,7 +40,7 @@ export const importWebpageToEditor = createServerFn({ method: "POST" })
 			}
 
 			try {
-				const result = await executeCrawlWebpageViaExtension({
+				const result = await executeCrawlWebpage({
 					url,
 					mode: "content",
 					waitMs: 1500,

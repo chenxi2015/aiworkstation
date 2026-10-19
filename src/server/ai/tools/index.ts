@@ -2,10 +2,11 @@ import type { AgentToolHooks, ToolExecutionResult } from "./types.ts";
 
 export * from "./addTagsToBookmarksTool.ts";
 export * from "./chartTool.ts";
-export * from "./crawlWebpageViaExtensionTool.ts";
+export * from "./crawlWebpageTool.ts";
 export * from "./createFolderTool.ts";
 export * from "./createTagsTool.ts";
 export * from "./deleteFolderTool.ts";
+export * from "./executeCommandTool.ts";
 export * from "./getStatsTool.ts";
 export * from "./mergeFoldersTool.ts";
 export * from "./mermaidTool.ts";

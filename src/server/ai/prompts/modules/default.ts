@@ -36,7 +36,7 @@ export const ecommercePrompt: ModulePromptDefinition = {
 
 - 调用 \`query_bookmarks\` 检索用户收藏的电商素材、竞品链接和选品笔记
 - 调用 \`web_search\` 补充实时市场数据和竞品动态
-- 调用 \`crawl_webpage_via_extension\` 提取商品详情页的关键信息（价格、评论、卖点）`,
+- 调用 \`crawl_webpage\` 提取商品详情页的关键信息（价格、评论、卖点）`,
 };
 
 /**
