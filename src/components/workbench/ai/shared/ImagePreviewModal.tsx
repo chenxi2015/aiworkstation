@@ -68,6 +68,7 @@ export function ImagePreviewModal({ data, onClose }: ImagePreviewModalProps) {
 	const [imgLoaded, setImgLoaded] = useState(false);
 
 	const viewportRef = useRef<HTMLDivElement>(null);
+	const imageContainerRef = useRef<HTMLDivElement>(null);
 	const scaleRef = useRef(scale);
 	scaleRef.current = scale;
 	const positionRef = useRef(position);
@@ -77,6 +78,7 @@ export function ImagePreviewModal({ data, onClose }: ImagePreviewModalProps) {
 	const startMouseRef = useRef({ x: 0, y: 0 });
 	const startPosRef = useRef({ x: 0, y: 0 });
 	const hasMovedRef = useRef(false);
+	const pointerDownTargetRef = useRef<EventTarget | null>(null);
 
 	// Synchronize active data
 	useEffect(() => {
@@ -334,16 +336,11 @@ export function ImagePreviewModal({ data, onClose }: ImagePreviewModalProps) {
 		if (e.button !== 0) return;
 		if ((e.target as HTMLElement).closest("button")) return;
 
+		pointerDownTargetRef.current = e.target;
 		isDraggingRef.current = true;
 		hasMovedRef.current = false;
 		startMouseRef.current = { x: e.clientX, y: e.clientY };
 		startPosRef.current = { ...positionRef.current };
-
-		try {
-			e.currentTarget.setPointerCapture(e.pointerId);
-		} catch {
-			// ignore
-		}
 	};
 
 	const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -352,7 +349,14 @@ export function ImagePreviewModal({ data, onClose }: ImagePreviewModalProps) {
 		const dy = e.clientY - startMouseRef.current.y;
 
 		if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
-			hasMovedRef.current = true;
+			if (!hasMovedRef.current) {
+				hasMovedRef.current = true;
+				try {
+					e.currentTarget.setPointerCapture(e.pointerId);
+				} catch {
+					// ignore
+				}
+			}
 			if (!isDragging) setIsDragging(true);
 		}
 
@@ -367,7 +371,9 @@ export function ImagePreviewModal({ data, onClose }: ImagePreviewModalProps) {
 			isDraggingRef.current = false;
 			setIsDragging(false);
 			try {
-				e.currentTarget.releasePointerCapture(e.pointerId);
+				if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+					e.currentTarget.releasePointerCapture(e.pointerId);
+				}
 			} catch {
 				// ignore
 			}
@@ -377,6 +383,17 @@ export function ImagePreviewModal({ data, onClose }: ImagePreviewModalProps) {
 	// Viewport click: close if clicking backdrop without dragging
 	const handleViewportClick = (e: React.MouseEvent) => {
 		if (hasMovedRef.current) return;
+
+		// Check if click was originated on image container
+		const isFromImage =
+			imageContainerRef.current?.contains(e.target as Node) ||
+			imageContainerRef.current?.contains(pointerDownTargetRef.current as Node);
+
+		if (isFromImage) {
+			handleToggleZoom();
+			return;
+		}
+
 		if (e.target === viewportRef.current) {
 			onClose();
 		}
@@ -605,6 +622,7 @@ export function ImagePreviewModal({ data, onClose }: ImagePreviewModalProps) {
 						{/* biome-ignore lint/a11y/noStaticElementInteractions: Interactive pan-and-zoom image container */}
 						{/* biome-ignore lint/a11y/useKeyWithClickEvents: Handled by keyboard shortcuts */}
 						<div
+							ref={imageContainerRef}
 							className="relative flex items-center justify-center select-none"
 							style={{
 								transform: `translate3d(${position.x}px, ${position.y}px, 0) scale(${scale})`,
@@ -612,12 +630,7 @@ export function ImagePreviewModal({ data, onClose }: ImagePreviewModalProps) {
 								transition: isDragging
 									? "none"
 									: "transform 0.12s cubic-bezier(0.2, 0, 0, 1)",
-								cursor:
-									scale > 1
-										? isDragging
-											? "grabbing"
-											: "grab"
-										: "zoom-in",
+								cursor: isDragging ? "grabbing" : "grab",
 							}}
 							onClick={handleImageClick}
 						>

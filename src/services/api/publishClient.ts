@@ -72,6 +72,16 @@ export async function requestPublishMetadata(input: PublishMetadataInput): Promi
 	return generatePublishMetadata({ data: input });
 }
 
+/** 智能规划多图故事线分镜或单图封面方案 */
+export async function requestVisualStoryboardPlan(
+	input: import("../../server/functions/publishAi").GenerateStoryboardInput,
+): Promise<import("../../server/functions/publishAi").GenerateStoryboardResult> {
+	const { generateVisualStoryboardPlan } = await import(
+		"../../server/functions/publishAi"
+	);
+	return generateVisualStoryboardPlan({ data: input });
+}
+
 /** 从数据库获取文档的发布中心草稿 */
 export async function fetchDocumentPublishDraft(
 	documentId: number,

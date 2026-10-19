@@ -70,9 +70,8 @@ export function RedbookConfigSection({
 		<div className="p-3.5 rounded-xl border border-border/80 bg-surface-secondary/40 space-y-3">
 			<div className="flex items-center justify-between">
 				<Label className="text-xs font-semibold text-foreground">
-					小红书创作者账号与直发设置
+					小红书账号与发布设置
 				</Label>
-				<span className="text-[10px] text-muted">桌面客户端原生直连</span>
 			</div>
 
 			{/* Account connection status */}

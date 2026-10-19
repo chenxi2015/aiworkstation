@@ -10,6 +10,7 @@ export interface SlashSkillMenuProps {
 	onSelectIndexChange: (index: number) => void;
 	onSelect: (item: SlashItem) => void;
 	onClose: () => void;
+	placement?: "top" | "bottom";
 	className?: string;
 }
 
@@ -25,6 +26,7 @@ export const SlashSkillMenu = React.memo(function SlashSkillMenu({
 	onSelectIndexChange,
 	onSelect,
 	onClose,
+	placement = "top",
 	className = "",
 }: SlashSkillMenuProps) {
 	const menuRef = useRef<HTMLDivElement>(null);
@@ -55,10 +57,15 @@ export const SlashSkillMenu = React.memo(function SlashSkillMenu({
 
 	if (!isOpen || items.length === 0) return null;
 
+	const positionClass =
+		placement === "bottom"
+			? "top-full mt-2 slide-in-from-top-2"
+			: "bottom-full mb-2 slide-in-from-bottom-2";
+
 	return (
 		<div
 			ref={menuRef}
-			className={`absolute bottom-full mb-2 inset-x-3 p-1.5 rounded-2xl bg-surface/95 dark:bg-zinc-900/95 backdrop-blur-md border border-border/80 dark:border-zinc-800 shadow-xl dark:shadow-2xl z-50 animate-in fade-in slide-in-from-bottom-2 duration-150 select-none ${className}`}
+			className={`absolute ${positionClass} inset-x-0 p-1.5 rounded-2xl bg-surface/95 dark:bg-zinc-900/95 backdrop-blur-md border border-border/80 dark:border-zinc-800 shadow-xl dark:shadow-2xl z-50 animate-in fade-in duration-150 select-none ${className}`}
 		>
 			<div
 				ref={listRef}

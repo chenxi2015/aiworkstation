@@ -17,6 +17,7 @@ export interface PlatformPublishConfig {
 	digest: string;
 	covers: CoverItem[];
 	selectedCoverIndex: number;
+	selectedCoverIndices?: number[]; // Multi-selection indices (especially for Redbook multi-card carousels)
 	accountId?: number | null; // WeChat MP specific account ID
 	publishMode?: "auto" | "fill_only"; // Redbook specific publishing mode
 }
@@ -40,6 +41,9 @@ export interface PlatformMeta {
 	digestPlaceholder: string;
 	digestLabel: string;
 	isDigestSupported: boolean;
+	digestMaxLength?: number;
+	isAuthorSupported?: boolean;
+	isTagsSupported?: boolean;
 }
 
 export const PLATFORM_METAS: PlatformMeta[] = [
@@ -54,6 +58,9 @@ export const PLATFORM_METAS: PlatformMeta[] = [
 		digestPlaceholder: "输入文章核心摘要，将作为卡片导语（建议120字以内）...",
 		digestLabel: "文章摘要（公众号图文卡片）",
 		isDigestSupported: true,
+		digestMaxLength: 120,
+		isAuthorSupported: true,
+		isTagsSupported: false,
 	},
 	{
 		id: "redbook",
@@ -63,9 +70,12 @@ export const PLATFORM_METAS: PlatformMeta[] = [
 		defaultRatio: "3:4",
 		titleMaxLength: 20,
 		titlePlaceholder: "小红书爆款标题（限20字内）...",
-		digestPlaceholder: "输入或提炼具有小红书网感的开篇导读文案（将作为笔记正文描述）...",
-		digestLabel: "正文导读 / 开篇",
+		digestPlaceholder: "输入或提炼具有小红书网感的笔记正文文案（最多1000字）...",
+		digestLabel: "笔记正文（小红书专属文案）",
 		isDigestSupported: true,
+		digestMaxLength: 1000,
+		isAuthorSupported: false,
+		isTagsSupported: true,
 	},
 	// Temporarily hidden: Zhihu & Twitter
 	// {
