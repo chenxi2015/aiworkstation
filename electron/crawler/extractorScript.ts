@@ -235,6 +235,54 @@ export function buildExtractorScript(job: CrawlJob): string {
         .trim();
     }
 
+    function normalizeImagesAndCollect(root) {
+      const images = [];
+      const imgEls = Array.from(root.querySelectorAll("img"));
+      for (let i = 0; i < imgEls.length; i++) {
+        const img = imgEls[i];
+        const rawSrc =
+          img.getAttribute("data-src") ||
+          img.getAttribute("data-original") ||
+          img.getAttribute("data-actualsrc") ||
+          img.getAttribute("src") ||
+          "";
+        if (
+          !rawSrc ||
+          rawSrc.startsWith("data:image/svg") ||
+          rawSrc.startsWith("data:image/gif") ||
+          rawSrc.includes("data:image/png;base64,iVBORw0KGgo")
+        ) {
+          continue;
+        }
+        try {
+          const absUrl = new URL(rawSrc, window.location.href).href;
+          img.setAttribute("src", absUrl);
+          img.setAttribute("referrerpolicy", "no-referrer");
+          if (!images.includes(absUrl)) images.push(absUrl);
+        } catch {
+          if (rawSrc.startsWith("http") && !images.includes(rawSrc)) {
+            images.push(rawSrc);
+          }
+        }
+      }
+      return images;
+    }
+
+    function buildCleanHtml(el) {
+      try {
+        const clone = el.cloneNode(true);
+        const toRemove = clone.querySelectorAll(
+          "script, style, noscript, svg, iframe, canvas, form, button, nav, footer, [style*='display:none']"
+        );
+        for (let i = 0; i < toRemove.length; i++) {
+          toRemove[i].remove();
+        }
+        return clone.innerHTML.trim();
+      } catch {
+        return "";
+      }
+    }
+
     try {
       const blockedReason = detectBlocked();
       if (blockedReason) {
@@ -242,7 +290,10 @@ export function buildExtractorScript(job: CrawlJob): string {
       }
 
       const pageUrl = window.location.href;
-      const title = (document.title || "").trim();
+      const titleEl = document.querySelector(
+        "#activity-name, h1.rich_media_title, h1.article-title, h1[class*='title'], h1"
+      );
+      const title = (titleEl ? (titleEl.innerText || "").trim() : "") || (document.title || "").trim();
 
       // 1. Skeleton mode
       if (params.mode === "skeleton") {
@@ -261,16 +312,29 @@ export function buildExtractorScript(job: CrawlJob): string {
           matched = Array.from(document.querySelectorAll(params.selector));
         } catch {}
         if (matched.length > 0) {
+          const allImages = [];
+          for (let i = 0; i < matched.length; i++) {
+            const imgs = normalizeImagesAndCollect(matched[i]);
+            for (let j = 0; j < imgs.length; j++) {
+              if (!allImages.includes(imgs[j])) allImages.push(imgs[j]);
+            }
+          }
           const combined = matched
             .map((el) => cleanMarkdown(domToMarkdown(el)))
             .filter((md) => md.length > 0)
             .join("\\n\\n");
+          const combinedHtml = matched
+            .map((el) => buildCleanHtml(el))
+            .filter(Boolean)
+            .join("<br/>");
 
           return {
             success: true,
             title,
             finalUrl: pageUrl,
             markdown: combined.slice(0, cap),
+            html: combinedHtml,
+            images: allImages.slice(0, 50),
             totalLength: combined.length,
             truncated: combined.length > cap,
             extractedBy: "selector",
@@ -280,25 +344,31 @@ export function buildExtractorScript(job: CrawlJob): string {
 
       // 3. Auto main content heuristic
       const mainCandidates = Array.from(
-        document.querySelectorAll("article, main, [role=\\"main\\"], .article, .post-content, #content, .content")
+        document.querySelectorAll(
+          "#js_content, .rich_media_content, article, main, [role=\\"main\\"], .article, .post-content, #content, .content, .article-content"
+        )
       );
       const bestMain =
         mainCandidates
-          .filter((el) => (el.innerText || "").trim().length > 200 && calcLinkDensity(el) < 0.5)
+          .filter((el) => (el.innerText || "").trim().length > 150 && calcLinkDensity(el) < 0.5)
           .sort((a, b) => (b.innerText || "").length - (a.innerText || "").length)[0] ||
         mainCandidates
-          .filter((el) => (el.innerText || "").trim().length > 200)
+          .filter((el) => (el.innerText || "").trim().length > 150)
           .sort((a, b) => (b.innerText || "").length - (a.innerText || "").length)[0];
 
       const rootEl = bestMain || document.body || document.documentElement;
       const extractedBy = bestMain ? "article" : "full";
+      const allImages = normalizeImagesAndCollect(rootEl);
       const fullMarkdown = cleanMarkdown(domToMarkdown(rootEl));
+      const cleanHtml = buildCleanHtml(rootEl);
 
       return {
         success: true,
         title,
         finalUrl: pageUrl,
         markdown: fullMarkdown.slice(0, cap),
+        html: cleanHtml,
+        images: allImages.slice(0, 50),
         totalLength: fullMarkdown.length,
         truncated: fullMarkdown.length > cap,
         extractedBy,

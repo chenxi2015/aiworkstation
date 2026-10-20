@@ -27,6 +27,8 @@ export interface CrawlJobResult {
 	success: boolean;
 	title?: string;
 	markdown?: string;
+	html?: string;
+	images?: string[];
 	finalUrl?: string;
 	extractedBy?: "selector" | "article" | "full";
 	totalLength?: number;

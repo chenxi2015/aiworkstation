@@ -125,7 +125,7 @@ export function ImportModal({ isOpen, onClose, onImport }: ImportModalProps) {
 			} else {
 				setWebResult({
 					title: res.title || "导入的文章",
-					html: markdownToHtml(res.markdown),
+					html: res.html && res.html.length > 50 ? res.html : markdownToHtml(res.markdown),
 				});
 			}
 		} catch (err) {

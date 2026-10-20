@@ -211,6 +211,7 @@ export async function importWebpageRpc(url: string): Promise<{
 	success: boolean;
 	title: string;
 	markdown: string;
+	html?: string;
 	error?: string;
 }> {
 	return await importWebpageToEditor({ data: { url } });

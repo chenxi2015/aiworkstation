@@ -6,7 +6,7 @@ import {
 	MAX_READ_BYTES,
 	resolveUserPath,
 } from "../ai/fs/fsSafety.ts";
-import { executeCrawlWebpage } from "../ai/tools/crawlWebpageTool.ts";
+import { scrapeWebpage } from "../services/crawler/universalCrawler.ts";
 
 export interface ObsidianNoteItem {
 	relativePath: string;
@@ -27,6 +27,7 @@ export const importWebpageToEditor = createServerFn({ method: "POST" })
 			success: boolean;
 			title: string;
 			markdown: string;
+			html?: string;
 			error?: string;
 		}> => {
 			const url = data.url.trim();
@@ -40,46 +41,29 @@ export const importWebpageToEditor = createServerFn({ method: "POST" })
 			}
 
 			try {
-				const result = await executeCrawlWebpage({
+				const scraped = await scrapeWebpage({
 					url,
 					mode: "content",
-					waitMs: 1500,
+					waitMs: 1000,
 				});
 
-				// 从 summary 或抓取结果提取标题与内容
-				let title = "";
-				let markdown = "";
-
-				const summary = result.summary || "";
-				// 匹配可能包含的《标题》
-				const titleMatch = summary.match(/《([^》]+)》/);
-				if (titleMatch) {
-					title = titleMatch[1];
-				}
-
-				// 清理系统前缀等辅助说明
-				markdown = summary
-					.replace(
-						/^\[(插件静默爬虫通道|原生 fetch 通道)[^\]]*\][^\n]*\n+/g,
-						"",
-					)
-					.replace(/\[系统提示\][^\n]*/g, "")
-					.trim();
-
-				if (!title) {
-					// 尝试从 markdown 首行匹配 # Title
-					const mdTitleMatch = markdown.match(/^#\s+(.+)$/m);
-					if (mdTitleMatch) {
-						title = mdTitleMatch[1].trim();
-					} else {
-						title = new URL(url).hostname;
-					}
+				if (
+					!scraped.success ||
+					(!scraped.markdown.trim() && !scraped.html?.trim())
+				) {
+					return {
+						success: false,
+						title: "",
+						markdown: "",
+						error: scraped.error || "抓取网页失败，请检查链接或网络后重试",
+					};
 				}
 
 				return {
 					success: true,
-					title: title.slice(0, 100),
-					markdown,
+					title: (scraped.title || new URL(url).hostname).slice(0, 100),
+					markdown: scraped.markdown,
+					html: scraped.html,
 				};
 			} catch (err) {
 				return {

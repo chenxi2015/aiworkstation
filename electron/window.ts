@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain, screen, shell } from "electron";
+import { BrowserWindow, ipcMain, screen, session, shell } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import { isDev, resolveDataDir, resolvePreloadPath, SERVER_CONFIG, WINDOW_CONFIG } from "./config.js";
@@ -122,10 +122,39 @@ export function setWindowMode(mode: WindowMode): void {
 	}
 }
 
+let isAntiHotlinkConfigured = false;
+
+/**
+ * Strips Referer and Origin headers for major hotlink-protected image CDNs
+ * (e.g. WeChat, Zhihu, Sina) so images display directly in rich text without local downloading.
+ */
+function setupAntiHotlinkHeaders(): void {
+	if (isAntiHotlinkConfigured) return;
+	isAntiHotlinkConfigured = true;
+
+	const HOTLINK_URL_PATTERNS = [
+		"*://*.qpic.cn/*",
+		"*://*.weixin.qq.com/*",
+		"*://*.zhimg.com/*",
+		"*://*.sinaimg.cn/*",
+	];
+
+	session.defaultSession.webRequest.onBeforeSendHeaders(
+		{ urls: HOTLINK_URL_PATTERNS },
+		(details, callback) => {
+			delete details.requestHeaders.Referer;
+			delete details.requestHeaders.Origin;
+			callback({ requestHeaders: details.requestHeaders });
+		},
+	);
+}
+
 /**
  * Create and configure the primary application BrowserWindow
  */
 export async function createMainWindow(serverPort: number): Promise<BrowserWindow> {
+	setupAntiHotlinkHeaders();
+
 	const primaryDisplay = screen.getPrimaryDisplay();
 	const { width: workWidth, height: workHeight } = primaryDisplay.workAreaSize;
 

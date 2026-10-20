@@ -4,13 +4,14 @@ import { buildExtractorScript } from "./extractorScript.js";
 import type { CrawlJob, CrawlJobResult } from "./types.js";
 
 const CRAWLER_SESSION_PARTITION = "persist:electron-crawler";
-const DEFAULT_TIMEOUT_MS = 25_000;
+const MAX_CRAWL_TIMEOUT_MS = 15_000;
 
 let isHeaderFilterConfigured = false;
 
 /**
- * Configure request interceptors for the crawler session to block images,
- * audio, video, and fonts to accelerate crawling and save memory.
+ * Configure request interceptors for the crawler session to block heavy media streams.
+ * Note: We let Chromium's `images: false` handle image skipping naturally rather than
+ * throwing `cancel: true` network errors which can disrupt page JavaScript execution.
  */
 function setupCrawlerSessionFilters(): void {
 	if (isHeaderFilterConfigured) return;
@@ -19,14 +20,9 @@ function setupCrawlerSessionFilters(): void {
 	const ses = session.fromPartition(CRAWLER_SESSION_PARTITION);
 	ses.setUserAgent(CHROME_USER_AGENT);
 
-	// Intercept media and heavy static resources
+	// Intercept heavy audio and video media streams
 	ses.webRequest.onBeforeRequest((details, callback) => {
-		const resourceType = details.resourceType;
-		if (
-			resourceType === "image" ||
-			resourceType === "media" ||
-			resourceType === "font"
-		) {
+		if (details.resourceType === "media") {
 			callback({ cancel: true });
 			return;
 		}
@@ -53,27 +49,15 @@ export class ElectronCrawlerService {
 				javascript: true,
 				images: false,
 				offscreen: true,
+				backgroundThrottling: false, // Prevent Chromium from freezing timers in hidden background tabs
 			},
 		});
 
 		try {
-			// 1. Navigate to target URL with timeout guard
-			const loadPromise = win.loadURL(job.url);
-			const timeoutPromise = new Promise<never>((_, reject) => {
-				setTimeout(() => {
-					reject(new Error(`Page load timed out after ${DEFAULT_TIMEOUT_MS}ms`));
-				}, DEFAULT_TIMEOUT_MS);
-			});
+			// 1. Wait for page DOM readiness and content presence (adaptive, avoids 25s timeout)
+			await this.waitForPageReady(win, job);
 
-			await Promise.race([loadPromise, timeoutPromise]);
-
-			// 2. Wait for SPA client-side JavaScript hydration and DOM settlement
-			const settleWait = Math.min(job.waitMs ?? 1500, 8000);
-			if (settleWait > 0) {
-				await new Promise((resolve) => setTimeout(resolve, settleWait));
-			}
-
-			// 3. Inject extraction script to extract title, markdown, or skeleton
+			// 2. Inject extraction script to extract title, markdown, html, and images
 			const script = buildExtractorScript(job);
 			const result = (await win.webContents.executeJavaScript(
 				script,
@@ -92,6 +76,85 @@ export class ElectronCrawlerService {
 				win.destroy();
 			}
 		}
+	}
+
+	/**
+	 * Fast adaptive page readiness probe:
+	 * Resolves as soon as main content is detected in the DOM, or after a brief settle wait for SPAs.
+	 */
+	private static waitForPageReady(win: BrowserWindow, job: CrawlJob): Promise<void> {
+		return new Promise<void>((resolve, reject) => {
+			let isSettled = false;
+			let timer: NodeJS.Timeout | null = null;
+
+			const finish = () => {
+				if (isSettled) return;
+				isSettled = true;
+				if (timer) clearTimeout(timer);
+				resolve();
+			};
+
+			const fail = (err: Error) => {
+				if (isSettled) return;
+				isSettled = true;
+				if (timer) clearTimeout(timer);
+				reject(err);
+			};
+
+			timer = setTimeout(() => {
+				// On safety timeout, resolve to salvage whatever DOM was constructed
+				finish();
+			}, MAX_CRAWL_TIMEOUT_MS);
+
+			// Probe DOM to check if main article content is already rendered
+			const checkContentReady = async () => {
+				try {
+					if (win.isDestroyed() || isSettled) return;
+					const ready = await win.webContents.executeJavaScript(`
+						(() => {
+							const hasMain = Boolean(
+								document.querySelector("#js_content, .rich_media_content, article, main, [role='main'], #content, .post-content")
+							);
+							const textLen = (document.body ? document.body.innerText : "").trim().length;
+							return hasMain || textLen > 200;
+						})()
+					`);
+					if (ready) {
+						finish();
+					}
+				} catch {
+					// Ignore DOM errors during early navigation
+				}
+			};
+
+			win.webContents.once("dom-ready", () => {
+				// Once DOM tree is constructed, check immediately (SSR pages like WeChat are ready now)
+				void checkContentReady();
+
+				// Short settle timer for client-side JS hydration (SPAs)
+				const settleWait = Math.min(job.waitMs ?? 1000, 3000);
+				setTimeout(() => {
+					finish();
+				}, settleWait);
+			});
+
+			win.webContents.once("did-finish-load", () => {
+				// If full page load completes before settle timer, finish quickly
+				setTimeout(finish, 200);
+			});
+
+			win.webContents.on("did-fail-load", (_event, errorCode, errorDescription, _url, isMainFrame) => {
+				if (isMainFrame && errorCode !== -3 /* ABORTED */) {
+					fail(new Error(`Page failed to load: ${errorDescription} (${errorCode})`));
+				}
+			});
+
+			win.loadURL(job.url).catch((err) => {
+				if (!isSettled) {
+					console.warn(`[ElectronCrawler] Navigation error for ${job.url}:`, err);
+				}
+			});
+		});
 	}
 }
 

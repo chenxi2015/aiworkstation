@@ -10,7 +10,11 @@ import {
 	extractMultipleMediaUrls,
 	extractVideoUrl,
 } from "../importers";
-import { markdownToHtml, markdownToTiptapJson } from "../markdown";
+import {
+	convertChartCodeBlocks,
+	markdownToHtml,
+	markdownToTiptapJson,
+} from "../markdown";
 import {
 	dataUrlToFile,
 	extractMediaFiles,
@@ -43,7 +47,8 @@ export interface UseRichTextEditorOptions {
 function parseDocContent(raw: string) {
 	if (!raw) return "";
 	try {
-		return sanitizeOverlayStylesInDoc(normalizeCodeCardDoc(JSON.parse(raw)));
+		const doc = convertChartCodeBlocks(JSON.parse(raw));
+		return sanitizeOverlayStylesInDoc(normalizeCodeCardDoc(doc));
 	} catch {
 		return markdownToHtml(raw) || raw;
 	}

@@ -2,16 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
-import {
-	awaitJobResult,
-	type CrawlSkeletonBlock,
-	createJob,
-	isExtensionOnline,
-} from "../../api/crawlerJobQueue.ts";
+import type { CrawlSkeletonBlock } from "../../api/crawlerJobQueue.ts";
 import { DB_DIR } from "../../db/connection.ts";
-import { getFetchOrchestrator } from "../search/fetch/orchestrator.ts";
+import { scrapeWebpage } from "../../services/crawler/universalCrawler.ts";
 import { tryInterceptSkillUrl } from "../../services/skills/index.ts";
-import { executeReadWebpage } from "./readWebpageTool.ts";
 import type { ToolExecutionResult } from "./types.ts";
 
 export const crawlWebpageInputSchema = z.object({
@@ -50,7 +44,6 @@ export const crawlWebpageInputSchema = z.object({
 export type CrawlWebpageInput = z.infer<typeof crawlWebpageInputSchema>;
 
 const MAX_MARKDOWN_LENGTH = 4000;
-const JOB_RESULT_TIMEOUT_MS = 60_000;
 
 /** fullPage 落盘目录：与 SQLite 同级的 .aiworkstation/pages/ */
 const PAGES_DIR = path.join(DB_DIR, "pages");
@@ -121,58 +114,10 @@ function formatSkeletonSummary(
 }
 
 /**
- * Multi-tier graceful degradation:
- * Tier 1: Cloud Reader from Settings (Jina Reader / Tavily Extract)
- * Tier 2: Lightweight native fetch (Cheerio + text cleanup)
- */
-async function fallbackToCloudOrNativeFetch(
-	url: string,
-	reason: string,
-): Promise<ToolExecutionResult> {
-	// 1. Try cloud reader from settings first
-	try {
-		const orchestrator = getFetchOrchestrator();
-		const cloudRes = await orchestrator.fetch(url, { timeoutMs: 15_000 });
-		if (cloudRes?.markdown?.trim()) {
-			const truncationNote = cloudRes.truncated
-				? `\n\n---\n⚠️ 正文原始长度 ${cloudRes.originalLength} 字符，已截断为前 ${cloudRes.markdown.length} 字符。`
-				: "";
-			return {
-				toolName: "crawl_webpage",
-				summary: `[云端 Reader 兜底通道 · ${reason}] 成功抓取网页《${cloudRes.title || cloudRes.finalUrl}》（URL: ${cloudRes.finalUrl}）：\n\n${cloudRes.markdown}${truncationNote}`,
-				items: [],
-				references: [
-					{
-						id: `cloud_reader_${Date.now()}`,
-						name: cloudRes.title || cloudRes.finalUrl,
-						url: cloudRes.finalUrl,
-						type: "link",
-						summary: cloudRes.markdown.slice(0, 200),
-						description: cloudRes.title || cloudRes.finalUrl,
-						score: 1.0,
-						matchType: "keyword",
-						matchReason: "云端 Reader 抓取",
-					},
-				],
-				isMutation: false,
-			};
-		}
-	} catch {
-		// Ignore cloud reader failure, fall through to native fetch
-	}
-
-	// 2. Fall back to the lightweight native fetch channel
-	const fallback = await executeReadWebpage({ url, targetHint: null });
-	return {
-		...fallback,
-		toolName: "crawl_webpage",
-		summary: `[原生 fetch 兜底通道 · ${reason}] ${fallback.summary}`,
-	};
-}
-
-/**
- * Dispatches a crawl job using the local headless Chromium / crawler engine:
- * extracts content and handles graceful fallback to Cloud Reader and native fetch.
+ * Dispatches a crawl job using the universal crawler pipeline:
+ * Tier 1: Local headless Chromium engine
+ * Tier 2: Fast native fetch with lazy image conversion
+ * Tier 3: Cloud Reader fallback (Jina / Tavily)
  */
 export async function executeCrawlWebpage(
 	args: CrawlWebpageInput,
@@ -214,34 +159,32 @@ export async function executeCrawlWebpage(
 		};
 	}
 
-	const job = createJob({
+	const scraped = await scrapeWebpage({
 		url: rawUrl,
 		selector: args.selector ?? null,
 		waitMs: args.waitMs ?? null,
 		mode: jobMode,
 		fullPage: wantFullPage,
 	});
-	// Wait full timeout if crawler is active, or a brief window if offline before cascading to cloud reader
-	const waitTimeoutMs = isExtensionOnline() ? JOB_RESULT_TIMEOUT_MS : 5_000;
-	const result = await awaitJobResult(job.id, waitTimeoutMs);
 
-	if (!result) {
-		return fallbackToCloudOrNativeFetch(
-			rawUrl,
-			"本地 Chromium 爬虫超时或未启动，已自动降级",
-		);
+	if (
+		!scraped.success ||
+		(jobMode !== "skeleton" && !scraped.markdown.trim())
+	) {
+		return {
+			toolName: "crawl_webpage",
+			summary: `抓取失败：${scraped.error || "未能提取到有效正文"}`,
+			items: [],
+			references: [],
+			isMutation: false,
+		};
 	}
 
-	if (!result.success || (jobMode !== "skeleton" && !result.markdown?.trim())) {
-		const reason = result.error || "未能提取到有效正文";
-		return fallbackToCloudOrNativeFetch(rawUrl, `${reason}，已自动降级`);
-	}
-
-	const title = result.title?.trim() || "未知网页";
-	const finalUrl = result.finalUrl || rawUrl;
+	const title = scraped.title?.trim() || "未知网页";
+	const finalUrl = scraped.finalUrl || rawUrl;
 
 	if (jobMode === "skeleton") {
-		const skeleton = result.skeleton ?? [];
+		const skeleton = scraped.skeleton ?? [];
 		const summary = formatSkeletonSummary(title, finalUrl, skeleton);
 		writeCache(cacheKey, summary);
 		return {
@@ -253,26 +196,28 @@ export async function executeCrawlWebpage(
 		};
 	}
 
+	const channelTag =
+		scraped.source === "electron_chromium"
+			? "本地 Chromium 隐式爬虫"
+			: scraped.source === "native_fetch"
+				? "原生轻量抓取通道"
+				: "云端 Reader 兜底通道";
+
 	const selectorInfo =
-		result.extractedBy === "selector"
+		scraped.extractedBy === "selector"
 			? `，按选择器「${args.selector}」定向提取`
-			: result.extractedBy === "article"
+			: scraped.extractedBy === "article"
 				? "，自动识别正文区域"
 				: "，提取整页内容";
 	// content 模式下守卫已确保 markdown 非空
-	const full = result.markdown?.trim() ?? "";
+	const full = scraped.markdown.trim();
 
 	// fullPage 落盘模式：全文写文件，只回路径 + 预览，不进 AI 上下文
 	if (wantFullPage) {
-		const totalLength =
-			typeof result.totalLength === "number" ? result.totalLength : full.length;
+		const totalLength = full.length;
 		const filePath = saveFullPageToFile(title, finalUrl, full);
 		const preview = full.slice(0, 500);
-		const extTruncatedNote =
-			result.truncated === true
-				? "（注意：正文超过单页 500KB 上限，文件内容为前 500KB）"
-				: "";
-		const summary = `[本地 Chromium 隐式爬虫 · 完整正文落盘] 成功抓取网页《${title}》（URL: ${finalUrl}）${selectorInfo}，完整正文（共 ${totalLength} 字符）已保存到本地文件：\n\n${filePath}\n\n${extTruncatedNote}内容预览（前 500 字符）：\n\n${preview}\n\n[系统提示] 完整正文已在上述文件中。给用户回复时，把上述文件路径用反引号包裹后原样给出（例如：\`${filePath}\`），工作台会把它渲染成可点击按钮，点击即用系统默认程序打开文件。禁止用同一 URL 重复抓取；如需基于正文内容回答，基于预览和已有信息说明即可，必要时可用 selector 定向提取某一段。`;
+		const summary = `[${channelTag} · 完整正文落盘] 成功抓取网页《${title}》（URL: ${finalUrl}）${selectorInfo}，完整正文（共 ${totalLength} 字符）已保存到本地文件：\n\n${filePath}\n\n内容预览（前 500 字符）：\n\n${preview}\n\n[系统提示] 完整正文已在上述文件中。给用户回复时，把上述文件路径用反引号包裹后原样给出（例如：\`${filePath}\`），工作台会把它渲染成可点击按钮，点击即用系统默认程序打开文件。禁止用同一 URL 重复抓取；如需基于正文内容回答，基于预览和已有信息说明即可，必要时可用 selector 定向提取某一段。`;
 		writeCache(cacheKey, summary);
 		return {
 			toolName: "crawl_webpage",
@@ -284,15 +229,13 @@ export async function executeCrawlWebpage(
 	}
 
 	const markdown = full.slice(0, MAX_MARKDOWN_LENGTH);
-	const totalLength =
-		typeof result.totalLength === "number" ? result.totalLength : full.length;
-	const isTruncated =
-		result.truncated === true || full.length > MAX_MARKDOWN_LENGTH;
+	const totalLength = full.length;
+	const isTruncated = full.length > MAX_MARKDOWN_LENGTH;
 	const truncationNote = isTruncated
 		? `\n\n[系统提示] 抓取已成功。网页正文共约 ${totalLength} 字符，上方展示前 ${markdown.length} 字符（单次返回上限）。这属于正常的完整抓取结果，禁止用同一 URL 重复调用本工具重试；若用户需要完整全文，请改用 fullPage: true 重新调用一次，完整正文会保存为本地文件并返回路径；如只需后续某个片段，可用 selector 参数定位更具体的正文容器后再提取一次。`
 		: `\n\n[系统提示] 抓取已成功，上方即为全部正文（共 ${markdown.length} 字符），内容完整，无需再次调用本工具。`;
 
-	const summary = `[本地 Chromium 隐式爬虫] 成功抓取网页《${title}》（URL: ${finalUrl}）${selectorInfo}，整洁 Markdown 正文如下：\n\n${markdown}${truncationNote}`;
+	const summary = `[${channelTag}] 成功抓取网页《${title}》（URL: ${finalUrl}）${selectorInfo}，整洁 Markdown 正文如下：\n\n${markdown}${truncationNote}`;
 
 	writeCache(cacheKey, summary);
 

@@ -117,14 +117,59 @@ export const coreConversionExtensions = [
 	...SuggestionDiffExtensions,
 ];
 
+const VALID_CHART_TYPES = new Set(["bar", "line", "area", "pie", "radar"]);
+
 /**
- * 把 language=chart 的代码块节点转换为 chart 节点
- * （```chart 围栏代码块是图表的 Markdown 载体，见 tiptapJsonToMarkdown 的 nodeMapping）
+ * Fast spec extraction from text if it strictly matches ChartSpec JSON shape.
+ * Performs fast prefix/suffix checks first to avoid unnecessary parsing overhead.
  */
-function convertChartCodeBlocks(node: JSONContent): JSONContent {
-	if (node.type === "codeBlock" && node.attrs?.language === "chart") {
-		const specText = node.content?.map((c) => c.text ?? "").join("") ?? "";
-		return { type: "chart", attrs: { spec: specText.trim(), height: 320 } };
+function tryExtractChartSpec(text: string): string | null {
+	const trimmed = text.trim();
+	if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return null;
+	try {
+		const parsed = JSON.parse(trimmed);
+		if (
+			parsed &&
+			typeof parsed === "object" &&
+			VALID_CHART_TYPES.has(parsed.type) &&
+			Array.isArray(parsed.categories) &&
+			Array.isArray(parsed.series)
+		) {
+			return trimmed;
+		}
+	} catch {
+		// Ignore invalid JSON payloads without throwing
+	}
+	return null;
+}
+
+/** Escape special characters for safe injection into HTML attributes */
+function escapeHtmlAttr(str: string): string {
+	return str
+		.replace(/&/g, "&amp;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&#39;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;");
+}
+
+/**
+ * Converts language=chart or chart-spec JSON code blocks into TipTap chart nodes.
+ * Used for both Markdown roundtrips and AST sanitization.
+ */
+export function convertChartCodeBlocks(node: JSONContent): JSONContent {
+	if (node.type === "codeBlock") {
+		const lang = (node.attrs?.language || "").trim().toLowerCase();
+		const rawText = node.content?.map((c) => c.text ?? "").join("") ?? "";
+		if (lang === "chart") {
+			return { type: "chart", attrs: { spec: rawText.trim(), height: 320 } };
+		}
+		if (!lang || lang === "json") {
+			const spec = tryExtractChartSpec(rawText);
+			if (spec) {
+				return { type: "chart", attrs: { spec, height: 320 } };
+			}
+		}
 	}
 	if (node.content) {
 		return { ...node, content: node.content.map(convertChartCodeBlocks) };
@@ -140,17 +185,47 @@ const markedInstance = new Marked({
 	breaks: true,
 	renderer: {
 		code({ text, lang }: { text: string; lang?: string }) {
-			const validLang = lang && hljs.getLanguage(lang) ? lang : undefined;
-			let highlighted = "";
-			try {
-				highlighted = validLang
-					? hljs.highlight(text, { language: validLang, ignoreIllegals: true })
-							.value
-					: hljs.highlightAuto(text).value;
-			} catch {
-				highlighted = text;
+			const cleanLang = (lang || "").trim().toLowerCase();
+
+			// Render chart code block directly as TipTap chart node HTML for instant visualization
+			if (cleanLang === "chart") {
+				const safeSpec = escapeHtmlAttr(text.trim());
+				return `<div data-chart data-spec="${safeSpec}" data-height="320"></div>`;
 			}
-			return `<pre><code class="hljs ${validLang ? `language-${validLang}` : ""}">${highlighted}</code></pre>`;
+
+			// If language is json or unassigned, inspect if it is an inline chart spec
+			if (!cleanLang || cleanLang === "json") {
+				const detectedSpec = tryExtractChartSpec(text);
+				if (detectedSpec) {
+					const safeSpec = escapeHtmlAttr(detectedSpec);
+					return `<div data-chart data-spec="${safeSpec}" data-height="320"></div>`;
+				}
+			}
+
+			const validLang =
+				cleanLang && hljs.getLanguage(cleanLang) ? cleanLang : undefined;
+			const langClass = cleanLang ? `language-${cleanLang}` : "";
+
+			let highlighted = text;
+			if (validLang) {
+				try {
+					highlighted = hljs.highlight(text, {
+						language: validLang,
+						ignoreIllegals: true,
+					}).value;
+				} catch {
+					highlighted = text;
+				}
+			} else if (!cleanLang) {
+				// Only perform auto detection when no language was explicitly specified
+				try {
+					highlighted = hljs.highlightAuto(text).value;
+				} catch {
+					highlighted = text;
+				}
+			}
+
+			return `<pre><code class="hljs ${langClass}">${highlighted}</code></pre>`;
 		},
 	},
 });
