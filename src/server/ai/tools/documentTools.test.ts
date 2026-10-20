@@ -179,4 +179,74 @@ describe("documentTools text matching helpers", () => {
 			"一句话定位",
 		);
 	});
+
+	it("matches Chinese corner quotes and ellipses in paragraphs with trailing images", () => {
+		const node = {
+			type: "paragraph",
+			attrs: { textAlign: "left" },
+			content: [
+				{
+					type: "text",
+					text: "这大概是 Claude Motion 给所有内容创作者和职场人的真正提醒：它替你解决的是「怎么做」，而「说什么、对谁说」，从头到尾都是你的功课。",
+				},
+			],
+		};
+
+		// Real LLM snippet that previously failed:
+		const snippetWithImages =
+			"它替你解决的是「怎么做」，而「说什么、对谁说」，从头到尾都是你的功课。\n\n\n![Claude Motion：表格一键生成动画](https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=1200&q=80)\n\n![三步生成动画流程](https://images.unsplash.com/photo-1531403009284-440f080d1e12?w=1200&q=80)";
+
+		expect(isBlockMatchingSnippet(node, snippetWithImages)).toBe(true);
+
+		const snippetWithEllipsis =
+			"它替你解决的是「怎么做」，而「说什么、对谁说」，从头到尾都是…";
+		expect(isBlockMatchingSnippet(node, snippetWithEllipsis)).toBe(true);
+	});
+
+	it("replaces a paragraph and consumes contiguous trailing image blocks", async () => {
+		const docContent = [
+			{
+				type: "paragraph",
+				content: [
+					{
+						type: "text",
+						text: "这大概是 Claude Motion 给所有内容创作者和职场人的真正提醒：它替你解决的是「怎么做」，而「说什么、对谁说」，从头到尾都是你的功课。",
+					},
+				],
+			},
+			{
+				type: "image",
+				attrs: {
+					src: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=1200&q=80",
+					alt: "Claude Motion：表格一键生成动画",
+				},
+			},
+			{
+				type: "image",
+				attrs: {
+					src: "https://images.unsplash.com/photo-1531403009284-440f080d1e12?w=1200&q=80",
+					alt: "三步生成动画流程",
+				},
+			},
+		];
+
+		const replacementNodes = [
+			{
+				type: "paragraph",
+				content: [
+					{
+						type: "text",
+						text: "这大概是 Claude Motion 给所有内容创作者和职场人的真正提醒：它替你解决的是「怎么做」，而「说什么、对谁说」，从头到尾都是你的功课。",
+					},
+				],
+			},
+		];
+
+		const { applyParagraphReplacement } = await import("./documentTools.ts");
+		// 3 nodes (paragraph + 2 images) replaced by 1 paragraph
+		applyParagraphReplacement(docContent, 0, "snippet", replacementNodes, 3);
+
+		expect(docContent).toHaveLength(1);
+		expect(docContent[0].type).toBe("paragraph");
+	});
 });

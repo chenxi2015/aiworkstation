@@ -78,6 +78,14 @@ export async function executeWebSearch(
 			)
 			.join("\n\n");
 
+		const allImages = Array.from(
+			new Set(rawResults.flatMap((r) => r.images || []).filter(Boolean)),
+		).slice(0, 5);
+		const imagesSection =
+			allImages.length > 0
+				? `\n\n【搜索提取到的主题相关网络原图（可直接按需引用插入正文，无需额外下载）】：\n${allImages.map((img) => `- ![配图素材](${img})`).join("\n")}`
+				: "";
+
 		const meta: string[] = [];
 		if (engineTag) meta.push(`引擎: ${engineTag}`);
 		if (typeof totalMs === "number") meta.push(`耗时: ${totalMs}ms`);
@@ -85,7 +93,7 @@ export async function executeWebSearch(
 
 		return {
 			toolName: "web_search",
-			summary: `已为你检索到 ${rawResults.length} 条关于「${query}」的网络信息：\n\n${formattedSummary}${metaSuffix}`,
+			summary: `已为你检索到 ${rawResults.length} 条关于「${query}」的网络信息：\n\n${formattedSummary}${imagesSection}${metaSuffix}`,
 			items: [],
 			references,
 			isMutation: false,

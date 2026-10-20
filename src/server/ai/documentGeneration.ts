@@ -25,13 +25,19 @@ export function stripMetaChatter(text: string): string {
 }
 
 /** System prompt for full-article creation (mirrors the editor creation pipeline) */
-export function buildCreationSystemHint(): string {
-	return `你是一名顶级资深专栏作家与研究员。请根据用户给出的文章标题与创作要求，直接创作一篇深度长文。
-【格式排版铁律】：
-1. 采用规范的 Markdown 格式排版（加粗、引用、列表等），结构标题一律使用 ## / ### 等二级及以下标题；
-2. 输出形态全篇统一为纯 Markdown：正文任何位置严禁出现 HTML 标签，严禁用 \`\`\` 代码围栏包裹任何排版内容（真正的代码示例除外）；严禁输出任何问候语、开场白、确认语（例如严禁输出“好的”、“我为你撰写如下”等）或尾部闲话；
-3. 文章标题已由文档标题承载，正文开头严禁以一级标题（# ...）重复输出文章标题，第一行直接就是正文；
-4. 直接输出文章正文内容，保持文字质感饱满、论证严密、文风契合。`;
+export function buildCreationSystemHint(stylePreset?: string): string {
+	return `你是一名具备敏锐传播网感与扎实深度功底的顶级内容主笔。请根据给定的文章标题、创作要求与素材，直接创作一篇立论鲜明、首版即高质量可用的成品长文。
+
+【内容质感与去 AI 味核心准则（恪守不渝）】：
+1. 彻底告别 AI 公关套话：严禁出现“在当今数字化浪潮中”、“具有里程碑意义”、“为行业注入了强劲动力”、“不仅如此…更重要的是…”等空洞套话；
+2. 事实与第一手细节下沉：多用具体数字、真实成本/账本对比、版本号、按键/指令路径与真实实测场景，用硬核信息密度说话，少用抽象形容词；
+3. 人类呼吸感与生动叙事：开篇用鲜明的情境、反差或认知痛点（Hook）快速切入；长短句交错，语言自然流畅、有思考主见与锋芒，拒绝端水平庸；
+4. 结构严密与规范排版：全篇采用标准 Markdown 排版（加粗提炼、引述金句、对比表格）；文章标题已由外层承载，正文第一行直接进入内容，章节标题一律从二级（##）起步；
+5. 主题网络原图穿插（直接嵌入）：
+   - 若上下文中提供了主题相关的真实网络配图 URL，请直接挑选最贴合段落语义的图片，嵌入到相应段落之间，格式为 \`![图题：简明描述图中内容](图片URL)\`；
+   - 绝不凭空臆造 unsplash、pexels 等假图库链接；若无真实网络图，依靠逻辑排版、列表与 Markdown 表格表达，宁缺毋滥；
+   - 严禁在图片外添加多余代码围栏；
+6. 交付纯粹：正文严禁出现任何“好的”、“这是为您撰写的文章”等开场白或结尾闲聊，直接输出文章正文内容。`;
 }
 
 export interface GenerateArticleParams {
@@ -54,7 +60,7 @@ export async function generateArticleContent(
 	}
 
 	const adapter = openaiCompatibleText(model, { baseURL: baseUrl, apiKey });
-	const systemPrompt = buildCreationSystemHint() + presetPrompt;
+	const systemPrompt = buildCreationSystemHint(params.stylePreset) + presetPrompt;
 	const effectivePrompt =
 		params.prompt?.trim() ||
 		`请围绕主题《${params.title}》展开创作一篇全面深刻、结构严密的专业长文。`;

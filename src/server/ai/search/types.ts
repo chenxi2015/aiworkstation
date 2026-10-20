@@ -7,6 +7,8 @@ export interface SearchResult {
 	score?: number;
 	/** Favicon URL for the result's origin */
 	favicon?: string;
+	/** Optional relevant image URLs extracted for this result */
+	images?: string[];
 	/** Engine that produced this result (e.g. "tavily" | "exa" | "brave" | "jina") */
 	engine?: string;
 }

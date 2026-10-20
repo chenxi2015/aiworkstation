@@ -30,7 +30,7 @@ export class TavilySearchProvider implements SearchProvider {
 				max_results: maxResults,
 				search_depth: "advanced",
 				include_answer: false,
-				include_images: false,
+				include_images: true,
 			}),
 			signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined,
 		});
@@ -41,6 +41,7 @@ export class TavilySearchProvider implements SearchProvider {
 		}
 
 		const data = (await response.json()) as {
+			images?: string[];
 			results?: Array<{
 				title?: string;
 				url?: string;
@@ -50,12 +51,15 @@ export class TavilySearchProvider implements SearchProvider {
 			}>;
 		};
 
-		return (data.results || []).map((r) => ({
+		const globalImages = Array.isArray(data.images) ? data.images : [];
+
+		return (data.results || []).map((r, idx) => ({
 			title: r.title || "未知标题",
 			url: r.url || "",
 			snippet: r.content || "",
 			publishedDate: r.published_date,
 			score: typeof r.score === "number" ? r.score : undefined,
+			images: idx === 0 ? globalImages : undefined,
 			engine: "tavily",
 		}));
 	}

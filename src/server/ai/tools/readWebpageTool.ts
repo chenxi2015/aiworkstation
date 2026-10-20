@@ -46,6 +46,25 @@ function cleanHtmlContent(rawHtml: string): {
 		.replace(/<br\s*[/]?>/gi, "\n")
 		.replace(/<li[^>]*>/gi, "\n- ");
 
+	// Convert meaningful img tags to Markdown image syntax before stripping remaining HTML
+	text = text.replace(
+		/<img\b[^>]*?\bsrc=["']([^"']+)["'][^>]*?>/gi,
+		(match, src) => {
+			const altMatch = match.match(/\balt=["']([^"']*)["']/i);
+			const alt = altMatch ? altMatch[1].trim() : "网页配图";
+			if (
+				src.startsWith("data:") ||
+				src.includes("pixel") ||
+				src.includes("avatar") ||
+				src.includes("badge") ||
+				src.includes("icon")
+			) {
+				return "";
+			}
+			return `\n\n![${alt}](${src})\n\n`;
+		},
+	);
+
 	// 4. Strip remaining HTML tags
 	text = text.replace(/<[^>]+>/g, " ");
 
