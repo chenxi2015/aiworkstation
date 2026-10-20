@@ -47,23 +47,41 @@ function cleanHtmlContent(rawHtml: string): {
 		.replace(/<li[^>]*>/gi, "\n- ");
 
 	// Convert meaningful img tags to Markdown image syntax before stripping remaining HTML
-	text = text.replace(
-		/<img\b[^>]*?\bsrc=["']([^"']+)["'][^>]*?>/gi,
-		(match, src) => {
-			const altMatch = match.match(/\balt=["']([^"']*)["']/i);
-			const alt = altMatch ? altMatch[1].trim() : "网页配图";
-			if (
-				src.startsWith("data:") ||
-				src.includes("pixel") ||
-				src.includes("avatar") ||
-				src.includes("badge") ||
-				src.includes("icon")
-			) {
-				return "";
-			}
-			return `\n\n![${alt}](${src})\n\n`;
-		},
-	);
+	text = text.replace(/<img\b([^>]*?)>/gi, (_match, attrs) => {
+		const dataSrcMatch = attrs.match(/\bdata-src=["']([^"']+)["']/i);
+		const dataOriginalMatch = attrs.match(
+			/\bdata-original(?:-src)?=["']([^"']+)["']/i,
+		);
+		const srcMatch = attrs.match(/\bsrc=["']([^"']+)["']/i);
+		const altMatch = attrs.match(/\balt=["']([^"']*)["']/i);
+
+		// Prioritize real lazy-loaded attributes over placeholder svg/gif
+		let rawSrc = (
+			dataSrcMatch?.[1] ||
+			dataOriginalMatch?.[1] ||
+			srcMatch?.[1] ||
+			""
+		).trim();
+		if (
+			rawSrc.startsWith("data:image/svg") ||
+			rawSrc.startsWith("data:image/gif")
+		) {
+			rawSrc = (dataSrcMatch?.[1] || dataOriginalMatch?.[1] || "").trim();
+		}
+
+		const alt = altMatch ? altMatch[1].trim() : "网页配图";
+		if (
+			!rawSrc ||
+			rawSrc.startsWith("data:") ||
+			rawSrc.includes("pixel") ||
+			rawSrc.includes("avatar") ||
+			rawSrc.includes("badge") ||
+			rawSrc.includes("icon")
+		) {
+			return "";
+		}
+		return `\n\n![${alt}](${rawSrc})\n\n`;
+	});
 
 	// 4. Strip remaining HTML tags
 	text = text.replace(/<[^>]+>/g, " ");

@@ -24,7 +24,7 @@ export interface RichTextEditorProps {
 	docTitle?: string;
 	/** 文档风格预设（AI 润色/改写参考） */
 	stylePreset?: string;
-	/** TipTap JSON 字符串（初始内容；组件以 docId 为 key 重挂载，不做增量同步） */
+	/** TipTap JSON 字符串（初始内容；文档切换由 useRichTextEditor 复用实例并重置历史） */
 	initialContent: string;
 	/** 内容变化回调（父组件负责防抖落库） */
 	onChange: (contentJson: string, contentText: string) => void;

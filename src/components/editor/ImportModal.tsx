@@ -1,30 +1,13 @@
-import {
-	FileSpreadsheet,
-	FileText,
-	Globe,
-	Loader2,
-	Upload,
-	X,
-} from "lucide-react";
+import { FileText, Globe, Loader2, RefreshCw, Upload, X } from "lucide-react";
 import { useCallback, useState } from "react";
-import {
-	importWebpageRpc,
-	listObsidianNotesRpc,
-	type ObsidianNoteItem,
-	readObsidianNoteRpc,
-} from "../../services/api/editorClient";
-import {
-	markdownToHtml,
-	parseExcelTable,
-	parsePdfText,
-	parseWordDocx,
-} from "./importers";
+import { importWebpageRpc } from "../../services/api/editorClient";
+import { markdownToHtml, parseWordDocx } from "./importers";
 import { MAX_DOC_CONTENT_CHARS, MAX_IMPORT_FILE_BYTES } from "./types";
 
 export interface ImportModalProps {
 	isOpen: boolean;
 	onClose: () => void;
-	/** 导入回调：模式为新建文档或插入当前正文 */
+	/** Callback after user confirms import: either create new doc or insert at cursor */
 	onImport: (params: {
 		title: string;
 		html: string;
@@ -32,46 +15,115 @@ export interface ImportModalProps {
 	}) => Promise<void>;
 }
 
-type TabKey = "web" | "file" | "obsidian";
+type TabKey = "web" | "file";
+
+interface ParsedResult {
+	title: string;
+	html: string;
+}
+
+/**
+ * Reusable preview card for parsed import results to eliminate code duplication
+ */
+function ImportResultPreview({
+	result,
+	badgeText,
+	onReset,
+	onConfirm,
+	isSubmitting,
+}: {
+	result: ParsedResult;
+	badgeText: string;
+	onReset: () => void;
+	onConfirm: (target: "new" | "insert") => Promise<void>;
+	isSubmitting: boolean;
+}) {
+	return (
+		<div className="p-4 rounded-xl bg-surface-secondary/50 border border-border space-y-3 animate-in fade-in duration-150">
+			<div className="flex items-center justify-between gap-2">
+				<div className="flex items-center gap-2 min-w-0">
+					<span className="text-xs font-semibold text-foreground truncate max-w-sm">
+						{result.title}
+					</span>
+					<span className="text-[10px] text-success bg-success/15 px-2 py-0.5 rounded-full shrink-0">
+						{badgeText}
+					</span>
+				</div>
+				<button
+					type="button"
+					onClick={onReset}
+					disabled={isSubmitting}
+					className="text-muted hover:text-foreground text-xs flex items-center gap-1 cursor-pointer transition-colors"
+					title="重新选择"
+				>
+					<RefreshCw className="w-3 h-3" />
+					<span>重新输入</span>
+				</button>
+			</div>
+
+			<div
+				className="text-xs text-muted/90 max-h-56 overflow-y-auto p-3.5 bg-surface rounded-lg border border-border/60 prose dark:prose-invert prose-xs max-w-none leading-relaxed"
+				// biome-ignore lint/security/noDangerouslySetInnerHtml: preview parsed document html
+				dangerouslySetInnerHTML={{ __html: result.html }}
+			/>
+
+			<div className="flex justify-end gap-2 pt-1">
+				<button
+					type="button"
+					disabled={isSubmitting}
+					onClick={() => void onConfirm("insert")}
+					className="px-3.5 py-1.5 rounded-lg border border-border text-xs text-muted hover:text-foreground transition-colors cursor-pointer disabled:opacity-50"
+				>
+					插入当前文档
+				</button>
+				<button
+					type="button"
+					disabled={isSubmitting}
+					onClick={() => void onConfirm("new")}
+					className="px-3.5 py-1.5 rounded-lg bg-accent text-accent-foreground text-xs font-medium hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+				>
+					{isSubmitting && <Loader2 className="w-3 h-3 animate-spin" />}
+					作为新文档导入
+				</button>
+			</div>
+		</div>
+	);
+}
 
 export function ImportModal({ isOpen, onClose, onImport }: ImportModalProps) {
 	const [activeTab, setActiveTab] = useState<TabKey>("web");
+
+	// Web crawling state
 	const [urlInput, setUrlInput] = useState("");
 	const [webLoading, setWebLoading] = useState(false);
-	const [webResult, setWebResult] = useState<{
-		title: string;
-		html: string;
-	} | null>(null);
+	const [webResult, setWebResult] = useState<ParsedResult | null>(null);
 	const [webError, setWebError] = useState<string | null>(null);
 
-	// 本地文件解析状态
+	// Local file upload state
 	const [fileLoading, setFileLoading] = useState(false);
-	const [fileResult, setFileResult] = useState<{
-		title: string;
-		html: string;
-	} | null>(null);
+	const [fileResult, setFileResult] = useState<ParsedResult | null>(null);
 	const [fileError, setFileError] = useState<string | null>(null);
+	const [isDragging, setIsDragging] = useState(false);
 
-	// Obsidian 库导入状态
-	const [vaultPath, setVaultPath] = useState("~/Documents/Obsidian");
-	const [obsidianLoading, setObsidianLoading] = useState(false);
-	const [obsidianNotes, setObsidianNotes] = useState<ObsidianNoteItem[]>([]);
-	const [obsidianError, setObsidianError] = useState<string | null>(null);
-	const [importingObsidian, setImportingObsidian] = useState(false);
+	// Submitting import action
+	const [isSubmitting, setIsSubmitting] = useState(false);
 
-	// 抓取网页
+	// Crawl webpage by URL
 	const handleCrawlWebpage = useCallback(async () => {
-		if (!urlInput.trim()) return;
+		const targetUrl = urlInput.trim();
+		if (!targetUrl) return;
+
 		setWebLoading(true);
 		setWebError(null);
 		setWebResult(null);
+
 		try {
-			const res = await importWebpageRpc(urlInput.trim());
+			const res = await importWebpageRpc(targetUrl);
 			if (!res.success) {
-				setWebError(res.error || "抓取网页失败");
+				setWebError(res.error || "抓取网页失败，请检查链接或网络后重试");
 			} else {
 				setWebResult({
-					title: res.title || "导入的网页",
+					title: res.title || "导入的文章",
 					html: markdownToHtml(res.markdown),
 				});
 			}
@@ -82,117 +134,115 @@ export function ImportModal({ isOpen, onClose, onImport }: ImportModalProps) {
 		}
 	}, [urlInput]);
 
-	// 处理本地文件上传
-	const handleFileUpload = useCallback(
-		async (e: React.ChangeEvent<HTMLInputElement>) => {
-			const file = e.target.files?.[0];
-			if (!file) return;
-			setFileLoading(true);
-			setFileError(null);
-			setFileResult(null);
+	// Process local document file (docx, md, txt)
+	const processFile = useCallback(async (file: File) => {
+		setFileLoading(true);
+		setFileError(null);
+		setFileResult(null);
 
-			try {
-				if (file.size > MAX_IMPORT_FILE_BYTES) {
-					throw new Error(
-						`文件体积 ${(file.size / 1024 / 1024).toFixed(1)}MB，超过 ${MAX_IMPORT_FILE_BYTES / 1024 / 1024}MB 上限。超大文档请先拆分为多个小文件再导入`,
-					);
-				}
-				const ext = file.name.split(".").pop()?.toLowerCase();
-				let parsed: { title: string; html: string };
-
-				if (ext === "docx") {
-					parsed = await parseWordDocx(file);
-				} else if (ext === "pdf") {
-					parsed = await parsePdfText(file);
-				} else if (ext === "xlsx" || ext === "xls" || ext === "csv") {
-					parsed = await parseExcelTable(file);
-				} else if (ext === "md" || ext === "txt") {
-					const text = await file.text();
-					parsed = {
-						title: file.name.replace(/\.[^.]+$/, ""),
-						html: markdownToHtml(text),
-					};
-				} else {
-					throw new Error(
-						"不支持的文件类型，请选择 Word/PDF/Excel/Markdown 文件",
-					);
-				}
-
-				if (parsed.html.length > MAX_DOC_CONTENT_CHARS) {
-					throw new Error(
-						`解析后的内容约 ${(parsed.html.length / 1_000_000).toFixed(1)}M 字符，超过编辑器单文档容量上限，请先拆分文档再导入`,
-					);
-				}
-
-				setFileResult(parsed);
-			} catch (err) {
-				setFileError(err instanceof Error ? err.message : "解析文件失败");
-			} finally {
-				setFileLoading(false);
-				e.target.value = "";
+		try {
+			if (file.size > MAX_IMPORT_FILE_BYTES) {
+				throw new Error(
+					`文件体积 ${(file.size / 1024 / 1024).toFixed(1)}MB，超过 ${MAX_IMPORT_FILE_BYTES / 1024 / 1024}MB 上限。请拆分后再导入`,
+				);
 			}
+
+			const ext = file.name.split(".").pop()?.toLowerCase();
+			let parsed: ParsedResult;
+
+			if (ext === "docx") {
+				parsed = await parseWordDocx(file);
+			} else if (ext === "md" || ext === "txt") {
+				const text = await file.text();
+				parsed = {
+					title: file.name.replace(/\.[^.]+$/, ""),
+					html: markdownToHtml(text),
+				};
+			} else {
+				throw new Error(
+					"仅支持 Word (.docx)、Markdown (.md) 与纯文本 (.txt) 文件",
+				);
+			}
+
+			if (parsed.html.length > MAX_DOC_CONTENT_CHARS) {
+				throw new Error("解析后内容过长，超出单文档容量上限，请拆分后再导入");
+			}
+
+			setFileResult(parsed);
+		} catch (err) {
+			setFileError(err instanceof Error ? err.message : "解析文件失败");
+		} finally {
+			setFileLoading(false);
+		}
+	}, []);
+
+	// Native input change
+	const handleFileInputChange = useCallback(
+		(e: React.ChangeEvent<HTMLInputElement>) => {
+			const file = e.target.files?.[0];
+			if (file) {
+				void processFile(file);
+			}
+			e.target.value = "";
 		},
-		[],
+		[processFile],
 	);
 
-	// 扫描 Obsidian Vault
-	const handleScanObsidian = useCallback(async () => {
-		if (!vaultPath.trim()) return;
-		setObsidianLoading(true);
-		setObsidianError(null);
-		try {
-			const res = await listObsidianNotesRpc(vaultPath.trim());
-			if (!res.success) {
-				setObsidianError(res.error || "扫描目录失败");
-				setObsidianNotes([]);
-			} else {
-				setObsidianNotes(res.notes);
+	// Drag & drop handlers
+	const handleDrop = useCallback(
+		(e: React.DragEvent<HTMLElement>) => {
+			e.preventDefault();
+			setIsDragging(false);
+			const file = e.dataTransfer.files?.[0];
+			if (file) {
+				void processFile(file);
 			}
-		} catch (err) {
-			setObsidianError(err instanceof Error ? err.message : "读取失败");
-		} finally {
-			setObsidianLoading(false);
-		}
-	}, [vaultPath]);
+		},
+		[processFile],
+	);
 
-	// 导入选中的单个 Obsidian 笔记
-	const handleImportObsidianNote = useCallback(
-		async (note: ObsidianNoteItem, target: "new" | "insert") => {
-			setImportingObsidian(true);
+	const handleDragOver = useCallback((e: React.DragEvent<HTMLElement>) => {
+		e.preventDefault();
+		setIsDragging(true);
+	}, []);
+
+	const handleDragLeave = useCallback((e: React.DragEvent<HTMLElement>) => {
+		e.preventDefault();
+		setIsDragging(false);
+	}, []);
+
+	// Confirm import to editor
+	const handleConfirmImport = useCallback(
+		async (result: ParsedResult, target: "new" | "insert") => {
+			setIsSubmitting(true);
 			try {
-				const res = await readObsidianNoteRpc(
-					vaultPath.trim(),
-					note.relativePath,
-				);
-				if (!res.success) {
-					window.alert(res.error || "读取笔记内容失败");
-					return;
-				}
 				await onImport({
-					title: res.title,
-					html: markdownToHtml(res.content),
+					title: result.title,
+					html: result.html,
 					target,
 				});
 				onClose();
 			} catch (err) {
 				window.alert(err instanceof Error ? err.message : "导入失败");
 			} finally {
-				setImportingObsidian(false);
+				setIsSubmitting(false);
 			}
 		},
-		[vaultPath, onImport, onClose],
+		[onImport, onClose],
 	);
 
 	if (!isOpen) return null;
 
 	return (
 		<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-			<div className="bg-surface dark:bg-background border border-border rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+			<div className="bg-surface dark:bg-background border border-border rounded-xl shadow-2xl w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
 				{/* 头部 */}
 				<div className="flex items-center justify-between px-5 py-4 border-b border-border">
 					<div className="flex items-center gap-2">
-						<FileText className="w-5 h-5 text-accent" />
-						<h2 className="text-base font-semibold">导入内容到创作台</h2>
+						<FileText className="w-4 h-4 text-accent" />
+						<h2 className="text-sm font-semibold text-foreground">
+							导入内容到创作台
+						</h2>
 					</div>
 					<button
 						type="button"
@@ -203,8 +253,8 @@ export function ImportModal({ isOpen, onClose, onImport }: ImportModalProps) {
 					</button>
 				</div>
 
-				{/* 标签栏 */}
-				<div className="flex border-b border-border px-5 gap-4">
+				{/* 选项卡（聚焦双核心高频场景） */}
+				<div className="flex border-b border-border px-5 gap-6">
 					<button
 						type="button"
 						onClick={() => setActiveTab("web")}
@@ -215,7 +265,7 @@ export function ImportModal({ isOpen, onClose, onImport }: ImportModalProps) {
 						}`}
 					>
 						<Globe className="w-3.5 h-3.5" />
-						网页 URL 抓取
+						网页链接抓取
 					</button>
 					<button
 						type="button"
@@ -227,257 +277,128 @@ export function ImportModal({ isOpen, onClose, onImport }: ImportModalProps) {
 						}`}
 					>
 						<Upload className="w-3.5 h-3.5" />
-						本地文件 (Word/PDF/Excel/MD)
-					</button>
-					<button
-						type="button"
-						onClick={() => setActiveTab("obsidian")}
-						className={`py-2.5 text-xs font-medium border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
-							activeTab === "obsidian"
-								? "border-accent text-accent"
-								: "border-transparent text-muted hover:text-foreground"
-						}`}
-					>
-						<FileSpreadsheet className="w-3.5 h-3.5" />
-						Obsidian 库导入
+						本地文稿导入
 					</button>
 				</div>
 
 				{/* 主内容区 */}
-				<div className="flex-1 overflow-y-auto p-5 min-h-[300px]">
-					{/* Tab 1: 网页 URL */}
+				<div className="flex-1 overflow-y-auto p-5 min-h-[260px]">
+					{/* Tab 1: 网页链接抓取 */}
 					{activeTab === "web" && (
 						<div className="space-y-4">
 							<p className="text-xs text-muted leading-relaxed">
-								复用浏览器静默爬虫通道（携带真实登录态与 SPA
-								渲染），抓取页面正文并提纯为富文本排版。
+								输入微信公众号、博客或任意文章链接，自动提取正文与图片排版。
 							</p>
-							<div className="flex gap-2">
-								<input
-									type="url"
-									value={urlInput}
-									onChange={(e) => setUrlInput(e.target.value)}
-									placeholder="https://example.com/article"
-									className="flex-1 bg-surface-secondary border border-border rounded-lg px-3 py-2 text-xs outline-none focus:border-accent"
-									onKeyDown={(e) => {
-										if (e.key === "Enter") void handleCrawlWebpage();
-									}}
-								/>
-								<button
-									type="button"
-									disabled={webLoading || !urlInput.trim()}
-									onClick={handleCrawlWebpage}
-									className="px-4 py-2 bg-accent text-accent-foreground rounded-lg text-xs font-medium hover:opacity-90 transition-opacity disabled:opacity-40 cursor-pointer flex items-center gap-1.5"
-								>
-									{webLoading && (
-										<Loader2 className="w-3.5 h-3.5 animate-spin" />
-									)}
-									抓取内容
-								</button>
-							</div>
+
+							{!webResult && (
+								<div className="flex gap-2">
+									<input
+										type="url"
+										value={urlInput}
+										onChange={(e) => setUrlInput(e.target.value)}
+										placeholder="https://mp.weixin.qq.com/... 或任意文章链接"
+										className="flex-1 bg-surface-secondary border border-border rounded-lg px-3 py-2 text-xs outline-none focus:border-accent text-foreground placeholder:text-muted/60"
+										onKeyDown={(e) => {
+											if (e.key === "Enter") void handleCrawlWebpage();
+										}}
+									/>
+									<button
+										type="button"
+										disabled={webLoading || !urlInput.trim()}
+										onClick={handleCrawlWebpage}
+										className="px-4 py-2 bg-accent text-accent-foreground rounded-lg text-xs font-medium hover:opacity-90 transition-opacity disabled:opacity-40 cursor-pointer flex items-center gap-1.5 shrink-0"
+									>
+										{webLoading && (
+											<Loader2 className="w-3.5 h-3.5 animate-spin" />
+										)}
+										{webLoading ? "抓取中…" : "抓取内容"}
+									</button>
+								</div>
+							)}
 
 							{webError && (
-								<div className="p-3 rounded-lg bg-danger/10 border border-danger/20 text-danger text-xs">
+								<div className="p-3 rounded-lg bg-danger/10 border border-danger/20 text-danger text-xs leading-relaxed">
 									{webError}
 								</div>
 							)}
 
 							{webResult && (
-								<div className="p-4 rounded-lg bg-surface-secondary/40 border border-border space-y-3">
-									<div className="flex items-center justify-between">
-										<span className="text-xs font-semibold text-foreground">
-											{webResult.title}
-										</span>
-										<span className="text-[10px] text-success bg-success/15 px-2 py-0.5 rounded-full">
-											抓取成功
-										</span>
-									</div>
-									<div
-										className="text-xs text-muted/90 max-h-64 overflow-y-auto p-3 bg-surface rounded border border-border/50 prose dark:prose-invert prose-xs max-w-none"
-										// biome-ignore lint/security/noDangerouslySetInnerHtml: preview parsed html
-										dangerouslySetInnerHTML={{ __html: webResult.html }}
-									/>
-									<div className="flex justify-end gap-2 pt-2">
-										<button
-											type="button"
-											onClick={async () => {
-												await onImport({ ...webResult, target: "insert" });
-												onClose();
-											}}
-											className="px-3 py-1.5 rounded-lg border border-border text-xs text-muted hover:text-foreground transition-colors cursor-pointer"
-										>
-											插入当前文档
-										</button>
-										<button
-											type="button"
-											onClick={async () => {
-												await onImport({ ...webResult, target: "new" });
-												onClose();
-											}}
-											className="px-3 py-1.5 rounded-lg bg-accent text-accent-foreground text-xs font-medium hover:opacity-90 transition-opacity cursor-pointer"
-										>
-											作为新文档导入
-										</button>
-									</div>
-								</div>
+								<ImportResultPreview
+									result={webResult}
+									badgeText="抓取成功"
+									onReset={() => {
+										setWebResult(null);
+										setWebError(null);
+									}}
+									onConfirm={(target) => handleConfirmImport(webResult, target)}
+									isSubmitting={isSubmitting}
+								/>
 							)}
 						</div>
 					)}
 
-					{/* Tab 2: 本地文件上传 */}
+					{/* Tab 2: 本地文稿导入 */}
 					{activeTab === "file" && (
 						<div className="space-y-4">
-							<div className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-accent/50 transition-colors relative">
-								<input
-									type="file"
-									accept=".docx,.pdf,.xlsx,.xls,.csv,.md,.txt"
-									onChange={handleFileUpload}
-									className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-								/>
-								<Upload className="w-8 h-8 text-muted/50 mx-auto mb-2" />
-								<p className="text-xs font-medium text-foreground mb-1">
-									点击选择或拖放文件到此处
-								</p>
-								<p className="text-[11px] text-muted">
-									支持 Word (.docx)、PDF (.pdf)、Excel (.xlsx/.csv)、Markdown
-									(.md)
-								</p>
-							</div>
+							<p className="text-xs text-muted leading-relaxed">
+								支持导入 Word (.docx)、Markdown (.md) 与纯文本 (.txt) 文件。
+							</p>
+
+							{!fileResult && (
+								<label
+									onDrop={handleDrop}
+									onDragOver={handleDragOver}
+									onDragLeave={handleDragLeave}
+									className={`block border-2 border-dashed rounded-xl p-8 text-center transition-colors relative cursor-pointer ${
+										isDragging
+											? "border-accent bg-accent/5"
+											: "border-border hover:border-accent/50 bg-surface-secondary/20"
+									}`}
+								>
+									<input
+										type="file"
+										accept=".docx,.md,.txt"
+										onChange={handleFileInputChange}
+										className="sr-only"
+									/>
+									<Upload className="w-8 h-8 text-muted/60 mx-auto mb-2" />
+									<p className="text-xs font-medium text-foreground mb-1">
+										点击选择或拖放文件到此处
+									</p>
+									<p className="text-[11px] text-muted">
+										支持 Word (.docx)、Markdown (.md)、纯文本 (.txt)，单文件最大
+										10MB
+									</p>
+								</label>
+							)}
 
 							{fileLoading && (
 								<div className="flex items-center justify-center py-6 text-muted gap-2 text-xs">
 									<Loader2 className="w-4 h-4 animate-spin" />
-									正在解析文件排版…
+									正在解析文档排版…
 								</div>
 							)}
 
 							{fileError && (
-								<div className="p-3 rounded-lg bg-danger/10 border border-danger/20 text-danger text-xs">
+								<div className="p-3 rounded-lg bg-danger/10 border border-danger/20 text-danger text-xs leading-relaxed">
 									{fileError}
 								</div>
 							)}
 
 							{fileResult && (
-								<div className="p-4 rounded-lg bg-surface-secondary/40 border border-border space-y-3">
-									<div className="flex items-center justify-between">
-										<span className="text-xs font-semibold text-foreground">
-											{fileResult.title}
-										</span>
-										<span className="text-[10px] text-success bg-success/15 px-2 py-0.5 rounded-full">
-											解析完成
-										</span>
-									</div>
-									<div
-										className="text-xs text-muted/90 max-h-64 overflow-y-auto p-3 bg-surface rounded border border-border/50 prose dark:prose-invert prose-xs max-w-none"
-										// biome-ignore lint/security/noDangerouslySetInnerHtml: preview parsed html
-										dangerouslySetInnerHTML={{ __html: fileResult.html }}
-									/>
-									<div className="flex justify-end gap-2 pt-2">
-										<button
-											type="button"
-											onClick={async () => {
-												await onImport({ ...fileResult, target: "insert" });
-												onClose();
-											}}
-											className="px-3 py-1.5 rounded-lg border border-border text-xs text-muted hover:text-foreground transition-colors cursor-pointer"
-										>
-											插入当前文档
-										</button>
-										<button
-											type="button"
-											onClick={async () => {
-												await onImport({ ...fileResult, target: "new" });
-												onClose();
-											}}
-											className="px-3 py-1.5 rounded-lg bg-accent text-accent-foreground text-xs font-medium hover:opacity-90 transition-opacity cursor-pointer"
-										>
-											作为新文档导入
-										</button>
-									</div>
-								</div>
-							)}
-						</div>
-					)}
-
-					{/* Tab 3: Obsidian 库导入 */}
-					{activeTab === "obsidian" && (
-						<div className="space-y-4">
-							<p className="text-xs text-muted leading-relaxed">
-								扫描本地 Obsidian 笔记库目录中的 Markdown
-								笔记，支持一键载入创作台进行富文本加工。
-							</p>
-							<div className="flex gap-2">
-								<input
-									type="text"
-									value={vaultPath}
-									onChange={(e) => setVaultPath(e.target.value)}
-									placeholder="Obsidian 库本地绝对路径，如 ~/Documents/Obsidian"
-									className="flex-1 bg-surface-secondary border border-border rounded-lg px-3 py-2 text-xs outline-none focus:border-accent"
+								<ImportResultPreview
+									result={fileResult}
+									badgeText="解析完成"
+									onReset={() => {
+										setFileResult(null);
+										setFileError(null);
+									}}
+									onConfirm={(target) =>
+										handleConfirmImport(fileResult, target)
+									}
+									isSubmitting={isSubmitting}
 								/>
-								<button
-									type="button"
-									disabled={obsidianLoading || !vaultPath.trim()}
-									onClick={handleScanObsidian}
-									className="px-4 py-2 bg-accent text-accent-foreground rounded-lg text-xs font-medium hover:opacity-90 transition-opacity disabled:opacity-40 cursor-pointer flex items-center gap-1.5"
-								>
-									{obsidianLoading && (
-										<Loader2 className="w-3.5 h-3.5 animate-spin" />
-									)}
-									扫描笔记
-								</button>
-							</div>
-
-							{obsidianError && (
-								<div className="p-3 rounded-lg bg-danger/10 border border-danger/20 text-danger text-xs">
-									{obsidianError}
-								</div>
 							)}
-
-							<div className="max-h-60 overflow-y-auto space-y-1 rounded-lg border border-border p-1 bg-surface-secondary/20">
-								{obsidianNotes.length === 0 && !obsidianLoading && (
-									<div className="text-center py-8 text-xs text-muted">
-										请输入本地 Obsidian Vault 路径并点击「扫描笔记」
-									</div>
-								)}
-								{obsidianNotes.map((note) => (
-									<div
-										key={note.relativePath}
-										className="flex items-center justify-between p-2 rounded-md hover:bg-muted/10 transition-colors text-xs"
-									>
-										<div className="flex-1 min-w-0 pr-2">
-											<p className="font-medium text-foreground truncate">
-												{note.name}
-											</p>
-											<p className="text-[10px] text-muted truncate">
-												{note.relativePath} ·{" "}
-												{Math.max(1, Math.round(note.size / 1024))} KB
-											</p>
-										</div>
-										<div className="flex items-center gap-1.5 shrink-0">
-											<button
-												type="button"
-												disabled={importingObsidian}
-												onClick={() =>
-													void handleImportObsidianNote(note, "insert")
-												}
-												className="px-2 py-1 rounded text-[11px] border border-border text-muted hover:text-foreground transition-colors cursor-pointer"
-											>
-												插入
-											</button>
-											<button
-												type="button"
-												disabled={importingObsidian}
-												onClick={() =>
-													void handleImportObsidianNote(note, "new")
-												}
-												className="px-2 py-1 rounded text-[11px] bg-accent/15 text-accent hover:bg-accent/25 transition-colors cursor-pointer"
-											>
-												新文档
-											</button>
-										</div>
-									</div>
-								))}
-							</div>
 						</div>
 					)}
 				</div>

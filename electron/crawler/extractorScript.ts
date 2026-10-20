@@ -186,6 +186,30 @@ export function buildExtractorScript(job: CrawlJob): string {
         }
       }
 
+      if (tag === "img") {
+        const src =
+          el.getAttribute("data-src") ||
+          el.getAttribute("data-original") ||
+          el.getAttribute("data-actualsrc") ||
+          el.getAttribute("src") ||
+          "";
+        const alt = (el.getAttribute("alt") || "网页配图").trim();
+        if (
+          !src ||
+          src.startsWith("data:image/svg") ||
+          src.startsWith("data:image/gif") ||
+          src.includes("data:image/png;base64,iVBORw0KGgo")
+        ) {
+          return "";
+        }
+        try {
+          const absoluteUrl = new URL(src, window.location.href).href;
+          return "\\n\\n![" + alt + "](" + absoluteUrl + ")\\n\\n";
+        } catch {
+          return "\\n\\n![" + alt + "](" + src + ")\\n\\n";
+        }
+      }
+
       if (tag === "strong" || tag === "b") {
         const text = getChildrenMarkdown().trim();
         return text ? " **" + text + "** " : "";

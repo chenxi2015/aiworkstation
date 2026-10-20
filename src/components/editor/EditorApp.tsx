@@ -28,6 +28,7 @@ import { AudioStudioCanvas } from "./media/AudioStudioCanvas";
 import { VideoStudioCanvas } from "./media/VideoStudioCanvas";
 import { PublishCenter } from "./publish-center/PublishCenter";
 import { normalizeCodeCardHtml } from "./utils/codeCardNormalizer";
+import { resetEditorHistory } from "./utils/editorHistory";
 import { detectDocumentMediaInfo } from "./utils/documentMediaKind";
 import type { EditorDragData } from "./utils/editorDnd";
 
@@ -551,6 +552,7 @@ export function EditorApp({ initialDocId }: EditorAppProps = {}) {
 				const { html } = pendingImportHtmlRef.current;
 				pendingImportHtmlRef.current = null;
 				editor.commands.setContent(normalizeCodeCardHtml(html));
+				resetEditorHistory(editor);
 			}
 		},
 		[activeId],

@@ -22,6 +22,7 @@ import {
 	normalizeCodeCardDoc,
 	normalizeCodeCardHtml,
 } from "../utils/codeCardNormalizer";
+import { resetEditorHistory } from "../utils/editorHistory";
 
 export interface SlashMenuState {
 	query: string;
@@ -258,6 +259,14 @@ export function useRichTextEditor({
 			prevDocIdRef.current = docId;
 			const nextContent = parseDocContent(initialContent);
 			editor.commands.setContent(nextContent, { emitUpdate: false });
+			// Clear undo/redo stacks so Ctrl+Z never leaks or rolls back into another document
+			resetEditorHistory(editor);
+			editor.commands.setTextSelection(0);
+			if (base64ScanTimerRef.current) {
+				clearTimeout(base64ScanTimerRef.current);
+				base64ScanTimerRef.current = null;
+			}
+			base64UploadingSrcsRef.current.clear();
 			setSlashMenu(null);
 		}
 	}, [docId, initialContent, editor]);

@@ -130,7 +130,7 @@ export function MediaNodeView(props: NodeViewProps) {
 				className={`relative group max-w-full select-none transition-all duration-150 rounded-xl ${
 					isVideo || mediaLoadError
 						? "w-full max-w-md min-w-[280px]"
-						: "inline-block"
+						: "inline-block min-w-[280px]"
 				} ${
 					selected
 						? "ring-2 ring-accent shadow-md"

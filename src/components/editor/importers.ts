@@ -111,15 +111,48 @@ export function extractMultipleMediaUrls(text: string): ExtractedMediaItem[] {
 export function markdownToHtml(md: string): string {
 	if (!md) return "";
 
+	// Normalize raw <img ...> tags embedded in Markdown (e.g. WeChat data-src, lazy-loading)
+	const normalizedMd = md.replace(/<img\b([^>]*?)>/gi, (_match, attrs) => {
+		const dataSrcMatch = attrs.match(/\bdata-src=["']([^"']+)["']/i);
+		const dataOriginalMatch = attrs.match(
+			/\bdata-original(?:-src)?=["']([^"']+)["']/i,
+		);
+		const srcMatch = attrs.match(/\bsrc=["']([^"']+)["']/i);
+		let realSrc = (
+			dataSrcMatch?.[1] ||
+			dataOriginalMatch?.[1] ||
+			srcMatch?.[1] ||
+			""
+		).trim();
+		if (
+			realSrc.startsWith("data:image/svg") ||
+			realSrc.startsWith("data:image/gif")
+		) {
+			realSrc = (dataSrcMatch?.[1] || dataOriginalMatch?.[1] || "").trim();
+		}
+		if (!realSrc) return "";
+		const altMatch = attrs.match(/\balt=["']([^"']*)["']/i);
+		const alt = altMatch ? altMatch[1].trim() : "网页配图";
+		return `\n\n![${alt}](${realSrc})\n\n`;
+	});
+
 	const renderer = new Renderer();
 
 	// Intercept image rendering: video links → <video>, rest → <img>
 	renderer.image = ({ href, text }) => {
-		const videoUrl = extractVideoUrl(href ?? "");
+		const cleanHref = (href ?? "").trim();
+		if (
+			!cleanHref ||
+			cleanHref.startsWith("data:image/svg") ||
+			cleanHref.startsWith("data:image/gif")
+		) {
+			return "";
+		}
+		const videoUrl = extractVideoUrl(cleanHref);
 		if (videoUrl) {
 			return `<div class="ast-video-card my-3"><video src="${videoUrl}" controls preload="metadata" referrerpolicy="no-referrer"></video></div>`;
 		}
-		return `<img src="${href}" alt="${text}" referrerpolicy="no-referrer" />`;
+		return `<img src="${cleanHref}" alt="${text || ""}" referrerpolicy="no-referrer" />`;
 	};
 
 	// Intercept link rendering: video links → <video>, rest → <a>
@@ -131,7 +164,7 @@ export function markdownToHtml(md: string): string {
 		return `<a href="${href}">${text}</a>`;
 	};
 
-	return marked(md, { renderer, gfm: true, breaks: false }) as string;
+	return marked(normalizedMd, { renderer, gfm: true, breaks: false }) as string;
 }
 
 /**
