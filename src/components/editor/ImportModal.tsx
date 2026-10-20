@@ -1,5 +1,6 @@
 import { FileText, Globe, Loader2, RefreshCw, Upload, X } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { importWebpageRpc } from "../../services/api/editorClient";
 import { markdownToHtml, parseWordDocx } from "./importers";
 import { MAX_DOC_CONTENT_CHARS, MAX_IMPORT_FILE_BYTES } from "./types";
@@ -42,7 +43,7 @@ function ImportResultPreview({
 		<div className="p-4 rounded-xl bg-surface-secondary/50 border border-border space-y-3 animate-in fade-in duration-150">
 			<div className="flex items-center justify-between gap-2">
 				<div className="flex items-center gap-2 min-w-0">
-					<span className="text-xs font-semibold text-foreground truncate max-w-sm">
+					<span className="text-xs font-semibold text-foreground truncate max-w-[200px] sm:max-w-sm">
 						{result.title}
 					</span>
 					<span className="text-[10px] text-success bg-success/15 px-2 py-0.5 rounded-full shrink-0">
@@ -53,7 +54,7 @@ function ImportResultPreview({
 					type="button"
 					onClick={onReset}
 					disabled={isSubmitting}
-					className="text-muted hover:text-foreground text-xs flex items-center gap-1 cursor-pointer transition-colors"
+					className="text-muted hover:text-foreground text-xs flex items-center gap-1 cursor-pointer transition-colors shrink-0"
 					title="重新选择"
 				>
 					<RefreshCw className="w-3 h-3" />
@@ -67,7 +68,7 @@ function ImportResultPreview({
 				dangerouslySetInnerHTML={{ __html: result.html }}
 			/>
 
-			<div className="flex justify-end gap-2 pt-1">
+			<div className="flex justify-end gap-2 pt-1 flex-wrap">
 				<button
 					type="button"
 					disabled={isSubmitting}
@@ -231,11 +232,38 @@ export function ImportModal({ isOpen, onClose, onImport }: ImportModalProps) {
 		[onImport, onClose],
 	);
 
-	if (!isOpen) return null;
+	// Close modal on Escape key press
+	useEffect(() => {
+		if (!isOpen) return;
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if (e.key === "Escape" && !webLoading && !fileLoading && !isSubmitting) {
+				onClose();
+			}
+		};
+		window.addEventListener("keydown", handleKeyDown);
+		return () => window.removeEventListener("keydown", handleKeyDown);
+	}, [isOpen, webLoading, fileLoading, isSubmitting, onClose]);
 
-	return (
-		<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-			<div className="bg-surface dark:bg-background border border-border rounded-xl shadow-2xl w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+	if (!isOpen || typeof document === "undefined") return null;
+
+	return createPortal(
+		<div
+			className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+			onClick={(e) => {
+				if (
+					e.target === e.currentTarget &&
+					!webLoading &&
+					!fileLoading &&
+					!isSubmitting
+				) {
+					onClose();
+				}
+			}}
+		>
+			<div
+				className="bg-surface dark:bg-background border border-border rounded-xl shadow-2xl w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+				onClick={(e) => e.stopPropagation()}
+			>
 				{/* 头部 */}
 				<div className="flex items-center justify-between px-5 py-4 border-b border-border">
 					<div className="flex items-center gap-2">
@@ -297,7 +325,7 @@ export function ImportModal({ isOpen, onClose, onImport }: ImportModalProps) {
 										value={urlInput}
 										onChange={(e) => setUrlInput(e.target.value)}
 										placeholder="https://mp.weixin.qq.com/... 或任意文章链接"
-										className="flex-1 bg-surface-secondary border border-border rounded-lg px-3 py-2 text-xs outline-none focus:border-accent text-foreground placeholder:text-muted/60"
+										className="flex-1 min-w-0 bg-surface-secondary border border-border rounded-lg px-3 py-2 text-xs outline-none focus:border-accent text-foreground placeholder:text-muted/60"
 										onKeyDown={(e) => {
 											if (e.key === "Enter") void handleCrawlWebpage();
 										}}
@@ -403,6 +431,7 @@ export function ImportModal({ isOpen, onClose, onImport }: ImportModalProps) {
 					)}
 				</div>
 			</div>
-		</div>
+		</div>,
+		document.body,
 	);
 }
