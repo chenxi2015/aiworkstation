@@ -1,4 +1,4 @@
-import { redo, undo } from "@codemirror/commands";
+import { redo, redoDepth, undo, undoDepth } from "@codemirror/commands";
 import type { EditorView } from "@codemirror/view";
 import { toast } from "@heroui/react";
 import { useNavigate } from "@tanstack/react-router";
@@ -30,6 +30,11 @@ import {
 } from "../../DeleteEntryDialog";
 import { MarkdownAiBubbleMenu } from "../../markdown/MarkdownAiBubbleMenu";
 import { MarkdownEditor } from "../../markdown/MarkdownEditor";
+import {
+	getCachedNoteState,
+	invalidateCachedNoteState,
+	renameCachedNoteState,
+} from "../../markdown/noteStateCache";
 import { SplitNoteCompareView } from "../../markdown/SplitNoteCompareView";
 import type { NotePanelProps } from "../../NotePanel";
 import type { ObsidianCanvasApi, ObsidianExcalidrawApi } from "../../types";
@@ -88,12 +93,17 @@ export function TextNotePanel({
 		[],
 	);
 
-	// Reset undo/redo state when switching note path
-	// biome-ignore lint/correctness/useExhaustiveDependencies: reset editor state when relPath changes
+	// Synchronize note-isolated undo/redo state when switching note path
 	useEffect(() => {
-		setCanUndo(false);
-		setCanRedo(false);
-		setEditorView(null);
+		const cached = getCachedNoteState(relPath);
+		if (cached) {
+			setCanUndo(undoDepth(cached.state) > 0);
+			setCanRedo(redoDepth(cached.state) > 0);
+		} else {
+			setCanUndo(false);
+			setCanRedo(false);
+			setEditorView(null);
+		}
 	}, [relPath]);
 
 	// Persist view mode across sessions (Obsidian-styled)
@@ -365,6 +375,7 @@ export function TextNotePanel({
 				return;
 			}
 			toast.success("已重命名");
+			renameCachedNoteState(note.relPath, res.relPath);
 			onMutated();
 			onRenamed(res.relPath);
 		},
@@ -379,6 +390,7 @@ export function TextNotePanel({
 			return;
 		}
 		toast.success("已移动到系统回收站");
+		invalidateCachedNoteState(note.relPath);
 		onMutated();
 		onDeleted();
 	}, [note, onMutated, onDeleted]);

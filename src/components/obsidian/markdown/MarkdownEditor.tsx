@@ -9,7 +9,13 @@ import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { syntaxHighlighting } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
 import { searchKeymap } from "@codemirror/search";
-import { Compartment, EditorState, Prec } from "@codemirror/state";
+import {
+	Compartment,
+	EditorState,
+	Prec,
+	StateEffect,
+	Transaction,
+} from "@codemirror/state";
 import {
 	EditorView,
 	highlightActiveLine,
@@ -27,6 +33,8 @@ import { appHighlightStyle, appTheme } from "./editorTheme";
 import { insertLink, toggleInlineFormat } from "./formatCommands";
 import { livePreview } from "./livePreview";
 import { MarkdownContextMenu } from "./MarkdownContextMenu";
+import { markdownAutoPair } from "./markdownAutoPair";
+import { getCachedNoteState, saveCachedNoteState } from "./noteStateCache";
 import { wikilinkAutocomplete } from "./wikilinkAutocomplete";
 
 export interface MarkdownEditorProps {
@@ -108,20 +116,26 @@ export function MarkdownEditor({
 	const selfChangeRef = useRef(false);
 	const rafIdRef = useRef(0);
 	const prevRelPathRef = useRef(noteRelPath);
+	const noteRelPathRef = useRef(noteRelPath);
+	noteRelPathRef.current = noteRelPath;
 	const lastHistoryStateRef = useRef({ canUndo: false, canRedo: false });
 
-	const emitHistoryChange = useCallback((view: EditorView | null) => {
-		if (!onHistoryChangeRef.current) return;
-		const canUndo = view ? undoDepth(view.state) > 0 : false;
-		const canRedo = view ? redoDepth(view.state) > 0 : false;
-		if (
-			lastHistoryStateRef.current.canUndo !== canUndo ||
-			lastHistoryStateRef.current.canRedo !== canRedo
-		) {
-			lastHistoryStateRef.current = { canUndo, canRedo };
-			onHistoryChangeRef.current(canUndo, canRedo);
-		}
-	}, []);
+	const emitHistoryChange = useCallback(
+		(view: EditorView | null, force = false) => {
+			if (!onHistoryChangeRef.current) return;
+			const canUndo = view ? undoDepth(view.state) > 0 : false;
+			const canRedo = view ? redoDepth(view.state) > 0 : false;
+			if (
+				force ||
+				lastHistoryStateRef.current.canUndo !== canUndo ||
+				lastHistoryStateRef.current.canRedo !== canRedo
+			) {
+				lastHistoryStateRef.current = { canUndo, canRedo };
+				onHistoryChangeRef.current(canUndo, canRedo);
+			}
+		},
+		[],
+	);
 
 	const modeCompartment = useRef(new Compartment()).current;
 	const readingRef = useRef(reading);
@@ -135,6 +149,7 @@ export function MarkdownEditor({
 			...(isReading
 				? []
 				: [
+						markdownAutoPair(),
 						wikilinkAutocomplete(),
 						keymap.of([
 							{
@@ -252,6 +267,13 @@ export function MarkdownEditor({
 			EditorView.updateListener.of((update) => {
 				if (update.docChanged) {
 					selfChangeRef.current = true;
+					const currentPath = noteRelPathRef.current;
+					if (currentPath) {
+						saveCachedNoteState(currentPath, update.state, {
+							top: update.view.scrollDOM.scrollTop,
+							left: update.view.scrollDOM.scrollLeft,
+						});
+					}
 					// Debounce toString via rAF: coalesce multiple rapid updates into one
 					if (!rafIdRef.current) {
 						rafIdRef.current = requestAnimationFrame(() => {
@@ -276,21 +298,55 @@ export function MarkdownEditor({
 		],
 	);
 
-	// 编辑器实例只创建一次；外部值同步走下方 effect，回调经 ref 透传
+	// 编辑器实例创建（优先复用缓存状态以保留撤销/重做历史）；外部值同步走下方 effect，回调经 ref 透传
 	// biome-ignore lint/correctness/useExhaustiveDependencies: 实例只随挂载创建一次
 	useEffect(() => {
 		if (!containerRef.current) return;
 
+		const currentPath = noteRelPathRef.current;
+		const cached = currentPath ? getCachedNoteState(currentPath) : null;
+		let initialState: EditorState;
+		const extensions = getExtensions(currentPath);
+
+		if (cached) {
+			const cachedDoc = cached.state.doc.toString();
+			// Reconfigure extensions for new instance, preserving the note's isolated history stack intact
+			initialState = cached.state.update({
+				effects: StateEffect.reconfigure.of(extensions),
+			}).state;
+
+			// If the cached note has newer unsaved edits, align parent draft state immediately
+			if (cachedDoc !== value) {
+				onChangeRef.current(cachedDoc);
+			}
+		} else {
+			initialState = EditorState.create({
+				doc: value,
+				extensions,
+			});
+		}
+
 		const view = new EditorView({
 			parent: containerRef.current,
-			state: EditorState.create({
-				doc: value,
-				extensions: getExtensions(noteRelPath),
-			}),
+			state: initialState,
 		});
 		viewRef.current = view;
+
+		if (cached?.scroll) {
+			view.scrollDOM.scrollTop = cached.scroll.top;
+			view.scrollDOM.scrollLeft = cached.scroll.left;
+		}
+
 		onReadyRef.current?.(view);
-		emitHistoryChange(view);
+		emitHistoryChange(view, true);
+
+		// Double-check history status after React layout batching
+		requestAnimationFrame(() => {
+			if (viewRef.current === view) {
+				onReadyRef.current?.(view);
+				emitHistoryChange(view, true);
+			}
+		});
 
 		// Synchronize CodeMirror heightMap after DOM layout stabilizes
 		requestAnimationFrame(() => {
@@ -316,9 +372,22 @@ export function MarkdownEditor({
 
 		return () => {
 			resizeObserver.disconnect();
+			const activePath = noteRelPathRef.current;
+			if (activePath && viewRef.current) {
+				saveCachedNoteState(activePath, viewRef.current.state, {
+					top: viewRef.current.scrollDOM.scrollTop,
+					left: viewRef.current.scrollDOM.scrollLeft,
+				});
+			}
+			if (rafIdRef.current) {
+				cancelAnimationFrame(rafIdRef.current);
+				rafIdRef.current = 0;
+				if (viewRef.current) {
+					onChangeRef.current(viewRef.current.state.doc.toString());
+				}
+			}
 			onReadyRef.current?.(null);
-			emitHistoryChange(null);
-			if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+			emitHistoryChange(null, true);
 			view.destroy();
 			viewRef.current = null;
 		};
@@ -357,16 +426,47 @@ export function MarkdownEditor({
 	// Cleanly switch note state when noteRelPath changes without unmounting DOM
 	useEffect(() => {
 		if (prevRelPathRef.current === noteRelPath) return;
+		const oldPath = prevRelPathRef.current;
 		prevRelPathRef.current = noteRelPath;
 		const view = viewRef.current;
 		if (!view) return;
-		const nextState = EditorState.create({
-			doc: value,
-			extensions: getExtensions(noteRelPath),
-		});
+
+		// Save previous note editor state before switching to new note
+		if (oldPath) {
+			saveCachedNoteState(oldPath, view.state, {
+				top: view.scrollDOM.scrollTop,
+				left: view.scrollDOM.scrollLeft,
+			});
+		}
+
+		const cached = noteRelPath ? getCachedNoteState(noteRelPath) : null;
+		let nextState: EditorState;
+		const freshExtensions = getExtensions(noteRelPath);
+
+		if (cached) {
+			const cachedDoc = cached.state.doc.toString();
+			// Reconfigure extensions preserving the note's isolated history stack
+			nextState = cached.state.update({
+				effects: StateEffect.reconfigure.of(freshExtensions),
+			}).state;
+			if (cachedDoc !== value) {
+				onChangeRef.current(cachedDoc);
+			}
+		} else {
+			nextState = EditorState.create({
+				doc: value,
+				extensions: freshExtensions,
+			});
+		}
+
 		view.setState(nextState);
-		view.scrollDOM.scrollTop = 0;
-		emitHistoryChange(view);
+		if (cached?.scroll) {
+			view.scrollDOM.scrollTop = cached.scroll.top;
+			view.scrollDOM.scrollLeft = cached.scroll.left;
+		} else {
+			view.scrollDOM.scrollTop = 0;
+		}
+		emitHistoryChange(view, true);
 		requestAnimationFrame(() => {
 			if (viewRef.current === view) {
 				view.requestMeasure();
@@ -388,8 +488,10 @@ export function MarkdownEditor({
 				return;
 			}
 		}
+		// Apply external synchronization without polluting the note's private undo/redo history
 		view.dispatch({
 			changes: { from: 0, to: current.length, insert: value },
+			annotations: Transaction.addToHistory.of(false),
 		});
 	}, [value, noteRelPath]);
 
