@@ -12,6 +12,7 @@ import {
 import { useRef, useState } from "react";
 import { openDocumentDirectoryRpc } from "../../../services/api/editorClient";
 import { useImmersiveMode } from "../../../stores/immersiveStore";
+import { useAddToAiChat } from "../../workbench/ai/chat/utils/chatContextHelpers";
 import type { EditorDocument } from "../types";
 
 export interface DocumentHeaderProps {
@@ -40,6 +41,7 @@ export function DocumentHeader({
 	const inputRef = useRef<HTMLInputElement>(null);
 	const [isOpeningFolder, setIsOpeningFolder] = useState(false);
 	const { isImmersive, toggle: toggleImmersive } = useImmersiveMode();
+	const { addDocumentToAi } = useAddToAiChat();
 
 	const handleFocusInput = () => {
 		if (inputRef.current) {
@@ -112,6 +114,16 @@ export function DocumentHeader({
 						</span>
 					</button>
 				)}
+
+				<button
+					type="button"
+					title="添加到AI对话"
+					aria-label="添加到AI对话"
+					onClick={() => addDocumentToAi(activeDoc)}
+					className="p-1.5 text-muted hover:text-foreground hover:bg-muted/10 rounded-md transition-colors cursor-pointer"
+				>
+					<Sparkles className="w-3.5 h-3.5 text-accent" />
+				</button>
 
 				<button
 					type="button"

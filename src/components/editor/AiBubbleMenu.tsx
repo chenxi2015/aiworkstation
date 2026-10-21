@@ -1,6 +1,8 @@
 import type { Editor } from "@tiptap/core";
+import { Sparkles } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useAddToAiChat } from "../workbench/ai/chat/utils/chatContextHelpers";
 import { AiCustomPromptInput } from "./components/bubble/AiCustomPromptInput";
 import { AiPresetActionList } from "./components/bubble/AiPresetActionList";
 import { AiResultPanel } from "./components/bubble/AiResultPanel";
@@ -77,43 +79,57 @@ export function AiBubbleMenu({
 		panelHeight: 260,
 	});
 
-	// ── Selection change → show / hide bubble ───────────────────
+	// ── Listen for mouseup / keyup on editor to show/hide floating menu ───
+	// Aligns 1:1 with MarkdownAiBubbleMenu in notes: displays on release, not during drag selection
+	const isMouseDownInsideRef = useRef(false);
+
 	useEffect(() => {
-		const handleSelectionUpdate = () => {
-			// Do not interrupt active streaming
-			if (ai.isStreaming) {
-				return;
-			}
+		const editorDom = editor.view?.dom;
+		if (!editorDom) return;
 
-			const { selection } = editor.state;
-			if (
-				selection.empty ||
-				selection.to - selection.from < 2 ||
-				editor.isActive("codeBlock") ||
-				SuggestionController.detectActiveSuggestion(editor)
-			) {
-				if (ai.state === "idle") {
-					setVisible(false);
+		let rafId: number | null = null;
+
+		const handleSelection = () => {
+			if (rafId) cancelAnimationFrame(rafId);
+			rafId = requestAnimationFrame(() => {
+				if (editor.isDestroyed || ai.isStreaming) return;
+
+				const { selection } = editor.state;
+				if (
+					selection.empty ||
+					selection.to - selection.from < 2 ||
+					editor.isActive("codeBlock") ||
+					SuggestionController.detectActiveSuggestion(editor)
+				) {
+					if (ai.state === "idle") {
+						setVisible(false);
+					}
+					return;
 				}
-				return;
-			}
 
-			// If previous AI generation completed and user selected a new text region, reset to idle
-			if (ai.state !== "idle") {
-				ai.resetVisibility();
-			}
+				// If previous AI generation completed and user selected a new text region, reset to idle
+				if (ai.state !== "idle") {
+					ai.resetVisibility();
+				}
 
-			refreshPos();
-			setVisible(true);
+				refreshPos();
+				setVisible(true);
+			});
+		};
+
+		const handleMouseDown = () => {
+			isMouseDownInsideRef.current = true;
+		};
+
+		const handleWindowMouseUp = () => {
+			if (isMouseDownInsideRef.current) {
+				isMouseDownInsideRef.current = false;
+				handleSelection();
+			}
 		};
 
 		const handleBlur = () => {
-			// Do not hide if currently executing or displaying AI result
-			if (ai.state !== "idle") {
-				return;
-			}
-
-			// Small delay so clicks on the panel itself aren't swallowed
+			if (ai.state !== "idle" || ai.activeSuggestion != null) return;
 			setTimeout(() => {
 				if (!panelRef.current?.matches(":hover")) {
 					setVisible(false);
@@ -121,14 +137,80 @@ export function AiBubbleMenu({
 			}, 150);
 		};
 
-		editor.on("selectionUpdate", handleSelectionUpdate);
-		editor.on("blur", handleBlur);
+		const handleDragStart = () => {
+			setVisible(false);
+		};
+
+		editorDom.addEventListener("mousedown", handleMouseDown);
+		editorDom.addEventListener("mouseup", handleSelection);
+		editorDom.addEventListener("keyup", handleSelection);
+		editorDom.addEventListener("focusout", handleBlur);
+		editorDom.addEventListener("dragstart", handleDragStart);
+		window.addEventListener("mouseup", handleWindowMouseUp);
 
 		return () => {
-			editor.off("selectionUpdate", handleSelectionUpdate);
-			editor.off("blur", handleBlur);
+			if (rafId) cancelAnimationFrame(rafId);
+			editorDom.removeEventListener("mousedown", handleMouseDown);
+			editorDom.removeEventListener("mouseup", handleSelection);
+			editorDom.removeEventListener("keyup", handleSelection);
+			editorDom.removeEventListener("focusout", handleBlur);
+			editorDom.removeEventListener("dragstart", handleDragStart);
+			window.removeEventListener("mouseup", handleWindowMouseUp);
 		};
-	}, [editor, refreshPos, ai.state, ai.isStreaming, ai.resetVisibility]);
+	}, [
+		editor,
+		refreshPos,
+		ai.state,
+		ai.isStreaming,
+		ai.activeSuggestion,
+		ai.resetVisibility,
+	]);
+
+	// ── Close floating bubble or reset when clicking outside or pressing Escape ──
+	useEffect(() => {
+		if (!visible && ai.state === "idle" && !ai.activeSuggestion) return;
+
+		const handlePointerDown = (e: PointerEvent) => {
+			const target = e.target as Node | null;
+			if (!target) return;
+			if (panelRef.current?.contains(target)) return;
+			// Ignore if interacting with review toolbar
+			if (
+				target instanceof HTMLElement &&
+				target.closest('[aria-label="AI建议审阅工具栏"]')
+			) {
+				return;
+			}
+			if (ai.state === "idle" && !ai.activeSuggestion) {
+				setVisible(false);
+			}
+		};
+
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if (e.key === "Escape") {
+				if (ai.activeSuggestion) {
+					ai.handleRejectSuggestion();
+				} else if (ai.state !== "idle") {
+					ai.handleClose();
+				} else {
+					setVisible(false);
+				}
+			}
+		};
+
+		document.addEventListener("pointerdown", handlePointerDown, true);
+		window.addEventListener("keydown", handleKeyDown);
+		return () => {
+			document.removeEventListener("pointerdown", handlePointerDown, true);
+			window.removeEventListener("keydown", handleKeyDown);
+		};
+	}, [
+		visible,
+		ai.state,
+		ai.activeSuggestion,
+		ai.handleRejectSuggestion,
+		ai.handleClose,
+	]);
 
 	// ── Wrap handleAction to hide bubble when streaming starts ──
 	const onAction = useCallback(
@@ -157,6 +239,16 @@ export function AiBubbleMenu({
 	const handleCopy = useCallback(async () => {
 		await ai.handleCopy();
 	}, [ai.handleCopy]);
+
+	const { addSelectionToAi } = useAddToAiChat();
+
+	const handleSendSelectionToChat = useCallback(() => {
+		const { from, to } = editor.state.selection;
+		const selectedText = editor.state.doc.textBetween(from, to, "\n");
+		if (!selectedText.trim()) return;
+		addSelectionToAi(selectedText);
+		setVisible(false);
+	}, [editor, addSelectionToAi]);
 
 	const handleCloseAndHide = useCallback(() => {
 		ai.handleClose();
@@ -188,8 +280,18 @@ export function AiBubbleMenu({
 			{/* Top: format tools / Middle: custom AI instruction / Bottom: preset tags */}
 			{ai.state === "idle" && (
 				<div className="flex flex-col w-[396px]">
-					<div className="flex items-center gap-0.5 px-2 py-1 border-b border-border/50 bg-surface/40">
+					<div className="flex items-center justify-between gap-1 px-2 py-1 border-b border-border/50 bg-surface/40">
 						<InlineFormatGroup editor={editor} isDropUp={isDropdownDropUp} />
+						<button
+							type="button"
+							title="将选中文本添加到 AI 对话"
+							aria-label="添加到AI对话"
+							onClick={handleSendSelectionToChat}
+							className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium text-accent hover:bg-accent/10 active:scale-95 transition-all cursor-pointer shrink-0"
+						>
+							<Sparkles className="w-3.5 h-3.5" />
+							<span>到AI对话</span>
+						</button>
 					</div>
 					<AiCustomPromptInput onSubmit={ai.handleCustomInstruction} />
 					<AiPresetActionList

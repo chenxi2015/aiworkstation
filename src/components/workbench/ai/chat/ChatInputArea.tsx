@@ -179,6 +179,16 @@ export const ChatInputArea = memo(function ChatInputArea({
 	// × 掉即 detach（等价于原「切换到全局」）。替代旧 scope pill 的表达。
 	const mergedContextItems = useMemo(() => {
 		if (!activeScope?.isActive) return contextItems;
+
+		const alreadyInContext = contextItems.some((ci) => {
+			if (activeScope.type === "note" && ci.type === "note" && ci.notePath === activeScope.notePath) return true;
+			if (activeScope.type === "document" && ci.type === "document" && ci.documentId === activeScope.documentId) return true;
+			if (activeScope.type === "material" && ci.type === "material" && ci.materialId === activeScope.materialId) return true;
+			if (activeScope.type === "folder" && ci.type === "folder" && ci.folderId === activeScope.folderId) return true;
+			return false;
+		});
+		if (alreadyInContext) return contextItems;
+
 		const chipType = SCOPE_TYPE_TO_CHIP[activeScope.type] ?? "document";
 		const isCanvas = activeScope.notePath?.toLowerCase().endsWith(".canvas");
 		const isExcalidraw = activeScope.notePath?.toLowerCase().endsWith(".excalidraw");

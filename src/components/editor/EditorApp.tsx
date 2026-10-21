@@ -19,7 +19,10 @@ import { EditorDragChip } from "./components/EditorDragChip";
 import { FolderSidebar } from "./components/FolderSidebar";
 import { useArticleCreationPipeline } from "./hooks/useArticleCreationPipeline";
 import { useDocumentExport } from "./hooks/useDocumentExport";
-import { useDocumentManager } from "./hooks/useDocumentManager";
+import {
+	type ActiveFolderId,
+	useDocumentManager,
+} from "./hooks/useDocumentManager";
 import { useDocumentVersions } from "./hooks/useDocumentVersions";
 import { useEditorAiBridge } from "./hooks/useEditorAiBridge";
 import { ImportModal } from "./ImportModal";
@@ -38,12 +41,13 @@ const FOLDER_SIDEBAR_COLLAPSED_KEY = "editor.folderSidebar.collapsed";
 function hitTestFolderRow(point: {
 	x: number;
 	y: number;
-}): number | "all" | null {
+}): number | "all" | "unfiled" | null {
 	const el = document.elementFromPoint(point.x, point.y);
 	const row = el instanceof Element ? el.closest("[data-edfolder]") : null;
 	if (!row) return null;
 	const raw = row.getAttribute("data-edfolder");
 	if (raw === "all") return "all";
+	if (raw === "unfiled") return "unfiled";
 	const folderId = Number(raw);
 	return Number.isFinite(folderId) ? folderId : null;
 }
@@ -119,11 +123,11 @@ export function EditorApp({ initialDocId }: EditorAppProps = {}) {
 	}, []);
 
 	// 文档拖到文件夹行的悬停高亮目标
-	const [docDropTarget, setDocDropTarget] = useState<number | "all" | null>(
-		null,
-	);
+	const [docDropTarget, setDocDropTarget] = useState<
+		number | "all" | "unfiled" | null
+	>(null);
 	// Cache last value to skip identical setState calls entirely
-	const docDropTargetRef = useRef<number | "all" | null>(null);
+	const docDropTargetRef = useRef<number | "all" | "unfiled" | null>(null);
 
 	const handleEditorDragMove = useCallback((event: DragMoveEvent) => {
 		const { operation } = event;
@@ -137,7 +141,8 @@ export function EditorApp({ initialDocId }: EditorAppProps = {}) {
 		}
 		// sortable 插件会把 target 重置为拖拽源，文件夹命中改用指针探测
 		const hit = hitTestFolderRow(operation.position.current);
-		const next = hit !== null && hit !== (data.folderId ?? "all") ? hit : null;
+		const currentFolderTarget = data.folderId ?? "unfiled";
+		const next = hit !== null && hit !== currentFolderTarget ? hit : null;
 		if (docDropTargetRef.current !== next) {
 			docDropTargetRef.current = next;
 			setDocDropTarget(next);
@@ -178,7 +183,7 @@ export function EditorApp({ initialDocId }: EditorAppProps = {}) {
 			// 文档拖拽：优先判定「移动到文件夹」（指针命中文件夹行）
 			const hit = hitTestFolderRow(operation.position.current);
 			if (hit !== null) {
-				const targetFolderId = hit === "all" ? null : hit;
+				const targetFolderId = hit === "all" || hit === "unfiled" ? null : hit;
 				if (targetFolderId !== data.folderId) {
 					void handleMoveDocument(data.docId, targetFolderId);
 					return;
@@ -192,7 +197,9 @@ export function EditorApp({ initialDocId }: EditorAppProps = {}) {
 				const scoped =
 					activeFolderId === "all"
 						? documents
-						: documents.filter((d) => d.folderId === activeFolderId);
+						: activeFolderId === "unfiled"
+							? documents.filter((d) => d.folderId == null)
+							: documents.filter((d) => d.folderId === activeFolderId);
 				const unpinnedIds = scoped.filter((d) => !d.pinned).map((d) => d.id);
 				if (index < unpinnedIds.length) {
 					void handleReorderDocuments(
@@ -219,8 +226,9 @@ export function EditorApp({ initialDocId }: EditorAppProps = {}) {
 		if (initialDocId !== activeId) {
 			const target = documents.find((d) => d.id === initialDocId);
 			if (target) {
-				if (activeFolderId !== "all" && target.folderId !== activeFolderId) {
-					setActiveFolderId(target.folderId ?? "all");
+				const targetFolderKey: ActiveFolderId = target.folderId ?? "unfiled";
+				if (activeFolderId !== "all" && activeFolderId !== targetFolderKey) {
+					setActiveFolderId(targetFolderKey);
 				}
 				void switchDocument(initialDocId);
 			} else {
@@ -228,11 +236,13 @@ export function EditorApp({ initialDocId }: EditorAppProps = {}) {
 				void reloadDocuments().then((latestDocs) => {
 					const latestTarget = latestDocs.find((d) => d.id === initialDocId);
 					if (latestTarget) {
+						const latestTargetFolderKey: ActiveFolderId =
+							latestTarget.folderId ?? "unfiled";
 						if (
 							activeFolderId !== "all" &&
-							latestTarget.folderId !== activeFolderId
+							activeFolderId !== latestTargetFolderKey
 						) {
-							setActiveFolderId(latestTarget.folderId ?? "all");
+							setActiveFolderId(latestTargetFolderKey);
 						}
 						void switchDocument(initialDocId);
 					}
@@ -593,6 +603,9 @@ export function EditorApp({ initialDocId }: EditorAppProps = {}) {
 						<FolderSidebar
 							folders={docFolders}
 							totalCount={documents.length}
+							unfiledCount={
+								documents.filter((d) => d.folderId == null).length
+							}
 							activeFolderId={activeFolderId}
 							docDropTarget={docDropTarget}
 							collapsed={folderCollapsed}

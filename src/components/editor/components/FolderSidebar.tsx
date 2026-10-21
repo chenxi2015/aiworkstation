@@ -4,6 +4,7 @@ import { useSortable } from "@dnd-kit/react/sortable";
 import { Dropdown, Modal, Tooltip } from "@heroui/react";
 import {
 	Ellipsis,
+	Files,
 	Folder as FolderIcon,
 	FolderPlus,
 	Inbox,
@@ -20,6 +21,7 @@ import {
 	EDITOR_ALL_DROP_ID,
 	EDITOR_DOC_TYPE,
 	EDITOR_FOLDER_TYPE,
+	EDITOR_UNFILED_DROP_ID,
 	type EditorFolderDragData,
 	editorFolderRowId,
 } from "../utils/editorDnd";
@@ -28,9 +30,11 @@ export interface FolderSidebarProps {
 	folders: EditorDocFolder[];
 	/** 全部文档数（不含 archived） */
 	totalCount: number;
+	/** 未分类文档数（folder_id 为 null） */
+	unfiledCount: number;
 	activeFolderId: ActiveFolderId;
 	/** 文档拖拽悬停高亮的放置目标（由 EditorApp 的 DnD 状态驱动） */
-	docDropTarget: number | "all" | null;
+	docDropTarget: number | "all" | "unfiled" | null;
 	collapsed: boolean;
 	onToggleCollapsed: () => void;
 	onSelectFolder: (id: ActiveFolderId) => void;
@@ -42,6 +46,7 @@ export interface FolderSidebarProps {
 export function FolderSidebar({
 	folders,
 	totalCount,
+	unfiledCount,
 	activeFolderId,
 	docDropTarget,
 	collapsed,
@@ -131,13 +136,33 @@ export function FolderSidebar({
 												: "text-muted hover:text-foreground hover:bg-muted/15"
 										}`}
 									>
-										<Inbox className="w-4 h-4" />
+										<Files className="w-4 h-4" />
 									</button>
 								</Tooltip.Trigger>
 								<Tooltip.Content placement="right">
 									全部（{totalCount}）
 								</Tooltip.Content>
 							</Tooltip>
+							<Tooltip>
+								<Tooltip.Trigger>
+									<button
+										type="button"
+										onClick={() => onSelectFolder("unfiled")}
+										aria-label="未分类"
+										className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+											activeFolderId === "unfiled"
+												? "bg-accent/15 text-accent"
+												: "text-muted hover:text-foreground hover:bg-muted/15"
+										}`}
+									>
+										<Inbox className="w-4 h-4" />
+									</button>
+								</Tooltip.Trigger>
+								<Tooltip.Content placement="right">
+									未分类（{unfiledCount}）
+								</Tooltip.Content>
+							</Tooltip>
+							<div className="w-6 h-px bg-border/60 my-0.5 mx-auto shrink-0" />
 							{folders.map((folder) => (
 								<Tooltip key={folder.id}>
 									<Tooltip.Trigger>
@@ -185,13 +210,25 @@ export function FolderSidebar({
 						</div>
 
 						<div className="flex-1 overflow-y-auto p-1.5 space-y-0.5 min-h-0">
-							{/* 全部（固定置顶，不可删改） */}
+							{/* All documents (fixed top) */}
 							<AllDocsRow
 								totalCount={totalCount}
 								active={activeFolderId === "all"}
 								dropActive={docDropTarget === "all"}
 								onSelect={() => onSelectFolder("all")}
 							/>
+
+							{/* Unfiled documents (unfiled drop target) */}
+							<UnfiledDocsRow
+								unfiledCount={unfiledCount}
+								active={activeFolderId === "unfiled"}
+								dropActive={docDropTarget === "unfiled"}
+								onSelect={() => onSelectFolder("unfiled")}
+							/>
+
+							{folders.length > 0 && (
+								<div className="w-full h-px bg-border/50 my-1 shrink-0" />
+							)}
 
 							{folders.map((folder, index) => (
 								<FolderRow
@@ -274,7 +311,7 @@ export function FolderSidebar({
 				title="删除文件夹"
 				description={`确定删除文件夹「${deletingFolder?.name ?? ""}」吗？其中的 ${
 					deletingFolder?.docCount ?? 0
-				} 篇文档会移回「全部」，不会被删除。`}
+				} 篇文档会移回「未分类」，不会被删除。`}
 				onConfirm={async () => {
 					if (deletingFolder) {
 						await onDeleteFolder(deletingFolder.id);
@@ -286,7 +323,7 @@ export function FolderSidebar({
 	);
 }
 
-/** 「全部」行：固定置顶，同时是「移出文件夹」的放置目标 */
+/** "All" row: permanently pinned at top displaying all documents */
 function AllDocsRow({
 	totalCount,
 	active,
@@ -298,7 +335,7 @@ function AllDocsRow({
 	dropActive: boolean;
 	onSelect: () => void;
 }) {
-	// 只接受文档拖拽（文件夹排序不会在这里触发高亮/放置）
+	// Accept doc dragging only
 	const { ref } = useDroppable({
 		id: EDITOR_ALL_DROP_ID,
 		accept: EDITOR_DOC_TYPE,
@@ -316,10 +353,50 @@ function AllDocsRow({
 							: "text-foreground hover:bg-muted/10 border border-transparent"
 				}`}
 			>
-				<Inbox className="w-3.5 h-3.5 text-muted shrink-0" />
+				<Files className="w-3.5 h-3.5 text-muted shrink-0" />
 				<span className="flex-1 text-left font-medium truncate">全部</span>
 				<span className="text-[10px] text-muted/70 tabular-nums">
 					{totalCount}
+				</span>
+			</button>
+		</div>
+	);
+}
+
+/** "Unfiled" row: pinned right below "All", acts as drop target to unfile documents */
+function UnfiledDocsRow({
+	unfiledCount,
+	active,
+	dropActive,
+	onSelect,
+}: {
+	unfiledCount: number;
+	active: boolean;
+	dropActive: boolean;
+	onSelect: () => void;
+}) {
+	// Dropping documents here removes them from folders into the unfiled pool
+	const { ref } = useDroppable({
+		id: EDITOR_UNFILED_DROP_ID,
+		accept: EDITOR_DOC_TYPE,
+	});
+	return (
+		<div ref={ref} data-edfolder="unfiled" className="rounded-lg">
+			<button
+				type="button"
+				onClick={onSelect}
+				className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs transition-colors cursor-pointer ${
+					dropActive
+						? "bg-accent/20 border border-accent/50"
+						: active
+							? "bg-accent/10 border border-accent/30 text-foreground"
+							: "text-foreground hover:bg-muted/10 border border-transparent"
+				}`}
+			>
+				<Inbox className="w-3.5 h-3.5 text-muted shrink-0" />
+				<span className="flex-1 text-left font-medium truncate">未分类</span>
+				<span className="text-[10px] text-muted/70 tabular-nums">
+					{unfiledCount}
 				</span>
 			</button>
 		</div>

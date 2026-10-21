@@ -115,6 +115,7 @@ export interface AiPanelApi {
 	openSearchTab: () => void;
 	openChatTab: AiAssistantPanelRef["openChatTab"];
 	addContextItem: (item: ChatContextItem) => void;
+	setInputText?: (text: string) => void;
 	setScope: (scope: AiPanelScope) => void;
 	setPageData: (data: AiPanelPageData | null) => void;
 	registerDataChangedHandler: (fn: (() => void) | null) => void;
@@ -136,6 +137,7 @@ const DEFAULT_AI_PANEL_API: AiPanelApi = {
 	openSearchTab: () => {},
 	openChatTab: () => {},
 	addContextItem: () => {},
+	setInputText: () => {},
 	setScope: () => {},
 	setPageData: () => {},
 	registerDataChangedHandler: () => {},
@@ -339,6 +341,7 @@ export function AppShell({
 			openChatTab: (prompt, options) =>
 				panelRef.current?.openChatTab(prompt, options),
 			addContextItem: (item) => panelRef.current?.addContextItem(item),
+			setInputText: (text) => panelRef.current?.setInputText?.(text),
 			setScope,
 			setPageData,
 			registerDataChangedHandler: (fn) => {

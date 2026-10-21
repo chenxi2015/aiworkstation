@@ -4,6 +4,7 @@
  */
 
 export const EDITOR_ALL_DROP_ID = "edfolder:all";
+export const EDITOR_UNFILED_DROP_ID = "edfolder:unfiled";
 
 /** 实体类型：配合 droppable 的 accept 做类型级互斥（比 group 更强的隔离） */
 export const EDITOR_FOLDER_TYPE = "editor-folder";
@@ -26,13 +27,14 @@ export type EditorDocDragData = {
 
 export type EditorDragData = EditorFolderDragData | EditorDocDragData;
 
-/** 解析文件夹放置目标：文件夹 id / "all" / null（非文件夹目标） */
+/** Parse editor folder target: folder id / "all" / "unfiled" / null */
 export function parseEditorFolderTarget(
 	id: string | number | undefined,
-): number | "all" | null {
+): number | "all" | "unfiled" | null {
 	if (id === undefined) return null;
 	const raw = String(id);
 	if (raw === EDITOR_ALL_DROP_ID) return "all";
+	if (raw === EDITOR_UNFILED_DROP_ID) return "unfiled";
 	if (raw.startsWith("edfolder:")) {
 		const folderId = Number(raw.slice(9));
 		return Number.isFinite(folderId) ? folderId : null;

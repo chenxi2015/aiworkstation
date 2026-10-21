@@ -1,8 +1,9 @@
 import { redo, redoDepth, undo, undoDepth } from "@codemirror/commands";
 import { EditorView } from "@codemirror/view";
 import { toast } from "@heroui/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useAddToAiChat } from "../../workbench/ai/chat/utils/chatContextHelpers";
 import {
 	clearFormatting,
 	insertLink,
@@ -262,6 +263,32 @@ export function MarkdownContextMenu({
 	const menuRef = useRef<HTMLDivElement>(null);
 	// Screen bounds correction: clamp menu into viewport after mounting
 	const [pos, setPos] = useState({ x, y });
+	const { addSelectionToAi } = useAddToAiChat();
+
+	const sections = useMemo<MenuSection[]>(() => {
+		const aiSection: MenuSection = {
+			title: "AI 助手",
+			entries: [
+				{
+					label: "添加到AI对话",
+					action: (v) => {
+						let text = "";
+						const sel = v.state.selection.main;
+						if (!sel.empty) {
+							text = v.state.sliceDoc(sel.from, sel.to);
+						} else {
+							text = window.getSelection()?.toString() ?? "";
+						}
+						if (!text.trim()) return false;
+						addSelectionToAi(text);
+						return true;
+					},
+					disabled: (v) => !hasSelection(v),
+				},
+			],
+		};
+		return [aiSection, ...SECTIONS];
+	}, [addSelectionToAi]);
 
 	useEffect(() => {
 		const el = menuRef.current;
@@ -307,7 +334,7 @@ export function MarkdownContextMenu({
 				className="fixed z-50 min-w-[176px] max-h-[min(540px,calc(100vh-32px))] overflow-y-auto rounded-xl border border-border bg-surface p-1 shadow-xl"
 				style={{ left: pos.x, top: pos.y }}
 			>
-				{SECTIONS.map((section, i) => (
+				{sections.map((section, i) => (
 					<div key={section.title || "tail"}>
 						{i > 0 && <div className="mx-2 my-1 border-t border-border" />}
 						{section.title && (

@@ -20,12 +20,14 @@ import {
 	Pin,
 	PinOff,
 	Search,
+	Sparkles,
 	Trash2,
 	Upload,
 	X,
 } from "lucide-react";
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { openDocumentDirectoryRpc } from "../../../services/api/editorClient";
+import { useAddToAiChat } from "../../workbench/ai/chat/utils/chatContextHelpers";
 import { ConfirmDialog } from "../../workbench/ConfirmDialog";
 import type { ActiveFolderId } from "../hooks/useDocumentManager";
 import type { EditorDocFolder, EditorDocument } from "../types";
@@ -91,6 +93,8 @@ export function DocumentSidebar({
 			);
 		}
 		if (activeFolderId === "all") return documents;
+		if (activeFolderId === "unfiled")
+			return documents.filter((doc) => doc.folderId == null);
 		return documents.filter((doc) => doc.folderId === activeFolderId);
 	}, [documents, searching, keyword, activeFolderId]);
 
@@ -101,6 +105,81 @@ export function DocumentSidebar({
 	const unpinnedDocs = useMemo(
 		() => visibleDocs.filter((doc) => !doc.pinned),
 		[visibleDocs],
+	);
+
+	// Paginated incremental loading (20 documents per page)
+	const PAGE_SIZE = 20;
+	const [displayLimit, setDisplayLimit] = useState(PAGE_SIZE);
+	const [isLoadingMore, setIsLoadingMore] = useState(false);
+	const scrollContainerRef = useRef<HTMLDivElement>(null);
+	const sentinelRef = useRef<HTMLDivElement>(null);
+
+	// Reset display limit when activeFolderId or search changes, ensuring activeId is covered
+	useEffect(() => {
+		const activeIndex = unpinnedDocs.findIndex((d) => d.id === activeId);
+		const minNeeded =
+			activeIndex >= 0
+				? Math.ceil((activeIndex + 1) / PAGE_SIZE) * PAGE_SIZE
+				: PAGE_SIZE;
+		setDisplayLimit(minNeeded);
+	}, [activeFolderId, keyword]);
+
+	// Automatically expand display window to cover selected document if beyond initial page
+	useEffect(() => {
+		if (activeId == null) return;
+		const activeIndex = unpinnedDocs.findIndex((d) => d.id === activeId);
+		if (activeIndex >= 0) {
+			const needed = Math.ceil((activeIndex + 1) / PAGE_SIZE) * PAGE_SIZE;
+			setDisplayLimit((prev) => Math.max(prev, needed));
+		}
+	}, [activeId, unpinnedDocs]);
+
+	const displayedUnpinnedDocs = useMemo(
+		() => unpinnedDocs.slice(0, displayLimit),
+		[unpinnedDocs, displayLimit],
+	);
+	const hasMore = displayedUnpinnedDocs.length < unpinnedDocs.length;
+
+	const loadMore = useCallback(() => {
+		if (!hasMore || isLoadingMore) return;
+		setIsLoadingMore(true);
+		setTimeout(() => {
+			setDisplayLimit((prev) =>
+				Math.min(prev + PAGE_SIZE, unpinnedDocs.length),
+			);
+			setIsLoadingMore(false);
+		}, 150);
+	}, [hasMore, isLoadingMore, unpinnedDocs.length]);
+
+	// IntersectionObserver on bottom sentinel
+	useEffect(() => {
+		const sentinel = sentinelRef.current;
+		const root = scrollContainerRef.current;
+		if (!sentinel || !root || !hasMore) return;
+
+		const observer = new IntersectionObserver(
+			(entries) => {
+				if (entries[0]?.isIntersecting) {
+					loadMore();
+				}
+			},
+			{ root, rootMargin: "120px" },
+		);
+
+		observer.observe(sentinel);
+		return () => observer.disconnect();
+	}, [hasMore, loadMore]);
+
+	// Fallback scroll listener on container for fast scroll wheels
+	const handleScroll = useCallback(
+		(e: React.UIEvent<HTMLDivElement>) => {
+			if (!hasMore || isLoadingMore) return;
+			const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+			if (scrollTop + clientHeight >= scrollHeight - 80) {
+				loadMore();
+			}
+		},
+		[hasMore, isLoadingMore, loadMore],
 	);
 
 	const folderNameMap = useMemo(
@@ -168,7 +247,11 @@ export function DocumentSidebar({
 				</div>
 
 				{/* Documents list */}
-				<div className="flex-1 overflow-y-auto p-2 space-y-1 min-h-0">
+				<div
+					ref={scrollContainerRef}
+					onScroll={handleScroll}
+					className="flex-1 overflow-y-auto p-2 space-y-1 min-h-0"
+				>
 					{loading && (
 						<div className="space-y-1.5">
 							{[0, 1, 2, 3, 4].map((i) => (
@@ -202,7 +285,9 @@ export function DocumentSidebar({
 									? "没有找到匹配的文档"
 									: activeFolderId === "all"
 										? "还没有文档，点击上方「新建文档」开始创作"
-										: "该文件夹还没有文档，可将文档拖拽到这里"}
+										: activeFolderId === "unfiled"
+											? "没有未分类文档，所有文档已归入文件夹"
+											: "该文件夹还没有文档，可将文档拖拽到这里"}
 							</p>
 						</div>
 					)}
@@ -239,8 +324,8 @@ export function DocumentSidebar({
 						</>
 					)}
 
-					{/* 普通组：sortable 拖拽排序 */}
-					{unpinnedDocs.map((doc, index) => (
+					{/* Unpinned documents with sortable DnD and incremental paginated loading */}
+					{displayedUnpinnedDocs.map((doc, index) => (
 						<SortableDocRow
 							key={doc.id}
 							doc={doc}
@@ -261,6 +346,23 @@ export function DocumentSidebar({
 							onRequestDelete={handleRequestDelete}
 						/>
 					))}
+
+					{/* Scroll-down pagination loader and status */}
+					{hasMore && (
+						<div
+							ref={sentinelRef}
+							className="py-3 flex items-center justify-center gap-1.5 text-xs text-muted/70 select-none"
+						>
+							<Loader2 className="w-3.5 h-3.5 animate-spin text-accent" />
+							<span>加载更多文档…</span>
+						</div>
+					)}
+
+					{!hasMore && unpinnedDocs.length > PAGE_SIZE && (
+						<div className="py-3 text-center text-[10px] text-muted/50 select-none border-t border-border/20 mt-2">
+							已加载全部 {visibleDocs.length} 篇文档
+						</div>
+					)}
 				</div>
 			</aside>
 
@@ -420,6 +522,7 @@ const DocRowInner = memo(function DocRowInner({
 				<DocRowMenu
 					doc={doc}
 					folders={folders}
+					folderName={folderName}
 					opening={opening}
 					onDuplicate={onDuplicate}
 					onTogglePin={onTogglePin}
@@ -454,10 +557,11 @@ const DocRowInner = memo(function DocRowInner({
 	);
 });
 
-/** 文档 ⋯ 菜单：置顶 / 复制 / 打开本地文件夹 / 移动到文件夹 / 归档 / 删除 */
+/** 文档 ⋯ 菜单：置顶 / 复制 / 添加到AI对话 / 打开本地文件夹 / 移动到文件夹 / 归档 / 删除 */
 function DocRowMenu({
 	doc,
 	folders,
+	folderName,
 	opening,
 	onDuplicate,
 	onTogglePin,
@@ -468,6 +572,7 @@ function DocRowMenu({
 }: {
 	doc: EditorDocument;
 	folders: EditorDocFolder[];
+	folderName?: string | null;
 	opening: boolean;
 	onDuplicate: (docId: number) => Promise<void>;
 	onTogglePin: (docId: number, pinned: boolean) => Promise<void>;
@@ -477,6 +582,7 @@ function DocRowMenu({
 	onRequestDelete: (doc: EditorDocument) => void;
 }) {
 	const currentFolderId = doc.folderId ?? null;
+	const { addDocumentToAi } = useAddToAiChat();
 	return (
 		<Dropdown>
 			<Dropdown.Trigger
@@ -506,6 +612,16 @@ function DocRowMenu({
 							<span className="text-xs">
 								{doc.pinned ? "取消置顶" : "置顶"}
 							</span>
+						</div>
+					</Dropdown.Item>
+					<Dropdown.Item
+						id="add-to-ai"
+						textValue="添加到AI对话"
+						onAction={() => addDocumentToAi(doc, folderName)}
+					>
+						<div className="flex items-center gap-2 py-0.5">
+							<Sparkles className="w-3.5 h-3.5 text-accent shrink-0" />
+							<span className="text-xs font-medium">添加到AI对话</span>
 						</div>
 					</Dropdown.Item>
 					<Dropdown.Item
@@ -545,8 +661,8 @@ function DocRowMenu({
 						>
 							<Dropdown.Menu aria-label="移动到文件夹">
 								<Dropdown.Item
-									id="move-all"
-									textValue="全部（未归档）"
+									id="move-unfiled"
+									textValue="移出文件夹（未分类）"
 									onAction={() => {
 										if (currentFolderId !== null) {
 											void onMoveDocument(doc.id, null);
@@ -555,7 +671,7 @@ function DocRowMenu({
 								>
 									<div className="flex items-center gap-2 py-0.5">
 										<Inbox className="w-3.5 h-3.5 text-muted shrink-0" />
-										<span className="text-xs flex-1">全部（未归档）</span>
+										<span className="text-xs flex-1">移出文件夹（未分类）</span>
 										{currentFolderId === null && (
 											<Check className="w-3 h-3 text-accent shrink-0" />
 										)}

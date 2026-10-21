@@ -38,6 +38,7 @@ export interface AiAssistantPanelRef {
 		},
 	) => void;
 	addContextItem: (item: ChatContextItem) => void;
+	setInputText?: (text: string) => void;
 }
 
 export interface AiAssistantPanelProps {
@@ -138,6 +139,10 @@ export const AiAssistantPanel = forwardRef<
 		addContextItem: (item) => {
 			setActiveMode("chat");
 			chatAssistantRef.current?.addContextItem(item);
+		},
+		setInputText: (text) => {
+			setActiveMode("chat");
+			chatAssistantRef.current?.setInputText?.(text);
 		},
 	}));
 

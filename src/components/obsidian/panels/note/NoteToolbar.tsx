@@ -14,6 +14,7 @@ import {
 	PenLine,
 	PenTool,
 	Redo2,
+	Sparkles,
 	Trash2,
 	Undo2,
 	Waypoints,
@@ -22,6 +23,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { getFileManagerName } from "../../../../lib/platform";
 import { revealVaultEntryRpc } from "../../../../services/api/obsidianClient";
 import { useImmersiveMode } from "../../../../stores/immersiveStore";
+import { useAddToAiChat } from "../../../workbench/ai/chat/utils/chatContextHelpers";
 
 export interface NoteToolbarProps {
 	canGoBack?: boolean;
@@ -85,6 +87,7 @@ export function NoteToolbar({
 	const [titleDraft, setTitleDraft] = useState("");
 	const titleInputRef = useRef<HTMLInputElement | null>(null);
 	const { isImmersive, toggle: toggleImmersive } = useImmersiveMode();
+	const { addNoteToAi } = useAddToAiChat();
 
 	// Focus and select title on entering rename mode
 	useEffect(() => {
@@ -328,6 +331,16 @@ export function NoteToolbar({
 					className="min-w-[190px] p-1 shadow-lg border border-border/80 rounded-xl bg-surface"
 				>
 					<Dropdown.Menu aria-label="笔记更多操作">
+						<Dropdown.Item
+							id="add-to-ai"
+							textValue="添加到AI对话"
+							onAction={() => addNoteToAi(activeRelPath, activeName)}
+						>
+							<div className="flex items-center gap-2 py-0.5">
+								<Sparkles className="w-3.5 h-3.5 text-accent shrink-0" />
+								<span className="text-xs font-medium">添加到AI对话</span>
+							</div>
+						</Dropdown.Item>
 						{onImportToStudio && (
 							<Dropdown.Item
 								id="import-to-studio"

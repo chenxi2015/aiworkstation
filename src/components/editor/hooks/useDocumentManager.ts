@@ -39,8 +39,8 @@ export type SaveState = "idle" | "dirty" | "saving" | "saved" | "error";
 /** Autosave debounce delay in milliseconds */
 const AUTOSAVE_DELAY = 800;
 
-/** 文件夹选中态："all" = 全部文档，否则为 document_folders.id */
-export type ActiveFolderId = number | "all";
+/** Folder selection state: "all" = all documents, "unfiled" = unclassified documents, or folder id */
+export type ActiveFolderId = number | "all" | "unfiled";
 
 /** 与服务端 listDocuments 排序保持一致：置顶 → 手动排序 → 更新时间 → id */
 function sortDocuments(list: EditorDocument[]): EditorDocument[] {
@@ -498,8 +498,11 @@ export function useDocumentManager(): UseDocumentManagerReturn {
 
 	const handleCreate = useCallback(async () => {
 		await switchDocument(null);
-		// 在文件夹视图下新建的文档直接落入该文件夹
-		const folderId = activeFolderId === "all" ? null : activeFolderId;
+		// Documents created under folder views inherit the folder; under all/unfiled views they remain unfiled
+		const folderId =
+			activeFolderId === "all" || activeFolderId === "unfiled"
+				? null
+				: activeFolderId;
 		const doc = await createDocumentRpc({ folderId });
 		setDocuments((prev) => [doc, ...prev]);
 		setActiveId(doc.id);
@@ -561,8 +564,9 @@ export function useDocumentManager(): UseDocumentManagerReturn {
 				}
 				return next;
 			});
+			void reloadFolders();
 		},
-		[],
+		[reloadFolders],
 	);
 
 	const handleEditorChange = useCallback(

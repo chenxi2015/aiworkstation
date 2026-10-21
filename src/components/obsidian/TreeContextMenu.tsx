@@ -7,6 +7,7 @@ import {
 	FolderSearch,
 	Pencil,
 	PenTool,
+	Sparkles,
 	SquarePen,
 	Trash2,
 	Waypoints,
@@ -14,6 +15,7 @@ import {
 import { useEffect, useRef } from "react";
 import { getFileManagerName } from "../../lib/platform";
 import { openVaultEntryRpc } from "../../services/api/obsidianClient";
+import { useAddToAiChat } from "../workbench/ai/chat/utils/chatContextHelpers";
 import type { ObsidianTreeNode } from "./types";
 
 export interface TreeMenuTarget {
@@ -35,6 +37,7 @@ export interface TreeContextMenuProps {
 	onDelete: (node: ObsidianTreeNode) => void;
 	onCopyPath: (node: ObsidianTreeNode) => void;
 	onReveal: (node: ObsidianTreeNode) => void;
+	onAddToAi?: (node: ObsidianTreeNode) => void;
 }
 
 function MenuItem({
@@ -82,8 +85,10 @@ export function TreeContextMenu({
 	onDelete,
 	onCopyPath,
 	onReveal,
+	onAddToAi,
 }: TreeContextMenuProps) {
 	const menuRef = useRef<HTMLDivElement | null>(null);
+	const { addNoteToAi } = useAddToAiChat();
 
 	useEffect(() => {
 		if (!target) return;
@@ -109,7 +114,7 @@ export function TreeContextMenu({
 
 	const { node } = target;
 	const isFolder = node?.kind === "folder";
-	// Accurate heights: blank new menu (3-4 items), note file menu (~226px), folder menu (~286-320px)
+	// Accurate heights: blank new menu (3-4 items), note file menu (~262px), folder menu (~286-320px)
 	const menuHeight = !node
 		? onCreateExcalidraw
 			? 144
@@ -118,7 +123,7 @@ export function TreeContextMenu({
 			? onCreateExcalidraw
 				? 320
 				: 286
-			: 226;
+			: 262;
 	const menuWidth = !node ? 144 : 176;
 
 	// Keep horizontally within viewport, flip left if overflowing right edge
@@ -207,6 +212,17 @@ export function TreeContextMenu({
 				</>
 			) : (
 				<>
+					<MenuItem
+						icon={Sparkles}
+						label="添加到AI对话"
+						onClick={act(() => {
+							if (onAddToAi) {
+								onAddToAi(node);
+							} else {
+								addNoteToAi(node.relPath, node.name);
+							}
+						})}
+					/>
 					<MenuItem
 						icon={ExternalLink}
 						label="在系统默认应用中打开"

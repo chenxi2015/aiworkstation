@@ -63,6 +63,7 @@ export interface ChatAssistantViewRef {
 		},
 	) => void;
 	addContextItem: (item: ChatContextItem) => void;
+	setInputText?: (text: string) => void;
 	createNewChat: () => void;
 	openHistory: () => void;
 }
@@ -544,6 +545,10 @@ export const ChatAssistantView = forwardRef<
 		},
 		addContextItem: (item: ChatContextItem) => {
 			addContextItem(item);
+			setTimeout(() => inputRef.current?.focus(), 50);
+		},
+		setInputText: (text: string) => {
+			setInput(text);
 			setTimeout(() => inputRef.current?.focus(), 50);
 		},
 		createNewChat,
