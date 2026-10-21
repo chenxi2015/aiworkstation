@@ -1,4 +1,5 @@
 import { Modal, toast } from "@heroui/react";
+import { downloadMedia } from "../../../../services/mediaDownload";
 import {
 	Copy,
 	Download,
@@ -420,34 +421,7 @@ export function ImagePreviewModal({ data, onClose }: ImagePreviewModalProps) {
 	// Download image file
 	const handleDownload = async () => {
 		if (!activeData?.src) return;
-		const ext =
-			activeData.src.split(/[?#]/)[0].split(".").pop()?.toLowerCase() ?? "";
-		const filename = `image_${Date.now()}.${
-			/^[a-z0-9]{2,5}$/.test(ext) ? ext : "png"
-		}`;
-		try {
-			const res = await fetch(activeData.src);
-			if (!res.ok) throw new Error(String(res.status));
-			const blob = await res.blob();
-			const url = URL.createObjectURL(blob);
-			const link = document.createElement("a");
-			link.href = url;
-			link.download = filename;
-			document.body.appendChild(link);
-			link.click();
-			document.body.removeChild(link);
-			setTimeout(() => URL.revokeObjectURL(url), 5000);
-			toast.success("已开始下载图片");
-		} catch (err) {
-			console.error("Failed to trigger image download:", err);
-			const link = document.createElement("a");
-			link.href = activeData.src;
-			link.download = filename;
-			link.rel = "noopener";
-			document.body.appendChild(link);
-			link.click();
-			document.body.removeChild(link);
-		}
+		await downloadMedia(activeData.src, activeData.title);
 	};
 
 	// Open raw image in standalone window

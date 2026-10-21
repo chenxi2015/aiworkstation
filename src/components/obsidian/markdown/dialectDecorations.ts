@@ -143,16 +143,17 @@ export function processDialects(
 
 		// ![[embedded media]]: render images/audio/videos
 		const embedRe = /!\[\[([^\]\n]+)\]\]/g;
-		let embedMatch = embedRe.exec(text);
-		while (embedMatch) {
+		for (const embedMatch of text.matchAll(embedRe)) {
 			const from = range.from + embedMatch.index;
 			const raw = embedMatch[0];
 			const inner = embedMatch[1] ?? "";
 			const to = from + raw.length;
-			embedMatch = embedRe.exec(text);
 			if (inCode(from, to) || inReplacedBlock(from, to)) continue;
 			// Strip size |width and anchor #heading
 			const target = inner.split("|")[0]?.split("#")[0]?.trim() ?? "";
+			const sizePart = inner.split("|")[1]?.split("#")[0]?.trim();
+			const width =
+				sizePart && /^\d+/.test(sizePart) ? parseInt(sizePart, 10) : undefined;
 			const kind = mediaKindOf(target);
 			if (!target || !kind) continue;
 			ctx.replacedBlocks.push({ from, to });
@@ -163,6 +164,70 @@ export function processDialects(
 				from,
 				to,
 				syntax: "wiki",
+				width,
+				noteRelPath: options.noteRelPath,
+				onPreviewImage: options.onPreviewImage,
+			});
+			if (ctx.isSourceRevealed(from, to)) {
+				ctx.pushLine(from, to, "cm-live-media-source-line");
+				ctx.blockWidgets.push({
+					from: to,
+					to,
+					deco: Decoration.widget({ widget, block: true, side: 1 }),
+				});
+				continue;
+			}
+			ctx.blockWidgets.push({
+				from,
+				to,
+				deco: Decoration.replace({ widget }),
+			});
+		}
+
+		// Relaxed markdown image embed fallback (e.g. ![alt](filename with spaces.png))
+		const mdImgRe = /!\[(.*?)\]\(([^)\n]+)\)/g;
+		for (const mdImgMatch of text.matchAll(mdImgRe)) {
+			const from = range.from + mdImgMatch.index;
+			const raw = mdImgMatch[0];
+			const alt = mdImgMatch[1] ?? "";
+			let target = mdImgMatch[2] ?? "";
+			const to = from + raw.length;
+			if (inCode(from, to) || inReplacedBlock(from, to)) continue;
+
+			// Strip angle brackets <...>
+			if (target.startsWith("<") && target.endsWith(">")) {
+				target = target.slice(1, -1);
+			}
+			// Strip title e.g. "title"
+			target = target.replace(/\s+["'][^"']*["']$/, "").trim();
+			const cleanTarget = target.split(/[?#]/)[0];
+			const kind = mediaKindOf(cleanTarget);
+			if (!cleanTarget || !kind) continue;
+
+			// Extract width from alt if specified (e.g. ![alt|300](url) or ![300](url))
+			let cleanAlt = alt;
+			let width: number | undefined;
+			if (alt.includes("|")) {
+				const parts = alt.split("|");
+				cleanAlt = parts[0].trim();
+				const sizeStr = parts[1].trim();
+				if (/^\d+/.test(sizeStr)) {
+					width = parseInt(sizeStr, 10);
+				}
+			} else if (/^\d+$/.test(alt.trim())) {
+				width = parseInt(alt.trim(), 10);
+				cleanAlt = "";
+			}
+
+			ctx.replacedBlocks.push({ from, to });
+			const widget = new MediaWidget({
+				src: resolveAssetUrl(target, options.noteRelPath),
+				alt: cleanAlt || cleanTarget,
+				kind,
+				from,
+				to,
+				syntax: "markdown",
+				width,
 				noteRelPath: options.noteRelPath,
 				onPreviewImage: options.onPreviewImage,
 			});

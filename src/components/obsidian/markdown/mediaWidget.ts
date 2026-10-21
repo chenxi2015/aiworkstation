@@ -2,6 +2,12 @@ import { StateEffect, StateField } from "@codemirror/state";
 import { type EditorView, WidgetType } from "@codemirror/view";
 import { toast } from "@heroui/react";
 import { uploadVaultAsset } from "../../../services/api/obsidianClient";
+import {
+	downloadMedia,
+	getMediaDownloadName,
+} from "../../../services/mediaDownload";
+
+export { downloadMedia, getMediaDownloadName };
 
 /** Toggle "View Source": track the media range currently showing raw markdown */
 export const toggleMediaSource = StateEffect.define<{
@@ -121,32 +127,6 @@ export function openMediaLightbox(src: string, kind: MediaKind, alt: string) {
 	document.body.appendChild(overlay);
 }
 
-function mediaDownloadName(src: string): string {
-	const ext = src.split(/[?#]/)[0].split(".").pop()?.toLowerCase() ?? "";
-	return `image_${Date.now()}.${/^[a-z0-9]{2,5}$/.test(ext) ? ext : "png"}`;
-}
-
-export async function downloadMedia(src: string) {
-	const filename = mediaDownloadName(src);
-	try {
-		const res = await fetch(src);
-		if (!res.ok) throw new Error(String(res.status));
-		const blob = await res.blob();
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement("a");
-		a.href = url;
-		a.download = filename;
-		a.click();
-		setTimeout(() => URL.revokeObjectURL(url), 5000);
-	} catch {
-		const a = document.createElement("a");
-		a.href = src;
-		a.download = filename;
-		a.rel = "noopener";
-		a.click();
-	}
-}
-
 export interface MediaWidgetProps {
 	src: string;
 	alt: string;
@@ -154,12 +134,15 @@ export interface MediaWidgetProps {
 	from: number;
 	to: number;
 	syntax: "markdown" | "wiki";
+	width?: number | string;
 	noteRelPath?: string;
 	onPreviewImage?: (data: { src: string; alt: string }) => void;
 }
 
 /** Media widget for images, videos, and audio (with hover toolbar) */
 export class MediaWidget extends WidgetType {
+	private dom: HTMLElement | null = null;
+
 	constructor(readonly props: MediaWidgetProps) {
 		super();
 	}
@@ -169,26 +152,217 @@ export class MediaWidget extends WidgetType {
 			other.props.src === this.props.src &&
 			other.props.alt === this.props.alt &&
 			other.props.from === this.props.from &&
-			other.props.to === this.props.to
+			other.props.to === this.props.to &&
+			other.props.width === this.props.width
 		);
+	}
+
+	/** Find current accurate range of the media node in document (handles content offsets) */
+	private findCurrentRange(
+		view: EditorView,
+	): { from: number; to: number } | null {
+		const doc = view.state.doc;
+		// 1. Fast check if props range still points to the same media syntax
+		if (this.props.from >= 0 && this.props.to <= doc.length) {
+			const textAtRange = doc.sliceString(this.props.from, this.props.to);
+			if (
+				(this.props.syntax === "wiki" &&
+					textAtRange.startsWith("![[") &&
+					textAtRange.endsWith("]]")) ||
+				(this.props.syntax === "markdown" &&
+					textAtRange.startsWith("![") &&
+					textAtRange.endsWith(")"))
+			) {
+				return { from: this.props.from, to: this.props.to };
+			}
+		}
+
+		if (!this.dom) return null;
+		try {
+			const pos = view.posAtDOM(this.dom);
+			if (typeof pos !== "number" || pos < 0) return null;
+
+			const startScan = Math.max(0, pos - 300);
+			const endScan = Math.min(doc.length, pos + 300);
+			const snippet = doc.sliceString(startScan, endScan);
+
+			if (this.props.syntax === "wiki") {
+				const wikiRegex = /!\[\[([^\]\n]+)\]\]/g;
+				let bestMatch: { from: number; to: number } | null = null;
+				let minDistance = Infinity;
+				for (const m of snippet.matchAll(wikiRegex)) {
+					const matchFrom = startScan + m.index;
+					const matchTo = matchFrom + m[0].length;
+					const dist = Math.abs(pos - matchFrom);
+					if (dist < minDistance) {
+						minDistance = dist;
+						bestMatch = { from: matchFrom, to: matchTo };
+					}
+				}
+				if (bestMatch) return bestMatch;
+			} else {
+				const mdRegex = /!\[(.*?)\]\((?:<([^>]+)>|([^)]+))\)/g;
+				let bestMatch: { from: number; to: number } | null = null;
+				let minDistance = Infinity;
+				for (const m of snippet.matchAll(mdRegex)) {
+					const matchFrom = startScan + m.index;
+					const matchTo = matchFrom + m[0].length;
+					const dist = Math.abs(pos - matchFrom);
+					if (dist < minDistance) {
+						minDistance = dist;
+						bestMatch = { from: matchFrom, to: matchTo };
+					}
+				}
+				if (bestMatch) return bestMatch;
+			}
+		} catch {}
+		return null;
+	}
+
+	/** Persist resized image width to Markdown source */
+	private updateMediaWidth(view: EditorView, width: number) {
+		const range = this.findCurrentRange(view) ?? {
+			from: this.props.from,
+			to: this.props.to,
+		};
+		const currentText = view.state.doc.sliceString(range.from, range.to);
+
+		let insert: string;
+		if (this.props.syntax === "wiki") {
+			const innerMatch = currentText.match(/!\[\[([^\]\n]+)\]\]/);
+			if (innerMatch) {
+				const inner = innerMatch[1];
+				const target = inner.split("|")[0].trim();
+				insert = `![[${target}|${width}]]`;
+			} else {
+				insert = `![[${this.props.alt || "image"}|${width}]]`;
+			}
+		} else {
+			const mdMatch = currentText.match(/!\[(.*?)\]\(([^)\n]+)\)/);
+			if (mdMatch) {
+				const rawAlt = mdMatch[1];
+				const url = mdMatch[2];
+				const cleanAlt = rawAlt.split("|")[0].trim();
+				insert = cleanAlt
+					? `![${cleanAlt}|${width}](${url})`
+					: `![${width}](${url})`;
+			} else {
+				insert = `![${width}](${this.props.src})`;
+			}
+		}
+
+		view.dispatch({
+			changes: { from: range.from, to: range.to, insert },
+		});
+	}
+
+	/** Setup interactive corner resizer for dragging to change image size (Top-Left or Bottom-Right) */
+	private setupCornerResizer(
+		resizer: HTMLElement,
+		corner: "tl" | "br",
+		targetEl: HTMLElement,
+		wrap: HTMLElement,
+		view: EditorView,
+	) {
+		resizer.addEventListener("mousedown", (e) => {
+			e.preventDefault();
+			e.stopPropagation();
+
+			const startX = e.clientX;
+			const startWidth = targetEl.getBoundingClientRect().width;
+			const maxAllowedWidth = wrap.parentElement?.clientWidth || 900;
+			let lastWidth = startWidth;
+
+			const onMouseMove = (moveEvent: MouseEvent) => {
+				const delta =
+					corner === "br"
+						? moveEvent.clientX - startX
+						: startX - moveEvent.clientX;
+				const newWidth = Math.round(
+					Math.max(100, Math.min(maxAllowedWidth, startWidth + delta)),
+				);
+				lastWidth = newWidth;
+				targetEl.style.width = `${newWidth}px`;
+				targetEl.style.maxWidth = "100%";
+			};
+
+			const onMouseUp = () => {
+				document.removeEventListener("mousemove", onMouseMove);
+				document.removeEventListener("mouseup", onMouseUp);
+				if (Math.abs(lastWidth - startWidth) > 3) {
+					this.updateMediaWidth(view, lastWidth);
+				}
+				view.focus();
+			};
+
+			document.addEventListener("mousemove", onMouseMove);
+			document.addEventListener("mouseup", onMouseUp);
+		});
+	}
+
+	/** Mark this media widget as selected and select it in CodeMirror */
+	private selectMedia(view: EditorView) {
+		if (!this.dom) return;
+		document.querySelectorAll(".cm-live-media-selected").forEach((el) => {
+			if (el !== this.dom) el.classList.remove("cm-live-media-selected");
+		});
+		this.dom.classList.add("cm-live-media-selected");
+
+		const range = this.findCurrentRange(view) ?? {
+			from: this.props.from,
+			to: this.props.to,
+		};
+		view.dispatch({
+			selection: { anchor: range.from, head: range.to },
+		});
+		view.focus();
 	}
 
 	private pickReplacement(view: EditorView) {
 		const input = document.createElement("input");
 		input.type = "file";
 		input.accept = "image/*";
+		input.style.position = "fixed";
+		input.style.left = "-9999px";
+		input.style.top = "-9999px";
+		input.style.opacity = "0";
+		document.body.appendChild(input);
+
+		const cleanup = () => {
+			input.remove();
+		};
+
 		input.addEventListener("change", () => {
 			const file = input.files?.[0];
+			cleanup();
 			if (!file) return;
+
 			void (async () => {
 				try {
 					const { name } = await uploadVaultAsset(file, this.props.noteRelPath);
-					const insert =
-						this.props.syntax === "wiki"
-							? `![[${name}]]`
-							: `![${this.props.alt}](${name})`;
+					const range = this.findCurrentRange(view) ?? {
+						from: this.props.from,
+						to: this.props.to,
+					};
+
+					let insert: string;
+					if (this.props.syntax === "wiki") {
+						// Preserve original size and label piping (e.g. |300)
+						const currentText = view.state.doc.sliceString(
+							range.from,
+							range.to,
+						);
+						const pipeMatch = currentText.match(/\|[^\]]+/);
+						const pipeSuffix = pipeMatch ? pipeMatch[0] : "";
+						insert = `![[${name}${pipeSuffix}]]`;
+					} else {
+						// For standard markdown syntax, wrap in <...> if filename contains spaces
+						const target = name.includes(" ") ? `<${name}>` : name;
+						insert = `![${this.props.alt || file.name}](${target})`;
+					}
+
 					view.dispatch({
-						changes: { from: this.props.from, to: this.props.to, insert },
+						changes: { from: range.from, to: range.to, insert },
 					});
 					toast.success("已替换图片");
 				} catch (err) {
@@ -196,18 +370,26 @@ export class MediaWidget extends WidgetType {
 				}
 			})();
 		});
+
+		// Directly trigger native file upload dialog
 		input.click();
 	}
 
 	override toDOM(view: EditorView) {
-		const { src, alt, kind } = this.props;
+		const { src, alt, kind, width } = this.props;
 		const wrap = document.createElement("span");
 		wrap.className = `cm-live-media cm-live-media-${kind}`;
+		this.dom = wrap;
 		let el: HTMLElement;
 		if (kind === "video") {
 			const video = document.createElement("video");
 			video.controls = true;
 			video.src = src;
+			if (width) {
+				video.style.width =
+					typeof width === "number" ? `${width}px` : String(width);
+				video.style.maxWidth = "100%";
+			}
 			el = video;
 		} else if (kind === "audio") {
 			const audio = document.createElement("audio");
@@ -220,6 +402,11 @@ export class MediaWidget extends WidgetType {
 			img.alt = alt;
 			img.loading = "lazy";
 			img.draggable = true;
+			if (width) {
+				img.style.width =
+					typeof width === "number" ? `${width}px` : String(width);
+				img.style.maxWidth = "100%";
+			}
 			img.addEventListener("dragstart", (e) => {
 				if (e.dataTransfer) {
 					e.dataTransfer.setData("text/plain", src);
@@ -245,6 +432,41 @@ export class MediaWidget extends WidgetType {
 			el = img;
 		}
 		wrap.appendChild(el);
+
+		// Click to select image node in CodeMirror
+		wrap.addEventListener("click", (e) => {
+			const target = e.target as HTMLElement;
+			if (
+				target.closest(".cm-live-media-toolbar") ||
+				target.closest(".cm-live-media-resizer")
+			) {
+				return;
+			}
+			e.preventDefault();
+			e.stopPropagation();
+			this.selectMedia(view);
+		});
+
+		// Diagonal corner resizers: Top-Left and Bottom-Right for images (with rounded corner icons)
+		if (kind === "image") {
+			// Top-Left corner resizer with rounded corner icon
+			const resizerTl = document.createElement("span");
+			resizerTl.className = "cm-live-media-resizer cm-live-media-resizer-tl";
+			resizerTl.title = "拖拽调整图片大小";
+			resizerTl.innerHTML =
+				'<svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor"><path d="M2 9.5V5a3 3 0 0 1 3-3h4.5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+			wrap.appendChild(resizerTl);
+			this.setupCornerResizer(resizerTl, "tl", el, wrap, view);
+
+			// Bottom-Right corner resizer with rounded corner icon
+			const resizerBr = document.createElement("span");
+			resizerBr.className = "cm-live-media-resizer cm-live-media-resizer-br";
+			resizerBr.title = "拖拽调整图片大小";
+			resizerBr.innerHTML =
+				'<svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor"><path d="M10 2.5V7a3 3 0 0 1-3 3H2.5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+			wrap.appendChild(resizerBr);
+			this.setupCornerResizer(resizerBr, "br", el, wrap, view);
+		}
 
 		// Hover toolbar
 		const toolbar = document.createElement("span");
@@ -289,7 +511,7 @@ export class MediaWidget extends WidgetType {
 		actions.push({
 			icon: "download",
 			title: "下载",
-			onClick: () => void downloadMedia(src),
+			onClick: () => void downloadMedia(src, alt),
 		});
 		for (const action of actions) {
 			const btn = document.createElement("button");
@@ -309,6 +531,14 @@ export class MediaWidget extends WidgetType {
 	}
 
 	override ignoreEvent(event: Event) {
+		const target = event.target as HTMLElement | null;
+		// Toolbar buttons and corner resizer handle their own mouse events
+		if (
+			target?.closest(".cm-live-media-toolbar") ||
+			target?.closest(".cm-live-media-resizer")
+		) {
+			return true;
+		}
 		if (event.type === "contextmenu") return false;
 		return true;
 	}

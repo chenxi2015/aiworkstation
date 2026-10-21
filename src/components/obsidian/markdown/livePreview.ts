@@ -64,7 +64,10 @@ function createLivePreviewField(options: LivePreviewOptions) {
 			}
 			return buildDecorations(tr.state, options);
 		},
-		provide: (field) => EditorView.decorations.from(field),
+		provide: (field) => [
+			EditorView.decorations.from(field),
+			EditorView.atomicRanges.of((view) => view.state.field(field)),
+		],
 	});
 }
 

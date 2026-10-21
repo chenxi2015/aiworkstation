@@ -26,6 +26,8 @@ import {
 } from "@codemirror/view";
 import { useCallback, useEffect, useRef, useState } from "react";
 import "katex/dist/katex.min.css";
+import { toast } from "@heroui/react";
+import { uploadVaultAsset } from "../../../services/api/obsidianClient";
 import { htmlToMarkdown } from "../../editor/markdown";
 import { useImagePreview } from "../../workbench/ai/shared/ImagePreviewModal";
 import { aiSelectionDecorationExtension } from "./cmAiHighlightExtension";
@@ -72,6 +74,58 @@ export interface MarkdownEditorHandle {
 const readingTheme = EditorView.theme({
 	".cm-content": { caretColor: "transparent" },
 });
+
+/** Check if a dropped/pasted file is an image */
+function isImageFile(file: File): boolean {
+	if (file.type?.startsWith("image/")) return true;
+	const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+	return ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "avif"].includes(
+		ext,
+	);
+}
+
+/**
+ * Upload local image files to Vault and insert wiki image embeds at target position.
+ * Live preview extension automatically renders them into images immediately.
+ */
+async function insertUploadedImages(
+	files: File[],
+	targetPos: number,
+	view: EditorView,
+	noteRelPath?: string,
+): Promise<void> {
+	if (files.length === 0) return;
+	try {
+		const inserts: string[] = [];
+		for (const file of files) {
+			const { name } = await uploadVaultAsset(file, noteRelPath);
+			inserts.push(`![[${name}]]`);
+		}
+
+		const doc = view.state.doc;
+		const safePos = Math.max(0, Math.min(doc.length, targetPos));
+		const prevChar = safePos > 0 ? doc.sliceString(safePos - 1, safePos) : "\n";
+		const nextChar =
+			safePos < doc.length ? doc.sliceString(safePos, safePos + 1) : "\n";
+
+		let textToInsert = inserts.join("\n\n");
+		if (prevChar !== "\n") textToInsert = `\n\n${textToInsert}`;
+		if (nextChar !== "\n") textToInsert = `${textToInsert}\n\n`;
+
+		view.dispatch({
+			changes: { from: safePos, insert: textToInsert },
+			selection: { anchor: safePos + textToInsert.length },
+		});
+		view.focus();
+		toast.success(
+			files.length === 1
+				? "图片已插入笔记"
+				: `已成功插入 ${files.length} 张图片`,
+		);
+	} catch (err) {
+		toast.danger(err instanceof Error ? err.message : "图片上传失败");
+	}
+}
 
 /**
  * CodeMirror 6 Markdown 编辑器（Obsidian 风格 Live Preview）：
@@ -153,6 +207,29 @@ export function MarkdownEditor({
 						wikilinkAutocomplete(),
 						keymap.of([
 							{
+								key: "Enter",
+								run: (v) => {
+									const sel = v.state.selection.main;
+									if (!sel.empty) {
+										const selectedText = v.state.doc
+											.sliceString(sel.from, sel.to)
+											.trim();
+										// Prevent accidental deletion if selection spans entire image embed markdown
+										if (
+											/^!\[\[[^\]\n]+\]\]$/.test(selectedText) ||
+											/^!\[.*?\]\((?:<[^>]+>|[^)\n]+)\)$/s.test(selectedText)
+										) {
+											v.dispatch({
+												changes: { from: sel.to, insert: "\n" },
+												selection: { anchor: sel.to + 1 },
+											});
+											return true;
+										}
+									}
+									return false;
+								},
+							},
+							{
 								key: "Mod-b",
 								run: (v) => toggleInlineFormat(v, "bold"),
 							},
@@ -217,8 +294,50 @@ export function MarkdownEditor({
 			appTheme,
 			modeCompartment.of(getModeExtensions(reading, readOnly, path)),
 			EditorView.domEventHandlers({
+				dragover(event) {
+					if (readOnlyRef.current || readingRef.current) return false;
+					if (event.dataTransfer?.types.includes("Files")) {
+						event.preventDefault();
+						event.dataTransfer.dropEffect = "copy";
+						return true;
+					}
+					return false;
+				},
+				drop(event, v) {
+					if (readOnlyRef.current || readingRef.current) return false;
+					const files = Array.from(event.dataTransfer?.files ?? []);
+					const imageFiles = files.filter(isImageFile);
+					if (imageFiles.length === 0) return false;
+
+					event.preventDefault();
+					event.stopPropagation();
+
+					const pos =
+						v.posAtCoords({ x: event.clientX, y: event.clientY }) ??
+						v.state.selection.main.head;
+					void insertUploadedImages(imageFiles, pos, v, noteRelPathRef.current);
+					return true;
+				},
 				paste(event, v) {
 					if (readOnlyRef.current || readingRef.current) return false;
+
+					// 1. Handle pasted image files (e.g. screenshots from clipboard)
+					const files = Array.from(event.clipboardData?.files ?? []);
+					const imageFiles = files.filter(isImageFile);
+					if (imageFiles.length > 0) {
+						event.preventDefault();
+						event.stopPropagation();
+						const pos = v.state.selection.main.head;
+						void insertUploadedImages(
+							imageFiles,
+							pos,
+							v,
+							noteRelPathRef.current,
+						);
+						return true;
+					}
+
+					// 2. Handle HTML paste to Markdown
 					const html = event.clipboardData?.getData("text/html");
 					if (!html) return false; // 纯文本走默认行为
 					const md = htmlToMarkdown(html);
@@ -281,6 +400,16 @@ export function MarkdownEditor({
 							const v = viewRef.current;
 							if (v) onChangeRef.current(v.state.doc.toString());
 						});
+					}
+				}
+				if (update.selectionSet) {
+					const sel = update.state.selection.main;
+					if (sel.empty) {
+						update.view.dom
+							.querySelectorAll(".cm-live-media-selected")
+							.forEach((el) => {
+								el.classList.remove("cm-live-media-selected");
+							});
 					}
 				}
 				if (update.docChanged || update.transactions.length > 0) {

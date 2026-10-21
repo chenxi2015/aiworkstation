@@ -2,6 +2,7 @@ import fs from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
 import { assertPathWithinRoot } from "../../ai/fs/fsSafety.ts";
+import { fetchAssetWithAdaptiveHeaders } from "../../functions/editor/antiLeech.ts";
 import {
 	resolveObsidianVaultDir,
 	toPosixRelPath,
@@ -84,6 +85,33 @@ export async function handleObsidianAssetRequest(
 		const url = new URL(req.url ?? "", "http://localhost");
 		const relPath = url.searchParams.get("path") ?? "";
 		const name = url.searchParams.get("name") ?? "";
+		const targetUrl = url.searchParams.get("url") ?? "";
+		const isDownload = url.searchParams.get("download") === "1";
+		const filenameParam = url.searchParams.get("filename") ?? "";
+
+		// Proxy download external media with anti-hotlinking support
+		if (targetUrl) {
+			const fetched = await fetchAssetWithAdaptiveHeaders(targetUrl);
+			const contentType =
+				fetched.headers.get("content-type") || "application/octet-stream";
+			res.setHeader("Content-Type", contentType);
+			const urlPath = new URL(targetUrl, "http://localhost").pathname;
+			const extFromName = path.extname(urlPath).replace(/^\./, "") || "png";
+			const downloadName =
+				filenameParam || `image_${Date.now()}.${extFromName}`;
+			if (isDownload) {
+				res.setHeader(
+					"Content-Disposition",
+					`attachment; filename="${encodeURIComponent(downloadName)}"`,
+				);
+			}
+			res.setHeader("Cache-Control", "private, max-age=3600");
+			const arrayBuffer = await fetched.arrayBuffer();
+			res.setHeader("Content-Length", arrayBuffer.byteLength);
+			res.end(Buffer.from(arrayBuffer));
+			return;
+		}
+
 		const vault = resolveObsidianVaultDir();
 
 		let absPath: string | null = null;
@@ -111,6 +139,13 @@ export async function handleObsidianAssetRequest(
 			"Content-Type",
 			MIME_BY_EXT[ext] ?? "application/octet-stream",
 		);
+		if (isDownload) {
+			const downloadName = filenameParam || path.basename(absPath);
+			res.setHeader(
+				"Content-Disposition",
+				`attachment; filename="${encodeURIComponent(downloadName)}"`,
+			);
+		}
 		res.setHeader("Content-Length", fs.statSync(absPath).size);
 		res.setHeader("Cache-Control", "private, max-age=3600");
 		fs.createReadStream(absPath).pipe(res);

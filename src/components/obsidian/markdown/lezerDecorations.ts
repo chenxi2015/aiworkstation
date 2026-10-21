@@ -456,7 +456,7 @@ function handleBlockquote(node: AstNodeRef, ctx: LivePreviewContext): boolean {
 function handleLinksAndMedia(
 	node: AstNodeRef,
 	ctx: LivePreviewContext,
-): boolean {
+): boolean | undefined {
 	const { from, to, name } = node;
 	const {
 		state,
@@ -469,6 +469,18 @@ function handleLinksAndMedia(
 		pushLine,
 		blockWidgets,
 	} = ctx;
+
+	if (name === "Link") {
+		// Obsidian wikilinks [[...]] are parsed by CommonMark as a Link inside outer brackets.
+		// Skip Lezer processing so dialectDecorations handles them without conflicting marks.
+		if (
+			from > 0 &&
+			state.doc.sliceString(from - 1, from) === "[" &&
+			state.doc.sliceString(to, to + 1) === "]"
+		) {
+			return false;
+		}
+	}
 
 	if (name === "Link" || name === "Autolink") {
 		const rawText = state.doc.sliceString(from, to);
@@ -532,18 +544,43 @@ function handleLinksAndMedia(
 
 	if (name === "Image") {
 		const raw = state.doc.sliceString(from, to);
-		const m = raw.match(/^!\[(.*?)\]\(([^)\s]+)[^)]*\)$/s);
+		// Obsidian wiki media embeds ![[...]] are handled exclusively by dialectDecorations.
+		// Skip Lezer traversal to avoid creating conflicting LinkMark hide decorations.
+		if (raw.startsWith("![[")) {
+			return false;
+		}
+		const m = raw.match(/^!\[(.*?)\]\((?:<([^>]+)>|([^)]+))\)$/s);
 		if (!m) return true;
-		const kind = mediaKindOf(m[2]);
+		const alt = m[1] ?? "";
+		let target = (m[2] ?? m[3] ?? "").trim();
+		target = target.replace(/\s+["'][^"']*["']$/, "").trim();
+		const kind = mediaKindOf(target);
 		if (!kind) return true;
+
+		// Extract width from alt if specified (e.g. ![alt|300](url) or ![300](url))
+		let cleanAlt = alt;
+		let width: number | undefined;
+		if (alt.includes("|")) {
+			const parts = alt.split("|");
+			cleanAlt = parts[0].trim();
+			const sizeStr = parts[1].trim();
+			if (/^\d+/.test(sizeStr)) {
+				width = parseInt(sizeStr, 10);
+			}
+		} else if (/^\d+$/.test(alt.trim())) {
+			width = parseInt(alt.trim(), 10);
+			cleanAlt = "";
+		}
+
 		replacedBlocks.push({ from, to });
 		const widget = new MediaWidget({
-			src: resolveAssetUrl(m[2], options.noteRelPath),
-			alt: m[1],
+			src: resolveAssetUrl(target, options.noteRelPath),
+			alt: cleanAlt,
 			kind,
 			from,
 			to,
 			syntax: "markdown",
+			width,
 			noteRelPath: options.noteRelPath,
 			onPreviewImage: options.onPreviewImage,
 		});
@@ -561,10 +598,10 @@ function handleLinksAndMedia(
 			to,
 			deco: Decoration.replace({ widget }),
 		});
-		return true;
+		return false;
 	}
 
-	return false;
+	return undefined;
 }
 
 /**
@@ -760,7 +797,8 @@ export function processLezerSyntaxTree(
 			if (handleBlockquote(node, ctx)) return;
 
 			// 7. Links and Media
-			if (handleLinksAndMedia(node, ctx)) return;
+			const linkRes = handleLinksAndMedia(node, ctx);
+			if (linkRes !== undefined) return linkRes;
 
 			// 8. Horizontal rules
 			if (handleHorizontalRule(node, ctx)) return;

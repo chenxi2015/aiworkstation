@@ -217,9 +217,53 @@ export const appTheme = EditorView.theme({
 		fontWeight: "600",
 	},
 	".cm-live-media": {
-		display: "block",
-		padding: "8px 0",
+		display: "inline-block",
+		maxWidth: "100%",
+		padding: "4px 0",
 		position: "relative",
+		verticalAlign: "middle",
+		outline: "none",
+		borderRadius: "8px",
+		transition: "box-shadow 0.15s ease",
+	},
+	".cm-live-media-selected": {
+		boxShadow: "0 0 0 2px var(--accent, #3b82f6) !important",
+	},
+	".cm-live-media-selected .cm-live-media-toolbar, .cm-live-media-selected .cm-live-media-resizer":
+		{
+			opacity: "1 !important",
+		},
+	".cm-live-media-resizer": {
+		position: "absolute",
+		width: "16px",
+		height: "16px",
+		display: "flex",
+		alignItems: "center",
+		justifyContent: "center",
+		cursor: "nwse-resize",
+		opacity: "0",
+		transition: "opacity 0.15s ease, transform 0.1s ease",
+		color: "var(--foreground, #1f2937)",
+		filter: "drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45))",
+		zIndex: "6",
+		userSelect: "none",
+	},
+	".cm-live-media-resizer-tl": {
+		top: "6px",
+		left: "6px",
+	},
+	".cm-live-media-resizer-br": {
+		bottom: "6px",
+		right: "6px",
+	},
+	".cm-live-media:hover .cm-live-media-resizer, .cm-live-media-selected .cm-live-media-resizer":
+		{
+			opacity: "0.85",
+		},
+	".cm-live-media-resizer:hover": {
+		opacity: "1 !important",
+		color: "var(--accent, #3b82f6)",
+		transform: "scale(1.15)",
 	},
 	".cm-live-media-toolbar": {
 		position: "absolute",
