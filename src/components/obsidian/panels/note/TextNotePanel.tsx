@@ -19,6 +19,7 @@ import {
 	renameVaultEntryRpc,
 	saveVaultNoteRpc,
 } from "../../../../services/api/obsidianClient";
+import { DocumentSearchBar } from "../../../common/DocumentSearchBar";
 import { ImagePreviewProvider } from "../../../workbench/ai/shared/ImagePreviewModal";
 import {
 	ObsidianCanvasBodySkeleton,
@@ -28,6 +29,7 @@ import {
 	DeleteEntryDialog,
 	shouldSkipDeleteConfirm,
 } from "../../DeleteEntryDialog";
+import { useCodeMirrorSearch } from "../../hooks/useCodeMirrorSearch";
 import { MarkdownAiBubbleMenu } from "../../markdown/MarkdownAiBubbleMenu";
 import { MarkdownEditor } from "../../markdown/MarkdownEditor";
 import {
@@ -84,6 +86,8 @@ export function TextNotePanel({
 	const [isImportingToStudio, setIsImportingToStudio] = useState(false);
 	const [canUndo, setCanUndo] = useState(false);
 	const [canRedo, setCanRedo] = useState(false);
+
+	const search = useCodeMirrorSearch({ view: editorView });
 
 	const handleHistoryChange = useCallback(
 		(nextCanUndo: boolean, nextCanRedo: boolean) => {
@@ -501,6 +505,31 @@ export function TextNotePanel({
 					loading ? "opacity-60 pointer-events-none" : "opacity-100"
 				}`}
 			>
+				<DocumentSearchBar
+					isOpen={search.isOpen}
+					onClose={search.close}
+					isReplaceOpen={search.isReplaceOpen}
+					onToggleReplaceOpen={search.toggleReplaceOpen}
+					query={search.query}
+					onQueryChange={search.setQuery}
+					replaceText={search.replaceText}
+					onReplaceTextChange={search.setReplaceText}
+					caseSensitive={search.caseSensitive}
+					onToggleCaseSensitive={search.toggleCaseSensitive}
+					wholeWord={search.wholeWord}
+					onToggleWholeWord={search.toggleWholeWord}
+					isRegex={search.isRegex}
+					onToggleRegex={search.toggleRegex}
+					preserveCase={search.preserveCase}
+					onTogglePreserveCase={search.togglePreserveCase}
+					currentIndex={search.currentIndex}
+					totalMatches={search.totalMatches}
+					errorMessage={search.errorMessage}
+					onFindNext={search.findNext}
+					onFindPrev={search.findPrev}
+					onReplaceNext={search.replaceNext}
+					onReplaceAll={search.replaceAll}
+				/>
 				{note ? (
 					isExcalidraw ? (
 						canvasMode === "visual" ? (
@@ -576,6 +605,8 @@ export function TextNotePanel({
 								onSaveShortcut={() => void flushSave()}
 								onNavigateNote={onNavigateNote}
 								onCreateNote={onCreateNote}
+								onOpenSearch={search.open}
+								onOpenReplace={() => search.open(true)}
 							/>
 						</ImagePreviewProvider>
 					)

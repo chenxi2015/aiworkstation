@@ -8,7 +8,7 @@ import {
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { syntaxHighlighting } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
-import { searchKeymap } from "@codemirror/search";
+import { search } from "@codemirror/search";
 import {
 	Compartment,
 	EditorState,
@@ -25,6 +25,7 @@ import {
 	placeholder,
 } from "@codemirror/view";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { cmSearchHighlightExtension } from "./cmSearchHighlightExtension";
 import "katex/dist/katex.min.css";
 import { toast } from "@heroui/react";
 import { uploadVaultAsset } from "../../../services/api/obsidianClient";
@@ -60,6 +61,10 @@ export interface MarkdownEditorProps {
 	onNavigateNote?: (relPath: string) => void;
 	/** 双链目标不存在时的新建回调（name 不含 .md 后缀） */
 	onCreateNote?: (name: string) => void;
+	/** Cmd/Ctrl+F 打开搜索框回调 */
+	onOpenSearch?: () => void;
+	/** Cmd/Ctrl+Alt+F 打开并展开替换栏回调 */
+	onOpenReplace?: () => void;
 }
 
 /** Imperative handle for precise editor operations (avoids full-document round-trip) */
@@ -144,6 +149,8 @@ export function MarkdownEditor({
 	onSaveShortcut,
 	onNavigateNote,
 	onCreateNote,
+	onOpenSearch,
+	onOpenReplace
 }: MarkdownEditorProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const viewRef = useRef<EditorView | null>(null);
@@ -159,6 +166,10 @@ export function MarkdownEditor({
 	onHistoryChangeRef.current = onHistoryChange;
 	const onSaveRef = useRef(onSaveShortcut);
 	onSaveRef.current = onSaveShortcut;
+	const onOpenSearchRef = useRef(onOpenSearch);
+	onOpenSearchRef.current = onOpenSearch;
+	const onOpenReplaceRef = useRef(onOpenReplace);
+	onOpenReplaceRef.current = onOpenReplace;
 	const onNavigateNoteRef = useRef(onNavigateNote);
 	onNavigateNoteRef.current = onNavigateNote;
 	const onCreateNoteRef = useRef(onCreateNote);
@@ -282,12 +293,34 @@ export function MarkdownEditor({
 							return true;
 						},
 					},
+					{
+						key: "Mod-f",
+						run: () => {
+							if (onOpenSearchRef.current) {
+								onOpenSearchRef.current();
+								return true;
+							}
+							return false;
+						},
+					},
+					{
+						key: "Mod-Alt-f",
+						run: () => {
+							if (onOpenReplaceRef.current) {
+								onOpenReplaceRef.current();
+								return true;
+							}
+							return false;
+						},
+					},
 				]),
 			),
 			history(),
+			search({ top: true }),
+			cmSearchHighlightExtension(),
 			markdown({ base: markdownLanguage, codeLanguages: languages }),
 			syntaxHighlighting(appHighlightStyle, { fallback: true }),
-			keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
+			keymap.of([...defaultKeymap, ...historyKeymap]),
 			placeholder(placeholderText),
 			EditorView.lineWrapping,
 			aiSelectionDecorationExtension(),

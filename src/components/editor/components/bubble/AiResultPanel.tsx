@@ -48,7 +48,7 @@ export function AiResultPanel({
 	// ── Loading state ──────────────────────────────────────────
 	if (state === "loading") {
 		return (
-			<div className="flex items-center justify-between px-3.5 py-3 w-[396px] select-none">
+			<div className="flex items-center justify-between px-3.5 py-3 w-[440px] select-none">
 				<div className="flex items-center gap-2.5">
 					<div className="w-5 h-5 rounded-md bg-accent/15 flex items-center justify-center shrink-0">
 						<Loader2 className="w-3.5 h-3.5 animate-spin text-accent" />
@@ -78,7 +78,7 @@ export function AiResultPanel({
 			: "AI 生成结果";
 
 		return (
-			<div className="flex flex-col w-[396px]">
+			<div className="flex flex-col w-[440px]">
 				{/* Top Header: Title & Auxiliary Actions (Copy, Close) */}
 				<div className="flex items-center justify-between px-3.5 py-2 border-b border-border/50 bg-surface/50">
 					<div className="flex items-center gap-1.5 text-foreground font-medium text-xs">

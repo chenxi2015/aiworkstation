@@ -110,14 +110,14 @@ export function HeadingDropdown({
 		option.action(editor);
 	};
 
-	const defaultButtonCls = `flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs transition-colors cursor-pointer select-none ${
+	const defaultButtonCls = `flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs transition-colors cursor-pointer select-none whitespace-nowrap shrink-0 ${
 		isOpen || isHeadingActive
 			? "bg-accent/15 text-accent font-medium"
 			: "text-foreground/75 hover:text-foreground hover:bg-muted/20"
 	}`;
 
 	return (
-		<div ref={dropdownRef} className="relative inline-block">
+		<div ref={dropdownRef} className="relative inline-block shrink-0">
 			<button
 				type="button"
 				onClick={() => setIsOpen((prev) => !prev)}
@@ -125,9 +125,11 @@ export function HeadingDropdown({
 				title="选择文本样式"
 			>
 				<CurrentIcon className="w-3.5 h-3.5 shrink-0" />
-				<span className="text-xs">{activeOption.shortLabel}</span>
+				<span className="text-xs whitespace-nowrap shrink-0">
+					{activeOption.shortLabel}
+				</span>
 				<ChevronDown
-					className={`w-3 h-3 opacity-70 transition-transform duration-200 ${
+					className={`w-3 h-3 opacity-70 transition-transform duration-200 shrink-0 ${
 						isOpen ? "rotate-180" : ""
 					}`}
 				/>

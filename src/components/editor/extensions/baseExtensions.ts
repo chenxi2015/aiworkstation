@@ -14,6 +14,7 @@ import { AiSelectionHighlight } from "./aiSelectionHighlight";
 import { CodeBlockWithHighlight } from "./CodeBlockWithHighlight";
 import { CustomImage } from "./CustomImage";
 import { ChartNode } from "./chart/ChartNode";
+import { SearchHighlightExtension } from "./searchHighlight";
 import { getStylePreservationExtensions } from "./stylePreservation";
 import { SuggestionDiffExtensions } from "./suggestionDiff";
 
@@ -74,5 +75,6 @@ export function getEditorBaseExtensions(options?: { placeholder?: string }) {
 		...getStylePreservationExtensions(),
 		...SuggestionDiffExtensions,
 		AiSelectionHighlight,
+		SearchHighlightExtension,
 	];
 }

@@ -91,6 +91,16 @@ export const appTheme = EditorView.theme({
 	".cm-placeholder": {
 		color: "var(--muted)",
 	},
+	".cm-searchMatch": {
+		backgroundColor: "rgba(250, 204, 21, 0.4)",
+		borderRadius: "2px",
+	},
+	".cm-searchMatch-selected": {
+		backgroundColor: "#f59e0b !important",
+		color: "#000000 !important",
+		borderRadius: "2px",
+		outline: "1px solid #d97706",
+	},
 
 	// ── Live Preview line & inline decorations ────────────
 	".cm-live-h1": {

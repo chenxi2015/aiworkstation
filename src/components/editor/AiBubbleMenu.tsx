@@ -75,7 +75,7 @@ export function AiBubbleMenu({
 		panelRef,
 		anchorRange: ai.state !== "idle" ? ai.targetRange : null,
 		bottom,
-		panelWidth: 396,
+		panelWidth: 440,
 		panelHeight: 260,
 	});
 
@@ -273,24 +273,24 @@ export function AiBubbleMenu({
 				// so the panel slides under them instead of covering them
 				zIndex: 40,
 			}}
-			className="flex flex-col bg-surface/98 dark:bg-surface/95 backdrop-blur-xl border border-border/80 rounded-2xl shadow-[0_16px_40px_-8px_rgba(0,0,0,0.16),0_4px_16px_-2px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.04] dark:ring-white/[0.08] text-xs select-none overflow-hidden transition-[opacity,box-shadow] duration-150"
+			className="flex flex-col bg-surface/98 dark:bg-surface/95 backdrop-blur-xl border border-border/80 rounded-2xl shadow-[0_16px_40px_-8px_rgba(0,0,0,0.16),0_4px_16px_-2px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.04] dark:ring-white/[0.08] text-xs select-none transition-[opacity,box-shadow] duration-150"
 			// Prevent editor from losing focus when clicking toolbar buttons
 			onMouseDown={(e) => e.preventDefault()}
 		>
 			{/* Top: format tools / Middle: custom AI instruction / Bottom: preset tags */}
 			{ai.state === "idle" && (
-				<div className="flex flex-col w-[396px]">
-					<div className="flex items-center justify-between gap-1 px-2 py-1 border-b border-border/50 bg-surface/40">
+				<div className="flex flex-col w-[440px]">
+					<div className="flex items-center justify-between gap-1 px-2.5 py-1.5 border-b border-border/50 whitespace-nowrap">
 						<InlineFormatGroup editor={editor} isDropUp={isDropdownDropUp} />
 						<button
 							type="button"
 							title="将选中文本添加到 AI 对话"
 							aria-label="添加到AI对话"
 							onClick={handleSendSelectionToChat}
-							className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium text-accent hover:bg-accent/10 active:scale-95 transition-all cursor-pointer shrink-0"
+							className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-accent hover:bg-accent/10 active:scale-95 transition-all cursor-pointer shrink-0 whitespace-nowrap"
 						>
-							<Sparkles className="w-3.5 h-3.5" />
-							<span>到AI对话</span>
+							<Sparkles className="w-3.5 h-3.5 shrink-0" />
+							<span className="whitespace-nowrap shrink-0">到AI对话</span>
 						</button>
 					</div>
 					<AiCustomPromptInput onSubmit={ai.handleCustomInstruction} />

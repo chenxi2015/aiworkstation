@@ -32,15 +32,19 @@ function FormatToolButton({
 			title={label}
 			aria-label={label}
 			onClick={onClick}
-			className={`w-7 h-7 rounded-lg transition-all cursor-pointer flex items-center justify-center ${
+			className={`w-6.5 h-6.5 rounded-md transition-colors cursor-pointer flex items-center justify-center shrink-0 whitespace-nowrap ${
 				active
-					? "bg-accent/15 text-accent font-semibold ring-1 ring-accent/25"
-					: "text-foreground/75 hover:text-foreground hover:bg-muted/20 active:scale-95"
+					? "bg-accent/15 text-accent font-semibold"
+					: "text-foreground/75 hover:text-foreground hover:bg-muted/15 active:scale-95"
 			}`}
 		>
-			<Icon className="w-3.5 h-3.5" />
+			<Icon className="w-3.5 h-3.5 shrink-0" />
 		</button>
 	);
+}
+
+function Divider() {
+	return <div className="w-px h-3.5 bg-border/60 mx-1 shrink-0" />;
 }
 
 export interface InlineFormatGroupProps {
@@ -75,9 +79,17 @@ export function InlineFormatGroup({
 	};
 
 	return (
-		<div className="flex items-center gap-0.5">
-			<HeadingDropdown editor={editor} isDropUp={isDropUp} />
-			<div className="w-px h-3.5 bg-border/80 mx-0.5 shrink-0" />
+		<div className="flex items-center gap-0.5 shrink-0 whitespace-nowrap">
+			{/* Heading Style */}
+			<HeadingDropdown
+				editor={editor}
+				isDropUp={isDropUp}
+				buttonClassName="flex items-center gap-1 px-1.5 py-1 rounded-md text-xs transition-colors cursor-pointer select-none whitespace-nowrap shrink-0 text-foreground/75 hover:text-foreground hover:bg-muted/15"
+			/>
+
+			<Divider />
+
+			{/* Inline Text Formatting */}
 			<FormatToolButton
 				icon={Bold}
 				label="加粗 (⌘B)"
@@ -108,7 +120,7 @@ export function InlineFormatGroup({
 				active={editor.isActive("code")}
 				onClick={handleToggleCode}
 			/>
-			<div className="relative inline-block">
+			<div className="relative inline-block shrink-0">
 				<FormatToolButton
 					icon={LinkIcon}
 					label="超链接"
@@ -126,8 +138,24 @@ export function InlineFormatGroup({
 					isDropUp={isDropUp}
 				/>
 			</div>
-			<div className="w-px h-3.5 bg-border/80 mx-0.5 shrink-0" />
-			<ColorDropdown editor={editor} mode="text" isDropUp={isDropUp} />
+
+			<Divider />
+
+			{/* Color Tools: Text Color & Background Highlight */}
+			<div className="flex items-center gap-0.5 shrink-0">
+				<ColorDropdown
+					editor={editor}
+					mode="text"
+					isDropUp={isDropUp}
+					align="right"
+				/>
+				<ColorDropdown
+					editor={editor}
+					mode="background"
+					isDropUp={isDropUp}
+					align="right"
+				/>
+			</div>
 		</div>
 	);
 }

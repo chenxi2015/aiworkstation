@@ -40,6 +40,8 @@ export interface RichTextEditorProps {
 	onRegisterPipeline?: (
 		trigger: (instruction?: string) => Promise<void>,
 	) => void;
+	/** 搜索/替换浮动栏插槽（渲染于工具栏按钮组下方） */
+	searchSlot?: React.ReactNode;
 }
 
 /**
@@ -57,6 +59,7 @@ export function RichTextEditor({
 	onEditorReady,
 	onOpenImport,
 	onRegisterPipeline,
+	searchSlot,
 }: RichTextEditorProps) {
 	const [preview, setPreview] = useState(false);
 	const [showScrollTop, setShowScrollTop] = useState(false);
@@ -192,6 +195,7 @@ export function RichTextEditor({
 
 			{/* 编辑画布 / 仿纸质沉浸预览 */}
 			<div className="relative flex-1 min-h-0 flex flex-col">
+				{searchSlot}
 				<EditorMediaContext.Provider value={{ docId }}>
 					<div
 						ref={scrollContainerRef}

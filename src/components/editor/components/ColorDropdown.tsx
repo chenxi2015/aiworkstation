@@ -33,6 +33,7 @@ export interface ColorDropdownProps {
 	editor: Editor;
 	mode: "text" | "background";
 	isDropUp?: boolean;
+	align?: "left" | "right";
 }
 
 /**
@@ -42,6 +43,7 @@ export function ColorDropdown({
 	editor,
 	mode,
 	isDropUp = false,
+	align = "left",
 }: ColorDropdownProps) {
 	const [isOpen, setIsOpen] = useState(false);
 	const dropdownRef = useRef<HTMLDivElement>(null);
@@ -137,7 +139,7 @@ export function ColorDropdown({
 
 			{isOpen && (
 				<div
-					className={`absolute left-0 ${
+					className={`absolute ${align === "right" ? "right-0" : "left-0"} ${
 						isDropUp ? "bottom-full mb-1.5" : "top-full mt-1.5"
 					} w-44 p-2 bg-surface border border-border/80 rounded-xl shadow-lg ring-1 ring-black/5 dark:ring-white/10 z-50`}
 				>

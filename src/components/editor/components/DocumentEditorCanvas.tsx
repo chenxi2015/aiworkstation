@@ -1,6 +1,9 @@
 import type { Editor, JSONContent } from "@tiptap/react";
 import type React from "react";
+import { useCallback, useState } from "react";
+import { DocumentSearchBar } from "../../common/DocumentSearchBar";
 import type { SaveState } from "../hooks/useDocumentManager";
+import { useTipTapSearch } from "../hooks/useTipTapSearch";
 import { RichTextEditor } from "../RichTextEditor";
 import type { EditorDocument } from "../types";
 import { DocumentHeader } from "./DocumentHeader";
@@ -97,6 +100,20 @@ export function DocumentEditorCanvas({
 	mediaMode,
 	onDuplicate,
 }: DocumentEditorCanvasProps) {
+	const [editorInstance, setEditorInstance] = useState<Editor | null>(null);
+
+	const handleEditorReadyInternal = useCallback(
+		(editor: Editor | null) => {
+			setEditorInstance(editor);
+			onEditorReady(editor);
+		},
+		[onEditorReady],
+	);
+
+	const search = useTipTapSearch({
+		editor: editorInstance ?? editorRef.current,
+	});
+
 	return (
 		<>
 			{splitSession?.isOpen && editorRef.current ? (
@@ -115,7 +132,9 @@ export function DocumentEditorCanvas({
 			) : null}
 			<div
 				className={
-					splitSession?.isOpen ? "hidden" : "flex-1 flex flex-col min-h-0"
+					splitSession?.isOpen
+						? "hidden"
+						: "flex-1 flex flex-col min-h-0 relative"
 				}
 			>
 				<DocumentHeader
@@ -134,9 +153,36 @@ export function DocumentEditorCanvas({
 					onChange={onEditorChange}
 					onAiGenerate={onAiGenerate}
 					onBeforeAiApply={onBeforeAiApply}
-					onEditorReady={onEditorReady}
+					onEditorReady={handleEditorReadyInternal}
 					onOpenImport={onOpenImport}
 					onRegisterPipeline={onRegisterPipeline}
+					searchSlot={
+						<DocumentSearchBar
+							isOpen={search.isOpen}
+							onClose={search.close}
+							isReplaceOpen={search.isReplaceOpen}
+							onToggleReplaceOpen={search.toggleReplaceOpen}
+							query={search.query}
+							onQueryChange={search.setQuery}
+							replaceText={search.replaceText}
+							onReplaceTextChange={search.setReplaceText}
+							caseSensitive={search.caseSensitive}
+							onToggleCaseSensitive={search.toggleCaseSensitive}
+							wholeWord={search.wholeWord}
+							onToggleWholeWord={search.toggleWholeWord}
+							isRegex={search.isRegex}
+							onToggleRegex={search.toggleRegex}
+							preserveCase={search.preserveCase}
+							onTogglePreserveCase={search.togglePreserveCase}
+							currentIndex={search.currentIndex}
+							totalMatches={search.totalMatches}
+							errorMessage={search.errorMessage}
+							onFindNext={search.findNext}
+							onFindPrev={search.findPrev}
+							onReplaceNext={search.replaceNext}
+							onReplaceAll={search.replaceAll}
+						/>
+					}
 				/>
 				<EditorActionBar
 					activeDoc={activeDoc}

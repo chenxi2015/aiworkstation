@@ -1504,3 +1504,36 @@ html.electron-mac .workbench-top-nav {
 	animation: visual-glow-pulse 3.5s ease-in-out infinite;
 }
 
+/* In-document Search and Locate Highlights (TipTap & CodeMirror) */
+.search-match,
+.cm-searchMatch {
+	background-color: #fef08a !important;
+	color: #000000 !important;
+	border-radius: 2px;
+	box-shadow: 0 0 0 1px rgba(234, 179, 8, 0.4);
+}
+.dark .search-match,
+.dark .cm-searchMatch {
+	background-color: rgba(234, 179, 8, 0.45) !important;
+	color: #ffffff !important;
+	border-radius: 2px;
+	box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.3);
+}
+.search-match-current,
+.cm-searchMatch-selected {
+	background-color: #f59e0b !important;
+	color: #000000 !important;
+	border-radius: 2px;
+	outline: 2px solid #d97706 !important;
+	font-weight: 600;
+}
+.dark .search-match-current,
+.dark .cm-searchMatch-selected {
+	background-color: #f59e0b !important;
+	color: #000000 !important;
+	border-radius: 2px;
+	outline: 2px solid #fcd34d !important;
+	font-weight: 600;
+}
+
+
