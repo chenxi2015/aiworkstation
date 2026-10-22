@@ -22,6 +22,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx src/db/seed.ts",
+    "member:create": "tsx src/scripts/create-member-order.ts",
     "gen:jwt-secret": "node -e \"console.log(require('node:crypto').randomBytes(64).toString('hex'))\""
   },
   "dependencies": {

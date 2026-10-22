@@ -87,7 +87,7 @@ const SETTING_TABS: SettingTabItem[] = [
 		id: "media",
 		label: "视觉模型",
 		description:
-			"配置封面生图、视频生成等多媒体 AI 模型（Nano Banana、豆包 Seedream、OpenAI GPT-Image / DALL-E、FLUX）",
+			"配置封面生图、视频生成等多媒体 AI 模型",
 		icon: Sparkles,
 	},
 	{

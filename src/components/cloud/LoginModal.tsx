@@ -222,40 +222,11 @@ export function LoginModal({
 
 					{/* Countdown */}
 					{!error && countdown > 0 && (
-						<p className="text-[11px] text-muted font-mono mt-2.5">
+						<p className="text-[11px] text-muted font-mono mt-2.5 pb-2">
 							有效时间：{countdown}s
 						</p>
 					)}
 				</Card.Content>
-
-				{/* Card Footer: Dev Mode Mock Action */}
-				<Card.Footer className="flex flex-col items-center pt-1 pb-4 px-5 border-t border-border/40 mt-1">
-					<Button
-						size="sm"
-						variant="ghost"
-						className="text-[11px] h-6 text-accent hover:underline cursor-pointer"
-						onPress={async () => {
-							const devUser: UserProfile = {
-								id: "dev-local-user",
-								nickname: "开发者 (Dev)",
-								avatarUrl: "https://api.dicebear.com/7.x/bottts/svg?seed=dev",
-								memberTier: "FREE",
-								memberExpiresAt: null,
-								createdAt: new Date().toISOString(),
-							};
-
-							if (ticketData?.ticket) {
-								fetch(
-									`${cloudClient.getApiBase()}/api/auth/wx/mock-scan?state=${ticketData.ticket}`,
-								).catch(() => {});
-							}
-
-							await handleLoginConfirmed("dev_local_token_mock", devUser);
-						}}
-					>
-						[开发模式] 模拟扫码登录
-					</Button>
-				</Card.Footer>
 			</Card>
 		</div>,
 		document.body,

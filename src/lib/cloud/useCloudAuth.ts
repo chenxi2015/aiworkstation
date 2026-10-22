@@ -23,12 +23,6 @@ export function useCloudAuth() {
 		// Refresh profile on mount if token exists
 		const token = cloudClient.getToken();
 		if (token) {
-			if (token.startsWith("dev_local_token_")) {
-				// Dev mock session: keep local mock user without remote check
-				setIsInitializing(false);
-				return unsubscribe;
-			}
-
 			setIsLoading(true);
 			cloudClient
 				.getMe()
