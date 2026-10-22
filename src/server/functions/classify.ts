@@ -19,6 +19,7 @@ import {
 } from "../../services/classifier/taxonomy";
 import { getEffectiveLLMConfig } from "../../services/storage/settingsStorage";
 import type { WorkbenchSettings } from "../../components/workbench/types";
+import { resolveLlmConfig } from "../ai/ragContext.ts";
 
 export interface ClassifyBatchInput {
 	batch: BookmarkTDKItem[];
@@ -34,10 +35,19 @@ export interface ClassifyBatchInput {
 export const classifyBatchServer = createServerFn({ method: "POST" })
 	.validator((data: ClassifyBatchInput) => data)
 	.handler(async ({ data }): Promise<AIClassificationResult[]> => {
-		const { apiKey, baseUrl, model } = getEffectiveLLMConfig(data.settings);
+		const clientConfig = getEffectiveLLMConfig(data.settings);
+		// Official channel: resolve cloud gateway + synced cloudToken server-side
+		const { apiKey, baseUrl, model } =
+			clientConfig.provider === "official"
+				? resolveLlmConfig()
+				: clientConfig;
 
 		if (!apiKey) {
-			throw new Error("请先在「设置」中配置大模型 API Key 后再进行智能分拣");
+			throw new Error(
+				clientConfig.provider === "official"
+					? "「官方极速通道」需要先登录会员账号后再进行智能分拣"
+					: "请先在「设置」中配置大模型 API Key 后再进行智能分拣",
+			);
 		}
 
 		const validCategories = data.existingCategories.filter(

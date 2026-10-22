@@ -22,6 +22,41 @@
       "when": 1790200000000,
       "tag": "0002_seed_subscription_plans",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790300000000,
+      "tag": "0003_capability_entitlements",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790400000000,
+      "tag": "0004_tiered_membership_plans",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790500000000,
+      "tag": "0005_monthly_yearly_plans",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790600000000,
+      "tag": "0006_billing_cycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790700000000,
+      "tag": "0007_hide_lifetime_plan",
+      "breakpoints": true
     }
   ]
 }

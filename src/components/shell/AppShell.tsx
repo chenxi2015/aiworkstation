@@ -16,6 +16,7 @@ import {
 import { useAiPanelResize } from "../../hooks/ai/useAiPanelResize";
 import type { SaveFolderPayload } from "../../hooks/workbench/useWorkbenchFolderActions";
 import { useCloudAuth } from "../../lib/cloud/useCloudAuth";
+import { OPEN_CHECKOUT_MODAL_EVENT } from "../../lib/cloud/cloudEvents";
 import { isElectronApp } from "../../lib/platform";
 import type { NavLayoutEntry } from "../../modules/registry";
 import { getModuleByRoute } from "../../modules/registry";
@@ -65,6 +66,11 @@ const AIClassifyModal = lazy(() =>
 const UpdateDownloadedModal = lazy(() =>
 	import("../updater/UpdateDownloadedModal").then((m) => ({
 		default: m.UpdateDownloadedModal,
+	})),
+);
+const CheckoutModal = lazy(() =>
+	import("../cloud/CheckoutModal").then((m) => ({
+		default: m.CheckoutModal,
 	})),
 );
 
@@ -190,7 +196,8 @@ export function AppShell({
 	unclassified?: WorkbenchItem[];
 }) {
 	const router = useRouter();
-	const { isLoggedIn, isInitializing } = useCloudAuth();
+	const { isLoggedIn, isInitializing, isMember, refreshProfile } =
+		useCloudAuth();
 	const panelRef = useRef<AiAssistantPanelRef>(null);
 	const { panelWidth, isResizing, handleResizeStart } = useAiPanelResize();
 
@@ -252,6 +259,27 @@ export function AppShell({
 	const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 	const [isIntroModalOpen, setIsIntroModalOpen] = useState(false);
 	const [isAIClassifyModalOpen, setIsAIClassifyModalOpen] = useState(false);
+	const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
+
+	// Suggest membership checkout for unpaid users upon landing (closable & non-blocking)
+	useEffect(() => {
+		if (isInitializing || !isLoggedIn || isMember) return;
+		const PROMPT_SESSION_KEY = "aiworkstation_checkout_prompt_shown";
+		if (
+			typeof window !== "undefined" &&
+			!sessionStorage.getItem(PROMPT_SESSION_KEY)
+		) {
+			sessionStorage.setItem(PROMPT_SESSION_KEY, "true");
+			setIsCheckoutModalOpen(true);
+		}
+	}, [isInitializing, isLoggedIn, isMember]);
+
+	// Auto-open checkout when the cloud gateway rejects a non-member AI request
+	useEffect(() => {
+		const handler = () => setIsCheckoutModalOpen(true);
+		window.addEventListener(OPEN_CHECKOUT_MODAL_EVENT, handler);
+		return () => window.removeEventListener(OPEN_CHECKOUT_MODAL_EVENT, handler);
+	}, []);
 
 	// Clear active page bridge if navigation moved to a different module
 	useEffect(() => {
@@ -406,7 +434,7 @@ export function AppShell({
 				}
 				onAttachToChat={(data) => dndHandlers?.onAttachToChat?.(data)}
 			>
-				<div className="app-shell h-screen flex overflow-hidden relative">
+				<div className="app-shell h-screen flex overflow-hidden relative animate-in fade-in duration-300">
 					{/* 流式 SSR 占位：仅在未折叠时渲染骨架屏 */}
 					{!isCollapsed && (
 						<AiPanelSkeleton style={{ width: `${panelWidth}px` }} />
@@ -502,6 +530,17 @@ export function AppShell({
 							onOpenSettings={() => {
 								setIsAIClassifyModalOpen(false);
 								setIsSettingsModalOpen(true);
+							}}
+						/>
+					)}
+					{isCheckoutModalOpen && (
+						<CheckoutModal
+							isOpen={isCheckoutModalOpen}
+							mandatory={false}
+							onClose={() => setIsCheckoutModalOpen(false)}
+							onSuccess={() => {
+								setIsCheckoutModalOpen(false);
+								void refreshProfile();
 							}}
 						/>
 					)}

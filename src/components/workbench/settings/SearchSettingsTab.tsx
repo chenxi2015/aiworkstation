@@ -13,11 +13,16 @@ import {
 	PowerOff,
 } from "lucide-react";
 import { useCallback, useState } from "react";
+import { useEffect } from "react";
 import {
 	DEFAULT_ENGINE_ORDER,
 	type SearchConfig,
 	type SearchEngineId,
 } from "../../../server/ai/search/registry";
+import {
+	listChannelConfigsFn,
+	setOfficialChannelActiveFn,
+} from "../../../server/functions/channels";
 import { arrayMove } from "../dnd/dndUtils";
 
 export interface SearchSettingsFormData {
@@ -256,7 +261,7 @@ function EngineRow({
 						<Label className="text-xs font-medium text-foreground flex items-center justify-between">
 							<span>{meta.name} API Key</span>
 							<span className="text-[10px] text-muted font-normal">
-								留空回退到 <code className="font-mono">{meta.keyEnv}</code>
+								保存在本地数据库，随备份迁移
 							</span>
 						</Label>
 						<InputGroup className="bg-transparent border border-border/80 hover:border-foreground/40 focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/20 rounded-lg shadow-none">
@@ -356,8 +361,50 @@ export function SearchSettingsTab({ data, onChange }: SearchSettingsTabProps) {
 		return Boolean(apiKeys[id]?.trim());
 	});
 
+	// 官方通道开关：web_search 能力的 official 行激活状态（会员专享，云端裁决）
+	const [officialActive, setOfficialActive] = useState(false);
+	useEffect(() => {
+		listChannelConfigsFn({ data: { capability: "web_search" } })
+			.then((rows) => {
+				setOfficialActive(
+					rows.some((r) => r.channel === "official" && r.isActive),
+				);
+			})
+			.catch(() => {});
+	}, []);
+	const handleToggleOfficial = (active: boolean) => {
+		setOfficialActive(active);
+		setOfficialChannelActiveFn({
+			data: { capability: "web_search", active },
+		}).catch(() => setOfficialActive(!active));
+	};
+
 	return (
 		<div className="flex flex-col gap-6">
+			{/* Official Channel Toggle */}
+			<div className="flex items-center justify-between gap-3 p-3.5 rounded-xl border border-emerald-500/25 bg-emerald-500/5">
+				<div className="flex flex-col gap-1 min-w-0">
+					<span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+						⚡ 官方极速通道
+						<span className="text-[10px] font-normal text-muted">
+							会员专享（VIP 起），免配置开箱即用
+						</span>
+					</span>
+					<span className="text-[11px] text-muted leading-relaxed">
+						开启后优先走官方托管搜索，失败时自动回退到下方自备引擎
+					</span>
+				</div>
+				<Button
+					type="button"
+					size="sm"
+					variant={officialActive ? "primary" : "outline"}
+					className="rounded-lg text-xs shrink-0"
+					onPress={() => handleToggleOfficial(!officialActive)}
+				>
+					{officialActive ? "已开启" : "已关闭"}
+				</Button>
+			</div>
+
 			{/* Active Status Banner */}
 			<div className="flex items-center justify-between">
 				<div className="flex items-center gap-3">

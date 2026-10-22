@@ -158,6 +158,10 @@ export interface WorkbenchSettings {
 	setupComplete?: boolean;
 	// 顶部模块导航的自定义布局（顺序/显隐），未设置时按注册表默认顺序
 	navLayout?: NavLayoutEntry[];
+	// 云端账号登录凭证（登录时自动同步，供本地服务端走「官方极速通道」时代理鉴权）
+	cloudToken?: string;
+	// 云端 API 网关地址（登录时自动同步，默认 http://localhost:4000）
+	cloudApiBase?: string;
 	// 工作台仪表盘的自定义布局（widget 顺序/显隐/宽窄），未设置时按 widget 注册表默认
 	workbenchLayout?: WorkbenchLayoutEntry[];
 	// 工作台文件夹区的展示方式：网格卡片 / 列表行（全局偏好，非 per-folder view_prefs）

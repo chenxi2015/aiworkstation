@@ -20,6 +20,8 @@ interface ModelOption {
 	/** 该 provider 预设/已配置的 baseUrl 与 apiKey */
 	baseUrl: string;
 	apiKey: string;
+	/** 官方极速通道（云端网关鉴权，无需本地 key） */
+	isOfficial?: boolean;
 }
 
 /** 只列出设置里配置好的 provider 的当前模型（apiKey 判定已配置），当前生效模型兜底置顶 */
@@ -28,7 +30,29 @@ function buildOptions(currentModel: string): ModelOption[] {
 	const providersConfig = settings.llmProvidersConfig ?? {};
 
 	const list: ModelOption[] = [];
+
+	// 官方极速通道：登录即可见可切（cloudToken 由登录自动同步），
+	// 会员有效性由云端网关裁决，本地不预判断。
+	// 官方通道为全托管服务，不向用户暴露具体模型名。
+	if (settings.cloudToken?.trim()) {
+		const officialModel =
+			settings.llmProvider === "official" && settings.model?.trim()
+				? settings.model.trim()
+				: (LLM_PROVIDERS.find((p) => p.id === "official")?.models[0] ??
+					"deepseek-chat");
+		list.push({
+			key: "official::managed",
+			model: officialModel,
+			providerId: "official",
+			providerName: "官方极速通道",
+			baseUrl: "",
+			apiKey: "",
+			isOfficial: true,
+		});
+	}
+
 	for (const preset of LLM_PROVIDERS) {
+		if (preset.id === "official") continue;
 		const cfg = providersConfig[preset.id];
 		// 只展示「设置里配置好」的 provider：以 apiKey 为准，无 key 一律不显示
 		const apiKey = (cfg?.apiKey ?? "").trim();
@@ -81,16 +105,28 @@ export const ModelSelectDropdown = memo(function ModelSelectDropdown({
 	// 每次渲染都重算（同步读 localStorage，成本可忽略），保证设置页改动后下拉立即反映最新配置
 	const options = buildOptions(currentModel);
 	const hasOptions = options.length > 0;
+	// 官方通道激活时徽章不显示具体模型名
+	const isOfficialActive =
+		WorkbenchStorageService.getSettings().llmProvider === "official";
+	const displayModel = isOfficialActive ? "官方极速通道" : currentModel;
 
 	const handleSelect = (opt: ModelOption) => {
 		const settings = WorkbenchStorageService.getSettings();
-		WorkbenchStorageService.saveSettings({
-			...settings,
-			llmProvider: opt.providerId,
-			apiKey: opt.apiKey,
-			baseUrl: opt.baseUrl,
-			model: opt.model,
-		});
+		WorkbenchStorageService.saveSettings(
+			opt.isOfficial
+				? {
+						...settings,
+						llmProvider: "official",
+						model: opt.model,
+					}
+				: {
+						...settings,
+						llmProvider: opt.providerId,
+						apiKey: opt.apiKey,
+						baseUrl: opt.baseUrl,
+						model: opt.model,
+					},
+		);
 		onModelChange?.(opt.model);
 	};
 
@@ -105,7 +141,7 @@ export const ModelSelectDropdown = memo(function ModelSelectDropdown({
 					<Sparkles className="w-2.5 h-2.5" />
 				</span>
 				<span className="max-w-[110px] truncate text-[10px] font-semibold text-foreground/80">
-					{currentModel}
+					{displayModel}
 				</span>
 			</div>
 		);
@@ -121,7 +157,7 @@ export const ModelSelectDropdown = memo(function ModelSelectDropdown({
 					<Sparkles className="w-2.5 h-2.5" />
 				</span>
 				<span className="max-w-[110px] truncate text-[10px] font-semibold text-foreground/80">
-					{currentModel}
+					{displayModel}
 				</span>
 				<ChevronDown className="w-3 h-3 text-muted shrink-0" />
 			</Dropdown.Trigger>
@@ -140,13 +176,18 @@ export const ModelSelectDropdown = memo(function ModelSelectDropdown({
 							<div className="flex items-center justify-between gap-2 w-full py-0.5">
 								<div className="flex flex-col min-w-0">
 									<span className="text-xs font-medium truncate">
-										{opt.model}
+										{opt.isOfficial ? "⚡ 官方极速通道" : opt.model}
 									</span>
-									<span className="text-[10px] text-muted truncate">
-										{opt.providerName}
-									</span>
+									{!opt.isOfficial && (
+										<span className="text-[10px] text-muted truncate">
+											{opt.providerName}
+										</span>
+									)}
 								</div>
-								{opt.model === currentModel && (
+								{(opt.isOfficial
+									? WorkbenchStorageService.getSettings().llmProvider ===
+										"official"
+									: opt.model === currentModel) && (
 									<Check className="w-3.5 h-3.5 text-accent shrink-0" />
 								)}
 							</div>

@@ -123,6 +123,8 @@
   - 未归属任何文件夹的 bookmark 即"未分类"（buffer pool）
 - `folder_items`：folder_id ↔ item_id 多对多绑定表（含 sort_order）
 - `settings`：key/value（token、AI 配置、分类偏好）
+- `ai_channel_configs`：AI 能力通道配置（chat/vision/embedding/web_search/image_gen/video_gen × official/custom），
+  apiKey/baseUrl/model 的唯一事实源，官方通道凭证运行时读 settings.cloudToken；方案见 `docs/ai-config-membership-v2-plan.md`
 
 > 规划中未落地：`tweets` 表（推特工作流用，见上节）。
 > 创作板块合并规划已定稿于 `docs/selfmedia-merge-plan.md`：editor 并入 creator（统称「创作」）、

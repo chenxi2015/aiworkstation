@@ -3,6 +3,8 @@ import { env } from '../config/env.js';
 import { successJson } from '../common/response/api-response.js';
 import { authRoutes } from '../modules/auth/auth.routes.js';
 import { paymentRoutes } from '../modules/payment/payment.routes.js';
+import { aiRoutes } from '../modules/ai/ai.routes.js';
+import { entitlementsRoutes } from '../modules/entitlements/entitlements.routes.js';
 
 export const apiRouter = new Hono();
 
@@ -23,3 +25,5 @@ apiRouter.get('/health', healthHandler);
 // Mount modular sub-routers under /api
 apiRouter.route('/auth', authRoutes);
 apiRouter.route('/pay', paymentRoutes);
+apiRouter.route('/ai', aiRoutes);
+apiRouter.route('/entitlements', entitlementsRoutes);

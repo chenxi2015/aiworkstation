@@ -35,18 +35,6 @@ function SkillInlineNodeView({ node, deleteNode }: NodeViewProps) {
 		>
 			<Box className="w-3.5 h-3.5 shrink-0 text-blue-500 dark:text-blue-400" />
 			<span className="tracking-tight leading-none">{displayName}</span>
-			<button
-				type="button"
-				onClick={(e) => {
-					e.preventDefault();
-					e.stopPropagation();
-					deleteNode();
-				}}
-				title="移除"
-				className="opacity-0 group-hover:opacity-100 hover:text-red-500 dark:hover:text-red-400 text-blue-500/70 dark:text-blue-400/70 p-0.5 rounded transition-opacity cursor-pointer ml-0.5 inline-flex items-center justify-center"
-			>
-				<X className="w-3 h-3" />
-			</button>
 		</NodeViewWrapper>
 	);
 }
@@ -139,18 +127,7 @@ function MentionInlineNodeView({ node, deleteNode }: NodeViewProps) {
 		>
 			{renderIcon()}
 			<span className="tracking-tight leading-none">{title}</span>
-			<button
-				type="button"
-				onClick={(e) => {
-					e.preventDefault();
-					e.stopPropagation();
-					deleteNode();
-				}}
-				title="移除"
-				className="opacity-0 group-hover:opacity-100 hover:text-red-500 dark:hover:text-red-400 text-blue-500/70 dark:text-blue-400/70 p-0.5 rounded transition-opacity cursor-pointer ml-0.5 inline-flex items-center justify-center"
-			>
-				<X className="w-3 h-3" />
-			</button>
+	
 		</NodeViewWrapper>
 	);
 }

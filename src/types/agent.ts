@@ -46,7 +46,7 @@ export type AgentStreamEvent =
 	| { type: "text_chunk"; delta: string }
 	| { type: "references"; references: SearchResultItem[] }
 	| { type: "run_end"; answer: string; dbMutated: boolean; timestamp: string }
-	| { type: "error"; message: string };
+	| { type: "error"; message: string; code?: string };
 
 /**
  * Parameters accepted by the Agent streaming runner

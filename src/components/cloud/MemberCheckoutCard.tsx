@@ -8,23 +8,44 @@ import {
 	CheckCircle2,
 	Crown,
 	Loader2,
-	LogOut,
 	QrCode,
 	RotateCw,
 	Sparkles,
-	User,
 	X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cloudClient } from "../../lib/cloud/cloudClient";
 import { useCloudAuth } from "../../lib/cloud/useCloudAuth";
 
-const MEMBER_PERKS = [
-	"本地优先 AI 智能创作",
-	"无限知识库语义检索",
-	"多端云数据安全同步",
-	"尊享极速推理通道",
-];
+/** 档位展示名（会员权益矩阵见 docs/ai-config-membership-v2-plan.md） */
+const TIER_LABELS: Record<string, string> = {
+	VIP: "VIP",
+	SVIP: "SVIP",
+	LIFETIME: "终身会员",
+	PRO: "VIP",
+};
+
+/** 套餐未配置 benefits 时按档位的兜底权益清单 */
+const TIER_FALLBACK_PERKS: Record<string, string[]> = {
+	VIP: [
+		"官方通道 · AI 智能对话",
+		"官方通道 · 知识库语义检索（向量）",
+		"官方通道 · 联网搜索",
+		"多端云数据安全同步",
+	],
+	SVIP: [
+		"VIP 全部权益",
+		"官方通道 · 视觉模型理解",
+		"官方通道 · 封面生图 / 视频生成",
+		"优先体验新能力",
+	],
+	LIFETIME: [
+		"SVIP 全部能力永久解锁",
+		"未来新能力免费更新",
+		"一次买断 · 永久有效",
+		"专属创始身份标识",
+	],
+};
 
 export interface MemberCheckoutCardProps {
 	onClose?: () => void;
@@ -34,7 +55,6 @@ export interface MemberCheckoutCardProps {
 	className?: string;
 	title?: string;
 	description?: string;
-	showUserInfo?: boolean;
 }
 
 /**
@@ -50,11 +70,13 @@ export function MemberCheckoutCard({
 	className = "",
 	title,
 	description,
-	showUserInfo = false,
 }: MemberCheckoutCardProps) {
-	const { user, logout, mockUpgradeToPro } = useCloudAuth();
+	const { logout, mockUpgradeToPro } = useCloudAuth();
 	const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
 	const [selectedPlanId, setSelectedPlanId] = useState<string>("");
+	const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">(
+		"yearly",
+	);
 	const [loadingPlans, setLoadingPlans] = useState(false);
 	const [plansError, setPlansError] = useState<string | null>(null);
 
@@ -148,6 +170,43 @@ export function MemberCheckoutCard({
 
 	const currentPlan = plans.find((p) => p.id === selectedPlanId);
 
+	// 计费周期：月付 / 年付切换（终身买断始终展示）。
+	// 周期来自数据库 billing_cycle 列，缺省按 durationDays 推断。
+	const cycleOf = (p: SubscriptionPlan): "monthly" | "yearly" | "lifetime" =>
+		p.billingCycle ??
+		(p.tier === "LIFETIME" || p.durationDays >= 3650
+			? "lifetime"
+			: p.durationDays >= 365
+				? "yearly"
+				: "monthly");
+	const cyclePlans = plans.filter((p) => cycleOf(p) === billingCycle);
+	const lifetimePlans = plans.filter((p) => cycleOf(p) === "lifetime");
+	const visiblePlans = [...cyclePlans, ...lifetimePlans];
+
+	// 切换周期 / 套餐列表刷新后，保持选中同档位套餐，否则回退推荐项
+	useEffect(() => {
+		if (plans.length === 0) return;
+		const selected = plans.find((p) => p.id === selectedPlanId);
+		if (selected && visiblePlans.some((p) => p.id === selected.id)) return;
+		const sameTier = selected
+			? cyclePlans.find((p) => p.tier === selected.tier)
+			: undefined;
+		const fallback =
+			sameTier ??
+			visiblePlans.find((p) => p.recommended) ??
+			visiblePlans[0];
+		if (fallback) setSelectedPlanId(fallback.id);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [billingCycle, plans]);
+
+	// 核心特权随选中套餐切换：优先取数据库套餐配置的 benefits，缺省按档位兜底
+	const currentTier = currentPlan?.tier ?? "VIP";
+	const currentPerks =
+		currentPlan?.benefits && currentPlan.benefits.length > 0
+			? currentPlan.benefits
+			: (TIER_FALLBACK_PERKS[currentTier] ?? TIER_FALLBACK_PERKS.VIP);
+	const currentTierLabel = TIER_LABELS[currentTier] ?? currentTier;
+
 	return (
 		<Card
 			className={`relative w-full max-w-[920px] max-h-[85vh] overflow-y-auto rounded-3xl border border-border/80 bg-surface/98 p-4 sm:p-6 shadow-xl backdrop-blur-xl transition-all ${className}`}
@@ -164,79 +223,72 @@ export function MemberCheckoutCard({
 				</button>
 			)}
 
-			{/* Account Info Header Bar in Mandatory Paywall Mode or Explicit showUserInfo */}
-			{(mandatory || showUserInfo) && user && (
-				<div className="flex items-center justify-between pb-3.5 mb-5 border-b border-border/60 text-xs">
-					<div className="flex items-center gap-2.5">
-						{user.avatarUrl ? (
-							<img
-								src={user.avatarUrl}
-								alt="avatar"
-								className="w-7 h-7 rounded-full object-cover ring-1 ring-border"
-							/>
-						) : (
-							<div className="w-7 h-7 rounded-full bg-accent/10 flex items-center justify-center text-accent">
-								<User className="w-4 h-4" />
-							</div>
-						)}
-						<div className="flex items-center gap-2">
-							<span className="font-semibold text-foreground text-sm">
-								{user.nickname}
-							</span>
-							<Chip
-								size="sm"
-								variant="secondary"
-								className="text-[10px] h-4.5 px-1.5 bg-surface-secondary text-muted"
-							>
-								已登录
-							</Chip>
-						</div>
-					</div>
-					<button
-						type="button"
-						onClick={logout}
-						className="text-xs text-muted hover:text-danger flex items-center gap-1.5 cursor-pointer transition py-1 px-2.5 rounded-lg hover:bg-danger/10"
-					>
-						<LogOut className="w-3.5 h-3.5" />
-						<span>切换微信账号</span>
-					</button>
-				</div>
-			)}
-
-			{/* Header Section */}
-			<div className="flex items-start gap-3 mb-4">
-				<div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20">
-					<Crown className="w-5 h-5" />
-				</div>
-				<div>
-					<div className="flex items-center gap-2.5">
-						<h3 className="text-xl font-bold tracking-tight text-foreground">
-							{title ??
-								(expiredNotice
-									? "会员已到期，请续费"
-									: mandatory
-										? "开通工作台尊享会员"
-										: "升级会员权益")}
-						</h3>
-						<Chip
-							size="sm"
-							variant="secondary"
-							className="text-[10px] h-5 px-2 font-semibold bg-amber-500/15 text-amber-600 border border-amber-500/30"
-						>
-							PRO VIP
-						</Chip>
-					</div>
-					<p className="text-xs text-muted mt-1 leading-normal">
-						{description ??
-							"开启尊享会员，解锁本地优先 AI 深度创作、无限知识库问答与多端安全同步"}
-					</p>
-				</div>
+			{/* Header Section（精简：只留一句标题与一句说明） */}
+			<div className="mb-5 pr-8">
+				<h3 className="text-lg font-bold tracking-tight text-foreground flex items-center gap-2">
+					<Crown className="w-4.5 h-4.5 text-amber-500 shrink-0" />
+					{title ??
+						(expiredNotice
+							? "会员已到期，请续费"
+							: mandatory
+								? "开通工作台尊享会员"
+								: "升级会员权益")}
+				</h3>
+				<p className="text-xs text-muted mt-1 leading-normal">
+					{description ??
+						"开启尊享会员，解锁本地优先 AI 深度创作、无限知识库问答与多端安全同步"}
+				</p>
 			</div>
 
 			{/* Main Layout: Line-divided Left & Right columns */}
-			<div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch pt-6 border-t border-border/60">
+			<div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch pt-5 border-t border-border/60">
 				{/* Left Column: Plan Selector & Privilege Highlights */}
 				<div className="lg:col-span-7 flex flex-col justify-between gap-6 lg:border-r lg:border-border/60 lg:pr-8">
+					{/* Billing Cycle Toggle（月付 / 年付，年付折扣由 originalPriceCents 划线价驱动） */}
+					{!loadingPlans && !plansError && cyclePlans.length > 0 && (
+						<div className="flex items-center justify-center">
+							<div className="inline-flex items-center p-1 rounded-full bg-surface-secondary/70 border border-border/60">
+								{(["monthly", "yearly"] as const).map((c) => {
+									const active = billingCycle === c;
+									const yearlySavings =
+										c === "yearly"
+											? plans
+													.filter((p) => cycleOf(p) === "yearly")
+													.reduce(
+														(max, p) =>
+															p.originalPriceCents > p.priceCents
+																? Math.max(
+																		max,
+																		p.originalPriceCents - p.priceCents,
+																	)
+																: max,
+														0,
+													)
+											: 0;
+									return (
+										<button
+											key={c}
+											type="button"
+											onClick={() => setBillingCycle(c)}
+											className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+												active
+													? "bg-surface text-foreground shadow-sm border border-border/70"
+													: "text-muted hover:text-foreground border border-transparent"
+											}`}
+										>
+											{c === "monthly" ? "按月付" : "按年付"}
+											{c === "yearly" && yearlySavings > 0 && (
+												<span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+													省 ¥{(yearlySavings / 100).toFixed(0)}
+												</span>
+											)}
+										</button>
+									);
+								})}
+							</div>
+						</div>
+					)}
+
 					{/* Plans Area */}
 					<div>
 						{loadingPlans && (
@@ -261,15 +313,15 @@ export function MemberCheckoutCard({
 							</div>
 						)}
 
-						{!loadingPlans && !plansError && plans.length === 0 && (
+						{!loadingPlans && !plansError && visiblePlans.length === 0 && (
 							<div className="py-8 text-center text-xs text-muted border border-dashed border-border/70 rounded-xl">
 								暂无可购买的会员方案
 							</div>
 						)}
 
-						{!loadingPlans && plans.length > 0 && (
+						{!loadingPlans && visiblePlans.length > 0 && (
 							<div className="flex flex-col gap-3">
-								{plans.map((plan) => {
+								{visiblePlans.map((plan) => {
 									const isSelected = plan.id === selectedPlanId;
 									const days = plan.durationDays;
 									const isLifetime =
@@ -319,6 +371,17 @@ export function MemberCheckoutCard({
 														<span className="text-base font-bold text-foreground shrink-0 whitespace-nowrap">
 															{plan.name}
 														</span>
+														<span
+															className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+																plan.tier === "LIFETIME"
+																	? "bg-purple-500/10 text-purple-600 dark:text-purple-400"
+																	: plan.tier === "SVIP"
+																		? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+																		: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+															}`}
+														>
+															{TIER_LABELS[plan.tier] ?? plan.tier}
+														</span>
 													</div>
 													{plan.description && (
 														<p className="text-xs text-muted leading-relaxed mt-1 line-clamp-2">
@@ -338,7 +401,12 @@ export function MemberCheckoutCard({
 														</span>
 														{!isLifetime && (
 															<span className="text-xs text-muted ml-0.5">
-																/ {days >= 365 ? "年" : `${days}天`}
+																/{" "}
+																{days >= 365
+																	? "年"
+																	: days >= 28 && days <= 31
+																		? "月"
+																		: `${days}天`}
 															</span>
 														)}
 														{isLifetime && (
@@ -348,9 +416,20 @@ export function MemberCheckoutCard({
 														)}
 													</div>
 													{plan.originalPriceCents > plan.priceCents && (
-														<div className="text-xs text-muted line-through mt-0.5">
+													<div className="mt-0.5 flex items-center justify-end gap-1.5">
+														<span className="text-xs text-muted line-through">
 															¥{(plan.originalPriceCents / 100).toFixed(0)}
-														</div>
+														</span>
+														{cycleOf(plan) === "yearly" && (
+															<span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+																省 ¥
+																{(
+																	(plan.originalPriceCents - plan.priceCents) /
+																	100
+																).toFixed(0)}
+															</span>
+														)}
+													</div>
 													)}
 												</div>
 											</div>
@@ -379,11 +458,11 @@ export function MemberCheckoutCard({
 					<div className="pt-5 border-t border-border/60">
 						<div className="text-xs font-semibold text-foreground mb-3 flex items-center gap-1.5">
 							<Sparkles className="w-3.5 h-3.5 text-amber-500" />
-							<span>会员专享核心特权</span>
+							<span>{currentTierLabel} 专享核心特权</span>
 						</div>
 
 						<div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs text-muted">
-							{MEMBER_PERKS.map((perk) => (
+							{currentPerks.map((perk) => (
 								<div key={perk} className="flex items-center gap-2">
 									<div className="w-3.5 h-3.5 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500 shrink-0">
 										<Check className="w-2.5 h-2.5 stroke-[2.5]" />
@@ -503,8 +582,11 @@ export function MemberCheckoutCard({
 											currentPlan?.tier ||
 											(currentPlan?.id.includes("lifetime")
 												? "LIFETIME"
-												: "PRO");
-										mockUpgradeToPro(duration, tier as "PRO" | "LIFETIME");
+												: "VIP");
+										mockUpgradeToPro(
+											duration,
+											tier as "VIP" | "SVIP" | "LIFETIME",
+										);
 										if (orderData?.orderNo) {
 											cloudClient
 												.mockFulfillOrder(orderData.orderNo)

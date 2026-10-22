@@ -7,6 +7,7 @@
  */
 export type { PreparedRagContext, RagAgentParams } from "./context/index.ts";
 export {
+	isOfficialLlmProvider,
 	prepareRagAgentContext,
 	resolveLlmConfig,
 	resolveEmbeddingConfig,

@@ -1,6 +1,19 @@
 import { asc, eq } from 'drizzle-orm';
-import type { SubscriptionPlan } from '@aiworkstation/shared-types';
+import type { MemberTier, SubscriptionPlan } from '@aiworkstation/shared-types';
 import { getDb, schema } from '../../db/index.js';
+
+/** 解析套餐权益清单 JSON（脏数据回退为空数组） */
+function parseBenefits(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed)
+      ? parsed.filter((b): b is string => typeof b === 'string' && b.trim().length > 0)
+      : [];
+  } catch {
+    return [];
+  }
+}
 
 /**
  * Retrieve active subscription plans directly from the database
@@ -20,8 +33,10 @@ export async function getPlansFromDb(): Promise<SubscriptionPlan[]> {
     priceCents: r.priceCents,
     originalPriceCents: r.originalPriceCents,
     durationDays: r.durationDays,
-    tier: r.tier as 'FREE' | 'PRO' | 'LIFETIME',
+    tier: r.tier as MemberTier,
     recommended: r.recommended,
+    benefits: parseBenefits(r.benefits),
+    billingCycle: (r.billingCycle || 'yearly') as SubscriptionPlan['billingCycle'],
   }));
 }
 
@@ -48,8 +63,10 @@ export async function getPlanByIdFromDb(planId: string): Promise<SubscriptionPla
     priceCents: r.priceCents,
     originalPriceCents: r.originalPriceCents,
     durationDays: r.durationDays,
-    tier: r.tier as 'FREE' | 'PRO' | 'LIFETIME',
+    tier: r.tier as MemberTier,
     recommended: r.recommended,
+    benefits: parseBenefits(r.benefits),
+    billingCycle: (r.billingCycle || 'yearly') as SubscriptionPlan['billingCycle'],
   };
 }
 

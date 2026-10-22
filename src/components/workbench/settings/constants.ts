@@ -7,6 +7,12 @@ export interface ProviderPreset {
 
 export const LLM_PROVIDERS: ProviderPreset[] = [
 	{
+		id: "official",
+		name: "官方极速通道（推荐）",
+		baseUrl: "https://api.deepseek.com",
+		models: ["deepseek-chat", "deepseek-reasoner"],
+	},
+	{
 		id: "deepseek",
 		name: "DeepSeek",
 		baseUrl: "https://api.deepseek.com",
@@ -51,6 +57,12 @@ export const LLM_PROVIDERS: ProviderPreset[] = [
 
 export const EMBEDDING_PROVIDERS: ProviderPreset[] = [
 	{
+		id: "official",
+		name: "官方极速通道（推荐）",
+		baseUrl: "https://api.siliconflow.cn/v1",
+		models: ["BAAI/bge-m3", "BAAI/bge-large-zh-v1.5"],
+	},
+	{
 		id: "siliconflow",
 		name: "SiliconFlow",
 		baseUrl: "https://api.siliconflow.cn/v1",
@@ -71,6 +83,13 @@ export const EMBEDDING_PROVIDERS: ProviderPreset[] = [
 ];
 
 export const MEDIA_PROVIDERS: ProviderPreset[] = [
+	{
+		id: "official",
+		name: "官方极速通道（推荐）",
+		baseUrl: "",
+		// 官方通道不暴露具体模型给 UI，此处仅作上行请求的默认值
+		models: ["doubao-seedream-5-0-flash-260915"],
+	},
 	{
 		id: "doubao",
 		name: "豆包（Volcano Ark / 火山方舟）",

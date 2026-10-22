@@ -60,6 +60,24 @@ export function initSchema(db: SqliteDatabase): void {
       updated_at TEXT NOT NULL
     );
 
+    -- 4b. AI capability channel configs (chat / vision / embedding / web_search / image_gen / video_gen)
+    -- 每类能力可有多条通道配置（official / 各 custom provider），同一能力仅一条 is_active=1。
+    -- api_key 等敏感配置只存本表，不再走 env 兜底（见 docs/ai-config-membership-v2-plan.md）。
+    CREATE TABLE IF NOT EXISTS ai_channel_configs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      capability TEXT NOT NULL,
+      channel TEXT NOT NULL DEFAULT 'custom',
+      provider TEXT NOT NULL DEFAULT '',
+      label TEXT NOT NULL DEFAULT '',
+      api_key TEXT NOT NULL DEFAULT '',
+      base_url TEXT NOT NULL DEFAULT '',
+      model TEXT NOT NULL DEFAULT '',
+      extra TEXT NOT NULL DEFAULT '{}',
+      is_active INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
     -- 5. Chat Sessions table (AI conversational history persistence)
     CREATE TABLE IF NOT EXISTS chat_sessions (
       id TEXT PRIMARY KEY,
@@ -220,6 +238,8 @@ export function initSchema(db: SqliteDatabase): void {
     CREATE INDEX IF NOT EXISTS idx_document_versions_document_id ON document_versions(document_id);
     CREATE INDEX IF NOT EXISTS idx_publish_records_document ON publish_records(document_id);
     CREATE INDEX IF NOT EXISTS idx_platform_accounts_platform ON platform_accounts(platform);
+    CREATE INDEX IF NOT EXISTS idx_ai_channel_capability ON ai_channel_configs(capability);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_channel_active ON ai_channel_configs(capability) WHERE is_active = 1;
   `);
 
 	// Graceful migration for existing SQLite DBs without embedding columns or color column

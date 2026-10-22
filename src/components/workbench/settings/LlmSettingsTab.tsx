@@ -210,18 +210,26 @@ export function LlmSettingsTab({
 						<span className="text-sm font-semibold text-foreground whitespace-nowrap shrink-0">
 							当前默认模型：
 						</span>
-						<span
-							title={data.model || "deepseek-chat"}
-							className="text-xs font-mono font-medium text-foreground px-2 py-0.5 rounded-md border border-border/60 bg-transparent truncate max-w-[200px] sm:max-w-[240px]"
-						>
-							{data.model || "deepseek-chat"}
-						</span>
-						<span
-							title={activeProvider.name}
-							className="text-xs text-muted truncate max-w-[130px] shrink-0"
-						>
-							({activeProvider.name})
-						</span>
+						{activeProvider.id === "official" ? (
+							<span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-md border border-emerald-500/40 bg-emerald-500/5">
+								⚡ 官方极速通道
+							</span>
+						) : (
+							<>
+								<span
+									title={data.model || "deepseek-chat"}
+									className="text-xs font-mono font-medium text-foreground px-2 py-0.5 rounded-md border border-border/60 bg-transparent truncate max-w-[200px] sm:max-w-[240px]"
+								>
+									{data.model || "deepseek-chat"}
+								</span>
+								<span
+									title={activeProvider.name}
+									className="text-xs text-muted truncate max-w-[130px] shrink-0"
+								>
+									({activeProvider.name})
+								</span>
+							</>
+						)}
 					</div>
 				</div>
 
@@ -284,138 +292,161 @@ export function LlmSettingsTab({
 				</div>
 
 				<div className="flex flex-col gap-4">
-					{/* API Key Input */}
-					<TextField
-						value={currentConfig.apiKey}
-						onChange={(val) => updateCurrentProviderField("apiKey", val)}
-						isRequired
-					>
-						<Label className="text-xs font-medium text-foreground">
-							<span>API密钥</span>
-							<span className="text-[10px] text-muted font-normal pl-2">
-								将保存至数据库该模型独立字段中
-							</span>
-						</Label>
-						<InputGroup className="bg-transparent border border-border/80 hover:border-foreground/40 focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/20 rounded-lg shadow-none">
-							<InputGroup.Prefix className="pl-3">
-								<KeyRound className="w-3.5 h-3.5 text-muted" />
-							</InputGroup.Prefix>
-							<InputGroup.Input
-								type={showApiKey ? "text" : "password"}
-								placeholder={`填写 ${currentEditingProvider.name} 的 API Key (sk-...)`}
-								className="bg-transparent font-mono text-xs"
-							/>
-							<InputGroup.Suffix className="pr-1.5">
-								<Button
-									type="button"
-									variant="ghost"
-									size="sm"
-									isIconOnly
-									className="rounded-md"
-									onPress={() => setShowApiKey((v) => !v)}
-									aria-title={showApiKey ? "隐藏密钥" : "显示密钥"}
-								>
-									{showApiKey ? (
-										<EyeOff className="w-3.5 h-3.5" />
-									) : (
-										<Eye className="w-3.5 h-3.5" />
-									)}
-								</Button>
-							</InputGroup.Suffix>
-						</InputGroup>
-					</TextField>
+					{editingProviderId === "official" ? (
+						<div className="flex flex-col gap-3 p-4 rounded-xl border border-emerald-500/25 bg-emerald-500/5">
+							<div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-medium text-xs">
+								<span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+								<span>官方全托管极速通道已就绪</span>
+							</div>
+							<p className="text-xs text-muted leading-relaxed">
+								购买软件服务后，官方统一提供高质量 AI
+								大模型推理服务，免去您自行购买与配置 API
+								密钥的繁琐流程，开箱即用。
+							</p>
+							<p className="text-[11px] text-muted">
+								如需使用您自备的 API Key（如 DeepSeek、Kimi、OpenAI 或本地
+								Ollama），可直接切换上方标签页自行配置。
+							</p>
+						</div>
+					) : (
+						<>
+							{/* API Key Input */}
+							<TextField
+								value={currentConfig.apiKey}
+								onChange={(val) => updateCurrentProviderField("apiKey", val)}
+								isRequired
+							>
+								<Label className="text-xs font-medium text-foreground">
+									<span>API密钥</span>
+									<span className="text-[10px] text-muted font-normal pl-2">
+										将保存至数据库该模型独立字段中
+									</span>
+								</Label>
+								<InputGroup className="bg-transparent border border-border/80 hover:border-foreground/40 focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/20 rounded-lg shadow-none">
+									<InputGroup.Prefix className="pl-3">
+										<KeyRound className="w-3.5 h-3.5 text-muted" />
+									</InputGroup.Prefix>
+									<InputGroup.Input
+										type={showApiKey ? "text" : "password"}
+										placeholder={`填写 ${currentEditingProvider.name} 的 API Key (sk-...)`}
+										className="bg-transparent font-mono text-xs"
+									/>
+									<InputGroup.Suffix className="pr-1.5">
+										<Button
+											type="button"
+											variant="ghost"
+											size="sm"
+											isIconOnly
+											className="rounded-md"
+											onPress={() => setShowApiKey((v) => !v)}
+											aria-title={showApiKey ? "隐藏密钥" : "显示密钥"}
+										>
+											{showApiKey ? (
+												<EyeOff className="w-3.5 h-3.5" />
+											) : (
+												<Eye className="w-3.5 h-3.5" />
+											)}
+										</Button>
+									</InputGroup.Suffix>
+								</InputGroup>
+							</TextField>
 
-					{/* API Base URL */}
-					<TextField
-						value={currentConfig.baseUrl}
-						onChange={(val) => updateCurrentProviderField("baseUrl", val)}
-					>
-						<Label className="text-xs font-medium text-foreground flex items-center justify-between">
-							<span>API请求地址</span>
-							{currentEditingProvider.baseUrl &&
-								currentConfig.baseUrl !== currentEditingProvider.baseUrl && (
+							{/* API Base URL */}
+							<TextField
+								value={currentConfig.baseUrl}
+								onChange={(val) => updateCurrentProviderField("baseUrl", val)}
+							>
+								<Label className="text-xs font-medium text-foreground flex items-center justify-between">
+									<span>API请求地址</span>
+									{currentEditingProvider.baseUrl &&
+										currentConfig.baseUrl !==
+											currentEditingProvider.baseUrl && (
+											<Button
+												type="button"
+												variant="ghost"
+												size="sm"
+												className="h-auto p-0 text-[10px] text-accent hover:underline"
+												onPress={handleResetBaseUrl}
+											>
+												恢复官方端点
+											</Button>
+										)}
+								</Label>
+								<InputGroup className="bg-transparent border border-border/80 hover:border-foreground/40 focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/20 rounded-lg shadow-none">
+									<InputGroup.Prefix className="pl-3">
+										<Globe className="w-3.5 h-3.5 text-muted" />
+									</InputGroup.Prefix>
+									<InputGroup.Input
+										type="text"
+										placeholder={
+											currentEditingProvider.baseUrl ||
+											"https://api.openai.com/v1"
+										}
+										className="bg-transparent font-mono text-xs"
+									/>
+								</InputGroup>
+							</TextField>
+
+							{/* Model Selector with Action Buttons */}
+							<div className="flex flex-col gap-1.5">
+								<Label className="text-xs font-medium text-foreground">
+									模型名称
+								</Label>
+								<div className="flex items-center gap-2">
+									<div className="flex-1 min-w-0">
+										<Select
+											aria-label="Model 模型名称"
+											selectedKey={currentConfig.model}
+											onSelectionChange={(key) => {
+												if (key)
+													updateCurrentProviderField("model", String(key));
+											}}
+											className="w-full"
+											placeholder="请选择一个模型"
+										>
+											<SelectTrigger className="w-full shadow-none bg-transparent border border-border/80 hover:border-foreground/40 rounded-lg font-mono text-xs">
+												<SelectValue />
+											</SelectTrigger>
+											<SelectPopover className="rounded-xl border border-border bg-surface p-1 shadow-lg max-h-60 overflow-y-auto min-w-[240px]">
+												<ListBox>
+													{availableModels.map((m) => (
+														<ListBoxItem key={m} id={m} textValue={m}>
+															<div className="flex items-center justify-between w-full font-mono text-xs">
+																<span>{m}</span>
+																{m === currentConfig.model && (
+																	<Check className="w-3.5 h-3.5 text-accent" />
+																)}
+															</div>
+														</ListBoxItem>
+													))}
+												</ListBox>
+											</SelectPopover>
+										</Select>
+									</div>
+
 									<Button
 										type="button"
-										variant="ghost"
-										size="sm"
-										className="h-auto p-0 text-[10px] text-accent hover:underline"
-										onPress={handleResetBaseUrl}
+										variant="outline"
+										className="rounded-lg"
+										isDisabled={loadingLlmModels}
+										onPress={handleFetchLlmModels}
 									>
-										恢复官方端点
+										{loadingLlmModels ? (
+											<Loader2 className="w-3.5 h-3.5 animate-spin" />
+										) : (
+											<RefreshCw className="w-3.5 h-3.5" />
+										)}
+										<span>{loadingLlmModels ? "获取中..." : "获取模型"}</span>
 									</Button>
-								)}
-						</Label>
-						<InputGroup className="bg-transparent border border-border/80 hover:border-foreground/40 focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/20 rounded-lg shadow-none">
-							<InputGroup.Prefix className="pl-3">
-								<Globe className="w-3.5 h-3.5 text-muted" />
-							</InputGroup.Prefix>
-							<InputGroup.Input
-								type="text"
-								placeholder={
-									currentEditingProvider.baseUrl || "https://api.openai.com/v1"
-								}
-								className="bg-transparent font-mono text-xs"
-							/>
-						</InputGroup>
-					</TextField>
+								</div>
 
-					{/* Model Selector with Action Buttons */}
-					<div className="flex flex-col gap-1.5">
-						<Label className="text-xs font-medium text-foreground">
-							模型名称
-						</Label>
-						<div className="flex items-center gap-2">
-							<div className="flex-1 min-w-0">
-								<Select
-									aria-label="Model 模型名称"
-									selectedKey={currentConfig.model}
-									onSelectionChange={(key) => {
-										if (key) updateCurrentProviderField("model", String(key));
-									}}
-									className="w-full"
-									placeholder="请选择一个模型"
-								>
-									<SelectTrigger className="w-full shadow-none bg-transparent border border-border/80 hover:border-foreground/40 rounded-lg font-mono text-xs">
-										<SelectValue />
-									</SelectTrigger>
-									<SelectPopover className="rounded-xl border border-border bg-surface p-1 shadow-lg max-h-60 overflow-y-auto min-w-[240px]">
-										<ListBox>
-											{availableModels.map((m) => (
-												<ListBoxItem key={m} id={m} textValue={m}>
-													<div className="flex items-center justify-between w-full font-mono text-xs">
-														<span>{m}</span>
-														{m === currentConfig.model && (
-															<Check className="w-3.5 h-3.5 text-accent" />
-														)}
-													</div>
-												</ListBoxItem>
-											))}
-										</ListBox>
-									</SelectPopover>
-								</Select>
+								<Description className="text-[11px] text-muted">
+									点击「设为当前生效模型」可一键将该服务商配置切换为 AI
+									助手的实时对话引擎。
+								</Description>
 							</div>
-
-							<Button
-								type="button"
-								variant="outline"
-								className="rounded-lg"
-								isDisabled={loadingLlmModels}
-								onPress={handleFetchLlmModels}
-							>
-								{loadingLlmModels ? (
-									<Loader2 className="w-3.5 h-3.5 animate-spin" />
-								) : (
-									<RefreshCw className="w-3.5 h-3.5" />
-								)}
-								<span>{loadingLlmModels ? "获取中..." : "获取模型"}</span>
-							</Button>
-						</div>
-
-						<Description className="text-[11px] text-muted">
-							点击「设为当前生效模型」可一键将该服务商配置切换为 AI
-							助手的实时对话引擎。
-						</Description>
-					</div>
+						</>
+					)}
 				</div>
 			</div>
 

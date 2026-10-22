@@ -118,4 +118,8 @@ export async function prepareRagAgentContext(
 }
 
 // Re-export config resolvers for external callers (backwards compat)
-export { resolveEmbeddingConfig, resolveLlmConfig } from "./config.ts";
+export {
+	isOfficialLlmProvider,
+	resolveEmbeddingConfig,
+	resolveLlmConfig,
+} from "./config.ts";

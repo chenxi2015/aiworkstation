@@ -23,6 +23,13 @@ export const env = {
   WECHAT_PAY_PRIVATE_KEY: process.env.WECHAT_PAY_PRIVATE_KEY || '',
   WECHAT_PAY_PRIVATE_KEY_PATH: process.env.WECHAT_PAY_PRIVATE_KEY_PATH || '',
   WECHAT_PAY_NOTIFY_URL: process.env.WECHAT_PAY_NOTIFY_URL || '',
+
+  // Official AI channel upstream keys — 仅作 official_channels 表的首次种子来源
+  // （见 db/startupSeed.ts），运行时代码不直接读取这些值。
+  OFFICIAL_DEEPSEEK_KEY: process.env.OFFICIAL_DEEPSEEK_KEY || '',
+  OFFICIAL_EMBEDDING_KEY: process.env.OFFICIAL_EMBEDDING_KEY || '',
+  OFFICIAL_IMAGE_KEY: process.env.OFFICIAL_IMAGE_KEY || '',
+  OFFICIAL_SEARCH_KEY: process.env.OFFICIAL_SEARCH_KEY || '',
 };
 
 /**

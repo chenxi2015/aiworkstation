@@ -16,6 +16,33 @@ export const users = pgTable('users', {
 });
 
 /**
+ * Tier → capability entitlements（会员档位权益矩阵，数据驱动）。
+ * 加档位/调权益 = 改本表数据，不改代码。
+ * 例：VIP → chat/embedding/web_search；SVIP → +vision/image_gen；LIFETIME → 全部。
+ */
+export const tierEntitlements = pgTable('tier_entitlements', {
+  id: varchar('id', { length: 64 }).primaryKey(),
+  tier: varchar('tier', { length: 32 }).notNull(), // VIP / SVIP / LIFETIME
+  capability: varchar('capability', { length: 32 }).notNull(), // chat / vision / embedding / web_search / image_gen / video_gen
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * 官方通道上游配置（替代写死的 OFFICIAL_UPSTREAM_URL 常量与 env key）。
+ * 每个能力一行：代理路由据此注入上游地址与密钥并透传请求。
+ */
+export const officialChannels = pgTable('official_channels', {
+  capability: varchar('capability', { length: 32 }).primaryKey(), // chat / vision / embedding / web_search / image_gen / video_gen
+  provider: varchar('provider', { length: 64 }).notNull(), // deepseek / siliconflow / doubao / tavily ...
+  upstreamUrl: text('upstream_url').notNull(),
+  apiKey: text('api_key').notNull(),
+  defaultModel: varchar('default_model', { length: 128 }),
+  enabled: boolean('enabled').default(true).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
  * Authentication tickets for WeChat QR login session polling
  */
 export const authTickets = pgTable('auth_tickets', {
@@ -69,7 +96,11 @@ export const subscriptionPlans = pgTable('subscription_plans', {
   priceCents: integer('price_cents').notNull(), // e.g. 3600 = ¥36.00
   originalPriceCents: integer('original_price_cents').notNull(),
   durationDays: integer('duration_days').notNull(),
-  tier: varchar('tier', { length: 32 }).default('PRO').notNull(),
+  tier: varchar('tier', { length: 32 }).default('VIP').notNull(),
+  // 套餐权益清单（JSON string[]，结算页按选中套餐渲染，见 0004 迁移）
+  benefits: text('benefits').default('[]').notNull(),
+  // 计费周期：monthly / yearly / lifetime（年费折扣经 original_price_cents 划线价表达）
+  billingCycle: varchar('billing_cycle', { length: 16 }).default('yearly').notNull(),
   recommended: boolean('recommended').default(false).notNull(),
   sortOrder: integer('sort_order').default(0).notNull(),
   isActive: boolean('is_active').default(true).notNull(),

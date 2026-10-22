@@ -1,6 +1,6 @@
-import type { WorkbenchSettings } from "../../../components/workbench/types.ts";
 import type { EmbeddingConfig } from "../../../services/embeddingService.ts";
 import { workbenchDb } from "../../db/sqlite.ts";
+import { getActiveChannel, resolveCapabilityConfig } from "./channels.ts";
 
 export interface LlmConfigOverrides {
 	apiKey?: string;
@@ -8,51 +8,42 @@ export interface LlmConfigOverrides {
 	model?: string;
 }
 
-/** Read and parse WorkbenchSettings from SQLite once, with safe fallback */
-function readDbSettings(): Partial<WorkbenchSettings> | null {
-	try {
-		const raw = workbenchDb.getSetting("workbench_settings");
-		if (raw) return JSON.parse(raw) as Partial<WorkbenchSettings>;
-	} catch (err) {
-		console.warn("[context/config] Failed to parse settings from SQLite:", err);
-	}
-	return null;
-}
-
 /**
  * Resolve effective LLM config on the server.
- * Priority: caller overrides > settings stored in SQLite > hardcoded defaults.
+ * 配置事实源为 ai_channel_configs 表（见 channels.ts）：
+ * 官方通道走云端网关 + cloudToken；自备通道用行内 apiKey/baseUrl。
+ * 不再做任何 env 兜底（docs/ai-config-membership-v2-plan.md）。
  */
 export function resolveLlmConfig(overrides: LlmConfigOverrides = {}): {
 	apiKey: string;
 	baseUrl: string;
 	model: string;
 } {
-	const db = readDbSettings();
-	const apiKey = overrides.apiKey?.trim() || db?.apiKey?.trim() || "";
-	const baseUrl = (
-		overrides.baseUrl?.trim() ||
-		db?.baseUrl?.trim() ||
-		"https://api.deepseek.com"
-	).replace(/\/+$/, "");
-	const model = overrides.model?.trim() || db?.model?.trim() || "deepseek-chat";
-	return { apiKey, baseUrl, model };
+	const resolved = resolveCapabilityConfig("chat", overrides);
+	return {
+		apiKey: resolved.apiKey,
+		baseUrl: resolved.baseUrl,
+		model: resolved.model,
+	};
+}
+
+/** Whether the current LLM provider is the official managed channel */
+export function isOfficialLlmProvider(): boolean {
+	return getActiveChannel("chat")?.channel === "official";
 }
 
 /**
  * Resolve effective embedding config on the server.
- * Priority: caller overrides > settings stored in SQLite (embedding key falls back to LLM key).
+ * Priority: caller overrides > ai_channel_configs 活跃行。
  */
 export function resolveEmbeddingConfig(
 	overrides: EmbeddingConfig = {},
 ): EmbeddingConfig {
-	if (overrides.apiKey?.trim()) return overrides;
-	const db = readDbSettings();
-	if (!db) return overrides;
+	const resolved = resolveCapabilityConfig("embedding", overrides);
 	return {
-		apiKey: db.embeddingApiKey?.trim() || db.apiKey?.trim() || "",
-		baseUrl: overrides.baseUrl || db.embeddingBaseUrl,
-		model: overrides.model || db.embeddingModel,
+		apiKey: resolved.apiKey,
+		baseUrl: resolved.baseUrl,
+		model: resolved.model,
 	};
 }
 
@@ -66,43 +57,33 @@ export interface ImageGenConfig {
 
 /**
  * Resolve effective image generation config on the server.
+ * skillPath 属于创作偏好而非通道配置，仍从 workbench_settings 读取。
  */
 export function resolveImageGenConfig(
 	overrides: Partial<ImageGenConfig> = {},
 ): ImageGenConfig {
-	const db = readDbSettings();
-	const provider = overrides.provider || db?.imageProvider || "doubao";
-	const apiKey =
-		overrides.apiKey?.trim() ||
-		db?.imageApiKey?.trim() ||
-		db?.apiKey?.trim() ||
-		"";
+	const resolved = resolveCapabilityConfig("image_gen", overrides);
 
-	let defaultBaseUrl = "https://ark.cn-beijing.volces.com/api/v3";
-	if (provider === "openai") defaultBaseUrl = "https://api.openai.com/v1";
-	else if (provider === "siliconflow")
-		defaultBaseUrl = "https://api.siliconflow.cn/v1";
-	else if (provider === "nanobanana")
-		defaultBaseUrl = "https://generativelanguage.googleapis.com/v1beta";
+	let skillPath = overrides.skillPath?.trim() ?? "";
+	if (!skillPath) {
+		try {
+			const raw = workbenchDb.getSetting("workbench_settings");
+			if (raw) {
+				skillPath = String(
+					(JSON.parse(raw) as { imageSkillPath?: string }).imageSkillPath ??
+						"",
+				).trim();
+			}
+		} catch {
+			skillPath = "";
+		}
+	}
 
-	const baseUrl = (
-		overrides.baseUrl?.trim() ||
-		db?.imageBaseUrl?.trim() ||
-		defaultBaseUrl
-	).replace(/\/+$/, "");
-
-	let fallbackModel = "doubao-seedream-5-0-flash-260915";
-	if (provider === "openai") fallbackModel = "gpt-image-2";
-	else if (provider === "nanobanana") fallbackModel = "nano-banana-2";
-	else if (provider === "siliconflow")
-		fallbackModel = "black-forest-labs/FLUX.1-schnell";
-
-	const model =
-		overrides.model?.trim() ||
-		db?.imageModel?.trim() ||
-		fallbackModel;
-
-	const skillPath =
-		overrides.skillPath?.trim() || db?.imageSkillPath?.trim() || "";
-	return { apiKey, baseUrl, model, provider, skillPath };
+	return {
+		apiKey: resolved.apiKey,
+		baseUrl: resolved.baseUrl,
+		model: resolved.model,
+		provider: resolved.provider,
+		skillPath,
+	};
 }

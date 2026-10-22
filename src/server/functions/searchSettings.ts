@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import type { SearchConfig, SearchEngineId } from "../ai/search/registry.ts";
+import { upsertChannelConfig } from "../ai/context/channels.ts";
 import { workbenchDb } from "../db/sqlite.ts";
 
 const SETTINGS_KEY = "searchConfig";
@@ -64,5 +65,19 @@ export const saveSearchConfig = createServerFn({ method: "POST" })
 			}
 		}
 		workbenchDb.setSetting(SETTINGS_KEY, JSON.stringify(sanitized));
+		// 写穿搜索引擎 key 到 ai_channel_configs（web_search 能力，provider=engineId）
+		try {
+			for (const [engine, key] of Object.entries(sanitized.apiKeys ?? {})) {
+				upsertChannelConfig({
+					capability: "web_search",
+					channel: "custom",
+					provider: engine,
+					label: engine,
+					apiKey: key,
+				});
+			}
+		} catch (err) {
+			console.warn("[saveSearchConfig] channel sync error:", err);
+		}
 		return { success: true };
 	});

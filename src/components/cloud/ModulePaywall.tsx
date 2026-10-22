@@ -38,7 +38,6 @@ export function ModulePaywall({
 						"当前板块为尊享会员特权功能，开通会员后即可畅享完整能力"
 					}
 					expiredNotice={isExpired}
-					showUserInfo={true}
 					onSuccess={onSuccess}
 				/>
 			</div>

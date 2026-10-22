@@ -80,7 +80,9 @@ export class AIClassifierService {
 		const { apiKey, provider } = getEffectiveLLMConfig(effectiveSettings);
 
 		// 2. Lifecycle Step 2: Fail-fast validation with actionable guidance
-		if (!apiKey) {
+		// Official channel authenticates with the synced cloudToken server-side,
+		// so a missing user-provided API key must not block the pipeline here.
+		if (!apiKey && provider !== "official") {
 			throw new Error("请先在「设置」中配置大模型 API Key 后再进行智能分拣");
 		}
 

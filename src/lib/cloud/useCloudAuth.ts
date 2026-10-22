@@ -64,18 +64,21 @@ export function useCloudAuth() {
 	}, []);
 
 	// Check if membership is currently active
+	// 档位：VIP / SVIP / LIFETIME（PRO 为迁移期兼容的历史档位，等价 VIP）
+	const PAID_TIERS = ["VIP", "SVIP", "PRO"];
 	const isLifetime = user?.memberTier === "LIFETIME";
+	const isPaidTier = Boolean(user && PAID_TIERS.includes(user.memberTier));
 	const isProValid = Boolean(
-		user?.memberTier === "PRO" &&
+		isPaidTier &&
 			user?.memberExpiresAt &&
 			new Date(user.memberExpiresAt).getTime() > Date.now(),
 	);
 	const isMember = isLifetime || isProValid;
 
-	// Distinguish whether user was a PRO member whose membership has expired
+	// Distinguish whether user was a paid member whose membership has expired
 	const isExpired = Boolean(
 		user &&
-			user.memberTier === "PRO" &&
+			PAID_TIERS.includes(user.memberTier) &&
 			user.memberExpiresAt &&
 			new Date(user.memberExpiresAt).getTime() <= Date.now(),
 	);
@@ -94,7 +97,7 @@ export function useCloudAuth() {
 
 	// Dev helper: extend membership by given days and tier
 	const mockUpgradeToPro = useCallback(
-		(days = 365, tier: "PRO" | "LIFETIME" = "PRO") => {
+		(days = 365, tier: "VIP" | "SVIP" | "LIFETIME" = "VIP") => {
 			if (!user) return;
 			const futureDate =
 				tier === "LIFETIME"

@@ -17,6 +17,10 @@ export interface SubscriptionPlan {
   durationDays: number;
   tier: MemberTier;
   recommended?: boolean;
+  /** 套餐权益清单（结算页按选中套餐渲染） */
+  benefits?: string[];
+  /** 计费周期 */
+  billingCycle?: 'monthly' | 'yearly' | 'lifetime';
 }
 
 /**

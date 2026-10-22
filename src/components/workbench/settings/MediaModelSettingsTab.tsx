@@ -54,6 +54,11 @@ const PROVIDER_FEATURE_TIPS: Record<
 	string,
 	{ badge: string; description: string }
 > = {
+	official: {
+		badge: "官方全托管视觉通道",
+		description:
+			"SVIP 及以上会员专享，官方统一提供高质量封面生图与视觉生成能力，开箱即用，无需配置 API Key。",
+	},
 	doubao: {
 		badge: "火山方舟 Seedream 旗舰",
 		description:
@@ -315,18 +320,26 @@ export function MediaModelSettingsTab({
 						<span className="text-sm font-semibold text-foreground whitespace-nowrap shrink-0">
 							当前默认模型：
 						</span>
-						<span
-							title={data.imageModel || "doubao-seed-image"}
-							className="text-xs font-mono font-medium text-foreground px-2 py-0.5 rounded-md border border-border/60 bg-transparent truncate max-w-[200px] sm:max-w-[240px]"
-						>
-							{data.imageModel || "doubao-seed-image"}
-						</span>
-						<span
-							title={activeProvider.name}
-							className="text-xs text-muted truncate max-w-[130px] shrink-0"
-						>
-							({activeProvider.name})
-						</span>
+						{activeProvider.id === "official" ? (
+							<span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-md border border-emerald-500/40 bg-emerald-500/5">
+								⚡ 官方极速通道
+							</span>
+						) : (
+							<>
+								<span
+									title={data.imageModel || "doubao-seed-image"}
+									className="text-xs font-mono font-medium text-foreground px-2 py-0.5 rounded-md border border-border/60 bg-transparent truncate max-w-[200px] sm:max-w-[240px]"
+								>
+									{data.imageModel || "doubao-seed-image"}
+								</span>
+								<span
+									title={activeProvider.name}
+									className="text-xs text-muted truncate max-w-[130px] shrink-0"
+								>
+									({activeProvider.name})
+								</span>
+							</>
+						)}
 					</div>
 				</div>
 
@@ -392,17 +405,19 @@ export function MediaModelSettingsTab({
 					</div>
 
 					<div className="flex items-center gap-2">
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							className="rounded-lg text-xs"
-							isDisabled={testingConnection}
-							onPress={handleTestConnection}
-						>
-							<Play className="w-3 h-3" />
-							<span>{testingConnection ? "测试中..." : "测试连接"}</span>
-						</Button>
+						{editingProviderId !== "official" && (
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								className="rounded-lg text-xs"
+								isDisabled={testingConnection}
+								onPress={handleTestConnection}
+							>
+								<Play className="w-3 h-3" />
+								<span>{testingConnection ? "测试中..." : "测试连接"}</span>
+							</Button>
+						)}
 
 						{!isEditingActive && (
 							<Button
@@ -433,6 +448,23 @@ export function MediaModelSettingsTab({
 				</div>
 
 				<div className="flex flex-col gap-4">
+					{editingProviderId === "official" ? (
+						<div className="flex flex-col gap-3 p-4 rounded-xl border border-emerald-500/25 bg-emerald-500/5">
+							<div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-medium text-xs">
+								<span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+								<span>官方全托管极速通道已就绪</span>
+							</div>
+							<p className="text-xs text-muted leading-relaxed">
+								SVIP 及以上会员可直接使用官方托管的封面生图与视觉生成能力，
+								免去您自行购买与配置 API 密钥的繁琐流程，开箱即用。
+							</p>
+							<p className="text-[11px] text-muted">
+								如需使用自备的生图 API Key（如豆包 Seedream、Nano
+								Banana、OpenAI 等），可直接切换上方标签页自行配置。
+							</p>
+						</div>
+					) : (
+						<>
 					{/* API Key Input - Identical to Image 1 */}
 					<TextField
 						value={currentConfig.apiKey}
@@ -596,6 +628,8 @@ export function MediaModelSettingsTab({
 							用于一键发布文章时生成封面图及多媒体素材，点击「设为默认模型」可将当前服务商切换为默认生图引擎。
 						</Description>
 					</div>
+						</>
+					)}
 
 					{/* Local Skill Association with HeroUI Select (Only displayed in Publish Center) */}
 					{showSkillAssociation && (

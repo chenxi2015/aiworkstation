@@ -3,7 +3,7 @@ import type {
 	UserProfile,
 } from "@aiworkstation/shared-types";
 import { Button, Card } from "@heroui/react";
-import { CheckCircle2, Loader2, RefreshCw, Smartphone, X } from "lucide-react";
+import { Loader2, RefreshCw, Smartphone, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cloudClient } from "../../lib/cloud/cloudClient";
@@ -26,7 +26,6 @@ export function LoginModal({
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [countdown, setCountdown] = useState(300);
-	const [isSuccess, setIsSuccess] = useState(false);
 
 	const pollTimerRef = useRef<number | null>(null);
 	const countdownTimerRef = useRef<number | null>(null);
@@ -42,11 +41,32 @@ export function LoginModal({
 		}
 	}, []);
 
+	/**
+	 * Transition directly into workspace upon login confirmation without artificial delays
+	 */
+	const handleLoginConfirmed = useCallback(
+		async (token: string, user: UserProfile) => {
+			stopPolling();
+
+			if (mandatory) {
+				try {
+					await window.electronAPI?.setWindowMode?.("main");
+				} catch (err) {
+					console.error("[LoginModal] Failed to expand window:", err);
+				}
+			}
+
+			cloudClient.setSession(token, user);
+			onSuccess?.();
+			onClose?.();
+		},
+		[mandatory, onClose, onSuccess, stopPolling],
+	);
+
 	const loadQrCode = useCallback(async () => {
 		stopPolling();
 		setLoading(true);
 		setError(null);
-		setIsSuccess(false);
 
 		try {
 			const data = await cloudClient.getQrTicket();
@@ -70,12 +90,7 @@ export function LoginModal({
 					const res = await cloudClient.checkQrStatus(data.ticket);
 					if (res.status === "CONFIRMED" && res.token && res.user) {
 						stopPolling();
-						setIsSuccess(true);
-						cloudClient.setSession(res.token, res.user);
-						setTimeout(() => {
-							onSuccess?.();
-							onClose?.();
-						}, 1200);
+						void handleLoginConfirmed(res.token, res.user);
 					} else if (res.status === "EXPIRED") {
 						stopPolling();
 					}
@@ -92,7 +107,7 @@ export function LoginModal({
 		} finally {
 			setLoading(false);
 		}
-	}, [onClose, onSuccess, stopPolling]);
+	}, [handleLoginConfirmed, stopPolling]);
 
 	useEffect(() => {
 		if (isOpen) {
@@ -100,7 +115,6 @@ export function LoginModal({
 		} else {
 			stopPolling();
 			setTicketData(null);
-			setIsSuccess(false);
 		}
 		return stopPolling;
 	}, [isOpen, loadQrCode, stopPolling]);
@@ -123,7 +137,7 @@ export function LoginModal({
 				}
 			/>
 
-			{/* HeroUI Card Container (clean, flat border, no heavy shadows) */}
+			{/* HeroUI Card Container (clean, flat border) */}
 			<Card className="relative w-full max-w-xs rounded-2xl border border-border/80 bg-surface/95 backdrop-blur-xl window-no-drag">
 				{/* Optional Close Button */}
 				{!mandatory && onClose && (
@@ -185,18 +199,8 @@ export function LoginModal({
 									}`}
 								/>
 
-								{/* Success Overlay */}
-								{isSuccess && (
-									<div className="absolute inset-0 flex flex-col items-center justify-center rounded-xl bg-white/95 animate-in fade-in duration-200">
-										<CheckCircle2 className="w-12 h-12 text-emerald-500 animate-bounce" />
-										<span className="text-sm font-bold text-emerald-600 mt-1.5">
-											登录成功
-										</span>
-									</div>
-								)}
-
 								{/* Expired Overlay */}
-								{countdown === 0 && !isSuccess && (
+								{countdown === 0 && (
 									<div className="absolute inset-0 flex flex-col items-center justify-center rounded-xl bg-white/90 animate-in fade-in">
 										<span className="text-xs text-muted mb-2">
 											二维码已过期
@@ -217,7 +221,7 @@ export function LoginModal({
 					</div>
 
 					{/* Countdown */}
-					{!error && !isSuccess && countdown > 0 && (
+					{!error && countdown > 0 && (
 						<p className="text-[11px] text-muted font-mono mt-2.5">
 							有效时间：{countdown}s
 						</p>
@@ -225,41 +229,33 @@ export function LoginModal({
 				</Card.Content>
 
 				{/* Card Footer: Dev Mode Mock Action */}
-				{!isSuccess && (
-					<Card.Footer className="flex flex-col items-center pt-1 pb-4 px-5 border-t border-border/40 mt-1">
-						<Button
-							size="sm"
-							variant="ghost"
-							className="text-[11px] h-6 text-accent hover:underline cursor-pointer"
-							onPress={() => {
-								stopPolling();
-								setIsSuccess(true);
-								const devUser: UserProfile = {
-									id: "dev-local-user",
-									nickname: "开发者 (Dev)",
-									avatarUrl: "https://api.dicebear.com/7.x/bottts/svg?seed=dev",
-									memberTier: "FREE",
-									memberExpiresAt: null,
-									createdAt: new Date().toISOString(),
-								};
-								cloudClient.setSession("dev_local_token_mock", devUser);
+				<Card.Footer className="flex flex-col items-center pt-1 pb-4 px-5 border-t border-border/40 mt-1">
+					<Button
+						size="sm"
+						variant="ghost"
+						className="text-[11px] h-6 text-accent hover:underline cursor-pointer"
+						onPress={async () => {
+							const devUser: UserProfile = {
+								id: "dev-local-user",
+								nickname: "开发者 (Dev)",
+								avatarUrl: "https://api.dicebear.com/7.x/bottts/svg?seed=dev",
+								memberTier: "FREE",
+								memberExpiresAt: null,
+								createdAt: new Date().toISOString(),
+							};
 
-								if (ticketData?.ticket) {
-									fetch(
-										`${cloudClient.getApiBase()}/api/auth/wx/mock-scan?state=${ticketData.ticket}`,
-									).catch(() => {});
-								}
+							if (ticketData?.ticket) {
+								fetch(
+									`${cloudClient.getApiBase()}/api/auth/wx/mock-scan?state=${ticketData.ticket}`,
+								).catch(() => {});
+							}
 
-								setTimeout(() => {
-									onSuccess?.();
-									onClose?.();
-								}, 800);
-							}}
-						>
-							[开发模式] 模拟扫码登录
-						</Button>
-					</Card.Footer>
-				)}
+							await handleLoginConfirmed("dev_local_token_mock", devUser);
+						}}
+					>
+						[开发模式] 模拟扫码登录
+					</Button>
+				</Card.Footer>
 			</Card>
 		</div>,
 		document.body,

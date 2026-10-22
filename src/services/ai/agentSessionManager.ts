@@ -1,5 +1,10 @@
 import type { ChatItem } from "../../hooks/ai/useChatMessages";
 import {
+	dispatchOpenCheckoutModal,
+	MEMBERSHIP_ERROR_CODES,
+	membershipErrorMessage,
+} from "../../lib/cloud/cloudEvents";
+import {
 	agentSessionActions,
 	agentSessionStore,
 } from "../../stores/agentSessionStore";
@@ -188,8 +193,8 @@ export class AgentSessionManager {
 					onRunEnd: (answer, dbMutated) => {
 						this.handleRunEnd(sessionId, answer, dbMutated, callbacks);
 					},
-					onError: (errMsg) => {
-						this.handleError(sessionId, errMsg);
+					onError: (errMsg, code) => {
+						this.handleError(sessionId, errMsg, code);
 					},
 				},
 				{ signal: controller.signal },
@@ -271,7 +276,15 @@ export class AgentSessionManager {
 		callbacks?.onResponseReceived?.();
 	}
 
-	private handleError(sessionId: string, errMsg: string) {
+	private handleError(sessionId: string, errMsg: string, code?: string) {
+		// 云端网关的会员/权益类拒绝：按结构化 code 渲染文案并自动弹出开通/续费弹窗。
+		// 接口层只透传 code（MEMBERSHIP_REQUIRED / MEMBERSHIP_EXPIRED /
+		// CAPABILITY_NOT_ENTITLED），文案与动作在这里统一映射。
+		const isMembershipError = code && MEMBERSHIP_ERROR_CODES.includes(code);
+		if (isMembershipError) {
+			dispatchOpenCheckoutModal();
+			errMsg = membershipErrorMessage(code);
+		}
 		agentSessionActions.setSessionMessages(sessionId, (prev) => {
 			const last = prev[prev.length - 1];
 			if (last && last.role === "assistant") {

@@ -1,4 +1,5 @@
 import { readSearchConfig } from "../configLoader.ts";
+import { listChannelConfigs } from "../../context/channels.ts";
 import { JinaReaderProvider } from "./jinaReader.ts";
 import { TavilyExtractProvider } from "./tavilyExtract.ts";
 import type { FetchProvider, FetchResult } from "./types.ts";
@@ -16,11 +17,21 @@ interface FetchAttempt {
 
 function buildChannels(cfg?: SearchConfig): FetchProvider[] {
 	const channels: FetchProvider[] = [];
+	// Key 事实源为 ai_channel_configs（web_search 能力的 custom 行），无 env 兜底
+	const channelKeys = new Map<string, string>();
+	try {
+		for (const row of listChannelConfigs("web_search")) {
+			if (row.channel === "custom" && row.apiKey.trim()) {
+				channelKeys.set(row.provider, row.apiKey.trim());
+			}
+		}
+	} catch {
+		// 表未就绪时按无 key 处理
+	}
 	const jinaKey =
-		cfg?.apiKeys?.jina?.trim() || process.env.JINA_API_KEY?.trim() || undefined;
+		channelKeys.get("jina") || cfg?.apiKeys?.jina?.trim() || undefined;
 	channels.push(new JinaReaderProvider(jinaKey));
-	const tavilyKey =
-		cfg?.apiKeys?.tavily?.trim() || process.env.TAVILY_API_KEY?.trim();
+	const tavilyKey = channelKeys.get("tavily") || cfg?.apiKeys?.tavily?.trim();
 	if (tavilyKey) {
 		channels.push(new TavilyExtractProvider(tavilyKey));
 	}

@@ -42,6 +42,7 @@ function saveStoredWindowMode(mode: WindowMode): void {
 
 let mainWindow: BrowserWindow | null = null;
 let isQuitting = false;
+let currentWindowMode: WindowMode = getStoredWindowMode();
 
 /**
  * Set the quitting state flag before application exit
@@ -61,11 +62,10 @@ export function getIsQuitting(): boolean {
  * Switch the application window between compact login modal and full dashboard layout.
  * Uses center-anchored setBounds animation so the window expands/collapses symmetrically
  * from the center instead of expanding to the bottom-right.
+ * Safely handles Windows Win32 window styles (WS_THICKFRAME) and minimum size constraints.
  */
-export function setWindowMode(mode: WindowMode): void {
+export async function setWindowMode(mode: WindowMode): Promise<void> {
 	if (!mainWindow || mainWindow.isDestroyed()) return;
-
-	saveStoredWindowMode(mode);
 
 	const currentBounds = mainWindow.getBounds();
 	const currentDisplay = screen.getDisplayMatching(currentBounds);
@@ -76,6 +76,9 @@ export function setWindowMode(mode: WindowMode): void {
 	const currentCenterY = currentBounds.y + currentBounds.height / 2;
 
 	if (mode === "login") {
+		currentWindowMode = "login";
+		saveStoredWindowMode("login");
+
 		const targetWidth = Math.min(WINDOW_CONFIG.LOGIN_WIDTH, workWidth);
 		const targetHeight = Math.min(WINDOW_CONFIG.LOGIN_HEIGHT, workHeight);
 
@@ -87,20 +90,50 @@ export function setWindowMode(mode: WindowMode): void {
 		targetX = Math.max(workX, Math.min(targetX, workX + workWidth - targetWidth));
 		targetY = Math.max(workY, Math.min(targetY, workY + workHeight - targetHeight));
 
-		// Apply constraints for compact login window
-		mainWindow.setMinimumSize(targetWidth, targetHeight);
-		mainWindow.setMaximumSize(targetWidth, targetHeight);
-		mainWindow.setResizable(false);
-		mainWindow.setMaximizable(false);
+		if (mainWindow.isMaximized()) {
+			mainWindow.unmaximize();
+		}
+
+		// Unlock constraints first so shrinking is not blocked by current min sizes
+		mainWindow.setMinimumSize(0, 0);
+		if (process.platform === "win32") {
+			mainWindow.setMaximumSize(0, 0);
+		} else {
+			mainWindow.setMaximumSize(10000, 10000);
+		}
+
+		const isDarwin = process.platform === "darwin";
 		mainWindow.setBounds(
 			{ x: targetX, y: targetY, width: targetWidth, height: targetHeight },
-			false,
+			isDarwin,
 		);
+
+		if (process.platform === "win32") {
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		}
+
+		// Apply constraints for compact login window
+		mainWindow.setResizable(false);
+		mainWindow.setMaximizable(false);
+		mainWindow.setMinimumSize(targetWidth, targetHeight);
+		mainWindow.setMaximumSize(targetWidth, targetHeight);
 	} else {
 		const optimalWidth = Math.min(WINDOW_CONFIG.OPTIMAL_WIDTH, workWidth);
 		const optimalHeight = Math.min(WINDOW_CONFIG.OPTIMAL_HEIGHT, workHeight);
 		const minWidth = Math.min(WINDOW_CONFIG.MIN_WIDTH, workWidth);
 		const minHeight = Math.min(WINDOW_CONFIG.MIN_HEIGHT, workHeight);
+
+		// Avoid redundant resize if already expanded in main mode and bounds are adequate
+		if (
+			currentWindowMode === "main" &&
+			currentBounds.width >= minWidth &&
+			currentBounds.height >= minHeight
+		) {
+			return;
+		}
+
+		currentWindowMode = "main";
+		saveStoredWindowMode("main");
 
 		// Align to center of the current window location
 		let targetX = Math.round(currentCenterX - optimalWidth / 2);
@@ -110,15 +143,62 @@ export function setWindowMode(mode: WindowMode): void {
 		targetX = Math.max(workX, Math.min(targetX, workX + workWidth - optimalWidth));
 		targetY = Math.max(workY, Math.min(targetY, workY + workHeight - optimalHeight));
 
-		// Release restrictions for full workspace view
-		mainWindow.setMaximumSize(10000, 10000);
-		mainWindow.setMinimumSize(minWidth, minHeight);
+		// 1. If window was minimized/maximized, restore normal state
+		if (mainWindow.isMinimized()) {
+			mainWindow.restore();
+		}
+		if (mainWindow.isMaximized()) {
+			mainWindow.unmaximize();
+		}
+
+		// 2. Unlock resizability and maximizeability BEFORE changing constraints or bounds
 		mainWindow.setResizable(true);
 		mainWindow.setMaximizable(true);
+
+		// 3. Clear minimum size and maximum size constraints first
+		// (On Windows Win32, minWidth cannot be set before the window bounds exceed it)
+		mainWindow.setMinimumSize(0, 0);
+		if (process.platform === "win32") {
+			mainWindow.setMaximumSize(0, 0);
+		} else {
+			mainWindow.setMaximumSize(10000, 10000);
+		}
+
+		// 4. Yield a tick on Windows to allow native window styles (WS_THICKFRAME) to apply
+		if (process.platform === "win32") {
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		}
+
+		// 5. Apply the target expanded bounds (smooth native animation on macOS)
+		const isDarwin = process.platform === "darwin";
 		mainWindow.setBounds(
 			{ x: targetX, y: targetY, width: optimalWidth, height: optimalHeight },
-			false,
+			isDarwin,
 		);
+
+		// 6. Verify and retry for Windows OS message pump settling
+		if (process.platform === "win32") {
+			await new Promise((resolve) => setTimeout(resolve, 60));
+			const settledBounds = mainWindow.getBounds();
+			if (
+				settledBounds.width < minWidth ||
+				settledBounds.height < minHeight ||
+				settledBounds.width < optimalWidth - 100
+			) {
+				console.warn(
+					"[electron] Windows bounds did not settle properly, reapplying target bounds:",
+					settledBounds,
+				);
+				mainWindow.setBounds(
+					{ x: targetX, y: targetY, width: optimalWidth, height: optimalHeight },
+					false,
+				);
+				await new Promise((resolve) => setTimeout(resolve, 50));
+			}
+		}
+
+		// 7. Finally apply minWidth / minHeight constraints after window has reached target size
+		mainWindow.setMinimumSize(minWidth, minHeight);
 	}
 }
 
@@ -164,6 +244,7 @@ export async function createMainWindow(serverPort: number): Promise<BrowserWindo
 	const minHeight = Math.min(WINDOW_CONFIG.MIN_HEIGHT, workHeight);
 
 	const initialMode = getStoredWindowMode();
+	currentWindowMode = initialMode;
 	const isLoginMode = initialMode === "login";
 
 	const initialWidth = isLoginMode
@@ -203,8 +284,8 @@ export async function createMainWindow(serverPort: number): Promise<BrowserWindo
 	}
 
 	ipcMain.removeHandler("window:set-mode");
-	ipcMain.handle("window:set-mode", (_event, mode: WindowMode) => {
-		setWindowMode(mode);
+	ipcMain.handle("window:set-mode", async (_event, mode: WindowMode) => {
+		await setWindowMode(mode);
 		return { success: true };
 	});
 

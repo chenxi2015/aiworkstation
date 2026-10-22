@@ -127,7 +127,7 @@ export class PaymentService {
 
       const plan = await getPlanByIdFromDb(order.planId);
       const durationDays = plan ? plan.durationDays : 30;
-      const targetTier = plan ? plan.tier : 'PRO';
+      const targetTier = plan ? plan.tier : 'VIP';
 
       // Update order status
       await db.update(schema.orders).set({
@@ -196,7 +196,7 @@ export class PaymentService {
           orderNo: mem.orderNo,
           status: mem.status as OrderStatusResponse['status'],
           paidAt: mem.paidAt ? mem.paidAt.toISOString() : null,
-          tier: 'PRO',
+          tier: 'VIP',
           memberExpiresAt: new Date(Date.now() + 30 * 86400000).toISOString(),
         };
       }
@@ -219,7 +219,7 @@ export class PaymentService {
         orderNo: mem.orderNo,
         status: mem.status as OrderStatusResponse['status'],
         paidAt: mem.paidAt ? mem.paidAt.toISOString() : null,
-        tier: 'PRO',
+        tier: 'VIP',
         memberExpiresAt: new Date(Date.now() + 30 * 86400000).toISOString(),
       };
     }

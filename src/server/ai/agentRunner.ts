@@ -1,16 +1,56 @@
 import { chat, EventType, maxIterations } from "@tanstack/ai";
 import { openaiCompatibleText } from "@tanstack/ai-openai/compatible";
+import {
+	CAPABILITY_NOT_ENTITLED_CODE,
+	MEMBERSHIP_EXPIRED_CODE,
+	MEMBERSHIP_REQUIRED_CODE,
+} from "../../lib/cloud/cloudEvents.ts";
 import type {
 	AgentChatParams,
 	AgentStep,
 	AgentStreamEvent,
 } from "./agentTypes.ts";
 import { resolveImagePartsFromContext } from "./multimodal/resolveImages.ts";
-import { prepareRagAgentContext, resolveLlmConfig } from "./ragContext.ts";
+import {
+	isOfficialLlmProvider,
+	prepareRagAgentContext,
+	resolveLlmConfig,
+} from "./ragContext.ts";
 import { createAgentTools } from "./tools/registry.ts";
 import { type AgentToolHooks, getAgentToolMetadata } from "./tools/types.ts";
 
 export type StreamEventEmitter = (event: AgentStreamEvent) => void;
+
+/**
+ * 识别云端网关的会员/权益类拒绝（HTTP 403），并解析出结构化错误码。
+ * 仅在官方通道下生效；自备 Key 通道的 403 视为上游服务商错误。
+ * 返回 null 表示非会员类错误；否则返回 MEMBERSHIP_REQUIRED /
+ * MEMBERSHIP_EXPIRED / CAPABILITY_NOT_ENTITLED 之一。
+ */
+function matchMembershipErrorCode(error: unknown): string | null {
+	if (!isOfficialLlmProvider()) return null;
+	const anyErr = error as Record<string, unknown> | null;
+	const message = error instanceof Error ? error.message : String(error);
+
+	// 优先使用网关返回的结构化业务码
+	if (message.includes(MEMBERSHIP_EXPIRED_CODE))
+		return MEMBERSHIP_EXPIRED_CODE;
+	if (message.includes(CAPABILITY_NOT_ENTITLED_CODE))
+		return CAPABILITY_NOT_ENTITLED_CODE;
+	if (message.includes(MEMBERSHIP_REQUIRED_CODE))
+		return MEMBERSHIP_REQUIRED_CODE;
+
+	const status = anyErr?.status ?? anyErr?.statusCode;
+	if (status === 403 || status === "403") return MEMBERSHIP_REQUIRED_CODE;
+	if (
+		message.includes("40301") ||
+		message.includes("会员专享") ||
+		(/\b403\b/.test(message) && message.includes("会员"))
+	) {
+		return MEMBERSHIP_REQUIRED_CODE;
+	}
+	return null;
+}
 
 /**
  * Execute the TanStack AI streaming agent loop with step-by-step tracking.
@@ -159,9 +199,12 @@ export async function runAgentStream(
 		if (prepared.contextReferences.length > 0) {
 			emit({ type: "references", references: prepared.contextReferences });
 		}
+		const noKeyTip = isOfficialLlmProvider()
+			? "提示：「官方极速通道」需要先登录会员账号（云端网关将自动校验会员身份）；也可以在设置中切换为自备 API Key 通道。"
+			: "提示：如需启用 AI 智能总结与多步 Agent，请在右上角「设置」中填入 LLM API Key。";
 		emit({
 			type: "run_end",
-			answer: `已为你检索到 ${prepared.contextReferences.length} 个相关收藏。\n\n提示：如需启用 AI 智能总结与多步 Agent，请在右上角「设置」中填入 LLM API Key。`,
+			answer: `已为你检索到 ${prepared.contextReferences.length} 个相关收藏。\n\n${noKeyTip}`,
 			dbMutated: false,
 			timestamp: new Date().toLocaleTimeString(),
 		});
@@ -233,8 +276,18 @@ export async function runAgentStream(
 			if (signal?.aborted) break;
 
 			if (chunk.type === "RUN_ERROR") {
-				const errMsg = (chunk.error as any)?.message || JSON.stringify(chunk);
-				throw new Error(errMsg);
+				const chunkError = chunk.error as any;
+				const errMsg = chunkError?.message || JSON.stringify(chunk);
+				const runError = new Error(errMsg);
+				// Preserve upstream error metadata (HTTP status / business code) so
+				// downstream handlers can distinguish membership rejections (403).
+				if (chunkError && typeof chunkError === "object") {
+					if (chunkError.code !== undefined)
+						(runError as any).code = chunkError.code;
+					if (chunkError.status !== undefined)
+						(runError as any).status = chunkError.status;
+				}
+				throw runError;
 			}
 
 			if (
@@ -281,6 +334,19 @@ export async function runAgentStream(
 		}
 
 		console.error("[runAgentStream] Agent execution error:", error);
+
+		const membershipCode = matchMembershipErrorCode(error);
+		if (membershipCode) {
+			// 只透传结构化 code，展示文案由 UI 层按 code 渲染
+			// （membershipErrorMessage in src/lib/cloud/cloudEvents.ts）
+			emit({
+				type: "error",
+				code: membershipCode,
+				message: membershipCode,
+			});
+			return;
+		}
+
 		const errMsg =
 			error instanceof Error
 				? error.message

@@ -1,5 +1,7 @@
 import { AnySearchProvider } from "./anysearchProvider.ts";
 import { BraveSearchProvider } from "./braveProvider.ts";
+import { getActiveChannel, listChannelConfigs } from "../context/channels.ts";
+import { CloudSearchProvider } from "./cloudSearchProvider.ts";
 import { DuckDuckGoSearchProvider } from "./duckduckgoProvider.ts";
 import { ExaSearchProvider } from "./exaProvider.ts";
 import { JinaSearchProvider } from "./jinaProvider.ts";
@@ -15,7 +17,7 @@ import type { SearchOptions, SearchProvider, SearchResult } from "./types.ts";
 import { hostnameOf, normalizeUrl } from "./urlNormalize.ts";
 
 export interface SearchAttempt {
-	engine: SearchEngineId;
+	engine: SearchEngineId | "official";
 	ms: number;
 	status: "success" | "failed" | "empty";
 	count?: number;
@@ -35,38 +37,52 @@ function buildProvider(
 	timeoutMs: number,
 	configuredKeys: Partial<Record<SearchEngineId, string>> | undefined,
 ): SearchProvider | null {
-	// Settings-stored key wins over env var; both are trimmed.
+	// Key 事实源为 ai_channel_configs（web_search 能力的 custom 行，provider=engineId），
+	// 不再做任何 env 兜底（docs/ai-config-membership-v2-plan.md）。
 	const keyFromSettings = configuredKeys?.[id]?.trim() || undefined;
 	switch (id) {
 		case "duckduckgo": {
 			return new DuckDuckGoSearchProvider({ timeoutMs });
 		}
 		case "tavily": {
-			const key = keyFromSettings ?? process.env.TAVILY_API_KEY?.trim();
+			const key = keyFromSettings;
 			if (!key) return null;
 			return new TavilySearchProvider(key, { timeoutMs });
 		}
 		case "exa": {
-			const key = keyFromSettings ?? process.env.EXA_API_KEY?.trim();
+			const key = keyFromSettings;
 			if (!key) return null;
 			return new ExaSearchProvider(key, { timeoutMs });
 		}
 		case "brave": {
-			const key = keyFromSettings ?? process.env.BRAVE_API_KEY?.trim();
+			const key = keyFromSettings;
 			if (!key) return null;
 			return new BraveSearchProvider(key, { timeoutMs });
 		}
 		case "jina": {
-			const key =
-				keyFromSettings ?? (process.env.JINA_API_KEY?.trim() || undefined);
+			const key = keyFromSettings;
 			return new JinaSearchProvider(key, { timeoutMs });
 		}
 		case "anysearch": {
-			const key =
-				keyFromSettings ?? (process.env.ANYSEARCH_API_KEY?.trim() || undefined);
+			const key = keyFromSettings;
 			return new AnySearchProvider(key, { timeoutMs });
 		}
 	}
+}
+
+/** web_search 能力的 custom 行（provider=engineId）→ 引擎 key 映射 */
+function loadChannelSearchKeys(): Partial<Record<SearchEngineId, string>> {
+	const keys: Partial<Record<SearchEngineId, string>> = {};
+	try {
+		for (const row of listChannelConfigs("web_search")) {
+			if (row.channel !== "custom") continue;
+			const engine = row.provider as SearchEngineId;
+			if (engine && row.apiKey.trim()) keys[engine] = row.apiKey.trim();
+		}
+	} catch {
+		// 表未就绪等异常下按无 key 处理
+	}
+	return keys;
 }
 
 function dedupeResults(results: SearchResult[]): SearchResult[] {
@@ -117,7 +133,10 @@ export class SearchOrchestrator implements SearchProvider {
 	}
 
 	private resolveEngines(): {
-		providers: Array<{ id: SearchEngineId; provider: SearchProvider }>;
+		providers: Array<{
+			id: SearchEngineId | "official";
+			provider: SearchProvider;
+		}>;
 		timeoutMs: number;
 	} {
 		const cfg = this.loadConfig() || {};
@@ -130,12 +149,31 @@ export class SearchOrchestrator implements SearchProvider {
 
 		// Validate engine ids against registry to silently drop typos.
 		const known = new Set(SEARCH_ENGINE_REGISTRY.map((e) => e.id));
-		const providers: Array<{ id: SearchEngineId; provider: SearchProvider }> =
-			[];
+		const providers: Array<{
+			id: SearchEngineId | "official";
+			provider: SearchProvider;
+		}> = [];
+
+		// 官方通道优先：web_search 活跃通道为 official 时先走云端网关（会员权益），
+		// 失败/为空后级联用户自备引擎（channel 行里的 custom key）。
+		const activeChannel = getActiveChannel("web_search");
+		const channelKeys = loadChannelSearchKeys();
+		if (activeChannel?.channel === "official") {
+			providers.push({
+				id: "official",
+				provider: new CloudSearchProvider(timeoutMs),
+			});
+		}
+
+		// 设置 JSON 里的 key（历史兼容）与 channel 行合并，channel 行优先
+		const mergedKeys: Partial<Record<SearchEngineId, string>> = {
+			...(cfg.apiKeys ?? {}),
+			...channelKeys,
+		};
 		for (const id of order) {
 			if (!known.has(id)) continue;
 			if (excluded.has(id)) continue;
-			const provider = buildProvider(id, timeoutMs, cfg.apiKeys);
+			const provider = buildProvider(id, timeoutMs, mergedKeys);
 			if (provider) providers.push({ id, provider });
 		}
 		return { providers, timeoutMs };

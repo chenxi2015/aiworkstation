@@ -7,6 +7,14 @@ import type {
 	SubscriptionPlan,
 	UserProfile,
 } from "@aiworkstation/shared-types";
+import {
+	activateOfficialChannelsFn,
+	refreshEntitlementsFn,
+} from "../../server/functions/channels";
+import {
+	getSettings,
+	saveSettings,
+} from "../../services/storage/settingsStorage";
 
 const TOKEN_KEY = "aiworkstation_cloud_token";
 const USER_KEY = "aiworkstation_cloud_user";
@@ -72,6 +80,7 @@ class CloudClient {
 			localStorage.setItem(USER_KEY, JSON.stringify(user));
 			this.notifyListeners(user);
 		}
+		this.syncSessionToLocalSettings();
 	}
 
 	/**
@@ -82,6 +91,38 @@ class CloudClient {
 			localStorage.removeItem(TOKEN_KEY);
 			localStorage.removeItem(USER_KEY);
 			this.notifyListeners(null);
+		}
+		this.syncSessionToLocalSettings();
+	}
+
+	/**
+	 * Mirror the cloud token + gateway base URL into workbench settings (SQLite),
+	 * so the local 3888 server can authenticate against the official AI channel
+	 * reverse proxy without reading browser localStorage.
+	 */
+	private syncSessionToLocalSettings() {
+		if (typeof window === "undefined") return;
+		try {
+			const settings = getSettings();
+			const token = this.getToken();
+			saveSettings({
+				...settings,
+				cloudToken: token || undefined,
+				cloudApiBase: token ? this.getApiBase() : undefined,
+			});
+			// 购会员/登录后的零操作配置（fire-and-forget）：
+			// 1) 为全部能力创建并激活官方通道行；2) 拉取权益快照供 UI 展示。
+			// 会员有效性由云端网关裁决，本地不预判断。
+			if (token) {
+				activateOfficialChannelsFn().catch((err) =>
+					console.warn("[CloudClient] activateOfficialChannels error:", err),
+				);
+				refreshEntitlementsFn().catch((err) =>
+					console.warn("[CloudClient] refreshEntitlements error:", err),
+				);
+			}
+		} catch (err) {
+			console.warn("[CloudClient] Failed to sync session to settings:", err);
 		}
 	}
 

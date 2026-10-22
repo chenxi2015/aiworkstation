@@ -11,6 +11,7 @@ import type {
 } from "../../components/workbench/types";
 import { DB_DIR, DB_PATH } from "../db/connection.ts";
 import { workbenchDb } from "../db/sqlite.ts";
+import { syncChannelsFromSettings } from "../ai/context/channels.ts";
 import {
 	type BackupFileInfo,
 	backupDatabase,
@@ -465,6 +466,8 @@ export const saveWorkbenchSettings = createServerFn({ method: "POST" })
 	.validator((settings: WorkbenchSettings) => settings)
 	.handler(async ({ data: settings }): Promise<{ success: boolean }> => {
 		workbenchDb.setSetting("workbench_settings", JSON.stringify(settings));
+		// 写穿 AI 通道配置到 ai_channel_configs（resolver 的事实源）
+		syncChannelsFromSettings(settings);
 		invalidateVaultTreeCache();
 		return { success: true };
 	});

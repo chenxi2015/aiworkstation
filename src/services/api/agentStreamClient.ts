@@ -11,7 +11,7 @@ export interface AgentStreamHandlers {
 	onTextChunk?: (delta: string) => void;
 	onReferences?: (references: SearchResultItem[]) => void;
 	onRunEnd?: (answer: string, dbMutated: boolean) => void;
-	onError?: (message: string) => void;
+	onError?: (message: string, code?: string) => void;
 }
 
 /**
@@ -78,7 +78,7 @@ export async function streamAgentChat(
 								handlers.onRunEnd?.(event.answer, event.dbMutated);
 								break;
 							case "error":
-								handlers.onError?.(event.message);
+								handlers.onError?.(event.message, event.code);
 								break;
 						}
 					} catch {
