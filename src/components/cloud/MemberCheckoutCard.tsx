@@ -75,7 +75,7 @@ export function MemberCheckoutCard({
 	const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
 	const [selectedPlanId, setSelectedPlanId] = useState<string>("");
 	const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">(
-		"yearly",
+		"monthly",
 	);
 	const [loadingPlans, setLoadingPlans] = useState(false);
 	const [plansError, setPlansError] = useState<string | null>(null);
@@ -243,7 +243,7 @@ export function MemberCheckoutCard({
 			{/* Main Layout: Line-divided Left & Right columns */}
 			<div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch pt-5 border-t border-border/60">
 				{/* Left Column: Plan Selector & Privilege Highlights */}
-				<div className="lg:col-span-7 flex flex-col justify-between gap-6 lg:border-r lg:border-border/60 lg:pr-8">
+				<div className="lg:col-span-8 flex flex-col justify-between gap-6 lg:border-r lg:border-border/60 lg:pr-8">
 					{/* Billing Cycle Toggle（月付 / 年付，年付折扣由 originalPriceCents 划线价驱动） */}
 					{!loadingPlans && !plansError && cyclePlans.length > 0 && (
 						<div className="flex items-center justify-center">
@@ -475,7 +475,7 @@ export function MemberCheckoutCard({
 				</div>
 
 				{/* Right Column: Line-divided Payment Section (De-cardified) */}
-				<div className="lg:col-span-5 flex flex-col justify-between items-center pt-2 lg:pt-0">
+				<div className="lg:col-span-4 flex flex-col justify-between items-center pt-2 lg:pt-0">
 					{/* Payment Header */}
 					<div className="w-full text-center pb-4">
 						<div className="text-xs font-semibold text-foreground flex items-center justify-center gap-1.5">
