@@ -166,7 +166,7 @@ export function DashboardApp({
 	];
 
 	return (
-		<div className="h-full bg-surface-secondary/60 dark:bg-background text-foreground flex flex-col overflow-hidden">
+		<div className="h-full bg-[#fcfcfd] dark:bg-zinc-950 text-foreground flex flex-col overflow-hidden">
 			<main className="flex-1 overflow-y-auto">
 				<div className="max-w-7xl mx-auto px-6 py-6">
 					<div className="mb-5 rounded-2xl border border-border/60 bg-gradient-to-r from-accent/8 via-sky-50/80 to-surface dark:from-accent/15 dark:via-surface dark:to-surface px-5 py-4 flex items-center gap-4">

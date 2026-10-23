@@ -138,7 +138,7 @@ function WidgetCardSkeleton({
  */
 export function DashboardSkeleton() {
 	return (
-		<div className="h-full bg-surface-secondary/60 dark:bg-background text-foreground flex flex-col overflow-hidden">
+		<div className="h-full bg-[#fcfcfd] dark:bg-zinc-950 text-foreground flex flex-col overflow-hidden">
 			<main className="flex-1 overflow-y-auto">
 				<div className="max-w-7xl mx-auto px-6 py-6 animate-pulse">
 					{/* Hero 横幅骨架 */}
