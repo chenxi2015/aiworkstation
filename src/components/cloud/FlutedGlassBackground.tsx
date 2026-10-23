@@ -44,7 +44,7 @@ export function FlutedGlassBackground({
 			<FlutedGlass
 				width={dimensions.width}
 				height={dimensions.height}
-				image="https://paper.design/flowers.webp"
+				image="/flowers.webp"
 				colorBack="#00000000"
 				colorShadow="#000000"
 				colorHighlight="#ffffff"

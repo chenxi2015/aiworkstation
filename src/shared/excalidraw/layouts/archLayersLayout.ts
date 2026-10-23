@@ -1,5 +1,6 @@
 import { computeDagTopologicalRanks } from "../dag.ts";
 import { getNodeDimensions } from "../dimensions.ts";
+import { orderByBarycenter } from "./ordering.ts";
 import type {
 	SharedExcalidrawConnectionInput,
 	SharedExcalidrawElementInput,
@@ -39,6 +40,7 @@ function groupElementsForArch(
 			}
 			rankGroups[r].push(el.id);
 		});
+		orderByBarycenter(rankGroups, connections);
 		return rankGroups;
 	}
 

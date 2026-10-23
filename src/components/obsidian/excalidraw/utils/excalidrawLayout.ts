@@ -8,13 +8,8 @@ import type { ExcalidrawDrawInput } from "../../types";
 
 export type ConvertToExcalidrawElementsFn = typeof convertToExcalidrawElements;
 
-export * from "./arrowRouter.ts";
-export * from "./constants.ts";
-export * from "./dag.ts";
-export * from "./dimensions.ts";
-export * from "./layouts/index.ts";
-// Re-export core utilities for consumers and tests
-export * from "./types.ts";
+// Re-export core utilities (single source of truth lives in shared)
+export * from "@/shared/excalidraw/elementFactory.ts";
 
 /**
  * Generate standard Excalidraw elements from abstract AI draw inputs.

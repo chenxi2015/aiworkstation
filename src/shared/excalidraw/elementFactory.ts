@@ -1,4 +1,4 @@
-import { calculateArrowRoute } from "./arrowRouter.ts";
+import { type ArrowRouteResult, calculateArrowRoutes } from "./arrowRouter.ts";
 import { SHARED_COLOR_PALETTE } from "./constants.ts";
 import { calculateLayoutPositions } from "./layouts/index.ts";
 import type {
@@ -23,22 +23,31 @@ export interface BuildExcalidrawOptions {
 	existingElements?: readonly SharedRawElement[];
 }
 
-/** Filter and deduplicate connection definitions */
+/**
+ * Filter and deduplicate connection definitions.
+ * A->B plus B->A are merged into one double-headed arrow with a combined label.
+ */
 function getValidConnections(
 	connections: SharedExcalidrawConnectionInput[],
 ): SharedExcalidrawConnectionInput[] {
-	const seenConns = new Set<string>();
-	const valid: SharedExcalidrawConnectionInput[] = [];
+	const seen = new Map<string, SharedExcalidrawConnectionInput>();
 
 	for (const conn of connections) {
 		if (!conn.from || !conn.to || conn.from === conn.to) continue;
-		const key = `${conn.from}->${conn.to}`;
-		if (seenConns.has(key)) continue;
-		seenConns.add(key);
-		valid.push(conn);
+		if (seen.has(`${conn.from}->${conn.to}`)) continue;
+
+		const reverse = seen.get(`${conn.to}->${conn.from}`);
+		if (reverse) {
+			reverse.bidirectional = true;
+			const labels = [reverse.label, conn.label].filter(Boolean);
+			reverse.label = [...new Set(labels)].join(" / ") || undefined;
+			seen.set(`${conn.from}->${conn.to}`, reverse);
+			continue;
+		}
+		seen.set(`${conn.from}->${conn.to}`, { ...conn });
 	}
 
-	return valid;
+	return Array.from(new Set(seen.values()));
 }
 
 /**
@@ -130,18 +139,8 @@ function buildNodeElementConfig(
 function buildArrowElementConfig(
 	conn: SharedExcalidrawConnectionInput,
 	index: number,
-	fromPos: SharedNodePosition,
-	toPos: SharedNodePosition,
-	allPositions: SharedNodePosition[],
-	isVerticalFlow: boolean,
+	route: ArrowRouteResult,
 ): Record<string, unknown> {
-	const route = calculateArrowRoute(
-		fromPos,
-		toPos,
-		allPositions,
-		isVerticalFlow,
-	);
-
 	return {
 		id: `arrow_${conn.from}_${conn.to}_${index}`,
 		type: "arrow",
@@ -159,6 +158,7 @@ function buildArrowElementConfig(
 		roundness: { type: 2 },
 		start: { id: conn.from },
 		end: { id: conn.to },
+		...(conn.bidirectional ? { startArrowhead: "arrow" } : {}),
 		...(conn.label
 			? {
 					label: {
@@ -222,7 +222,6 @@ export function generateExcalidrawElements(
 		startX,
 		startY,
 	);
-	const allPositions = Array.from(positions.values());
 	const isVerticalFlow =
 		layout === "vertical_flow" || layout === "architecture_layers";
 
@@ -239,20 +238,15 @@ export function generateExcalidrawElements(
 	});
 
 	// 2. Build arrow configurations with routing
+	const routes = calculateArrowRoutes(
+		validConnections.map((c) => ({ fromId: c.from, toId: c.to })),
+		positions,
+		isVerticalFlow,
+	);
 	validConnections.forEach((conn, index) => {
-		const fromPos = positions.get(conn.from);
-		const toPos = positions.get(conn.to);
-		if (fromPos && toPos) {
-			rawElementConfigs.push(
-				buildArrowElementConfig(
-					conn,
-					index,
-					fromPos,
-					toPos,
-					allPositions,
-					isVerticalFlow,
-				),
-			);
+		const route = routes[index];
+		if (route) {
+			rawElementConfigs.push(buildArrowElementConfig(conn, index, route));
 		}
 	});
 
@@ -261,7 +255,7 @@ export function generateExcalidrawElements(
 	return generated;
 }
 
-export { calculateArrowRoute } from "./arrowRouter.ts";
+export { calculateArrowRoutes } from "./arrowRouter.ts";
 export { SHARED_COLOR_PALETTE } from "./constants.ts";
 export { computeDagTopologicalRanks } from "./dag.ts";
 export { getNodeDimensions, isAbnormalBranchNode } from "./dimensions.ts";

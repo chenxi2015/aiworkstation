@@ -16,6 +16,8 @@ export interface SharedExcalidrawConnectionInput {
 	to: string;
 	label?: string;
 	style?: "solid" | "dashed";
+	/** Set internally when A->B and B->A are merged into one double-headed arrow. */
+	bidirectional?: boolean;
 }
 
 export interface SharedExcalidrawDrawInput {

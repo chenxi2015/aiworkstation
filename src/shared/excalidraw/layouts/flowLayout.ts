@@ -1,5 +1,6 @@
 import { computeDagTopologicalRanks } from "../dag.ts";
 import { getNodeDimensions, isAbnormalBranchNode } from "../dimensions.ts";
+import { orderByBarycenter } from "./ordering.ts";
 import type {
 	SharedExcalidrawConnectionInput,
 	SharedExcalidrawElementInput,
@@ -15,6 +16,7 @@ function buildSortedRankGroups(
 	ranks: Map<string, number>,
 	elementMap: Map<string, SharedExcalidrawElementInput>,
 	incomingLabels: Map<string, string[]>,
+	connections: SharedExcalidrawConnectionInput[],
 ): string[][] {
 	const rankGroups: string[][] = [];
 
@@ -25,6 +27,9 @@ function buildSortedRankGroups(
 		}
 		rankGroups[r].push(el.id);
 	});
+
+	// Minimize crossings first; the stable sort below then keeps abnormal branches outermost
+	orderByBarycenter(rankGroups, connections);
 
 	rankGroups.forEach((group) => {
 		group.sort((a, b) => {
@@ -165,6 +170,7 @@ export function calculateDagFlowLayout(
 		ranks,
 		elementMap,
 		incomingLabels,
+		connections,
 	);
 
 	// 4. Compute node positions based on orientation

@@ -5,119 +5,199 @@ export interface ArrowRouteResult {
 	points: [number, number][];
 }
 
-/**
- * Minimalist, elegant arrow route calculation for Excalidraw flowcharts.
- *
- * Implements "Subtractive Design" (做减法):
- * 1. Downward flow in the same column: 2-point direct vertical line.
- * 2. Horizontal flow in the same row: 2-point direct horizontal line.
- * 3. Diamond decision branching to side card: 3-point clean L-route (1 right-angle turn).
- * 4. Downward cross-column branching: 4-point clean corridor route.
- * 5. Upward feedback loops: 4-point clean bypass corridor route.
- *
- * Never generate convoluted 5+ point zig-zag tracks.
- */
-export function calculateArrowRoute(
+export interface ArrowLink {
+	fromId: string;
+	toId: string;
+}
+
+type Side = "top" | "bottom" | "left" | "right";
+type Point = { x: number; y: number };
+type Anchor = Point & { side: Side };
+
+const SIDE_TOLERANCE = 15;
+const STRAIGHT_TOLERANCE = 6;
+const OBSTACLE_MARGIN = 10;
+const BYPASS_GAP = 40;
+
+const isVerticalSide = (side: Side) => side === "top" || side === "bottom";
+
+/** Pick facing sides so an arrow always leaves and enters through opposite edges. */
+function pickSides(
 	from: NodePosition,
 	to: NodePosition,
-	_allNodes?: NodePosition[],
-	_isVerticalFlow = true,
+	isVerticalFlow: boolean,
+): [Side, Side] {
+	const below = to.y >= from.y + from.height - SIDE_TOLERANCE;
+	const above = to.y + to.height <= from.y + SIDE_TOLERANCE;
+	const right = to.x >= from.x + from.width - SIDE_TOLERANCE;
+	const left = to.x + to.width <= from.x + SIDE_TOLERANCE;
+
+	const vertical: [Side, Side] | null = below
+		? ["bottom", "top"]
+		: above
+			? ["top", "bottom"]
+			: null;
+	const horizontal: [Side, Side] | null = right
+		? ["right", "left"]
+		: left
+			? ["left", "right"]
+			: null;
+
+	const preferred = isVerticalFlow
+		? (vertical ?? horizontal)
+		: (horizontal ?? vertical);
+	return preferred ?? ["right", "left"];
+}
+
+/** Point on the node outline at `t` (0..1) along the given side. */
+function edgePoint(pos: NodePosition, side: Side, t: number): Anchor {
+	const cx = pos.x + pos.width / 2;
+	const cy = pos.y + pos.height / 2;
+	const vertical = isVerticalSide(side);
+	// Diamonds are narrow at their tips, so keep ports near the middle
+	const ratio = pos.type === "diamond" ? 0.5 + (t - 0.5) * 0.5 : t;
+	const half = vertical ? pos.width / 2 : pos.height / 2;
+	const off = (ratio - 0.5) * 2; // -1..1 across the side
+	const other = vertical ? pos.height / 2 : pos.width / 2;
+	const shape =
+		pos.type === "diamond"
+			? 1 - Math.abs(off)
+			: pos.type === "ellipse"
+				? Math.sqrt(1 - off * off)
+				: 1;
+	const depth = other * shape;
+	const sign = side === "bottom" || side === "right" ? 1 : -1;
+
+	return vertical
+		? { x: cx + off * half, y: cy + sign * depth, side }
+		: { x: cx + sign * depth, y: cy + off * half, side };
+}
+
+/** Distribute arrows that share a node side evenly, ordered to avoid crossings. */
+function assignPorts(
+	links: ArrowLink[],
+	sides: [Side, Side][],
+	positions: Map<string, NodePosition>,
+): number[][] {
+	const groups = new Map<
+		string,
+		{ link: number; role: 0 | 1; order: number }[]
+	>();
+	links.forEach((link, i) => {
+		([link.fromId, link.toId] as const).forEach((id, role) => {
+			const side = sides[i][role];
+			const otherPos = positions.get(role === 0 ? link.toId : link.fromId);
+			if (!otherPos) return;
+			const order = isVerticalSide(side)
+				? otherPos.x + otherPos.width / 2
+				: otherPos.y + otherPos.height / 2;
+			const key = `${id}:${side}`;
+			groups.set(key, [
+				...(groups.get(key) ?? []),
+				{ link: i, role: role as 0 | 1, order },
+			]);
+		});
+	});
+
+	const ports = links.map(() => [0.5, 0.5]);
+	for (const members of groups.values()) {
+		members.sort((a, b) => a.order - b.order || a.link - b.link);
+		members.forEach((m, idx) => {
+			ports[m.link][m.role] = (idx + 1) / (members.length + 1);
+		});
+	}
+	return ports;
+}
+
+function segmentHitsRect(a: Point, b: Point, r: NodePosition): boolean {
+	const steps = 24;
+	for (let i = 0; i <= steps; i++) {
+		const x = a.x + ((b.x - a.x) * i) / steps;
+		const y = a.y + ((b.y - a.y) * i) / steps;
+		if (
+			x > r.x - OBSTACLE_MARGIN &&
+			x < r.x + r.width + OBSTACLE_MARGIN &&
+			y > r.y - OBSTACLE_MARGIN &&
+			y < r.y + r.height + OBSTACLE_MARGIN
+		) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * Build a smooth curve (Excalidraw roundness type 2) between two anchors.
+ * - Aligned anchors: straight line.
+ * - Otherwise: monotonic S-curve with tangents perpendicular to the edges (never loops).
+ * - Straight path blocked by another node: single arc bypassing it on the nearer side.
+ */
+function buildRoute(
+	a: Anchor,
+	b: Anchor,
+	obstacles: NodePosition[],
 ): ArrowRouteResult {
-	const fromCenter = {
-		x: from.x + from.width / 2,
-		y: from.y + from.height / 2,
-	};
-	const toCenter = {
-		x: to.x + to.width / 2,
-		y: to.y + to.height / 2,
-	};
+	const dx = b.x - a.x;
+	const dy = b.y - a.y;
+	const vertical = isVerticalSide(a.side);
+	const main = vertical ? dy : dx;
+	const cross = vertical ? dx : dy;
+	const at = (m: number, c: number): [number, number] =>
+		vertical ? [c, m] : [m, c];
+	const start: [number, number] = [a.x, a.y];
+	const end: [number, number] = [dx, dy];
 
-	const dx = toCenter.x - fromCenter.x;
-	const dy = toCenter.y - fromCenter.y;
-
-	// Case 1: Same horizontal row / side-by-side (dx > 0, dy approx 0)
-	if (Math.abs(dy) <= 45 && dx > 0) {
-		const startX = from.x + from.width;
-		const startY = fromCenter.y;
-		const endX = to.x;
-		const endY = toCenter.y;
-		return {
-			start: [startX, startY],
-			points: [
-				[0, 0],
-				[endX - startX, endY - startY],
-			],
-		};
+	const blockers = obstacles.filter((o) => segmentHitsRect(a, b, o));
+	if (blockers.length > 0) {
+		const lo = Math.min(
+			...blockers.map((o) => (vertical ? o.x : o.y)),
+		);
+		const hi = Math.max(
+			...blockers.map((o) => (vertical ? o.x + o.width : o.y + o.height)),
+		);
+		const origin = vertical ? a.x : a.y;
+		const target = origin - lo <= hi - origin ? lo - BYPASS_GAP : hi + BYPASS_GAP;
+		return { start, points: [[0, 0], at(main / 2, target - origin), end] };
 	}
 
-	// Case 2: Downward flow (to is below from)
-	if (to.y >= from.y + from.height - 15) {
-		// Subcase 2A: Main vertical spine (aligned within same column axis)
-		if (Math.abs(dx) <= 45) {
-			const startX = fromCenter.x;
-			const startY = from.y + from.height;
-			const endX = toCenter.x;
-			const endY = to.y;
-			return {
-				start: [startX, startY],
-				points: [
-					[0, 0],
-					[endX - startX, endY - startY],
-				],
-			};
-		}
-
-		// Subcase 2B: Diamond decision branch to side/error node -> Clean 3-point L-route
-		if (from.type === "diamond") {
-			const isRight = dx >= 0;
-			const startX = isRight ? from.x + from.width : from.x;
-			const startY = fromCenter.y;
-			const endX = toCenter.x;
-			const endY = to.y;
-
-			return {
-				start: [startX, startY],
-				points: [
-					[0, 0],
-					[endX - startX, 0],
-					[endX - startX, endY - startY],
-				],
-			};
-		}
-
-		// Subcase 2C: General downward cross-column branch -> Clean 4-point stepped corridor
-		const startX = fromCenter.x;
-		const startY = from.y + from.height;
-		const endX = toCenter.x;
-		const endY = to.y;
-		const midY = startY + Math.max(25, (endY - startY) / 2);
-
-		return {
-			start: [startX, startY],
-			points: [
-				[0, 0],
-				[0, midY - startY],
-				[endX - startX, midY - startY],
-				[endX - startX, endY - startY],
-			],
-		};
+	if (Math.abs(cross) <= STRAIGHT_TOLERANCE) {
+		return { start, points: [[0, 0], end] };
 	}
-
-	// Case 3: Upward / Feedback loop (to is above from)
-	const isRight = dx >= 0;
-	const startX = isRight ? from.x + from.width : from.x;
-	const startY = fromCenter.y;
-	const endX = isRight ? to.x + to.width : to.x;
-	const endY = toCenter.y;
-	const lateralOffset = isRight ? 45 : -45;
-
 	return {
-		start: [startX, startY],
-		points: [
-			[0, 0],
-			[lateralOffset, 0],
-			[lateralOffset, endY - startY],
-			[endX - startX, endY - startY],
-		],
+		start,
+		points: [[0, 0], at(main * 0.35, 0), at(main * 0.65, cross), end],
 	};
+}
+
+/**
+ * Route all arrows together so shared node sides get distinct ports and
+ * arrows never leave through the wrong edge. Returns one route per link
+ * (null when an endpoint has no position).
+ */
+export function calculateArrowRoutes(
+	links: ArrowLink[],
+	positions: Map<string, NodePosition>,
+	isVerticalFlow = true,
+): (ArrowRouteResult | null)[] {
+	const sides = links.map(({ fromId, toId }): [Side, Side] => {
+		const from = positions.get(fromId);
+		const to = positions.get(toId);
+		return from && to ? pickSides(from, to, isVerticalFlow) : ["right", "left"];
+	});
+	const ports = assignPorts(links, sides, positions);
+
+	return links.map((link, i) => {
+		const from = positions.get(link.fromId);
+		const to = positions.get(link.toId);
+		if (!from || !to) return null;
+
+		const obstacles = Array.from(positions.entries())
+			.filter(([id]) => id !== link.fromId && id !== link.toId)
+			.map(([, pos]) => pos);
+		return buildRoute(
+			edgePoint(from, sides[i][0], ports[i][0]),
+			edgePoint(to, sides[i][1], ports[i][1]),
+			obstacles,
+		);
+	});
 }

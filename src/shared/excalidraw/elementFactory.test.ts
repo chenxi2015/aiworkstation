@@ -1,104 +1,152 @@
 import { describe, expect, it } from "vitest";
+import { calculateArrowRoutes } from "./arrowRouter.ts";
 import { generateExcalidrawElements } from "./elementFactory.ts";
-import { calculateArrowRoute } from "./arrowRouter.ts";
 
-describe("Excalidraw Subtractive Arrow Routing & Binding", () => {
-	it("always preserves start and end node bindings for all connections", () => {
-		const elements = [
-			{ id: "start", type: "ellipse" as const, label: "推演起点" },
-			{ id: "decision", type: "diamond" as const, label: "回踩是否守住" },
-			{ id: "stepA", type: "rectangle" as const, label: "买点A企稳做多" },
-			{
-				id: "stepError",
-				type: "rectangle" as const,
-				label: "破位风控离场",
-				color: "red" as const,
-			},
-		];
+type Pt = [number, number];
+interface TestArrow {
+	x: number;
+	y: number;
+	points: Pt[];
+	start?: { id: string };
+	end?: { id: string };
+	startArrowhead?: string;
+	roundness: { type: number } | null;
+	label?: { text: string };
+}
 
-		const connections = [
-			{ from: "start", to: "decision" },
-			{ from: "decision", to: "stepA", label: "企稳" },
-			{ from: "decision", to: "stepError", label: "跌破" },
-		];
+const getArrows = (generated: { type: string }[]) =>
+	generated.filter((el) => el.type === "arrow") as unknown as TestArrow[];
 
+/** Absolute polyline vertices of an arrow. */
+const toAbsolute = (a: TestArrow): Pt[] =>
+	a.points.map(([px, py]) => [a.x + px, a.y + py]);
+
+const ccw = (a: Pt, b: Pt, c: Pt) =>
+	(c[1] - a[1]) * (b[0] - a[0]) > (b[1] - a[1]) * (c[0] - a[0]);
+const segmentsCross = (a: Pt, b: Pt, c: Pt, d: Pt) =>
+	ccw(a, c, d) !== ccw(b, c, d) && ccw(a, b, c) !== ccw(a, b, d);
+
+function countCrossings(arrows: TestArrow[]): number {
+	let count = 0;
+	for (let i = 0; i < arrows.length; i++) {
+		for (let j = i + 1; j < arrows.length; j++) {
+			const p = toAbsolute(arrows[i]);
+			const q = toAbsolute(arrows[j]);
+			for (let a = 0; a < p.length - 1; a++) {
+				for (let b = 0; b < q.length - 1; b++) {
+					if (segmentsCross(p[a], p[a + 1], q[b], q[b + 1])) count++;
+				}
+			}
+		}
+	}
+	return count;
+}
+
+describe("Excalidraw arrow routing", () => {
+	it("keeps start/end bindings and curved roundness on every arrow", () => {
 		const generated = generateExcalidrawElements({
 			layout: "vertical_flow",
 			mode: "replace",
-			elements,
-			connections,
+			elements: [
+				{ id: "start", type: "ellipse", label: "起点" },
+				{ id: "decision", type: "diamond", label: "判断" },
+				{ id: "ok", type: "rectangle", label: "成功" },
+				{ id: "err", type: "rectangle", label: "失败", color: "red" },
+			],
+			connections: [
+				{ from: "start", to: "decision" },
+				{ from: "decision", to: "ok", label: "是" },
+				{ from: "decision", to: "err", label: "否" },
+			],
 		});
 
-		const arrows = generated.filter((el) => el.type === "arrow");
-		expect(arrows.length).toBe(3);
-
-		// Every single arrow MUST be bound to both start and end elements
-		for (const arrow of arrows) {
-			const a = arrow as unknown as {
-				start?: { id: string };
-				end?: { id: string };
-				points: [number, number][];
-				roundness: { type: number } | null;
-			};
+		const arrows = getArrows(generated);
+		expect(arrows).toHaveLength(3);
+		for (const a of arrows) {
 			expect(a.start?.id).toBeDefined();
 			expect(a.end?.id).toBeDefined();
 			expect(a.roundness).toEqual({ type: 2 });
-			// Subtractive rule: no arrow should have more than 4 points
-			expect(a.points.length).toBeLessThanOrEqual(4);
 		}
+		expect(countCrossings(arrows)).toBe(0);
 	});
 
-	it("uses clean 3-point L-route for diamond decision branches", () => {
-		const diamondPos = {
-			x: 100,
-			y: 100,
-			width: 120,
-			height: 120,
-			type: "diamond" as const,
-		};
-		const sideCardPos = {
-			x: 300,
-			y: 250,
-			width: 220,
-			height: 80,
-			type: "rectangle" as const,
-		};
+	it("merges A->B and B->A into one double-headed arrow", () => {
+		const generated = generateExcalidrawElements({
+			layout: "vertical_flow",
+			mode: "replace",
+			elements: [
+				{ id: "server", label: "服务器" },
+				{ id: "pc", label: "电脑" },
+			],
+			connections: [
+				{ from: "pc", to: "server", label: "上传" },
+				{ from: "server", to: "pc", label: "下载" },
+			],
+		});
 
-		const route = calculateArrowRoute(diamondPos, sideCardPos, [], true);
-
-		// Must have exactly 3 points (origin -> horizontal turn -> vertical drop)
-		expect(route.points.length).toBe(3);
-		// Origin is [0, 0]
-		expect(route.points[0]).toEqual([0, 0]);
-		// Point 1 should be strictly horizontal (y offset = 0)
-		expect(route.points[1][1]).toBe(0);
-		// Point 2 drops vertically to the target top
-		expect(route.points[2][0]).toBe(route.points[1][0]);
-		expect(route.points[2][1]).toBeGreaterThan(0);
+		const arrows = getArrows(generated);
+		expect(arrows).toHaveLength(1);
+		expect(arrows[0].startArrowhead).toBe("arrow");
+		expect(arrows[0].label?.text).toBe("上传 / 下载");
 	});
 
-	it("uses clean 2-point straight line for vertical downflow", () => {
-		const nodeA = {
-			x: 100,
-			y: 100,
-			width: 200,
-			height: 70,
-			type: "rectangle" as const,
-		};
-		const nodeB = {
-			x: 100,
-			y: 240,
-			width: 200,
-			height: 70,
-			type: "rectangle" as const,
-		};
+	it("hub with bidirectional spokes produces no crossings", () => {
+		const generated = generateExcalidrawElements({
+			layout: "architecture_layers",
+			mode: "replace",
+			elements: [
+				{ id: "hub", label: "服务器" },
+				{ id: "a", label: "笔记本" },
+				{ id: "b", label: "台式机" },
+				{ id: "c", label: "手机" },
+			],
+			connections: ["a", "b", "c"].flatMap((id) => [
+				{ from: "hub", to: id, label: "下载", style: "dashed" as const },
+				{ from: id, to: "hub", label: "上传" },
+			]),
+		});
 
-		const route = calculateArrowRoute(nodeA, nodeB, [], true);
+		const arrows = getArrows(generated);
+		expect(arrows).toHaveLength(3);
+		expect(countCrossings(arrows)).toBe(0);
+	});
 
-		// Must be direct straight line (2 points)
-		expect(route.points.length).toBe(2);
-		expect(route.points[0]).toEqual([0, 0]);
-		expect(route.points[1][0]).toBe(0); // vertical: dx is 0
-		expect(route.points[1][1]).toBe(nodeB.y - (nodeA.y + nodeA.height));
+	it("gives parallel arrows on one node side distinct ports", () => {
+		const positions = new Map([
+			["top", { x: 100, y: 0, width: 200, height: 70 }],
+			["l", { x: 0, y: 200, width: 120, height: 70 }],
+			["r", { x: 300, y: 200, width: 120, height: 70 }],
+		]);
+		const routes = calculateArrowRoutes(
+			[
+				{ fromId: "top", toId: "l" },
+				{ fromId: "top", toId: "r" },
+			],
+			positions,
+		);
+		expect(routes[0]?.start[0]).toBeLessThan(routes[1]?.start[0] ?? 0);
+	});
+
+	it("uses a straight 2-point line for aligned vertical flow", () => {
+		const positions = new Map([
+			["a", { x: 100, y: 100, width: 200, height: 70 }],
+			["b", { x: 100, y: 240, width: 200, height: 70 }],
+		]);
+		const [route] = calculateArrowRoutes([{ fromId: "a", toId: "b" }], positions);
+		expect(route?.points).toEqual([
+			[0, 0],
+			[0, 70],
+		]);
+	});
+
+	it("bypasses a node sitting between source and target", () => {
+		const positions = new Map([
+			["a", { x: 100, y: 0, width: 200, height: 70 }],
+			["mid", { x: 100, y: 150, width: 200, height: 70 }],
+			["b", { x: 100, y: 300, width: 200, height: 70 }],
+		]);
+		const [route] = calculateArrowRoutes([{ fromId: "a", toId: "b" }], positions);
+		expect(route?.points).toHaveLength(3);
+		expect(Math.abs(route?.points[1][0] ?? 0)).toBeGreaterThan(100);
 	});
 });
