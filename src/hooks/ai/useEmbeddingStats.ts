@@ -21,15 +21,17 @@ interface EmbeddingRuntimeConfig {
  */
 function resolveEmbeddingConfig(): EmbeddingRuntimeConfig | null {
 	const settings = WorkbenchStorageService.getSettings();
+	if (settings.embeddingProvider === "official") {
+		if (!settings.cloudToken?.trim()) return null;
+		return {
+			apiKey: settings.cloudToken.trim(),
+			model: settings.embeddingModel?.trim() || "BAAI/bge-m3",
+		};
+	}
+
 	const embeddingKey = settings.embeddingApiKey?.trim();
 	const llmKey = settings.apiKey?.trim();
-	const isOfficial =
-		settings.embeddingProvider === "official" ||
-		settings.llmProvider === "official";
-	const apiKey =
-		embeddingKey ||
-		llmKey ||
-		(isOfficial && settings.cloudToken ? settings.cloudToken : "");
+	const apiKey = embeddingKey || llmKey || "";
 
 	if (!apiKey) {
 		return null;

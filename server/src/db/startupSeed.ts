@@ -1,30 +1,58 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { sql } from 'drizzle-orm';
 import { getDb, schema } from './index.js';
 
 /**
- * 启动种子：official_channels 的 api_key 为空时从 env 回填（迁移期兼容路径）。
- * 目标态是上游 key 全部由运维直接写入 official_channels 表，env 仅作首次种子来源。
- *
- * env 变量（仅作种子，不是运行时依赖）：
- * - OFFICIAL_DEEPSEEK_KEY    → chat / vision
- * - OFFICIAL_EMBEDDING_KEY   → embedding（SiliconFlow）
- * - OFFICIAL_IMAGE_KEY       → image_gen（火山方舟）
- * - OFFICIAL_SEARCH_KEY      → web_search（Tavily）
+ * 启动种子：当云端 PostgreSQL official_channels 表的 api_key 为空时，
+ * 直接从本地 SQLite 数据库（~/.aiworkstation/workbench.db 的 ai_channel_configs 表）
+ * 读取对应上游服务商的密钥回填到云端表，彻底不依赖任何 env / .dev.vars 环境变量。
  */
-const SEED_KEY_SOURCES: Array<{ capability: string; envKey: string }> = [
-  { capability: 'chat', envKey: 'OFFICIAL_DEEPSEEK_KEY' },
-  { capability: 'vision', envKey: 'OFFICIAL_DEEPSEEK_KEY' },
-  { capability: 'embedding', envKey: 'OFFICIAL_EMBEDDING_KEY' },
-  { capability: 'image_gen', envKey: 'OFFICIAL_IMAGE_KEY' },
-  { capability: 'web_search', envKey: 'OFFICIAL_SEARCH_KEY' },
+const SQLITE_PROVIDER_SOURCES: Array<{
+  capability: string;
+  sourceCapability: string;
+  provider: string;
+}> = [
+  { capability: 'chat', sourceCapability: 'chat', provider: 'deepseek' },
+  { capability: 'vision', sourceCapability: 'chat', provider: 'deepseek' },
+  { capability: 'embedding', sourceCapability: 'embedding', provider: 'siliconflow' },
+  { capability: 'image_gen', sourceCapability: 'image_gen', provider: 'doubao' },
+  { capability: 'web_search', sourceCapability: 'web_search', provider: 'tavily' },
 ];
+
+async function readKeysFromLocalSqlite(): Promise<Map<string, string>> {
+  const keys = new Map<string, string>();
+  const dbPath = path.join(os.homedir(), '.aiworkstation', 'workbench.db');
+  if (!fs.existsSync(dbPath)) return keys;
+
+  try {
+    const Database = (await import('better-sqlite3')).default;
+    const sqlite = new Database(dbPath, { readonly: true });
+    const stmt = sqlite.prepare(
+      "SELECT api_key FROM ai_channel_configs WHERE capability = ? AND provider = ? AND channel = 'custom' AND api_key != '' LIMIT 1",
+    );
+    for (const item of SQLITE_PROVIDER_SOURCES) {
+      const row = stmt.get(item.sourceCapability, item.provider) as { api_key?: string } | undefined;
+      const key = row?.api_key?.trim();
+      if (key) {
+        keys.set(item.capability, key);
+      }
+    }
+    sqlite.close();
+  } catch {
+    // Local SQLite unavailable in cloud runtime; official_channels table is already populated
+  }
+  return keys;
+}
 
 export async function runStartupSeed(): Promise<void> {
   try {
+    const localKeys = await readKeysFromLocalSqlite();
+    if (localKeys.size === 0) return;
+
     const db = getDb();
-    for (const { capability, envKey } of SEED_KEY_SOURCES) {
-      const key = (process.env[envKey] || '').trim();
-      if (!key) continue;
+    for (const [capability, key] of localKeys.entries()) {
       await db
         .update(schema.officialChannels)
         .set({ apiKey: key, updatedAt: new Date() })
@@ -32,9 +60,8 @@ export async function runStartupSeed(): Promise<void> {
           sql`${schema.officialChannels.capability} = ${capability} AND (${schema.officialChannels.apiKey} = '' OR ${schema.officialChannels.apiKey} IS NULL)`,
         );
     }
-    console.log('[StartupSeed] official_channels key backfill completed.');
+    console.log('[StartupSeed] official_channels key sync from database completed.');
   } catch (err) {
-    // 表可能尚未迁移（首次部署先跑 db:migrate），不阻断启动
     console.warn('[StartupSeed] skipped:', err instanceof Error ? err.message : err);
   }
 }

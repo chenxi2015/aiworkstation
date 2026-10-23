@@ -1,6 +1,10 @@
 import type { EmbeddingConfig } from "../../../services/embeddingService.ts";
 import { workbenchDb } from "../../db/sqlite.ts";
-import { getActiveChannel, resolveCapabilityConfig } from "./channels.ts";
+import {
+	getActiveChannel,
+	listChannelConfigs,
+	resolveCapabilityConfig,
+} from "./channels.ts";
 
 export interface LlmConfigOverrides {
 	apiKey?: string;
@@ -40,10 +44,19 @@ export function resolveEmbeddingConfig(
 	overrides: EmbeddingConfig = {},
 ): EmbeddingConfig {
 	const resolved = resolveCapabilityConfig("embedding", overrides);
+	const customFallback =
+		resolved.channel === "official"
+			? listChannelConfigs("embedding").find(
+					(r) => r.channel === "custom" && r.apiKey.trim(),
+				)
+			: undefined;
 	return {
 		apiKey: resolved.apiKey,
 		baseUrl: resolved.baseUrl,
 		model: resolved.model,
+		fallbackApiKey: customFallback?.apiKey.trim(),
+		fallbackBaseUrl: customFallback?.baseUrl.trim(),
+		fallbackModel: customFallback?.model.trim(),
 	};
 }
 

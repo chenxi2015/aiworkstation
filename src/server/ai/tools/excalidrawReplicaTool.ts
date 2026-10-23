@@ -221,10 +221,31 @@ export async function executeSearchExcalidrawLibrary(
 	});
 
 	if (args.source) {
-		const items = await loadLibraryItems(args.source);
-		const lines = items.slice(0, 60).map(describeItem);
-		const more = items.length > 60 ? `\n…共 ${items.length} 项，仅显示前 60` : "";
-		return done(`图库 ${args.source} 条目：\n${lines.join("\n")}${more}`);
+		try {
+			const items = await loadLibraryItems(args.source);
+			const lines = items.slice(0, 60).map(describeItem);
+			const more = items.length > 60 ? `\n…共 ${items.length} 项，仅显示前 60` : "";
+			return done(`图库 ${args.source} 条目：\n${lines.join("\n")}${more}`);
+		} catch (err) {
+			const fallbackQuery =
+				args.query?.trim() ||
+				args.source
+					.replace(/\.excalidrawlib$/i, "")
+					.split(/[/_-]+/)
+					.join(" ");
+			const alternatives = (await searchCatalog(fallbackQuery, 6, true)).filter(
+				(h) => h.source !== args.source,
+			);
+			if (alternatives.length > 0) {
+				const lines = alternatives.map(
+					(h) => `- ${h.name}｜source: ${h.source}｜${h.description}`,
+				);
+				return done(
+					`图库 ${args.source} 暂不可用（${(err as Error).message}）。已为你筛选出本地已就绪的替代图库：\n${lines.join("\n")}\n请改用上述任一 source 再次调用本工具列出条目。`,
+				);
+			}
+			throw err;
+		}
 	}
 	if (!args.query?.trim()) return done("请提供 query 或 source");
 

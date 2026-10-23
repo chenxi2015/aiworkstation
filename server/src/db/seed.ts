@@ -1,6 +1,21 @@
+import { getDb, schema } from './index.js';
+import { runStartupSeed } from './startupSeed.js';
 import { getPlansFromDb } from '../modules/plans/plans.data.js';
 
 async function main() {
+  console.log('--- Backfilling Official Channels into Database ---');
+  await runStartupSeed();
+  const channels = await getDb().select().from(schema.officialChannels);
+  console.table(
+    channels.map((c) => ({
+      Capability: c.capability,
+      Provider: c.provider,
+      DefaultModel: c.defaultModel ?? '-',
+      Enabled: c.enabled,
+      Configured: Boolean(c.apiKey && c.apiKey.trim()),
+    })),
+  );
+
   console.log('--- Checking Subscription Plans from Database ---');
   const plans = await getPlansFromDb();
   console.log(`Found ${plans.length} active subscription plans in database:`);

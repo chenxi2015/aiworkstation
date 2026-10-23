@@ -99,8 +99,12 @@ class CloudClient {
 	 * Mirror the cloud token + gateway base URL into workbench settings (SQLite),
 	 * so the local 3888 server can authenticate against the official AI channel
 	 * reverse proxy without reading browser localStorage.
+	 *
+	 * Note: saveSettings writes through to syncChannelsFromSettings, which
+	 * ensures official channel rows exist without overwriting user-configured
+	 * custom channels (e.g. SiliconFlow embedding, Kimi chat).
 	 */
-	private syncSessionToLocalSettings() {
+	private syncSessionToLocalSettings(activateOfficial = false) {
 		if (typeof window === "undefined") return;
 		try {
 			const settings = getSettings();
@@ -110,13 +114,12 @@ class CloudClient {
 				cloudToken: token || undefined,
 				cloudApiBase: token ? this.getApiBase() : undefined,
 			});
-			// 购会员/登录后的零操作配置（fire-and-forget）：
-			// 1) 为全部能力创建并激活官方通道行；2) 拉取权益快照供 UI 展示。
-			// 会员有效性由云端网关裁决，本地不预判断。
 			if (token) {
-				activateOfficialChannelsFn().catch((err) =>
-					console.warn("[CloudClient] activateOfficialChannels error:", err),
-				);
+				if (activateOfficial) {
+					activateOfficialChannelsFn().catch((err) =>
+						console.warn("[CloudClient] activateOfficialChannels error:", err),
+					);
+				}
 				refreshEntitlementsFn().catch((err) =>
 					console.warn("[CloudClient] refreshEntitlements error:", err),
 				);

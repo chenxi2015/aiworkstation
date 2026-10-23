@@ -5,6 +5,9 @@ export interface EmbeddingConfig {
 	apiKey?: string;
 	baseUrl?: string;
 	model?: string;
+	fallbackApiKey?: string;
+	fallbackBaseUrl?: string;
+	fallbackModel?: string;
 }
 
 /**
@@ -47,6 +50,23 @@ export async function generateBatchEmbeddings(
 			// Keep raw text if not JSON
 		}
 
+		// Automatic fallback to local custom embedding channel if official server channel is unconfigured
+		if (
+			res.status === 500 &&
+			parsedMsg.includes('capability "embedding" is not configured') &&
+			config.fallbackApiKey
+		) {
+			return generateBatchEmbeddings(
+				texts,
+				{
+					apiKey: config.fallbackApiKey,
+					baseUrl: config.fallbackBaseUrl,
+					model: config.fallbackModel,
+				},
+				signal,
+			);
+		}
+
 		if (res.status === 401) {
 			throw new Error(
 				`Embedding API 鉴权失败 (401 Unauthorized): ${parsedMsg}。请检查「设置」中的 Embedding API Key 是否有效。`,
@@ -55,6 +75,14 @@ export async function generateBatchEmbeddings(
 		if (res.status === 404) {
 			throw new Error(
 				`Embedding API 接口不存在 (404 Not Found): ${parsedMsg}。请检查 Base URL 与模型名称是否正确。`,
+			);
+		}
+		if (
+			res.status === 500 &&
+			parsedMsg.includes('capability "embedding" is not configured')
+		) {
+			throw new Error(
+				`官方向量通道尚未在云端数据库 (official_channels) 配置密钥。请在「设置 → 向量模型」中切换为 SiliconFlow 等自定义服务商。`,
 			);
 		}
 
