@@ -84,6 +84,12 @@ import {
 	executeExcalidrawDrawElements,
 	executeExcalidrawUpdateElement,
 } from "./excalidrawTools.ts";
+import {
+	draftExcalidrawReplicaToolDef,
+	executeDraftExcalidrawReplica,
+	executeSearchExcalidrawLibrary,
+	searchExcalidrawLibraryToolDef,
+} from "./excalidrawReplicaTool.ts";
 import { executeCommand, executeCommandToolDef } from "./executeCommandTool.ts";
 import type { GetStatsInput } from "./getStatsTool.ts";
 import {
@@ -611,6 +617,30 @@ export function createAgentTools(
 						"draft_excalidraw",
 						args,
 						() => executeDraftExcalidraw(args, sessionId),
+						hooks,
+					),
+				),
+		},
+		{
+			def: searchExcalidrawLibraryToolDef,
+			make: () =>
+				searchExcalidrawLibraryToolDef.server((args) =>
+					wrapExecution(
+						"search_excalidraw_library",
+						args,
+						() => executeSearchExcalidrawLibrary(args),
+						hooks,
+					),
+				),
+		},
+		{
+			def: draftExcalidrawReplicaToolDef,
+			make: () =>
+				draftExcalidrawReplicaToolDef.server((args) =>
+					wrapExecution(
+						"draft_excalidraw_replica",
+						args,
+						() => executeDraftExcalidrawReplica(args, sessionId),
 						hooks,
 					),
 				),

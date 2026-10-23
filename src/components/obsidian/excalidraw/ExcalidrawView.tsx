@@ -127,21 +127,24 @@ export default function ExcalidrawView({
 					safeAppState[key] = rawAppState[key];
 			}
 			let rawElements = Array.isArray(raw?.elements) ? raw.elements : [];
-			const hasUnexpandedLabels = rawElements.some(
-				(el: {
-					label?: { text?: string };
-					boundElements?: readonly unknown[];
-				}) =>
-					Boolean(el?.label?.text) &&
-					(!el.boundElements || el.boundElements.length === 0),
-			);
+			const isNative = (el: { seed?: unknown; label?: { text?: string } }) =>
+				typeof el?.seed === "number" && !el?.label?.text;
+			const skeletons = rawElements.filter((el: { seed?: unknown }) => !isNative(el));
 			if (
-				hasUnexpandedLabels &&
+				skeletons.length > 0 &&
 				typeof mod.convertToExcalidrawElements === "function"
 			) {
-				rawElements = mod.convertToExcalidrawElements(rawElements, {
+				const converted = mod.convertToExcalidrawElements(skeletons, {
 					regenerateIds: false,
 				});
+				const byId = new Map<string, unknown[]>();
+				for (const item of converted as { id: string; containerId?: string | null }[]) {
+					const key = item.containerId || item.id;
+					byId.set(key, [...(byId.get(key) ?? []), item]);
+				}
+				rawElements = rawElements.flatMap((el: { id: string; seed?: unknown }) =>
+					isNative(el) ? [el] : (byId.get(el.id) ?? [el]),
+				);
 			}
 
 			const restored = mod.restore(

@@ -25,6 +25,7 @@ export const obsidianPrompt: ModulePromptDefinition = {
 |---|---|---|
 | 新建白板 / 基于主题或笔记生成新白板画布 | 单步调用：\`draft_canvas\`（一次性完成节点组织、连线与排版，交付草稿卡片） | 提示用户手动去文件列表点击新建，或创建空白画布不写入节点 |
 | 新建 Excalidraw 画板 / 基于需求分析新建画板绘制图形 | 单步调用：\`draft_excalidraw\`（一次性完成图形图元、手绘连线与排版，交付草稿卡片） | 提示用户手动新建，或分步建空板，或在要求新建时直接在旧画板上覆盖绘制 |
+| 用户给了图片并要求还原 / 复刻 / 转成 Excalidraw 画板 | 单步或结合图库调用：\`search_excalidraw_library\`（可选，仅复杂图标）→ \`draft_excalidraw_replica\`（按原图像素坐标逐元素还原，交付草稿卡片） | 用 \`draft_excalidraw\` 自动排版代替原图布局，或遗漏原图中的文字/箭头/颜色 |
 | 向当前已打开的 Excalidraw 画板中追加图形 / 连线 | \`excalidraw_draw_elements\`（由前端自动排版与手绘渲染） | 在聊天框输出大量纯文本排版、伪代码或手算像素坐标 |
 | 修改已打开 Excalidraw 画板元素文本或颜色 | \`excalidraw_update_element\` | 直接覆盖整张画板 |
 | 清空已打开 Excalidraw 画板 | \`excalidraw_clear_canvas\` | — |
@@ -52,5 +53,12 @@ export const obsidianPrompt: ModulePromptDefinition = {
      - **配色规范**：起始/结束用 green/blue，步骤用 blue/purple，判断菱形用 yellow，异常失败用 red；
      - **连线极简与做减法规范（彻底杜绝线条杂乱）**：连线必须严格按时序仅连接直接因果相关的相邻前后步骤；【严禁】从顶部或任意节点拉跨越多层的长实线/长虚线贯穿画布直连底部（杜绝切割画面的跨层乱线）；判断菱形（diamond）严格仅分出两条连线（主路径向下连紧邻下一步，分叉路径向右连对应独立的异常卡片），分叉连线必须带简明 label（如「企稳 / 跌破」、「充足 / 不足」）；异常卡片作为终点叶子节点，严禁再拉跨层长线；保持整体流程自顶向下干净树状展开。
   3. 整篇改写类请求，先在聊天中用 1~3 句简述改写策略，然后【必须且只能】调用 \`trigger_paragraph_rewrite\` 传入改写指令，由前端双栏视图在右栏流式生成并渲染 Diff 供用户审阅。
-  4. **增量修改规范**：仅在向当前已打开的画板/白板追加修改时，才使用 \`excalidraw_draw_elements\` 或 \`canvas_create_elements\`；在新建场景中严禁调用。`,
+  4. **增量修改规范**：仅在向当前已打开的画板/白板追加修改时，才使用 \`excalidraw_draw_elements\` 或 \`canvas_create_elements\`；在新建场景中严禁调用。
+  5. **图片高保真还原与社区图库复用规范（\`draft_excalidraw_replica\` + \`search_excalidraw_library\`）**：
+     - 先完整清点：所有形状、文字（含小标注）、箭头及方向、分区背景、颜色，不得编造看不见的细节；
+     - 坐标取原图像素（左上角原点），\`canvas\` 填原图宽高；元素按 z 序输出：背景分区 → 形状/图标 → 连线 → 独立文字；
+     - 颜色用原图实际 hex；手绘抖动风格 \`sketch: true\`，规整线条风格 \`sketch: false\`；
+     - 箭头给出完整顶点 \`points\`，两端落在形状边缘，并用 \`startId\`/\`endId\` 绑定；
+     - **复杂图标用社区库**：遇到复杂图标/插画（服务器、数据库、人物、云、品牌 Logo 等），不要用矩形硬拼，先调用 \`search_excalidraw_library\`（第一步传英文 \`query\` 搜候选图库，第二步传 \`source\` 查条目 \`#序号\`），再在 \`elements\` 中用 \`type: "library"\` 携带 \`librarySource\` + \`itemIndex\` 及原图包围框 \`x/y/width/height\` 放入；若图库无合适条目则退回基础图形近似；
+     - 工具返回 \`warnings\` 时，对照原图修正后再调用一次，最多重试 1 次。`,
 };

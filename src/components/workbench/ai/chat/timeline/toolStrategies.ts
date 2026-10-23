@@ -285,6 +285,16 @@ export const TOOL_STRATEGIES: Record<string, ToolStrategy> = {
 		actionText: "规划了手绘画板草稿",
 		targetText: extractTargetText(args),
 	}),
+	search_excalidraw_library: (args) => ({
+		Icon: Palette,
+		actionText: "检索了 Excalidraw 图库",
+		targetText: extractTargetText(args),
+	}),
+	draft_excalidraw_replica: (args) => ({
+		Icon: Palette,
+		actionText: "还原了图片为画板草稿",
+		targetText: extractTargetText(args),
+	}),
 	excalidraw_draw_elements: () => ({
 		Icon: Palette,
 		actionText: "绘制了手绘图形与连线",

@@ -88,6 +88,48 @@ export async function headlessDrawExcalidrawElements(
 }
 
 /**
+ * Persist generated elements as an Excalidraw draft and build the delivery-card
+ * navigation. Shared by every draft_excalidraw* tool.
+ */
+export function saveExcalidrawDraft(
+	title: string,
+	elements: readonly SharedRawElement[],
+	sessionId?: string,
+	viewBackgroundColor = "#ffffff",
+): ToolNavigation {
+	const content = JSON.stringify(
+		{
+			type: "excalidraw",
+			version: 2,
+			source: "https://excalidraw.com",
+			elements,
+			appState: { gridSize: null, viewBackgroundColor },
+			files: {},
+		},
+		null,
+		2,
+	);
+
+	const draft = createDraft({
+		title,
+		content,
+		kind: "excalidraw",
+		sessionId,
+		wordCount: elements.length,
+	});
+
+	return {
+		route: "",
+		searchParams: { draftId: draft.id },
+		label: "存为画板",
+		draftId: draft.id,
+		draftKind: "excalidraw",
+		title,
+		wordCount: elements.length,
+	};
+}
+
+/**
  * Generates an Excalidraw board draft in one atomic step and returns a delivery card navigation.
  * No Vault file is touched until the user confirms save on the delivery card.
  */
@@ -109,29 +151,7 @@ export async function executeDraftExcalidraw(
 		{ existingElements: [] },
 	);
 
-	const content = JSON.stringify(
-		{
-			type: "excalidraw",
-			version: 2,
-			source: "https://excalidraw.com",
-			elements: generated,
-			appState: {
-				gridSize: null,
-				viewBackgroundColor: "#ffffff",
-			},
-			files: {},
-		},
-		null,
-		2,
-	);
-
-	const draft = createDraft({
-		title,
-		content,
-		kind: "excalidraw",
-		sessionId,
-		wordCount: generated.length,
-	});
+	const navigation = saveExcalidrawDraft(title, generated, sessionId);
 
 	const connCount = args.connections?.length ?? 0;
 	return {
@@ -140,14 +160,6 @@ export async function executeDraftExcalidraw(
 		items: [],
 		references: [],
 		isMutation: true,
-		navigation: {
-			route: "",
-			searchParams: { draftId: draft.id },
-			label: "存为画板",
-			draftId: draft.id,
-			draftKind: "excalidraw",
-			title,
-			wordCount: generated.length,
-		},
+		navigation,
 	};
 }
