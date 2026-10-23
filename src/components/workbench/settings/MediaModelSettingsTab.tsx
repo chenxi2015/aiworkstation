@@ -199,19 +199,35 @@ export function MediaModelSettingsTab({
 
 	// Explicitly activate this provider as the in-use media model
 	const handleSetActiveProvider = () => {
-		onChange("imageProvider", editingProviderId);
-		onChange("imageApiKey", currentConfig.apiKey);
-		onChange(
-			"imageBaseUrl",
-			currentConfig.baseUrl || currentEditingProvider.baseUrl,
-		);
-		onChange(
-			"imageModel",
-			currentConfig.model || currentEditingProvider.models[0] || "",
-		);
+		const nextProvider = editingProviderId;
+		const nextApiKey = currentConfig.apiKey;
+		const nextBaseUrl = currentConfig.baseUrl || currentEditingProvider.baseUrl;
+		const nextModel =
+			currentConfig.model || currentEditingProvider.models[0] || "";
+
+		onChange("imageProvider", nextProvider);
+		onChange("imageApiKey", nextApiKey);
+		onChange("imageBaseUrl", nextBaseUrl);
+		onChange("imageModel", nextModel);
 
 		if (setMediaModelList) {
 			setMediaModelList(availableModels);
+		}
+
+		try {
+			const currentSettings = WorkbenchStorageService.getSettings();
+			WorkbenchStorageService.saveSettings({
+				...currentSettings,
+				imageProvider: nextProvider,
+				imageApiKey: nextApiKey,
+				imageBaseUrl: nextBaseUrl,
+				imageModel: nextModel,
+			});
+		} catch (err) {
+			console.warn(
+				"[MediaModelSettingsTab] Auto-save active model error:",
+				err,
+			);
 		}
 
 		toast.success(`已将 ${currentEditingProvider.name} 设为当前生效生图模型`);
@@ -284,7 +300,8 @@ export function MediaModelSettingsTab({
 		setTestingConnection(true);
 		try {
 			const res = await requestVisualImageGeneration({
-				prompt: "测试生图连通性：极简现代商业海报设计，发光的立方体，柔和环境光影，1k",
+				prompt:
+					"测试生图连通性：极简现代商业海报设计，发光的立方体，柔和环境光影，1k",
 				mediaType: "image",
 				configOverrides: {
 					provider: editingProviderId,
@@ -459,175 +476,179 @@ export function MediaModelSettingsTab({
 								免去您自行购买与配置 API 密钥的繁琐流程，开箱即用。
 							</p>
 							<p className="text-[11px] text-muted">
-								如需使用自备的生图 API Key（如豆包 Seedream、Nano
-								Banana、OpenAI 等），可直接切换上方标签页自行配置。
+								如需使用自备的生图 API Key（如豆包 Seedream、Nano Banana、OpenAI
+								等），可直接切换上方标签页自行配置。
 							</p>
 						</div>
 					) : (
 						<>
-					{/* API Key Input - Identical to Image 1 */}
-					<TextField
-						value={currentConfig.apiKey}
-						onChange={(val) => updateCurrentProviderField("apiKey", val)}
-					>
-						<Label className="text-xs font-medium text-foreground flex items-center justify-between">
-							<span>生图 API Key</span>
-							{data.apiKey && currentConfig.apiKey !== data.apiKey && (
-								<Button
-									type="button"
-									variant="ghost"
-									size="sm"
-									className="h-auto p-0 text-[10px] text-accent hover:underline"
-									onPress={handleCopyLlmApiKey}
-								>
-									同 LLM 密钥相同？一键同步
-								</Button>
-							)}
-						</Label>
-						<InputGroup className="bg-transparent border border-border/80 hover:border-foreground/40 focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/20 rounded-lg shadow-none">
-							<InputGroup.Prefix className="pl-3">
-								<KeyRound className="w-3.5 h-3.5 text-muted" />
-							</InputGroup.Prefix>
-							<InputGroup.Input
-								type={showApiKey ? "text" : "password"}
-								placeholder={`填写 ${currentEditingProvider.name} 的 API Key (sk-...)`}
-								className="bg-transparent font-mono text-xs"
-							/>
-							<InputGroup.Suffix className="pr-1.5">
-								<Button
-									type="button"
-									variant="ghost"
-									size="sm"
-									isIconOnly
-									className="rounded-md"
-									onPress={() => setShowApiKey((v) => !v)}
-									aria-label={showApiKey ? "隐藏密钥" : "显示密钥"}
-								>
-									{showApiKey ? (
-										<EyeOff className="w-3.5 h-3.5" />
-									) : (
-										<Eye className="w-3.5 h-3.5" />
+							{/* API Key Input - Identical to Image 1 */}
+							<TextField
+								value={currentConfig.apiKey}
+								onChange={(val) => updateCurrentProviderField("apiKey", val)}
+							>
+								<Label className="text-xs font-medium text-foreground flex items-center justify-between">
+									<span>生图 API Key</span>
+									{data.apiKey && currentConfig.apiKey !== data.apiKey && (
+										<Button
+											type="button"
+											variant="ghost"
+											size="sm"
+											className="h-auto p-0 text-[10px] text-accent hover:underline"
+											onPress={handleCopyLlmApiKey}
+										>
+											同 LLM 密钥相同？一键同步
+										</Button>
 									)}
-								</Button>
-							</InputGroup.Suffix>
-						</InputGroup>
-					</TextField>
+								</Label>
+								<InputGroup className="bg-transparent border border-border/80 hover:border-foreground/40 focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/20 rounded-lg shadow-none">
+									<InputGroup.Prefix className="pl-3">
+										<KeyRound className="w-3.5 h-3.5 text-muted" />
+									</InputGroup.Prefix>
+									<InputGroup.Input
+										type={showApiKey ? "text" : "password"}
+										placeholder={`填写 ${currentEditingProvider.name} 的 API Key (sk-...)`}
+										className="bg-transparent font-mono text-xs"
+									/>
+									<InputGroup.Suffix className="pr-1.5">
+										<Button
+											type="button"
+											variant="ghost"
+											size="sm"
+											isIconOnly
+											className="rounded-md"
+											onPress={() => setShowApiKey((v) => !v)}
+											aria-label={showApiKey ? "隐藏密钥" : "显示密钥"}
+										>
+											{showApiKey ? (
+												<EyeOff className="w-3.5 h-3.5" />
+											) : (
+												<Eye className="w-3.5 h-3.5" />
+											)}
+										</Button>
+									</InputGroup.Suffix>
+								</InputGroup>
+							</TextField>
 
-					{/* API Base URL - Identical to Image 1 */}
-					<TextField
-						value={currentConfig.baseUrl}
-						onChange={(val) => updateCurrentProviderField("baseUrl", val)}
-					>
-						<Label className="text-xs font-medium text-foreground flex items-center justify-between">
-							<span>API Base URL</span>
-							{currentEditingProvider.baseUrl &&
-								currentConfig.baseUrl !== currentEditingProvider.baseUrl && (
+							{/* API Base URL - Identical to Image 1 */}
+							<TextField
+								value={currentConfig.baseUrl}
+								onChange={(val) => updateCurrentProviderField("baseUrl", val)}
+							>
+								<Label className="text-xs font-medium text-foreground flex items-center justify-between">
+									<span>API Base URL</span>
+									{currentEditingProvider.baseUrl &&
+										currentConfig.baseUrl !==
+											currentEditingProvider.baseUrl && (
+											<Button
+												type="button"
+												variant="ghost"
+												size="sm"
+												className="h-auto p-0 text-[10px] text-accent hover:underline"
+												onPress={handleResetBaseUrl}
+											>
+												恢复官方端点
+											</Button>
+										)}
+								</Label>
+								<InputGroup className="bg-transparent border border-border/80 hover:border-foreground/40 focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/20 rounded-lg shadow-none">
+									<InputGroup.Prefix className="pl-3">
+										<Globe className="w-3.5 h-3.5 text-muted" />
+									</InputGroup.Prefix>
+									<InputGroup.Input
+										type="text"
+										placeholder={
+											currentEditingProvider.baseUrl ||
+											"https://api.openai.com/v1"
+										}
+										className="bg-transparent font-mono text-xs"
+									/>
+								</InputGroup>
+							</TextField>
+
+							{/* Model Selector & Direct Input with Presets */}
+							<div className="flex flex-col gap-2">
+								<div className="flex items-center justify-between">
+									<Label className="text-xs font-medium text-foreground">
+										生图模型名称
+									</Label>
+									<span className="text-[10px] text-muted">
+										可直接输入模型名称/接入点 ID，或点击下方快捷预设
+									</span>
+								</div>
+
+								<div className="flex items-center gap-2">
+									<div className="flex-1 min-w-0">
+										<TextField
+											value={currentConfig.model}
+											onChange={(val) =>
+												updateCurrentProviderField("model", val)
+											}
+											className="w-full"
+										>
+											<InputGroup className="bg-transparent border border-border/80 hover:border-foreground/40 focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/20 rounded-lg shadow-none">
+												<InputGroup.Prefix className="pl-3">
+													<Sparkles className="w-3.5 h-3.5 text-muted" />
+												</InputGroup.Prefix>
+												<InputGroup.Input
+													type="text"
+													placeholder={
+														currentEditingProvider.models[0] ||
+														"例如：doubao-seedream-5-0-flash-260915 或 gpt-image-2"
+													}
+													className="bg-transparent font-mono text-xs"
+												/>
+											</InputGroup>
+										</TextField>
+									</div>
+
 									<Button
 										type="button"
-										variant="ghost"
-										size="sm"
-										className="h-auto p-0 text-[10px] text-accent hover:underline"
-										onPress={handleResetBaseUrl}
+										variant="outline"
+										className="rounded-lg text-xs"
+										isDisabled={loadingMediaModels}
+										onPress={handleFetchMediaModels}
 									>
-										恢复官方端点
+										{loadingMediaModels ? (
+											<Loader2 className="w-3.5 h-3.5 animate-spin" />
+										) : (
+											<RefreshCw className="w-3.5 h-3.5" />
+										)}
+										<span>{loadingMediaModels ? "获取中..." : "获取模型"}</span>
 									</Button>
+								</div>
+
+								{/* Quick Preset Model Chips */}
+								{availableModels.length > 0 && (
+									<div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+										<span className="text-[10px] text-muted shrink-0">
+											常用模型:
+										</span>
+										{availableModels.map((m) => {
+											const isSelected = currentConfig.model === m;
+											return (
+												<button
+													key={m}
+													type="button"
+													onClick={() => updateCurrentProviderField("model", m)}
+													className={`text-[11px] font-mono px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
+														isSelected
+															? "bg-accent/15 border-accent text-accent font-semibold shadow-2xs"
+															: "bg-surface-secondary/60 border-border/70 text-foreground/80 hover:bg-surface-secondary hover:border-border hover:text-foreground"
+													}`}
+													title={`点击快速填入 ${m}`}
+												>
+													{m}
+												</button>
+											);
+										})}
+									</div>
 								)}
-						</Label>
-						<InputGroup className="bg-transparent border border-border/80 hover:border-foreground/40 focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/20 rounded-lg shadow-none">
-							<InputGroup.Prefix className="pl-3">
-								<Globe className="w-3.5 h-3.5 text-muted" />
-							</InputGroup.Prefix>
-							<InputGroup.Input
-								type="text"
-								placeholder={
-									currentEditingProvider.baseUrl || "https://api.openai.com/v1"
-								}
-								className="bg-transparent font-mono text-xs"
-							/>
-						</InputGroup>
-					</TextField>
 
-					{/* Model Selector & Direct Input with Presets */}
-					<div className="flex flex-col gap-2">
-						<div className="flex items-center justify-between">
-							<Label className="text-xs font-medium text-foreground">
-								生图模型名称
-							</Label>
-							<span className="text-[10px] text-muted">
-								可直接输入模型名称/接入点 ID，或点击下方快捷预设
-							</span>
-						</div>
-
-						<div className="flex items-center gap-2">
-							<div className="flex-1 min-w-0">
-								<TextField
-									value={currentConfig.model}
-									onChange={(val) => updateCurrentProviderField("model", val)}
-									className="w-full"
-								>
-									<InputGroup className="bg-transparent border border-border/80 hover:border-foreground/40 focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/20 rounded-lg shadow-none">
-										<InputGroup.Prefix className="pl-3">
-											<Sparkles className="w-3.5 h-3.5 text-muted" />
-										</InputGroup.Prefix>
-										<InputGroup.Input
-											type="text"
-											placeholder={
-												currentEditingProvider.models[0] ||
-												"例如：doubao-seedream-5-0-flash-260915 或 gpt-image-2"
-											}
-											className="bg-transparent font-mono text-xs"
-										/>
-									</InputGroup>
-								</TextField>
+								<Description className="text-[11px] text-muted">
+									用于一键发布文章时生成封面图及多媒体素材，点击「设为默认模型」可将当前服务商切换为默认生图引擎。
+								</Description>
 							</div>
-
-							<Button
-								type="button"
-								variant="outline"
-								className="rounded-lg text-xs"
-								isDisabled={loadingMediaModels}
-								onPress={handleFetchMediaModels}
-							>
-								{loadingMediaModels ? (
-									<Loader2 className="w-3.5 h-3.5 animate-spin" />
-								) : (
-									<RefreshCw className="w-3.5 h-3.5" />
-								)}
-								<span>{loadingMediaModels ? "获取中..." : "获取模型"}</span>
-							</Button>
-						</div>
-
-						{/* Quick Preset Model Chips */}
-						{availableModels.length > 0 && (
-							<div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-								<span className="text-[10px] text-muted shrink-0">
-									常用模型:
-								</span>
-								{availableModels.map((m) => {
-									const isSelected = currentConfig.model === m;
-									return (
-										<button
-											key={m}
-											type="button"
-											onClick={() => updateCurrentProviderField("model", m)}
-											className={`text-[11px] font-mono px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
-												isSelected
-													? "bg-accent/15 border-accent text-accent font-semibold shadow-2xs"
-													: "bg-surface-secondary/60 border-border/70 text-foreground/80 hover:bg-surface-secondary hover:border-border hover:text-foreground"
-											}`}
-											title={`点击快速填入 ${m}`}
-										>
-											{m}
-										</button>
-									);
-								})}
-							</div>
-						)}
-
-						<Description className="text-[11px] text-muted">
-							用于一键发布文章时生成封面图及多媒体素材，点击「设为默认模型」可将当前服务商切换为默认生图引擎。
-						</Description>
-					</div>
 						</>
 					)}
 

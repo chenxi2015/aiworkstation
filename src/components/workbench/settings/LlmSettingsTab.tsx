@@ -134,18 +134,32 @@ export function LlmSettingsTab({
 
 	// Explicitly activate this provider as the in-use AI Assistant model
 	const handleSetActiveProvider = () => {
-		onChange("llmProvider", editingProviderId);
-		onChange("apiKey", currentConfig.apiKey);
-		onChange(
-			"baseUrl",
-			currentConfig.baseUrl || currentEditingProvider.baseUrl,
-		);
-		onChange(
-			"model",
-			currentConfig.model || currentEditingProvider.models[0] || "",
-		);
+		const nextProvider = editingProviderId;
+		const nextApiKey = currentConfig.apiKey;
+		const nextBaseUrl = currentConfig.baseUrl || currentEditingProvider.baseUrl;
+		const nextModel =
+			currentConfig.model || currentEditingProvider.models[0] || "";
+
+		onChange("llmProvider", nextProvider);
+		onChange("apiKey", nextApiKey);
+		onChange("baseUrl", nextBaseUrl);
+		onChange("model", nextModel);
 
 		setLlmModelList(availableModels);
+
+		// Immediately persist active model to settings and notify global store
+		try {
+			const currentSettings = WorkbenchStorageService.getSettings();
+			WorkbenchStorageService.saveSettings({
+				...currentSettings,
+				llmProvider: nextProvider,
+				apiKey: nextApiKey,
+				baseUrl: nextBaseUrl,
+				model: nextModel,
+			});
+		} catch (err) {
+			console.warn("[LlmSettingsTab] Auto-save active model error:", err);
+		}
 
 		toast.success(`已将 ${currentEditingProvider.name} 设为当前生效模型`);
 	};

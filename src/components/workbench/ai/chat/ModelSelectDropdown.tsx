@@ -1,7 +1,12 @@
 import { Dropdown } from "@heroui/react";
+import { useStore } from "@tanstack/react-store";
 import { Check, ChevronDown, Sparkles } from "lucide-react";
 import { memo } from "react";
 import { WorkbenchStorageService } from "../../../../services/workbenchStorage";
+import {
+	workbenchContextActions,
+	workbenchContextStore,
+} from "../../../../stores/workbenchContextStore";
 import { inferProviderId, LLM_PROVIDERS } from "../../settings/constants";
 
 export interface ModelSelectDropdownProps {
@@ -108,32 +113,41 @@ export const ModelSelectDropdown = memo(function ModelSelectDropdown({
 	currentModel,
 	onModelChange,
 }: ModelSelectDropdownProps) {
+	// Subscribe to global activeModel from workbenchContextStore for real-time reactivity
+	const activeModel = useStore(workbenchContextStore, (s) => s.activeModel);
+
+	const isOfficialActive = activeModel?.llmProvider === "official";
+	const effectiveModel = isOfficialActive
+		? "deepseek-chat"
+		: activeModel?.model || currentModel;
+
 	// 每次渲染都重算（同步读 localStorage，成本可忽略），保证设置页改动后下拉立即反映最新配置
-	const options = buildOptions(currentModel);
+	const options = buildOptions(effectiveModel);
 	const hasOptions = options.length > 0;
 	// 官方通道激活时徽章不显示具体模型名
-	const isOfficialActive =
-		WorkbenchStorageService.getSettings().llmProvider === "official";
-	const displayModel = isOfficialActive ? "官方极速通道" : currentModel;
+	const displayModel = isOfficialActive ? "官方极速通道" : effectiveModel;
 
 	const handleSelect = (opt: ModelOption) => {
 		const settings = WorkbenchStorageService.getSettings();
+		const nextProvider = opt.isOfficial ? "official" : opt.providerId;
+		const nextModel = opt.model;
 		WorkbenchStorageService.saveSettings(
 			opt.isOfficial
 				? {
 						...settings,
 						llmProvider: "official",
-						model: opt.model,
+						model: nextModel,
 					}
 				: {
 						...settings,
 						llmProvider: opt.providerId,
 						apiKey: opt.apiKey,
 						baseUrl: opt.baseUrl,
-						model: opt.model,
+						model: nextModel,
 					},
 		);
-		onModelChange?.(opt.model);
+		workbenchContextActions.setActiveModel(nextProvider, nextModel);
+		onModelChange?.(nextModel);
 	};
 
 	// 无任何已配置模型时渲染静态徽章（禁用态），不给空下拉
@@ -191,9 +205,10 @@ export const ModelSelectDropdown = memo(function ModelSelectDropdown({
 									)}
 								</div>
 								{(opt.isOfficial
-									? WorkbenchStorageService.getSettings().llmProvider ===
-										"official"
-									: opt.model === currentModel) && (
+									? isOfficialActive
+									: !isOfficialActive &&
+										opt.providerId === activeModel?.llmProvider &&
+										opt.model === effectiveModel) && (
 									<Check className="w-3.5 h-3.5 text-accent shrink-0" />
 								)}
 							</div>

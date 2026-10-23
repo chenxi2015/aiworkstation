@@ -9,6 +9,7 @@ import {
 	type EmbeddingConfig,
 	EmbeddingService,
 } from "../../services/embeddingService";
+import { resolveEmbeddingConfig } from "../ai/ragContext.ts";
 import { workbenchDb } from "../db/sqlite.ts";
 
 /**
@@ -46,10 +47,11 @@ export const searchWorkbenchItems = createServerFn({ method: "POST" })
 
 		// If in semantic/hybrid mode, try to generate query embedding vector
 		let queryVector: number[] | null = null;
-		if (mode !== "keyword" && embeddingConfig.apiKey) {
+		const effectiveEmbeddingConfig = resolveEmbeddingConfig(embeddingConfig);
+		if (mode !== "keyword" && effectiveEmbeddingConfig.apiKey) {
 			queryVector = await EmbeddingService.generateQueryEmbedding(
 				q,
-				embeddingConfig,
+				effectiveEmbeddingConfig,
 			);
 		}
 
@@ -112,13 +114,15 @@ export const batchGenerateEmbeddings = createServerFn({ method: "POST" })
 			const { config, batchSize = 20, forceAll = false } = data;
 
 			try {
-				if (!config?.apiKey?.trim()) {
+				const effectiveConfig = resolveEmbeddingConfig(config);
+				if (!effectiveConfig?.apiKey?.trim()) {
 					const stats = workbenchDb.getEmbeddingStats();
 					return {
 						processed: 0,
 						remaining: Math.max(0, stats.total - stats.embedded),
 						stats,
-						error: "缺少 Embedding API Key，请在设置中填入有效 API Key",
+						error:
+							"缺少 Embedding API Key，请在设置中填入有效 API Key 或开通官方会员通道",
 					};
 				}
 
@@ -143,7 +147,7 @@ export const batchGenerateEmbeddings = createServerFn({ method: "POST" })
 				// Call embedding API
 				const vectors = await EmbeddingService.generateBatchEmbeddings(
 					texts,
-					config,
+					effectiveConfig,
 				);
 
 				// Save to SQLite

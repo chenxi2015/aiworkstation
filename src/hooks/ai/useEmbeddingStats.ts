@@ -23,7 +23,13 @@ function resolveEmbeddingConfig(): EmbeddingRuntimeConfig | null {
 	const settings = WorkbenchStorageService.getSettings();
 	const embeddingKey = settings.embeddingApiKey?.trim();
 	const llmKey = settings.apiKey?.trim();
-	const apiKey = embeddingKey || llmKey;
+	const isOfficial =
+		settings.embeddingProvider === "official" ||
+		settings.llmProvider === "official";
+	const apiKey =
+		embeddingKey ||
+		llmKey ||
+		(isOfficial && settings.cloudToken ? settings.cloudToken : "");
 
 	if (!apiKey) {
 		return null;

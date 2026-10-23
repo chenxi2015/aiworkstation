@@ -1,4 +1,5 @@
 import type { WorkbenchSettings } from "../../components/workbench/types";
+import { workbenchContextActions } from "../../stores/workbenchContextStore";
 import {
 	getWorkbenchSettings,
 	saveWorkbenchSettings,
@@ -152,6 +153,11 @@ export async function saveSettingsAsync(
 		window.localStorage.setItem(
 			STORAGE_KEY_SETTINGS,
 			JSON.stringify(normalized),
+		);
+		// Synchronously notify global store so AI Assistant reacts immediately without page reload
+		workbenchContextActions.setActiveModel(
+			normalized.llmProvider || "official",
+			normalized.model || "deepseek-chat",
 		);
 	} catch (err) {
 		console.error("Failed to save settings to localStorage:", err);

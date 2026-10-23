@@ -20,6 +20,11 @@ export interface ActiveNoteContext {
 	title: string;
 }
 
+export interface ActiveModelContext {
+	llmProvider: string;
+	model: string;
+}
+
 /** 提议卡片确认后的跨页面待执行动作（单槽、一次性消费、60s TTL） */
 export interface PendingWorkbenchAction {
 	targetObject: {
@@ -55,6 +60,29 @@ export interface WorkbenchContextState {
 	detachedNotePath: string | null;
 	/** Single-slot pending action written by a confirmed proposal card */
 	pendingAction: PendingWorkbenchAction | null;
+	/** Currently active LLM model & provider, synced reactively across UI */
+	activeModel: ActiveModelContext;
+}
+
+function getInitialActiveModel(): ActiveModelContext {
+	if (typeof window !== "undefined") {
+		try {
+			const raw = localStorage.getItem("aiworkstation_settings_v3");
+			if (raw) {
+				const parsed = JSON.parse(raw);
+				return {
+					llmProvider: parsed.llmProvider || "official",
+					model: parsed.model || "deepseek-chat",
+				};
+			}
+		} catch {
+			// Ignore access failures
+		}
+	}
+	return {
+		llmProvider: "official",
+		model: "deepseek-chat",
+	};
 }
 
 const initialState: WorkbenchContextState = {
@@ -67,6 +95,7 @@ const initialState: WorkbenchContextState = {
 	detachedMaterialId: null,
 	detachedNotePath: null,
 	pendingAction: null,
+	activeModel: getInitialActiveModel(),
 };
 
 const PENDING_ACTION_TTL_MS = 60_000;
@@ -81,6 +110,16 @@ export const workbenchContextStore = new Store<WorkbenchContextState>(
 );
 
 export const workbenchContextActions = {
+	setActiveModel(llmProvider: string, model: string) {
+		const current = workbenchContextStore.state.activeModel;
+		if (current?.llmProvider === llmProvider && current?.model === model)
+			return;
+		workbenchContextStore.setState((prev) => ({
+			...prev,
+			activeModel: { llmProvider, model },
+		}));
+	},
+
 	setActiveModule(activeModule: string) {
 		if (workbenchContextStore.state.activeModule === activeModule) return;
 		workbenchContextStore.setState((prev) => ({

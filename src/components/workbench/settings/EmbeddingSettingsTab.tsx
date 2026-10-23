@@ -136,18 +136,31 @@ export function EmbeddingSettingsTab({
 
 	// Activate this provider as the in-use Embedding model
 	const handleSetActiveProvider = () => {
-		onChange("embeddingProvider", editingProviderId);
-		onChange("embeddingApiKey", currentConfig.apiKey);
-		onChange(
-			"embeddingBaseUrl",
-			currentConfig.baseUrl || currentEditingProvider.baseUrl,
-		);
-		onChange(
-			"embeddingModel",
-			currentConfig.model || currentEditingProvider.models[0] || "",
-		);
+		const nextProvider = editingProviderId;
+		const nextApiKey = currentConfig.apiKey;
+		const nextBaseUrl = currentConfig.baseUrl || currentEditingProvider.baseUrl;
+		const nextModel =
+			currentConfig.model || currentEditingProvider.models[0] || "";
+
+		onChange("embeddingProvider", nextProvider);
+		onChange("embeddingApiKey", nextApiKey);
+		onChange("embeddingBaseUrl", nextBaseUrl);
+		onChange("embeddingModel", nextModel);
 
 		setEmbeddingModelList(availableModels);
+
+		try {
+			const currentSettings = WorkbenchStorageService.getSettings();
+			WorkbenchStorageService.saveSettings({
+				...currentSettings,
+				embeddingProvider: nextProvider,
+				embeddingApiKey: nextApiKey,
+				embeddingBaseUrl: nextBaseUrl,
+				embeddingModel: nextModel,
+			});
+		} catch (err) {
+			console.warn("[EmbeddingSettingsTab] Auto-save active model error:", err);
+		}
 
 		toast.success(`已将 ${currentEditingProvider.name} 设为当前生效向量模型`);
 	};

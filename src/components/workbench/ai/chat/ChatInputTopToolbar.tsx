@@ -1,6 +1,8 @@
 import { Button, Tooltip } from "@heroui/react";
+import { useStore } from "@tanstack/react-store";
 import { History, MessageSquarePlus } from "lucide-react";
-import { memo, useState } from "react";
+import { memo } from "react";
+import { workbenchContextStore } from "../../../../stores/workbenchContextStore";
 import { ModelSelectDropdown } from "./ModelSelectDropdown";
 
 export interface ChatInputTopToolbarProps {
@@ -18,13 +20,17 @@ export const ChatInputTopToolbar = memo(function ChatInputTopToolbar({
 	onOpenHistory,
 	onNewChat,
 }: ChatInputTopToolbarProps) {
-	// 本地镜像当前模型，切换后立即刷新展示（设置已持久化，无需父组件干预）
-	const [model, setModel] = useState(displayModel);
+	// Reactively subscribe to global activeModel from workbenchContextStore
+	const activeModel = useStore(workbenchContextStore, (s) => s.activeModel);
+	const effectiveModel =
+		activeModel?.llmProvider === "official"
+			? "官方极速通道"
+			: activeModel?.model || displayModel;
 
 	return (
 		<div className="flex items-center justify-between gap-1.5 min-w-0 overflow-hidden px-0.5">
 			{/* Model Switcher */}
-			<ModelSelectDropdown currentModel={model} onModelChange={setModel} />
+			<ModelSelectDropdown currentModel={effectiveModel} />
 
 			{/* Right: History & New Chat quick actions */}
 			{(onOpenHistory || onNewChat) && (
