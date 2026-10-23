@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import type { QrCheckResponse, QrTicketResponse, UserProfile } from '@aiworkstation/shared-types';
 import { env } from '../../config/env.js';
 import { getDb, schema } from '../../db/index.js';
@@ -235,5 +235,65 @@ export class AuthService {
         createdAt: new Date().toISOString(),
       };
     }
+  }
+
+  /**
+   * List existing users for development testing and administrative view
+   */
+  async listUsers(limit = 50): Promise<Array<UserProfile & { openid: string }>> {
+    try {
+      const db = getDb();
+      const rows = await db.query.users.findMany({
+        orderBy: [desc(schema.users.createdAt)],
+        limit: Math.max(1, Math.min(limit, 200)),
+      });
+
+      return rows.map((u) => ({
+        id: u.id,
+        openid: u.openid,
+        nickname: u.nickname,
+        avatarUrl: u.avatarUrl,
+        memberTier: u.memberTier as UserProfile['memberTier'],
+        memberExpiresAt: u.memberExpiresAt ? u.memberExpiresAt.toISOString() : null,
+        createdAt: u.createdAt.toISOString(),
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Generate JWT token for an existing user by userId or openid
+   */
+  async generateTokenForUser(identifier: { userId?: string; openid?: string }): Promise<{ token: string; user: UserProfile } | null> {
+    const db = getDb();
+    let user = null;
+
+    if (identifier.userId) {
+      user = await db.query.users.findFirst({
+        where: eq(schema.users.id, identifier.userId),
+      });
+    } else if (identifier.openid) {
+      user = await db.query.users.findFirst({
+        where: eq(schema.users.openid, identifier.openid),
+      });
+    }
+
+    if (!user) {
+      return null;
+    }
+
+    const token = signJwtToken({ userId: user.id, openid: user.openid });
+    return {
+      token,
+      user: {
+        id: user.id,
+        nickname: user.nickname,
+        avatarUrl: user.avatarUrl,
+        memberTier: user.memberTier as UserProfile['memberTier'],
+        memberExpiresAt: user.memberExpiresAt ? user.memberExpiresAt.toISOString() : null,
+        createdAt: user.createdAt.toISOString(),
+      },
+    };
   }
 }

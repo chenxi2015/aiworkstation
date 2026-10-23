@@ -28,6 +28,7 @@
     "deploy:server:cf:dry-run": "pnpm --filter @aiworkstation/cloud-server deploy:cf:dry-run",
     "deploy:server": "pnpm run deploy:server:cf",
     "member:create": "pnpm --filter @aiworkstation/cloud-server run member:create",
+    "token:generate": "pnpm --filter @aiworkstation/cloud-server run token:generate",
     "check": "biome check",
     "lint": "biome lint",
     "format": "biome format",

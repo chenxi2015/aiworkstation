@@ -82,4 +82,45 @@ export class AuthController {
     }
     return successJson(c, user);
   };
+
+  /**
+   * GET /api/auth/users
+   * List existing users (useful for development and debugging)
+   */
+  listUsers = async (c: Context) => {
+    const limitQuery = c.req.query('limit');
+    const limit = limitQuery ? parseInt(limitQuery, 10) : 50;
+    const users = await this.authService.listUsers(Number.isNaN(limit) ? 50 : limit);
+    return successJson(c, { users, count: users.length });
+  };
+
+  /**
+   * GET/POST /api/auth/token
+   * Issue a token for an existing user by userId or openid
+   */
+  issueTokenForUser = async (c: Context) => {
+    let userId = c.req.query('userId');
+    let openid = c.req.query('openid');
+
+    if (c.req.method === 'POST') {
+      try {
+        const body = (await c.req.json()) as Record<string, string>;
+        userId = body.userId || userId;
+        openid = body.openid || openid;
+      } catch {
+        // Safe to ignore if JSON body parsing fails
+      }
+    }
+
+    if (!userId && !openid) {
+      return errorJson(c, 'Missing userId or openid parameter', ErrorCode.VALIDATION_ERROR, 400);
+    }
+
+    const result = await this.authService.generateTokenForUser({ userId, openid });
+    if (!result) {
+      return errorJson(c, 'User not found', ErrorCode.NOT_FOUND, 404);
+    }
+
+    return successJson(c, result, 'Token generated successfully');
+  };
 }

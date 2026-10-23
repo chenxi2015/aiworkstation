@@ -47,3 +47,14 @@ authRoutes.get(
  * Get current authenticated user profile
  */
 authRoutes.get('/me', requireAuth, authController.getMe);
+
+/**
+ * List existing users for inspection and testing
+ */
+authRoutes.get('/users', authController.listUsers);
+
+/**
+ * Generate token for an existing user (GET & POST)
+ */
+authRoutes.get('/token', authController.issueTokenForUser);
+authRoutes.post('/token', authController.issueTokenForUser);
