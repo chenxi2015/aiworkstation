@@ -54,17 +54,28 @@ export function resolveAgentChatParams(
 			}));
 
 	const settings = WorkbenchStorageService.getSettings();
-	const llmConfig = {
-		apiKey: settings.apiKey,
-		baseUrl: settings.baseUrl,
-		model: settings.model,
-	};
+	const isOfficialLlm = settings.llmProvider === "official";
+	const llmConfig = isOfficialLlm
+		? {
+				// Official channel is fully managed by server-side gateway credentials
+				model: settings.model?.trim() || "deepseek-chat",
+			}
+		: {
+				apiKey: settings.apiKey,
+				baseUrl: settings.baseUrl,
+				model: settings.model,
+			};
 
-	const embeddingConfig = {
-		apiKey: settings.embeddingApiKey || settings.apiKey || "",
-		baseUrl: settings.embeddingBaseUrl,
-		model: settings.embeddingModel,
-	};
+	const isOfficialEmbedding = settings.embeddingProvider === "official";
+	const embeddingConfig = isOfficialEmbedding
+		? {
+				model: settings.embeddingModel?.trim() || "BAAI/bge-m3",
+			}
+		: {
+				apiKey: settings.embeddingApiKey || settings.apiKey || "",
+				baseUrl: settings.embeddingBaseUrl,
+				model: settings.embeddingModel,
+			};
 
 	const resolvedModule =
 		options.module ?? workbenchContextStore.state.activeModule;
@@ -110,4 +121,3 @@ export function resolveAgentChatParams(
 		activeNotePath: effectiveNotePath,
 	};
 }
-

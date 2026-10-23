@@ -16,6 +16,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cloudClient } from "../../lib/cloud/cloudClient";
 import { useCloudAuth } from "../../lib/cloud/useCloudAuth";
+import { WorkbenchStorageService } from "../../services/workbenchStorage";
 
 /** 档位展示名（会员权益矩阵见 docs/ai-config-membership-v2-plan.md） */
 const TIER_LABELS: Record<string, string> = {
@@ -144,6 +145,20 @@ export function MemberCheckoutCard({
 							stopPolling();
 							setIsPaid(true);
 							await cloudClient.getMe();
+							// 购买会员成功：默认无缝切换到官方极速通道
+							try {
+								const currentSettings = WorkbenchStorageService.getSettings();
+								WorkbenchStorageService.saveSettings({
+									...currentSettings,
+									llmProvider: "official",
+									model: "deepseek-chat",
+								});
+							} catch (e) {
+								console.warn(
+									"[MemberCheckoutCard] Failed to auto-switch to official channel:",
+									e,
+								);
+							}
 							setTimeout(() => {
 								onSuccess?.();
 								onClose?.();
@@ -192,9 +207,7 @@ export function MemberCheckoutCard({
 			? cyclePlans.find((p) => p.tier === selected.tier)
 			: undefined;
 		const fallback =
-			sameTier ??
-			visiblePlans.find((p) => p.recommended) ??
-			visiblePlans[0];
+			sameTier ?? visiblePlans.find((p) => p.recommended) ?? visiblePlans[0];
 		if (fallback) setSelectedPlanId(fallback.id);
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [billingCycle, plans]);
@@ -416,20 +429,21 @@ export function MemberCheckoutCard({
 														)}
 													</div>
 													{plan.originalPriceCents > plan.priceCents && (
-													<div className="mt-0.5 flex items-center justify-end gap-1.5">
-														<span className="text-xs text-muted line-through">
-															¥{(plan.originalPriceCents / 100).toFixed(0)}
-														</span>
-														{cycleOf(plan) === "yearly" && (
-															<span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
-																省 ¥
-																{(
-																	(plan.originalPriceCents - plan.priceCents) /
-																	100
-																).toFixed(0)}
+														<div className="mt-0.5 flex items-center justify-end gap-1.5">
+															<span className="text-xs text-muted line-through">
+																¥{(plan.originalPriceCents / 100).toFixed(0)}
 															</span>
-														)}
-													</div>
+															{cycleOf(plan) === "yearly" && (
+																<span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+																	省 ¥
+																	{(
+																		(plan.originalPriceCents -
+																			plan.priceCents) /
+																		100
+																	).toFixed(0)}
+																</span>
+															)}
+														</div>
 													)}
 												</div>
 											</div>

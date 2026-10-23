@@ -35,11 +35,17 @@ function buildOptions(currentModel: string): ModelOption[] {
 	// 会员有效性由云端网关裁决，本地不预判断。
 	// 官方通道为全托管服务，不向用户暴露具体模型名。
 	if (settings.cloudToken?.trim()) {
+		const officialPreset = LLM_PROVIDERS.find((p) => p.id === "official");
+		const officialModels = officialPreset?.models ?? [
+			"deepseek-chat",
+			"deepseek-reasoner",
+		];
 		const officialModel =
-			settings.llmProvider === "official" && settings.model?.trim()
+			settings.llmProvider === "official" &&
+			settings.model?.trim() &&
+			officialModels.includes(settings.model.trim())
 				? settings.model.trim()
-				: (LLM_PROVIDERS.find((p) => p.id === "official")?.models[0] ??
-					"deepseek-chat");
+				: (officialModels[0] ?? "deepseek-chat");
 		list.push({
 			key: "official::managed",
 			model: officialModel,

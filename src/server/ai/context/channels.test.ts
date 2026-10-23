@@ -9,7 +9,9 @@ process.env.AIWORKSTATION_DATA_DIR = tmpDir;
 
 const { workbenchDb } = await import("../../db/sqlite.ts");
 const channels = await import("./channels.ts");
-const { resolveLlmConfig, resolveEmbeddingConfig } = await import("./config.ts");
+const { resolveLlmConfig, resolveEmbeddingConfig } = await import(
+	"./config.ts"
+);
 
 afterAll(() => {
 	fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -107,5 +109,26 @@ describe("ai_channel_configs", () => {
 		expect(active?.provider).toBe("deepseek");
 		expect(active?.apiKey).toBe("sk-ds-new");
 		expect(active?.model).toBe("deepseek-reasoner");
+	});
+
+	it("prevents custom model name from polluting official channel", () => {
+		channels.activateOfficialChannels();
+		// Passing custom model "k3" should NOT override official model "deepseek-chat"
+		const resolved = resolveLlmConfig({ model: "k3" });
+		expect(resolved.baseUrl).toContain("/api/ai/v1");
+		expect(resolved.model).toBe("deepseek-chat");
+	});
+
+	it("routes custom endpoint & key directly to custom provider even if official was active", () => {
+		channels.activateOfficialChannels();
+		// If caller explicitly provides custom credentials and baseUrl, resolve directly as custom
+		const resolved = resolveLlmConfig({
+			apiKey: "sk-kimi-direct",
+			baseUrl: "https://api.kimi.com/coding/v1",
+			model: "k3",
+		});
+		expect(resolved.baseUrl).toBe("https://api.kimi.com/coding/v1");
+		expect(resolved.apiKey).toBe("sk-kimi-direct");
+		expect(resolved.model).toBe("k3");
 	});
 });

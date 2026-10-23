@@ -96,7 +96,9 @@ const OFFICIAL_LABEL = "官方极速通道";
 function toRow(raw: RawRow): ChannelConfigRow {
 	let extra: Record<string, JsonValue> = {};
 	try {
-		extra = raw.extra ? (JSON.parse(raw.extra) as Record<string, JsonValue>) : {};
+		extra = raw.extra
+			? (JSON.parse(raw.extra) as Record<string, JsonValue>)
+			: {};
 	} catch {
 		extra = {};
 	}
@@ -313,6 +315,25 @@ export function resolveCapabilityConfig(
 	capability: CapabilityId,
 	overrides: { apiKey?: string; baseUrl?: string; model?: string } = {},
 ): ResolvedChannelConfig {
+	// If caller explicitly provides custom credentials & direct endpoint,
+	// resolve directly as custom channel to prevent routing to official cloud gateway.
+	if (
+		overrides.apiKey?.trim() &&
+		overrides.baseUrl?.trim() &&
+		!overrides.baseUrl.includes("/api/ai/v1")
+	) {
+		return {
+			capability,
+			channel: "custom",
+			provider: "custom",
+			apiKey: overrides.apiKey.trim(),
+			baseUrl: overrides.baseUrl.trim().replace(/\/+$/, ""),
+			model: (overrides.model || "").trim(),
+			extra: {},
+			configured: true,
+		};
+	}
+
 	const active = getActiveChannel(capability);
 
 	if (!active) {
@@ -330,10 +351,8 @@ export function resolveCapabilityConfig(
 
 	if (active.channel === "official") {
 		const { cloudToken, cloudApiBase } = getCloudSession();
-		const model =
-			overrides.model?.trim() ||
-			active.model ||
-			OFFICIAL_DEFAULT_MODEL[capability];
+		// Official channel uses the official configured model; do not allow custom external model name overrides
+		const model = active.model || OFFICIAL_DEFAULT_MODEL[capability];
 		return {
 			capability,
 			channel: "official",
@@ -535,7 +554,9 @@ export function migrateLegacyAiConfigs(): void {
 
 		// image_gen
 		const imgProvider = legacy.imageProvider || "";
-		for (const [pid, cfg] of Object.entries(legacy.imageProvidersConfig ?? {})) {
+		for (const [pid, cfg] of Object.entries(
+			legacy.imageProvidersConfig ?? {},
+		)) {
 			if (!cfg?.apiKey?.trim()) continue;
 			upsertChannelConfig({
 				capability: "image_gen",
@@ -628,7 +649,9 @@ export function syncChannelsFromSettings(settings: {
 	try {
 		// chat
 		const chatProvider = settings.llmProvider || "official";
-		for (const [pid, cfg] of Object.entries(settings.llmProvidersConfig ?? {})) {
+		for (const [pid, cfg] of Object.entries(
+			settings.llmProvidersConfig ?? {},
+		)) {
 			if (!cfg?.apiKey?.trim()) continue;
 			upsertChannelConfig({
 				capability: "chat",
