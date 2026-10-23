@@ -32,7 +32,7 @@ export interface ReplicaElement {
 	width?: number;
 	height?: number;
 	/** line / arrow: absolute vertices in source-image pixels. */
-	points?: [number, number][];
+	points?: ([number, number] | number[])[];
 	/** Text content (text), label inside the shape (shapes) or arrow label. */
 	text?: string;
 	/** Stroke colour; also the text colour for `text` elements. */

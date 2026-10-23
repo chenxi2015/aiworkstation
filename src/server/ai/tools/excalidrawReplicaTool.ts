@@ -18,7 +18,12 @@ const colorSchema = z
 	.string()
 	.regex(/^(#[0-9a-fA-F]{3,8}|transparent)$/, "必须是 #hex 或 transparent");
 
-const pointSchema = z.tuple([z.number(), z.number()]);
+// Use array instead of tuple to ensure OpenAI / Moonshot JSON Schema compatibility
+// Moonshot requires array items to be an object rather than a tuple array
+const pointSchema = z
+	.array(z.number())
+	.min(2)
+	.describe("[x, y] 绝对坐标点，固定为包含 2 个数字 [x, y] 的数组");
 
 export const replicaElementSchema = z.object({
 	id: z.string().describe("唯一 id，箭头的 startId/endId 引用它"),
