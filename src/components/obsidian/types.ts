@@ -133,6 +133,8 @@ export interface ExcalidrawDrawInput {
 /** AI 插入图库素材：已由服务端解析为真实元素 + 落位包围框 */
 export interface ExcalidrawLibraryInsertInput {
 	elements: Record<string, unknown>[];
+	/** 图片素材的二进制文件（BinaryFileData，按 fileId 键），个人素材库插入时携带 */
+	files?: Record<string, unknown>;
 	placedBounds?: { x: number; y: number; width: number; height: number }[];
 }
 

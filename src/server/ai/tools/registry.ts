@@ -90,6 +90,15 @@ import {
 	headlessInsertExcalidrawLibraryItems,
 } from "./excalidrawLibraryPlacement.ts";
 import {
+	executeSearchPersonalLibrary,
+	insertPersonalLibraryItemToolDef,
+	searchPersonalLibraryToolDef,
+} from "./excalidrawPersonalLibrary.ts";
+import {
+	executeInsertPersonalLibraryItems,
+	headlessInsertPersonalLibraryItems,
+} from "./personalLibraryPlacement.ts";
+import {
 	draftExcalidrawReplicaToolDef,
 	executeDraftExcalidrawReplica,
 	executeSearchExcalidrawLibrary,
@@ -639,6 +648,18 @@ export function createAgentTools(
 				),
 		},
 		{
+			def: searchPersonalLibraryToolDef,
+			make: () =>
+				searchPersonalLibraryToolDef.server((args) =>
+					wrapExecution(
+						"search_personal_library",
+						args,
+						() => executeSearchPersonalLibrary(args),
+						hooks,
+					),
+				),
+		},
+		{
 			def: draftExcalidrawReplicaToolDef,
 			make: () =>
 				draftExcalidrawReplicaToolDef.server((args) =>
@@ -881,6 +902,38 @@ export function createAgentTools(
 								);
 							}
 							return headlessInsertExcalidrawLibraryItems(
+								args,
+								targetPath ?? (activeNotePath as string),
+							);
+						},
+						hooks,
+					),
+				),
+		},
+		{
+			def: insertPersonalLibraryItemToolDef,
+			make: () =>
+				insertPersonalLibraryItemToolDef.server((args) =>
+					wrapExecution(
+						"excalidraw_insert_personal_item",
+						args,
+						async () => {
+							const targetPath = args.targetPath;
+							if (!excalidrawOpen && !targetPath) {
+								throw new Error(
+									"当前未打开任何 Excalidraw 画板。excalidraw_insert_personal_item 仅用于修改当前已打开的画板，如需新建画板请调用 draft_excalidraw。",
+								);
+							}
+							if (
+								excalidrawOpen &&
+								(!targetPath || targetPath === activeNotePath)
+							) {
+								return executeInsertPersonalLibraryItems(
+									args,
+									activeNotePath as string,
+								);
+							}
+							return headlessInsertPersonalLibraryItems(
 								args,
 								targetPath ?? (activeNotePath as string),
 							);

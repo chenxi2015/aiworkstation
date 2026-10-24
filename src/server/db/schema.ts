@@ -60,6 +60,29 @@ export function initSchema(db: SqliteDatabase): void {
       updated_at TEXT NOT NULL
     );
 
+    -- 4a. Personal Excalidraw library, one row per library item.
+    -- Replaces the legacy monolithic settings['excalidrawPersonalLibrary']
+    -- JSON blob: per-item rows keep writes incremental (upsert/diff) and let
+    -- reads stream item-by-item instead of parsing one huge JSON string.
+    CREATE TABLE IF NOT EXISTS excalidraw_library_items (
+      id TEXT PRIMARY KEY,
+      name TEXT DEFAULT '',
+      status TEXT DEFAULT 'unpublished',
+      created INTEGER DEFAULT 0,
+      sort_order INTEGER DEFAULT 0,
+      updated_at TEXT NOT NULL,
+      payload TEXT NOT NULL
+    );
+
+    -- Binary files (image dataURLs) referenced by library items, keyed by
+    -- fileId. Split out so a library with no images stores nothing here.
+    CREATE TABLE IF NOT EXISTS excalidraw_library_files (
+      file_id TEXT PRIMARY KEY,
+      mime_type TEXT DEFAULT '',
+      updated_at TEXT NOT NULL,
+      payload TEXT NOT NULL
+    );
+
     -- 4b. AI capability channel configs (chat / vision / embedding / web_search / image_gen / video_gen)
     -- 每类能力可有多条通道配置（official / 各 custom provider），同一能力仅一条 is_active=1。
     -- api_key 等敏感配置只存本表，不再走 env 兜底（见 docs/ai-config-membership-v2-plan.md）。

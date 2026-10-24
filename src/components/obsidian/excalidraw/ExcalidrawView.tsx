@@ -155,6 +155,7 @@ export default function ExcalidrawView({
 		null,
 	);
 	const libraryLatestRef = useRef<LibraryItems | null>(null);
+	const libraryHydratedRef = useRef(false);
 
 	useEffect(() => {
 		let mounted = true;
@@ -170,6 +171,27 @@ export default function ExcalidrawView({
 			mounted = false;
 		};
 	}, []);
+
+	// Synchronize loaded library items into the active Excalidraw instance
+	useEffect(() => {
+		if (!excalidrawApi || !libraryState.loaded || libraryHydratedRef.current) return;
+		libraryHydratedRef.current = true;
+
+		if (libraryState.items && libraryState.items.length > 0) {
+			void excalidrawApi.updateLibrary({
+				libraryItems: libraryState.items,
+				merge: false,
+				defaultStatus: "unpublished",
+			});
+			if (libraryState.files && Object.keys(libraryState.files).length > 0) {
+				try {
+					excalidrawApi.addFiles(Object.values(libraryState.files) as never[]);
+				} catch (err) {
+					console.warn("[ExcalidrawView] addFiles error:", err);
+				}
+			}
+		}
+	}, [excalidrawApi, libraryState.loaded, libraryState.items, libraryState.files]);
 
 	const flushLibrarySave = useCallback(() => {
 		if (librarySaveTimerRef.current) {
@@ -189,6 +211,7 @@ export default function ExcalidrawView({
 
 	const handleLibraryChange = useCallback(
 		(libraryItems: LibraryItems) => {
+			if (!libraryState.loaded) return;
 			libraryLatestRef.current = libraryItems;
 			if (librarySaveTimerRef.current) {
 				clearTimeout(librarySaveTimerRef.current);
@@ -198,14 +221,14 @@ export default function ExcalidrawView({
 				LIBRARY_SAVE_DEBOUNCE,
 			);
 		},
-		[flushLibrarySave],
+		[flushLibrarySave, libraryState.loaded],
 	);
 
 	// Flush any pending library write on unmount (file switch / page unload)
 	useEffect(() => flushLibrarySave, [flushLibrarySave]);
 
 	useEffect(() => {
-		if (!mod || scene !== null) return;
+		if (!mod || !libraryState.loaded || scene !== null) return;
 		if (!content.trim()) {
 			setScene({
 				data: {
@@ -373,6 +396,21 @@ export default function ExcalidrawView({
 						null,
 					) as { elements?: OrderedExcalidrawElement[] } | null;
 					const placed = restored?.elements ?? [];
+					// Personal-library items may carry image dataURLs (keyed by the
+					// placed elements' fileIds); seed the canvas file store first so
+					// image elements don't render as broken.
+					if (params.files && Object.keys(params.files).length > 0) {
+						try {
+							excalidrawApi.addFiles(
+								Object.values(params.files) as never[],
+							);
+						} catch (err) {
+							console.error(
+								"[ExcalidrawApi.insertLibraryItems] addFiles error:",
+								err,
+							);
+						}
+					}
 					excalidrawApi.updateScene({
 						elements: [...currentElements, ...placed],
 					});
