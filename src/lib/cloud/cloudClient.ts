@@ -75,8 +75,16 @@ class CloudClient {
 	 * Save session token and user info
 	 */
 	setSession(token: string, user: UserProfile) {
+		const cleanToken = token.trim();
+		// Reject invalid tokens with non-ASCII or whitespace characters
+		if (!cleanToken || !/^[\x21-\x7E]+$/.test(cleanToken)) {
+			console.error(
+				"[CloudClient] Refusing to set invalid token containing non-ASCII or blank characters",
+			);
+			return;
+		}
 		if (typeof window !== "undefined") {
-			localStorage.setItem(TOKEN_KEY, token);
+			localStorage.setItem(TOKEN_KEY, cleanToken);
 			localStorage.setItem(USER_KEY, JSON.stringify(user));
 			this.notifyListeners(user);
 		}
@@ -157,7 +165,16 @@ class CloudClient {
 		const token = this.getToken();
 		const headers = new Headers(options.headers || {});
 		if (token) {
-			headers.set("Authorization", `Bearer ${token}`);
+			// Ensure token only contains valid ASCII ByteString characters
+			if (/^[\x21-\x7E]+$/.test(token)) {
+				headers.set("Authorization", `Bearer ${token}`);
+			} else {
+				console.warn(
+					"[CloudClient] Stored token has invalid characters, clearing session",
+				);
+				this.clearSession();
+				throw new Error("登录凭证已失效，请重新登录");
+			}
 		}
 		if (
 			!headers.has("Content-Type") &&
@@ -206,25 +223,13 @@ class CloudClient {
 	 */
 	async getMe(): Promise<UserProfile> {
 		const token = this.getToken();
-		if (token?.startsWith("dev_local_token_")) {
-			const cached = this.getUser();
-			if (cached) return cached;
+		if (!token) {
+			throw new Error("用户未登录");
 		}
 
-		try {
-			const user = await this.fetchApi<UserProfile>("/api/auth/me");
-			if (token) {
-				this.setSession(token, user);
-			}
-			return user;
-		} catch (err) {
-			// If it's a dev token or local mock session, fallback to cached user
-			if (token?.startsWith("dev_local_token_")) {
-				const cached = this.getUser();
-				if (cached) return cached;
-			}
-			throw err;
-		}
+		const user = await this.fetchApi<UserProfile>("/api/auth/me");
+		this.setSession(token, user);
+		return user;
 	}
 
 	/**
@@ -300,18 +305,6 @@ class CloudClient {
 	 * Create membership payment order
 	 */
 	async createOrder(planId: string): Promise<CreateOrderResponse> {
-		const token = this.getToken();
-		if (token?.startsWith("dev_local_token_")) {
-			// Mock order for dev environment testing
-			return {
-				orderNo: `ORDER_DEV_${Date.now()}`,
-				codeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(
-					`WECHAT_PAY_MOCK_ORDER_${planId}`,
-				)}`,
-				amountCents: 3600,
-				expiresInSeconds: 300,
-			};
-		}
 		return this.fetchApi<CreateOrderResponse>("/api/pay/create-order", {
 			method: "POST",
 			body: JSON.stringify({ planId }),
@@ -322,27 +315,15 @@ class CloudClient {
 	 * Poll payment order status
 	 */
 	async checkOrderStatus(orderNo: string): Promise<OrderStatusResponse> {
-		if (orderNo.startsWith("ORDER_DEV_")) {
-			return {
-				orderNo,
-				status: "PENDING",
-				paidAt: null,
-				tier: "PRO",
-				memberExpiresAt: new Date(Date.now() + 365 * 86400000).toISOString(),
-			};
-		}
 		return this.fetchApi<OrderStatusResponse>(
 			`/api/pay/order-status/${encodeURIComponent(orderNo)}`,
 		);
 	}
 
 	/**
-	 * Mock payment fulfillment for testing
+	 * Trigger payment fulfillment for testing
 	 */
 	async mockFulfillOrder(orderNo: string): Promise<void> {
-		if (orderNo.startsWith("ORDER_DEV_")) {
-			return;
-		}
 		await this.fetchApi(
 			`/api/pay/mock-fulfill/${encodeURIComponent(orderNo)}`,
 			{

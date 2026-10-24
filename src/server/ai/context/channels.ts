@@ -351,17 +351,21 @@ export function resolveCapabilityConfig(
 
 	if (active.channel === "official") {
 		const { cloudToken, cloudApiBase } = getCloudSession();
+		// Validate cloudToken strictly: must only contain printable ASCII characters (no non-ASCII, no spaces)
+		const isCleanToken = Boolean(
+			cloudToken && /^[\x21-\x7E]+$/.test(cloudToken),
+		);
 		// Official channel uses the official configured model; do not allow custom external model name overrides
 		const model = active.model || OFFICIAL_DEFAULT_MODEL[capability];
 		return {
 			capability,
 			channel: "official",
 			provider: "official",
-			apiKey: cloudToken,
+			apiKey: isCleanToken ? cloudToken : "",
 			baseUrl: `${cloudApiBase}/api/ai/v1`,
 			model,
 			extra: active.extra,
-			configured: Boolean(cloudToken),
+			configured: isCleanToken,
 		};
 	}
 

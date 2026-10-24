@@ -102,10 +102,10 @@ export function useCloudAuth() {
 				memberTier: tier,
 				memberExpiresAt: futureDate,
 			};
-			cloudClient.setSession(
-				cloudClient.getToken() || "dev_local_token_mock",
-				upgradedUser,
-			);
+			const currentToken = cloudClient.getToken();
+			if (currentToken) {
+				cloudClient.setSession(currentToken, upgradedUser);
+			}
 			setUser(upgradedUser);
 		},
 		[user],
