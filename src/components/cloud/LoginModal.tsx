@@ -362,7 +362,7 @@ export function LoginModal({
 									type="submit"
 									size="sm"
 									variant="primary"
-									isDisabled={userIdLoading}
+									isDisabled={userIdLoading || !userIdInput.trim()}
 									className="w-full h-8 text-xs font-medium rounded-xl cursor-pointer flex items-center justify-center gap-1.5"
 								>
 									{userIdLoading && (

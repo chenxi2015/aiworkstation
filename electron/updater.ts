@@ -154,10 +154,16 @@ async function runCheck(): Promise<UpdateState> {
 			return state;
 		}
 
-		pendingDmgFile =
+		const dmgFiles =
 			result?.updateInfo?.files
 				?.map((f) => ({ fileName: f.url, sha512: f.sha512 }))
-				.find((f) => f.fileName.toLowerCase().endsWith(".dmg")) || null;
+				.filter((f) => f.fileName.toLowerCase().endsWith(".dmg")) || [];
+
+		// Match current architecture (e.g. arm64 or x64), fallback to any dmg
+		pendingDmgFile =
+			dmgFiles.find((f) => f.fileName.toLowerCase().includes(process.arch)) ||
+			dmgFiles[0] ||
+			null;
 
 		setState({
 			status: "available",

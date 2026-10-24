@@ -29,7 +29,9 @@ Tag 推送后 GitHub Actions 会自动构建 macOS + Windows 双平台安装包�
 | `pnpm run release:major` | 自动提交 + Tag + Push | **一键标准发版**（主版本，如 0.1.0 -> 1.0.0），自动触发 CI |
 | `pnpm electron:dev` | 无 | 本地开发调试（Vite + Electron 联调） |
 | `pnpm electron:pack` | `dist/mac-arm64/*.app`（未压缩目录） | 快速验证打包配置，不出安装包，最快 |
-| `pnpm electron:dist:mac` | `dist/*.dmg` | 本地出 Mac 安装包（自己装着测） |
+| `pnpm electron:dist:mac` | `dist/*-arm64.dmg`, `dist/*-x64.dmg` | 本地出 Mac 全架构安装包（Apple Silicon + Intel） |
+| `pnpm electron:dist:mac:arm64` | `dist/*-arm64.dmg` | 本地仅出 Mac Apple Silicon (arm64) 安装包 |
+| `pnpm electron:dist:mac:x64` | `dist/*-x64.dmg` | 本地仅出 Mac Intel (x64) 安装包 |
 | `pnpm electron:dist:win` | `dist/*.exe` | 本地出 Windows 安装包（Mac 上也能打，NSIS 交叉构建） |
 | `pnpm electron:release` | 同上 + **直接发布到 GitHub Releases** | 应急手动发布渠道（见下文对比） |
 
@@ -62,11 +64,12 @@ pnpm run release:patch    # 补丁更新（如 0.1.0 -> 0.1.1）
 # 亦可指定具体版本：node scripts/release.mjs 0.2.5 (加 -y 可跳过确认直接推送)
 
 # 3. 等 15-25 分钟，到 GitHub Actions 页面确认 Build & Release 成功
-# 4. 检查 Release 页面资产是否齐全（共 6 个文件）：
-#    AI-Workstation-x.y.z-arm64.dmg          Mac 安装包
+# 4. 检查 Release 页面资产是否齐全（共 8 个核心文件 + 扩展 zip）：
+#    AI-Workstation-x.y.z-arm64.dmg          Mac Apple Silicon 安装包
+#    AI-Workstation-x.y.z-x64.dmg            Mac Intel 安装包
 #    AI-Workstation-Setup-x.y.z.exe          Windows 安装包
 #    latest-mac.yml / latest.yml             自动更新元数据（electron-updater 读取）
-#    *.blockmap × 2                          差量更新用
+#    *.blockmap                              差量更新用
 ```
 
 ### 方式二：手动打 Tag（备用）
@@ -94,6 +97,25 @@ git push origin v0.2.0
 - **macOS 自更新彻底打通需要 Apple Developer ID 签名**（$99/年），签名后 `codesign` 检测自动切换到 `quitAndInstall` 路径，无需改代码
 
 ## 常见问题
+
+**Q: macOS 打开提示「"AI Workstation"已损坏，无法打开。你应该将它移到废纸篓」？**
+这是由于 macOS Gatekeeper 安全机制对从浏览器下载、未购买 Apple 开发者账号认证公证（Notarization）的软件添加了隔离属性（`com.apple.quarantine`）。
+本项目的最新配置已修复了 ad-hoc 签名缺失与无证书下误开 Hardened Runtime 的问题。若系统仍提示该弹窗，可通过以下任一方式正常打开：
+1. **终端一键解除隔离（推荐，最彻底）**：
+   将应用拖入「应用程序（Applications）」文件夹后，打开终端运行：
+   ```bash
+   xattr -cr "/Applications/AI Workstation.app"
+   ```
+   如果是刚下载的 DMG 包提示损坏：
+   ```bash
+   xattr -d com.apple.quarantine ~/Downloads/AI-Workstation-*.dmg
+   ```
+2. **系统设置放行**：
+   打开 macOS「系统设置」->「隐私与安全性」，滑到底部会显示「已阻止使用“AI Workstation”」，点击「仍要打开」并输入密码即可。
+3. **右键打开**：
+   在访达（Finder）的「应用程序」中，按住 `Control` 键点击应用图标，选择「打开」，在弹出的对话框中点击「打开」。
+4. **彻底免弹窗方案**：
+   配置 Apple Developer ID 证书（$99/年）与公证票据，CI 构建时传入 `CSC_LINK` 与 `CSC_KEY_PASSWORD`，系统便会自动信任且不再弹出任何警告。
 
 **Q: 发了 tag 但 Release 里版本号不对？**
 CI 会自动执行 `npm version <tag>` 同步，正常不会发生。本地 `electron:release` 则需要自己先改 `package.json` 的 `version`。

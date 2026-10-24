@@ -84,16 +84,20 @@ const config: Configuration = {
   mac: {
     artifactName: `${APP_CONFIG.SLUG}-\${version}-\${arch}-mac.\${ext}`,
     target: [
-      // arm64 only on Apple Silicon; add x64 via CI for universal builds
-      { target: "dmg", arch: ["arm64"] },
-      { target: "zip", arch: ["arm64"] },
+      // Build both Apple Silicon (arm64) and Intel (x64) packages
+      { target: "dmg", arch: ["arm64", "x64"] },
+      { target: "zip", arch: ["arm64", "x64"] },
     ],
     icon: "build/icon.icns",
     category: APP_CONFIG.CATEGORY,
-    hardenedRuntime: true,
+    entitlements: "build/entitlements.mac.plist",
+    entitlementsInherit: "build/entitlements.mac.inherit.plist",
+    // Only enable hardenedRuntime when an Apple certificate is provided;
+    // unnotarized apps with hardenedRuntime: true are flagged as damaged by Gatekeeper.
+    hardenedRuntime: Boolean(process.env.CSC_LINK || process.env.CSC_NAME || process.env.APPLE_CERTIFICATE),
     gatekeeperAssess: false,
-    // Sign with your Apple Developer ID when distributing publicly:
-    // identity: "Developer ID Application: Your Name (XXXXXXXXXX)",
+    // Use ad-hoc signing when uncertified to keep bundle structure valid on disk
+    identity: (process.env.CSC_LINK || process.env.CSC_NAME || process.env.APPLE_CERTIFICATE) ? undefined : "-",
   },
   dmg: {
     title: APP_CONFIG.NAME,

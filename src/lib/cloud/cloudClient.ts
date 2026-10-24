@@ -228,7 +228,7 @@ class CloudClient {
 	}
 
 	/**
-	 * Log in by existing userId or raw token
+	 * Log in by existing userId or raw token (must exist in database)
 	 */
 	async loginWithIdentifier(
 		identifier: string,
@@ -238,26 +238,11 @@ class CloudClient {
 			throw new Error("请输入 User ID 或 Token");
 		}
 
-		// Case 1: Input is already a token (dev token or JWT format)
-		const isDevToken = trimmed.startsWith("dev_local_token_");
+		// Case 1: Input is a JWT token (verify existence in DB via /api/auth/me)
 		const isJwtToken =
 			trimmed.startsWith("eyJ") || trimmed.split(".").length === 3;
 
-		if (isDevToken) {
-			const mockId = trimmed.replace("dev_local_token_", "") || "dev_user";
-			const user: UserProfile = {
-				id: mockId,
-				nickname: `开发用户 (${mockId})`,
-				avatarUrl: "",
-				memberTier: "VIP",
-				memberExpiresAt: null,
-				createdAt: new Date().toISOString(),
-			};
-			return { token: trimmed, user };
-		}
-
 		if (isJwtToken) {
-			// Try validating with remote server first
 			try {
 				const headers = new Headers();
 				headers.set("Authorization", `Bearer ${trimmed}`);
@@ -267,33 +252,17 @@ class CloudClient {
 				if (res.ok && json.code === 0 && json.data) {
 					return { token: trimmed, user: json.data };
 				}
+				throw new Error(json.message || "用户不存在或 Token 已失效");
 			} catch (err) {
-				console.warn("[CloudClient] Failed to verify token with server:", err);
-			}
-
-			// Local fallback: decode JWT payload
-			try {
-				const payloadBase64 = trimmed.split(".")[1];
-				const decoded = atob(
-					payloadBase64.replace(/-/g, "+").replace(/_/g, "/"),
-				);
-				const payload = JSON.parse(decoded);
-				const userId = payload.userId || payload.sub || "user_jwt";
-				const user: UserProfile = {
-					id: userId,
-					nickname: payload.nickname || `用户 (${userId})`,
-					avatarUrl: payload.avatarUrl || "",
-					memberTier: payload.memberTier || "VIP",
-					memberExpiresAt: payload.memberExpiresAt || null,
-					createdAt: new Date().toISOString(),
-				};
-				return { token: trimmed, user };
-			} catch {
-				throw new Error("Token 无效或格式不正确，请重新输入");
+				const rawMsg = err instanceof Error ? err.message : String(err);
+				if (rawMsg.includes("Failed to fetch") || rawMsg.includes("NetworkError")) {
+					throw new Error("无法连接云端鉴权服务，请确保服务端正在运行");
+				}
+				throw new Error(rawMsg || "Token 验证失败，未找到对应用户");
 			}
 		}
 
-		// Case 2: Input is a userId
+		// Case 2: Input is a userId - strictly verify existence in database via /api/auth/token
 		try {
 			const res = await this.fetchApi<{ token: string; user: UserProfile }>(
 				`/api/auth/token?userId=${encodeURIComponent(trimmed)}`,
@@ -301,22 +270,21 @@ class CloudClient {
 			if (res?.token && res?.user) {
 				return res;
 			}
+			throw new Error("用户不存在");
 		} catch (err) {
-			console.warn("[CloudClient] /api/auth/token failed, falling back to local session:", err);
-			// Fallback session so client user is never blocked by offline/mock server
-			const fallbackToken = `dev_local_token_${trimmed}`;
-			const fallbackUser: UserProfile = {
-				id: trimmed,
-				nickname: `用户 ${trimmed}`,
-				avatarUrl: "",
-				memberTier: "VIP",
-				memberExpiresAt: null,
-				createdAt: new Date().toISOString(),
-			};
-			return { token: fallbackToken, user: fallbackUser };
+			const rawMsg = err instanceof Error ? err.message : String(err);
+			if (
+				rawMsg.includes("User not found") ||
+				rawMsg.includes("not found") ||
+				rawMsg.includes("404")
+			) {
+				throw new Error("用户不存在，请输入正确用户ID");
+			}
+			if (rawMsg.includes("Failed to fetch") || rawMsg.includes("NetworkError")) {
+				throw new Error("无法连接云端鉴权服务，请确保服务端正在运行");
+			}
+			throw new Error(rawMsg || "登录验证失败，请确认输入的 User ID 是否正确");
 		}
-
-		throw new Error("登录失败，未能获取用户信息");
 	}
 
 	// --- Payment APIs ---
