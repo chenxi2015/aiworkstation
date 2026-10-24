@@ -167,29 +167,22 @@ export const ChatMessageItem = memo(function ChatMessageItem({
 
 	// 3. Assistant response bubble
 	return (
-		<div className="space-y-2">
-			<AssistantMessageBubble
-				msg={msg}
-				index={index}
-				isLoading={isLoading}
-				pageBridge={pageBridge}
-				folders={folders}
-				selectedRefKeys={selectedRefKeys}
-				onResend={onResend}
-				onDelete={onDelete}
-				onStartSelectDelete={onStartSelectDelete}
-				onToggleRefCheck={onToggleRefCheck}
-				onToggleSelectGroup={onToggleSelectGroup}
-				onOpenAssignSingle={onOpenAssignSingle}
-				onOpenAssignMultiple={onOpenAssignMultiple}
-				onNavigateToFolder={onNavigateToFolder}
-			/>
-			{msg.draft && (
-				<DraftDeliveryCard
-					draft={msg.draft}
-					onDraftStatusChange={handleDraftStatusChange}
-				/>
-			)}
-		</div>
+		<AssistantMessageBubble
+			msg={msg}
+			index={index}
+			isLoading={isLoading}
+			pageBridge={pageBridge}
+			folders={folders}
+			selectedRefKeys={selectedRefKeys}
+			onResend={onResend}
+			onDelete={onDelete}
+			onStartSelectDelete={onStartSelectDelete}
+			onToggleRefCheck={onToggleRefCheck}
+			onToggleSelectGroup={onToggleSelectGroup}
+			onOpenAssignSingle={onOpenAssignSingle}
+			onOpenAssignMultiple={onOpenAssignMultiple}
+			onNavigateToFolder={onNavigateToFolder}
+			onDraftStatusChange={handleDraftStatusChange}
+		/>
 	);
 });

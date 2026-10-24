@@ -1,10 +1,12 @@
 import { Sparkles } from "lucide-react";
 import { memo } from "react";
 import type { ChatItem } from "../../../../../hooks/ai/useAiChat";
+import type { ChatDraftPayload } from "../../../../../hooks/ai/useChatMessages";
 import type { PageBridge } from "../../../../../types/pageBridge";
 import type { Category, Folder, SearchResultItem } from "../../../types";
 import { AiMarkdownRenderer } from "../../shared/AiMarkdownRenderer";
 import { AgentStepTimeline } from "../AgentStepTimeline";
+import { DraftDeliveryCard } from "../draft/DraftDeliveryCard";
 import { ArtifactCardList } from "./ArtifactCardList";
 import { AssistantActionBar } from "./AssistantActionBar";
 import { AssistantThinkingIndicator } from "./AssistantThinkingIndicator";
@@ -32,6 +34,7 @@ export interface AssistantMessageBubbleProps {
 		category?: Category,
 		targetItemId?: string | number,
 	) => void;
+	onDraftStatusChange?: (updated: ChatDraftPayload) => void;
 }
 
 /**
@@ -53,6 +56,7 @@ export const AssistantMessageBubble = memo(function AssistantMessageBubble({
 	onOpenAssignSingle,
 	onOpenAssignMultiple,
 	onNavigateToFolder,
+	onDraftStatusChange,
 }: AssistantMessageBubbleProps) {
 	const currentReferences = msg.references || [];
 	const isActivelyStreaming = Boolean(msg.isStreaming);
@@ -156,6 +160,14 @@ export const AssistantMessageBubble = memo(function AssistantMessageBubble({
 
 			{/* Artifact result cards (headless creations) — prominent entry at message level */}
 			{!msg.isStreaming && <ArtifactCardList steps={msg.steps} />}
+
+			{/* Draft delivery card — shown after streaming completes, as part of assistant reply */}
+			{!msg.isStreaming && msg.draft && (
+				<DraftDeliveryCard
+					draft={msg.draft}
+					onDraftStatusChange={onDraftStatusChange}
+				/>
+			)}
 
 			{/* Bottom Action Bar (Modular page actions, copy, regenerate, delete) */}
 			{!msg.isStreaming && (
