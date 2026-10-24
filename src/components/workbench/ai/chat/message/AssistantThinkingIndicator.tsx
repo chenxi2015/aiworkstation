@@ -24,8 +24,8 @@ export const AssistantThinkingIndicator = memo(
 			<div className="flex items-center gap-2 py-1 select-none animate-in fade-in duration-200">
 				{/* Glowing soft blue dot */}
 				<span className="relative flex h-2 w-2 items-center justify-center shrink-0">
-					<span className="absolute inline-flex h-2 w-2 rounded-full bg-blue-500/30 dark:bg-blue-400/30 animate-ping" />
-					<span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-blue-500 dark:bg-blue-400 shadow-[0_0_6px_rgba(59,130,246,0.5)]" />
+					<span className="absolute inline-flex h-2 w-2 rounded-full bg-gray-500/30 dark:bg-gray-400/30 animate-ping" />
+					<span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-gray-500 dark:bg-gray-400 shadow-[0_0_6px_rgba(59,130,246,0.5)]" />
 				</span>
 
 				{/* Shimmering text with soft light sweep */}
