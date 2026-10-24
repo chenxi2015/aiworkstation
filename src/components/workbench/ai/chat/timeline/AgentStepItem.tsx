@@ -84,7 +84,7 @@ export const AgentStepItem = memo(function AgentStepItem({
 						) : step.status === "failed" ? (
 							<span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
 						) : (
-							<span className="w-1.5 h-1.5 rounded-full bg-sky-500/80 shrink-0" />
+							<span className="w-1.5 h-1.5 rounded-full bg-green-500/80 shrink-0" />
 						)}
 					</div>
 				</div>

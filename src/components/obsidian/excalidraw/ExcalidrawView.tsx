@@ -4,9 +4,14 @@ import type {
 	AppState,
 	BinaryFiles,
 	ExcalidrawImperativeAPI,
+	LibraryItems,
 } from "@excalidraw/excalidraw/types";
 import { AlertTriangle } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+	getExcalidrawPersonalLibrary,
+	saveExcalidrawPersonalLibrary,
+} from "../../../server/functions/excalidrawLibrary";
 import type { ObsidianExcalidrawApi } from "../types";
 import { buildExcalidrawElements } from "./utils/excalidrawLayout";
 
@@ -23,6 +28,9 @@ export interface ExcalidrawViewProps {
 
 /** Serialize debounce: keeps drag-heavy onChange storms off the save path */
 const SERIALIZE_DEBOUNCE = 250;
+
+/** Library persistence debounce: batch imports fire onLibraryChange repeatedly */
+const LIBRARY_SAVE_DEBOUNCE = 500;
 
 /**
  * appState keys safe to round-trip from a saved file (display prefs only).
@@ -76,6 +84,29 @@ interface PendingScene {
 }
 
 /**
+ * Read the personal library from the SQLite settings KV.
+ *
+ * `files` are merged in alongside `libraryItems`: Excalidraw seeds its
+ * in-memory binary file store from initialData.files, which image-type
+ * library items depend on (they only hold fileId references).
+ * Returns null when nothing is persisted yet so callers can fall back.
+ */
+async function loadPersistedLibrary(): Promise<{
+	libraryItems: LibraryItems;
+	files: BinaryFiles;
+} | null> {
+	try {
+		const { libraryItems, files } = await getExcalidrawPersonalLibrary();
+		if (libraryItems.length === 0) {
+			return null;
+		}
+		return { libraryItems, files };
+	} catch {
+		return null;
+	}
+}
+
+/**
  * Visual .excalidraw editor wrapping the official @excalidraw/excalidraw package.
  * Dynamically loads @excalidraw/excalidraw in the browser to avoid SSR evaluation crashes.
  */
@@ -112,10 +143,78 @@ export default function ExcalidrawView({
 		error: boolean;
 	} | null>(null);
 
+	// Personal library state, persisted to SQLite via server functions.
+	// Resolved before the component renders <Excalidraw> so initialData can
+	// seed both the scene and the library atomically.
+	const [libraryState, setLibraryState] = useState<{
+		loaded: boolean;
+		items: LibraryItems | null;
+		files: BinaryFiles | null;
+	}>({ loaded: false, items: null, files: null });
+	const librarySaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+		null,
+	);
+	const libraryLatestRef = useRef<LibraryItems | null>(null);
+
+	useEffect(() => {
+		let mounted = true;
+		loadPersistedLibrary().then((persisted) => {
+			if (!mounted) return;
+			setLibraryState({
+				loaded: true,
+				items: persisted?.libraryItems ?? null,
+				files: persisted?.files ?? null,
+			});
+		});
+		return () => {
+			mounted = false;
+		};
+	}, []);
+
+	const flushLibrarySave = useCallback(() => {
+		if (librarySaveTimerRef.current) {
+			clearTimeout(librarySaveTimerRef.current);
+			librarySaveTimerRef.current = null;
+		}
+		const items = libraryLatestRef.current;
+		if (items === null) return;
+		libraryLatestRef.current = null;
+		// Snapshot the API's binary files so image-type library items stay
+		// renderable after a reload (fileId references need their dataURLs).
+		const files = excalidrawApi?.getFiles() ?? null;
+		void saveExcalidrawPersonalLibrary({
+			data: { libraryItems: items, files },
+		});
+	}, [excalidrawApi]);
+
+	const handleLibraryChange = useCallback(
+		(libraryItems: LibraryItems) => {
+			libraryLatestRef.current = libraryItems;
+			if (librarySaveTimerRef.current) {
+				clearTimeout(librarySaveTimerRef.current);
+			}
+			librarySaveTimerRef.current = setTimeout(
+				flushLibrarySave,
+				LIBRARY_SAVE_DEBOUNCE,
+			);
+		},
+		[flushLibrarySave],
+	);
+
+	// Flush any pending library write on unmount (file switch / page unload)
+	useEffect(() => flushLibrarySave, [flushLibrarySave]);
+
 	useEffect(() => {
 		if (!mod || scene !== null) return;
 		if (!content.trim()) {
-			setScene({ data: { scrollToContent: true }, error: false });
+			setScene({
+				data: {
+					scrollToContent: true,
+					...(libraryState.items ? { libraryItems: libraryState.items } : {}),
+					...(libraryState.files ? { files: libraryState.files } : {}),
+				},
+				error: false,
+			});
 			return;
 		}
 		try {
@@ -168,13 +267,19 @@ export default function ExcalidrawView({
 				data: {
 					...restored,
 					...(hasSavedViewport ? {} : { scrollToContent: true }),
+					// Persisted personal library + its image dataURLs (see
+					// loadPersistedLibrary); scene files stay untouched.
+					...(libraryState.items ? { libraryItems: libraryState.items } : {}),
+					...(libraryState.files
+						? { files: { ...restored.files, ...libraryState.files } }
+						: {}),
 				},
 				error: false,
 			});
 		} catch {
 			setScene({ data: null, error: true });
 		}
-	}, [mod, content, scene]);
+	}, [mod, content, scene, libraryState]);
 
 	const onChangeRef = useRef(onChange);
 	onChangeRef.current = onChange;
@@ -358,7 +463,7 @@ export default function ExcalidrawView({
 		return () => onRegisterExcalidrawApi(null);
 	}, [onRegisterExcalidrawApi, excalidrawApi, mod]);
 
-	if (!mod || !scene) {
+	if (!mod || !scene || !libraryState.loaded) {
 		return (
 			<div className="h-full w-full flex items-center justify-center bg-background text-muted text-xs">
 				加载绘图组件...
@@ -386,6 +491,7 @@ export default function ExcalidrawView({
 				excalidrawAPI={setExcalidrawApi}
 				initialData={scene.data ?? undefined}
 				onChange={handleChange}
+				onLibraryChange={handleLibraryChange}
 				theme={theme}
 				langCode="zh-CN"
 				viewModeEnabled={readOnly}
