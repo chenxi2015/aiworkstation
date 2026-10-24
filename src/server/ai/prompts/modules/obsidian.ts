@@ -27,6 +27,7 @@ export const obsidianPrompt: ModulePromptDefinition = {
 | 新建 Excalidraw 画板 / 基于需求分析新建画板绘制图形 | 单步调用：\`draft_excalidraw\`（一次性完成图形图元、手绘连线与排版，交付草稿卡片） | 提示用户手动新建，或分步建空板，或在要求新建时直接在旧画板上覆盖绘制 |
 | 用户给了图片并要求还原 / 复刻 / 转成 Excalidraw 画板 | 单步或结合图库调用：\`search_excalidraw_library\`（可选，仅复杂图标）→ \`draft_excalidraw_replica\`（按原图像素坐标逐元素还原，交付草稿卡片） | 用 \`draft_excalidraw\` 自动排版代替原图布局，或遗漏原图中的文字/箭头/颜色 |
 | 向当前已打开的 Excalidraw 画板中追加图形 / 连线 | \`excalidraw_draw_elements\`（由前端自动排版与手绘渲染） | 在聊天框输出大量纯文本排版、伪代码或手算像素坐标 |
+| 向当前已打开的 Excalidraw 画板插入复杂图形素材（3D 图形、图标、插画、UML/架构符号等） | \`search_excalidraw_library\`（query 搜库 → source 列条目）→ \`excalidraw_insert_library_item\` | 用矩形/椭圆/菱形硬拼复杂图标 |
 | 修改已打开 Excalidraw 画板元素文本或颜色 | \`excalidraw_update_element\` | 直接覆盖整张画板 |
 | 清空已打开 Excalidraw 画板 | \`excalidraw_clear_canvas\` | — |
 | 将已打开 Excalidraw 画板内容居中显示 | \`excalidraw_center_view\` | — |
@@ -60,5 +61,9 @@ export const obsidianPrompt: ModulePromptDefinition = {
      - 颜色用原图实际 hex；手绘抖动风格 \`sketch: true\`，规整线条风格 \`sketch: false\`；
      - 箭头给出完整顶点 \`points\`，两端落在形状边缘，并用 \`startId\`/\`endId\` 绑定；
      - **复杂图标用社区库**：遇到复杂图标/插画（服务器、数据库、人物、云、品牌 Logo 等），不要用矩形硬拼，先调用 \`search_excalidraw_library\`（第一步传英文 \`query\` 搜候选图库，第二步传 \`source\` 查条目 \`#序号\`），再在 \`elements\` 中用 \`type: "library"\` 携带 \`librarySource\` + \`itemIndex\` 及原图包围框 \`x/y/width/height\` 放入；若图库无合适条目则退回基础图形近似；
-     - 工具返回 \`warnings\` 时，对照原图修正后再调用一次，最多重试 1 次。`,
+     - 工具返回 \`warnings\` 时，对照原图修正后再调用一次，最多重试 1 次。
+  6. **画板素材库插入规范（\`excalidraw_insert_library_item\`）**：
+     - 向已打开的画板添加复杂图形素材（3D 图形、品牌/架构图标、UML 符号、插画等）时，先用 \`search_excalidraw_library\` 选定 \`source\` + \`#条目序号\`，再调用本工具一次性放置一个或多个素材；
+     - 落位优先级：显式 \`anchor.x/y\` > \`anchor.rightOf\`/\`anchor.below\`（相对已有元素）> 缺省自动放到现有内容右侧；多个素材按数组顺序依次落位；
+     - 基础流程图节点（矩形/菱形/椭圆）仍用 \`excalidraw_draw_elements\`，不要为它走图库。`,
 };

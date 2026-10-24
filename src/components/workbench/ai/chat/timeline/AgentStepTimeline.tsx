@@ -30,7 +30,7 @@ export const AgentStepTimeline = memo(function AgentStepTimeline({
 
 	if (!steps || steps.length === 0) return null;
 
-	const handleToggleStepExpand = (stepKey: string, e: React.MouseEvent) => {
+	const handleToggleStepExpand = (stepKey: string, e: React.SyntheticEvent) => {
 		e.stopPropagation();
 		setExpandedStepKeys((prev) => {
 			const next = new Set(prev);

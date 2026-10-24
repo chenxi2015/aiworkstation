@@ -130,12 +130,20 @@ export interface ExcalidrawDrawInput {
 	connections?: ExcalidrawConnectionInput[];
 }
 
+/** AI 插入图库素材：已由服务端解析为真实元素 + 落位包围框 */
+export interface ExcalidrawLibraryInsertInput {
+	elements: Record<string, unknown>[];
+	placedBounds?: { x: number; y: number; width: number; height: number }[];
+}
+
 /**
  * Excalidraw 画板操作句柄（AI 侧边栏实时写入与渲染使用）
  */
 export interface ObsidianExcalidrawApi {
 	/** 批量绘制元素与连线，自动排版并居中聚焦 */
 	drawElements: (params: ExcalidrawDrawInput) => boolean;
+	/** 插入图库素材（服务端已解析为真实元素），并聚焦素材视野 */
+	insertLibraryItems: (params: ExcalidrawLibraryInsertInput) => boolean;
 	/** 更新指定元素的文字或样式 */
 	updateElement: (
 		id: string,

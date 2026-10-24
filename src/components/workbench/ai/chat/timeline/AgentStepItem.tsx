@@ -48,10 +48,17 @@ export const AgentStepItem = memo(function AgentStepItem({
 
 	return (
 		<div className="group/item">
-			{/* Step action line button */}
-			<button
-				type="button"
+			{/* Step action line (div-based to avoid nesting the stop button inside a <button>) */}
+			<div
+				role="button"
+				tabIndex={0}
 				onClick={(e) => onToggleExpand(activeKey, e)}
+				onKeyDown={(e) => {
+					if (e.key === "Enter" || e.key === " ") {
+						e.preventDefault();
+						onToggleExpand(activeKey, e);
+					}
+				}}
 				className="w-full flex items-center justify-between text-left py-1 px-1.5 -ml-1.5 rounded-md hover:bg-neutral-100/70 dark:hover:bg-neutral-800/40 transition-colors cursor-pointer select-none"
 			>
 				<div className="flex items-center gap-2 min-w-0 flex-1">
@@ -108,7 +115,7 @@ export const AgentStepItem = memo(function AgentStepItem({
 						)}
 					</span>
 				</div>
-			</button>
+			</div>
 
 			{/* Expanded Technical Inspection Details */}
 			{isExpanded && (

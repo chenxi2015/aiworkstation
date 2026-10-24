@@ -1,6 +1,42 @@
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
+import type { LibraryElement } from "../../../shared/excalidraw/libraryItem.ts";
 import type { ToolExecutionResult } from "./types.ts";
+
+/** 图库素材放置位置：左上角坐标或相对已有图形的方位 */
+export interface ExcalidrawLibraryAnchor {
+	x?: number;
+	y?: number;
+	rightOf?: string;
+	below?: string;
+	gap?: number;
+}
+
+/** 图库素材放置请求：由服务端解析图库后展开为真实元素 */
+export interface ExcalidrawLibraryPlacement {
+	source: string;
+	itemIndex: number;
+	width: number;
+	height: number;
+	anchor: ExcalidrawLibraryAnchor;
+}
+
+/** 画板元素绘制的共享负载：基础图形 + 可选的图库素材放置请求 */
+export interface ExcalidrawDrawPayload {
+	targetPath?: string;
+	layout?: string;
+	mode?: string;
+	elements: ExcalidrawDrawInput["elements"];
+	connections?: ExcalidrawDrawInput["connections"];
+	libraryPlacements?: ExcalidrawLibraryPlacement[];
+}
+
+/** 图库素材解析结果：真实元素列表 + 放置警告 + 落位包围框（供前端聚焦视野） */
+export interface ExcalidrawLibraryPlacementResult {
+	elements: LibraryElement[];
+	warnings: string[];
+	placedBounds: { x: number; y: number; width: number; height: number }[];
+}
 
 export const excalidrawElementSchema = z.object({
 	id: z.string().describe("Unique identifier for this element"),
@@ -66,6 +102,74 @@ export const excalidrawDrawInputSchema = z.object({
 });
 
 export type ExcalidrawDrawInput = z.input<typeof excalidrawDrawInputSchema>;
+
+/** 图库素材放置位置：左上角坐标或相对已有图形的方位 */
+export const excalidrawLibraryAnchorSchema = z
+	.object({
+		x: z.number().optional().describe("素材包围框左上角 x 坐标"),
+		y: z.number().optional().describe("素材包围框左上角 y 坐标"),
+		rightOf: z
+			.string()
+			.optional()
+			.describe("已存在的元素 id：把素材放到它右侧（与其垂直居中对齐）"),
+		below: z
+			.string()
+			.optional()
+			.describe("已存在的元素 id：把素材放到它下方（与其水平居中对齐）"),
+		gap: z
+			.number()
+			.optional()
+			.describe("与参照元素或已放置素材的间距（px），默认 80"),
+	})
+	.describe(
+		"x/y 优先；缺省时按 rightOf/below 相对定位，都缺省时放到现有内容右侧",
+	);
+
+export const excalidrawLibraryPlacementSchema = z.object({
+	source: z
+		.string()
+		.describe(
+			"search_excalidraw_library 返回的图库 source，如 'andreandreandradecosta/3d-shapes.excalidrawlib'",
+		),
+	itemIndex: z
+		.number()
+		.int()
+		.min(0)
+		.describe("图库内条目序号（#N，由 search_excalidraw_library 列出）"),
+	width: z.number().positive().describe("素材包围框宽度（px）"),
+	height: z.number().positive().describe("素材包围框高度（px）"),
+	anchor: excalidrawLibraryAnchorSchema,
+});
+
+export const excalidrawInsertLibraryItemInputSchema = z.object({
+	targetPath: z
+		.string()
+		.optional()
+		.describe(
+			"目标画板相对路径（.excalidraw）。省略时作用于当前已打开的画板；仅在需要修改其他已有画板时指定",
+		),
+	placements: z
+		.array(excalidrawLibraryPlacementSchema)
+		.min(1)
+		.max(20)
+		.describe("要放置的图库素材列表，按数组顺序依次落位"),
+});
+
+export type ExcalidrawInsertLibraryItemInput = z.input<
+	typeof excalidrawInsertLibraryItemInputSchema
+>;
+
+export const excalidrawInsertLibraryItemToolDef = toolDefinition({
+	metadata: {
+		executionClass: "context-dependent",
+		requiresView: "excalidraw",
+		clientAction: "canvas",
+	},
+	name: "excalidraw_insert_library_item",
+	description:
+		"向当前已打开的 Excalidraw 画板插入社区图库素材（3D 图形、图标、插画、UML 符号等复杂图形）。前置步骤：必须先调用 search_excalidraw_library 检索并选定 source + #条目序号。不要用矩形/椭圆硬拼复杂图标。基础流程图节点（矩形/菱形/椭圆）请继续用 excalidraw_draw_elements。",
+	inputSchema: excalidrawInsertLibraryItemInputSchema,
+});
 
 export function executeExcalidrawDrawElements(
 	args: ExcalidrawDrawInput,

@@ -42,6 +42,12 @@ export interface ToolExecutionResult {
 	references: SearchResultItem[];
 	isMutation?: boolean;
 	navigation?: ToolNavigation;
+	/**
+	 * Server-resolved payload for clientAction dispatch (e.g. Excalidraw
+	 * library items expanded to real elements). Attached to the step_end
+	 * event so the client bridge acts on this instead of the raw tool args.
+	 */
+	actionPayload?: Record<string, unknown>;
 }
 
 /**
@@ -116,5 +122,6 @@ export interface AgentToolHooks {
 		durationMs: number,
 		navigation?: ToolNavigation,
 		stepId?: string,
+		actionPayload?: Record<string, unknown>,
 	) => void;
 }

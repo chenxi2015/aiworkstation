@@ -25,7 +25,7 @@ export interface AgentStepItemProps {
 	step: AgentStep;
 	stepKey?: string;
 	isExpanded: boolean;
-	onToggleExpand: (stepKey: string, e: React.MouseEvent) => void;
+	onToggleExpand: (stepKey: string, e: React.SyntheticEvent) => void;
 }
 
 /**

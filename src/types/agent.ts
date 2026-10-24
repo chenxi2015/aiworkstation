@@ -32,6 +32,12 @@ export interface AgentStep {
 	 * Decouples client execution dispatchers from hardcoded tool names.
 	 */
 	action?: string;
+	/**
+	 * Server-resolved payload for client actions that cannot be computed on the
+	 * client (e.g. Excalidraw library items expanded to real elements). When
+	 * present, the client action dispatcher prefers this over `args`.
+	 */
+	actionPayload?: Record<string, unknown>;
 	/** Optional artifact navigation, rendered as a clickable result card */
 	navigation?: AgentStepNavigation;
 }

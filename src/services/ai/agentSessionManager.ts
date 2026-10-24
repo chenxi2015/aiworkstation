@@ -10,10 +10,7 @@ import {
 } from "../../stores/agentSessionStore";
 import type { AgentStep } from "../../types/agent";
 import { streamAgentChat } from "../api/agentStreamClient";
-import {
-	type ChatSession,
-	WorkbenchStorageService,
-} from "../workbenchStorage";
+import { type ChatSession, WorkbenchStorageService } from "../workbenchStorage";
 import {
 	createInitialAssistantMessage,
 	createUserMessage,
@@ -182,7 +179,7 @@ export class AgentSessionManager {
 						this.handleStepStart(sessionId, step, callbacks);
 					},
 					onStepEnd: (step) => {
-						this.handleStepEnd(sessionId, step);
+						this.handleStepEnd(sessionId, step, callbacks);
 					},
 					onTextChunk: (delta) => {
 						this.handleTextChunk(sessionId, delta);
@@ -225,7 +222,10 @@ export class AgentSessionManager {
 		step: AgentStep,
 		callbacks?: AgentSessionCallbacks,
 	) {
-		this.dispatchClientAction(step, callbacks);
+		// actionPayload 仅在 step_end 才由服务端解析完毕，画布动作在 step_end 分发
+		if (step.action !== "canvas") {
+			this.dispatchClientAction(step, callbacks);
+		}
 
 		agentSessionActions.setSessionMessages(sessionId, (prev) => {
 			const last = prev[prev.length - 1];
@@ -234,7 +234,14 @@ export class AgentSessionManager {
 		});
 	}
 
-	private handleStepEnd(sessionId: string, step: AgentStep) {
+	private handleStepEnd(
+		sessionId: string,
+		step: AgentStep,
+		callbacks?: AgentSessionCallbacks,
+	) {
+		if (step.action === "canvas" && step.status === "completed") {
+			this.dispatchClientAction(step, callbacks);
+		}
 		agentSessionActions.setSessionMessages(sessionId, (prev) => {
 			const last = prev[prev.length - 1];
 			if (!last || last.role !== "assistant") return prev;
@@ -322,7 +329,11 @@ export class AgentSessionManager {
 				step.toolName !== "draft_excalidraw" &&
 				step.toolName !== "draft_canvas"
 			) {
-				callbacks?.onCanvasAction?.(step.toolName, step.args, step.navigation);
+				callbacks?.onCanvasAction?.(
+					step.toolName,
+					step.actionPayload ?? step.args,
+					step.navigation,
+				);
 			}
 		}
 	}

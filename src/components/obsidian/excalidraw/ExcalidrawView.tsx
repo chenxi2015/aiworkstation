@@ -129,7 +129,9 @@ export default function ExcalidrawView({
 			let rawElements = Array.isArray(raw?.elements) ? raw.elements : [];
 			const isNative = (el: { seed?: unknown; label?: { text?: string } }) =>
 				typeof el?.seed === "number" && !el?.label?.text;
-			const skeletons = rawElements.filter((el: { seed?: unknown }) => !isNative(el));
+			const skeletons = rawElements.filter(
+				(el: { seed?: unknown }) => !isNative(el),
+			);
 			if (
 				skeletons.length > 0 &&
 				typeof mod.convertToExcalidrawElements === "function"
@@ -138,12 +140,16 @@ export default function ExcalidrawView({
 					regenerateIds: false,
 				});
 				const byId = new Map<string, unknown[]>();
-				for (const item of converted as { id: string; containerId?: string | null }[]) {
+				for (const item of converted as {
+					id: string;
+					containerId?: string | null;
+				}[]) {
 					const key = item.containerId || item.id;
 					byId.set(key, [...(byId.get(key) ?? []), item]);
 				}
-				rawElements = rawElements.flatMap((el: { id: string; seed?: unknown }) =>
-					isNative(el) ? [el] : (byId.get(el.id) ?? [el]),
+				rawElements = rawElements.flatMap(
+					(el: { id: string; seed?: unknown }) =>
+						isNative(el) ? [el] : (byId.get(el.id) ?? [el]),
 				);
 			}
 
@@ -239,6 +245,45 @@ export default function ExcalidrawView({
 					return true;
 				} catch (err) {
 					console.error("[ExcalidrawApi.drawElements] error:", err);
+					return false;
+				}
+			},
+			insertLibraryItems: (params) => {
+				try {
+					if (
+						!mod ||
+						!Array.isArray(params?.elements) ||
+						params.elements.length === 0
+					) {
+						return false;
+					}
+					const currentElements = excalidrawApi.getSceneElements() || [];
+					const restored = mod.restore(
+						{
+							elements: params.elements as never,
+							appState: {},
+							files: undefined,
+						},
+						null,
+						null,
+					) as { elements?: OrderedExcalidrawElement[] } | null;
+					const placed = restored?.elements ?? [];
+					excalidrawApi.updateScene({
+						elements: [...currentElements, ...placed],
+					});
+					setTimeout(() => {
+						try {
+							if (placed.length > 0) {
+								excalidrawApi.scrollToContent(placed, {
+									fitToViewport: true,
+									animate: true,
+								});
+							}
+						} catch {}
+					}, 100);
+					return true;
+				} catch (err) {
+					console.error("[ExcalidrawApi.insertLibraryItems] error:", err);
 					return false;
 				}
 			},

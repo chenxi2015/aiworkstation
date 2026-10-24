@@ -33,8 +33,7 @@ function matchMembershipErrorCode(error: unknown): string | null {
 	const message = error instanceof Error ? error.message : String(error);
 
 	// 优先使用网关返回的结构化业务码
-	if (message.includes(MEMBERSHIP_EXPIRED_CODE))
-		return MEMBERSHIP_EXPIRED_CODE;
+	if (message.includes(MEMBERSHIP_EXPIRED_CODE)) return MEMBERSHIP_EXPIRED_CODE;
 	if (message.includes(CAPABILITY_NOT_ENTITLED_CODE))
 		return CAPABILITY_NOT_ENTITLED_CODE;
 	if (message.includes(MEMBERSHIP_REQUIRED_CODE))
@@ -115,7 +114,15 @@ export async function runAgentStream(
 			emit({ type: "step_start", step });
 			return stepId;
 		},
-		onToolEnd: (toolName, summary, ok, durationMs, navigation, stepId) => {
+		onToolEnd: (
+			toolName,
+			summary,
+			ok,
+			durationMs,
+			navigation,
+			stepId,
+			actionPayload,
+		) => {
 			const existing = stepId ? activeSteps.get(stepId) : undefined;
 			const action = existing?.action ?? toolActionByName.get(toolName);
 			const step: AgentStep = {
@@ -127,6 +134,7 @@ export async function runAgentStream(
 				durationMs,
 				timestamp: new Date().toLocaleTimeString(),
 				...(action ? { action } : {}),
+				...(actionPayload ? { actionPayload } : {}),
 				...(navigation ? { navigation } : {}),
 			};
 			if (stepId) {
@@ -218,7 +226,9 @@ export async function runAgentStream(
 	});
 
 	// Multimodal image support for current turn
-	const currentImageParts = await resolveImagePartsFromContext(params.contextItems);
+	const currentImageParts = await resolveImagePartsFromContext(
+		params.contextItems,
+	);
 	let userContent: any = q;
 	if (currentImageParts.length > 0) {
 		userContent = [{ type: "text", content: q }, ...currentImageParts];
@@ -235,7 +245,9 @@ export async function runAgentStream(
 		...(await Promise.all(
 			filteredHistory.map(async (h, idx) => {
 				if (h.role === "user" && h.contextItems && h.contextItems.length > 0) {
-					const historyImageParts = await resolveImagePartsFromContext(h.contextItems);
+					const historyImageParts = await resolveImagePartsFromContext(
+						h.contextItems,
+					);
 					// Retain full image data for the most recent historical user message to enable visual continuation
 					const isRecentUserTurn = idx >= filteredHistory.length - 2;
 					if (historyImageParts.length > 0 && isRecentUserTurn) {

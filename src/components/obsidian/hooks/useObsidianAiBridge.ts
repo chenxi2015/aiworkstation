@@ -1,10 +1,5 @@
 import { toast } from "@heroui/react";
-import {
-	Columns2,
-	ListTree,
-	Shuffle,
-	Sparkles,
-} from "lucide-react";
+import { Columns2, ListTree, Shuffle, Sparkles } from "lucide-react";
 import type React from "react";
 import { useEffect } from "react";
 import { workbenchContextActions } from "../../../stores/workbenchContextStore";
@@ -337,6 +332,32 @@ export function useObsidianAiBridge({
 							}
 						} catch (err) {
 							console.error("[excalidraw_draw_elements] error:", err);
+						}
+					},
+				},
+				{
+					id: "excalidraw_insert_library_item",
+					label: "插入图库素材",
+					onAction: async (payload?: string | Record<string, unknown>) => {
+						if (!payload) return;
+						try {
+							const data =
+								typeof payload === "string" ? JSON.parse(payload) : payload;
+							const excalidrawApi = await waitForExcalidrawApi(noteApiRef);
+							if (!excalidrawApi) {
+								toast.info("当前未处于 Excalidraw 画板视图，无法插入素材");
+								return;
+							}
+							const ok = excalidrawApi.insertLibraryItems(
+								data as { elements: Record<string, unknown>[] },
+							);
+							if (ok) {
+								toast.success("AI 已向 Excalidraw 插入图库素材");
+							} else {
+								toast.info("图库素材插入失败");
+							}
+						} catch (err) {
+							console.error("[excalidraw_insert_library_item] error:", err);
 						}
 					},
 				},

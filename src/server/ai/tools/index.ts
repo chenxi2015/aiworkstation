@@ -60,6 +60,7 @@ export async function wrapExecution<TArgs>(
 			durationMs,
 			res.navigation,
 			typeof stepId === "string" ? stepId : undefined,
+			res.actionPayload,
 		);
 		return res.summary;
 	} catch (err: unknown) {

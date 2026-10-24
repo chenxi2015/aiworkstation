@@ -78,12 +78,17 @@ import {
 	excalidrawCenterViewToolDef,
 	excalidrawClearCanvasToolDef,
 	excalidrawDrawElementsToolDef,
+	excalidrawInsertLibraryItemToolDef,
 	excalidrawUpdateElementToolDef,
 	executeExcalidrawCenterView,
 	executeExcalidrawClearCanvas,
 	executeExcalidrawDrawElements,
 	executeExcalidrawUpdateElement,
 } from "./excalidrawTools.ts";
+import {
+	executeInsertExcalidrawLibraryItems,
+	headlessInsertExcalidrawLibraryItems,
+} from "./excalidrawLibraryPlacement.ts";
 import {
 	draftExcalidrawReplicaToolDef,
 	executeDraftExcalidrawReplica,
@@ -845,6 +850,39 @@ export function createAgentTools(
 							return headlessDrawExcalidrawElements(
 								args,
 								targetPath ?? activeNotePath,
+							);
+						},
+						hooks,
+					),
+				),
+		},
+		{
+			def: excalidrawInsertLibraryItemToolDef,
+			make: () =>
+				excalidrawInsertLibraryItemToolDef.server((args) =>
+					wrapExecution(
+						"excalidraw_insert_library_item",
+						args,
+						async () => {
+							const targetPath = args.targetPath;
+							if (!excalidrawOpen && !targetPath) {
+								throw new Error(
+									"当前未打开任何 Excalidraw 画板。excalidraw_insert_library_item 仅用于修改当前已打开的画板，如需新建画板请调用 draft_excalidraw。",
+								);
+							}
+							if (
+								excalidrawOpen &&
+								(!targetPath || targetPath === activeNotePath)
+							) {
+								// 打开中的画板：服务端解析图库为真实元素，经 actionPayload 交给客户端桥接插入
+								return executeInsertExcalidrawLibraryItems(
+									args,
+									activeNotePath as string,
+								);
+							}
+							return headlessInsertExcalidrawLibraryItems(
+								args,
+								targetPath ?? (activeNotePath as string),
 							);
 						},
 						hooks,

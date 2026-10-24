@@ -299,6 +299,10 @@ export const TOOL_STRATEGIES: Record<string, ToolStrategy> = {
 		Icon: Palette,
 		actionText: "绘制了手绘图形与连线",
 	}),
+	excalidraw_insert_library_item: () => ({
+		Icon: Palette,
+		actionText: "插入了图库素材",
+	}),
 	excalidraw_update_element: () => ({
 		Icon: Palette,
 		actionText: "更新了画板元素",
