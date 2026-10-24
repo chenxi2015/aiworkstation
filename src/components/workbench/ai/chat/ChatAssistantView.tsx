@@ -378,12 +378,27 @@ export const ChatAssistantView = forwardRef<
 			pageBridge?.activeNotePath ?? storeState.activeNote?.path;
 		const isNoteDetached =
 			rawNotePath != null && storeState.detachedNotePath === rawNotePath;
+
+		// Opt-in strategy for active note context (per Option B Sensor Bar):
+		// Only attach effectiveNotePath if explicitly specified, if a note context item
+		// is present in this turn's attachments, or if it's an interactive board file (.canvas/.excalidraw)
+		// which requires target path for headless canvas tools.
+		const isBoardFile = Boolean(
+			rawNotePath?.endsWith(".canvas") ||
+				rawNotePath?.endsWith(".excalidraw"),
+		);
+		const hasNoteItem = (options?.contextItems ?? contextItems).some(
+			(ci) => ci.type === "note" || Boolean(ci.notePath),
+		);
+
 		const effectiveNotePath =
 			options?.activeNotePath !== undefined
 				? options.activeNotePath
 				: isNoteDetached
 					? undefined
-					: (rawNotePath ?? undefined);
+					: hasNoteItem || isBoardFile
+						? (rawNotePath ?? undefined)
+						: undefined;
 
 		sendPrompt(prompt, {
 			...folderScope,
@@ -633,11 +648,15 @@ export const ChatAssistantView = forwardRef<
 					if (extraContextItems && extraContextItems.length > 0) {
 						resolvedItems = await resolveSkillContextItems(extraContextItems);
 					}
+					const finalItems = resolvedItems
+						? [...contextItems, ...resolvedItems]
+						: contextItems.length > 0
+							? [...contextItems]
+							: undefined;
 					handleSendPrompt(promptText, {
-						contextItems: resolvedItems
-							? [...contextItems, ...resolvedItems]
-							: undefined,
+						contextItems: finalItems,
 					});
+					clearContextItems();
 				}}
 				onStop={stopChat}
 				onOpenHistory={() => setIsHistoryOpen(true)}

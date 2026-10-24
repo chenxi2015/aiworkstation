@@ -328,9 +328,8 @@ export function useAiChat(options?: UseAiChatOptions) {
 			}
 
 			if (!userPrompt) setInput("");
-			if (sendOptions?.contextItems === undefined) {
-				setContextItems([]);
-			}
+			// Clear input context attachments after sending to prevent repeated context in subsequent turns
+			setContextItems([]);
 
 			await agentSessionManager.sendPrompt(
 				targetSessionId,

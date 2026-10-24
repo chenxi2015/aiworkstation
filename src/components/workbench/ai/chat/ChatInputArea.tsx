@@ -26,6 +26,7 @@ import {
 import { CHAT_INPUT_DROP_ID } from "../../dnd/dndUtils";
 import type { Category, Folder } from "../../types";
 import { ChatContextBar } from "./ChatContextBar";
+import { ChatContextSensorBar } from "./ChatContextSensorBar";
 import { ChatInputBottomBar } from "./ChatInputBottomBar";
 import { ChatInputTopToolbar } from "./ChatInputTopToolbar";
 import type { ActiveChatScope } from "./chatScopeTypes";
@@ -72,13 +73,6 @@ export interface ChatInputAreaProps {
 	) => void;
 }
 
-/** Friendly label map for dynamic scope placeholder */
-const SCOPE_TYPE_LABELS: Record<string, string> = {
-	document: "文档",
-	material: "素材",
-	folder: "文件夹",
-};
-
 /** scope 类型 → chip 类型映射（模块级常量，避免被 useMemo 捕获触发依赖告警） */
 const SCOPE_TYPE_TO_CHIP: Record<string, ChatContextItem["type"]> = {
 	document: "document",
@@ -108,7 +102,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 	onNewChat,
 	model,
 	activeScope,
-	onToggleScope,
+	onToggleScope: _onToggleScope,
 	folders: _folders = [],
 	contextItems = [],
 	onRemoveContextItem,
@@ -175,30 +169,66 @@ export const ChatInputArea = memo(function ChatInputArea({
 
 	const isMenuOpen = slashQuery !== null;
 
-	// 将当前 scope（当前文档/笔记/素材/文件夹）合成为内建 chip 插入上下文栏开头；
-	// × 掉即 detach（等价于原「切换到全局」）。替代旧 scope pill 的表达。
-	const mergedContextItems = useMemo(() => {
-		if (!activeScope?.isActive) return contextItems;
+	// Ambient Sensor Bar dismiss state (reset on scope change)
+	const [isSensorDismissed, setIsSensorDismissed] = useState(false);
+	const currentScopeId =
+		activeScope?.notePath || activeScope?.documentId || activeScope?.name;
+	const prevScopeIdRef = useRef(currentScopeId);
+	useEffect(() => {
+		if (prevScopeIdRef.current !== currentScopeId) {
+			prevScopeIdRef.current = currentScopeId;
+			setIsSensorDismissed(false);
+		}
+	}, [currentScopeId]);
 
-		const alreadyInContext = contextItems.some((ci) => {
-			if (activeScope.type === "note" && ci.type === "note" && ci.notePath === activeScope.notePath) return true;
-			if (activeScope.type === "document" && ci.type === "document" && ci.documentId === activeScope.documentId) return true;
-			if (activeScope.type === "material" && ci.type === "material" && ci.materialId === activeScope.materialId) return true;
-			if (activeScope.type === "folder" && ci.type === "folder" && ci.folderId === activeScope.folderId) return true;
+	// Check if active scope is already in input context items
+	const isScopeAlreadyAttached = useMemo(() => {
+		if (!activeScope) return false;
+		return contextItems.some((ci) => {
+			if (
+				activeScope.type === "note" &&
+				ci.type === "note" &&
+				ci.notePath === activeScope.notePath
+			)
+				return true;
+			if (
+				activeScope.type === "document" &&
+				ci.type === "document" &&
+				ci.documentId === activeScope.documentId
+			)
+				return true;
+			if (
+				activeScope.type === "material" &&
+				ci.type === "material" &&
+				ci.materialId === activeScope.materialId
+			)
+				return true;
+			if (
+				activeScope.type === "folder" &&
+				ci.type === "folder" &&
+				ci.folderId === activeScope.folderId
+			)
+				return true;
 			return false;
 		});
-		if (alreadyInContext) return contextItems;
+	}, [activeScope, contextItems]);
 
+	// Attach current document into one-shot chat input context
+	const handleAttachScopeToContext = useCallback(() => {
+		if (!activeScope) return;
 		const chipType = SCOPE_TYPE_TO_CHIP[activeScope.type] ?? "document";
 		const isCanvas = activeScope.notePath?.toLowerCase().endsWith(".canvas");
-		const isExcalidraw = activeScope.notePath?.toLowerCase().endsWith(".excalidraw");
+		const isExcalidraw = activeScope.notePath
+			?.toLowerCase()
+			.endsWith(".excalidraw");
 		const subtitle = isCanvas
 			? "白板画布"
 			: isExcalidraw
 				? "手绘草图"
 				: (SCOPE_CHIP_LABEL[activeScope.type] ?? "当前上下文");
-		const scopeChip: ChatContextItem = {
-			id: "__active_scope__",
+
+		const scopeItem: ChatContextItem = {
+			id: `scope_${Date.now()}`,
 			type: chipType,
 			title: activeScope.name,
 			subtitle,
@@ -207,26 +237,41 @@ export const ChatInputArea = memo(function ChatInputArea({
 			materialId: activeScope.materialId,
 			folderId: activeScope.folderId,
 		};
-		return [scopeChip, ...contextItems];
-	}, [activeScope, contextItems]);
+		attachSingleItem(scopeItem);
+	}, [activeScope, attachSingleItem]);
 
-	const handleRemoveContextItem = useCallback(
-		(id: string) => {
-			if (id === "__active_scope__") {
-				// 移除内建 scope chip = detach 当前上下文对象
-				onToggleScope?.();
-				return;
-			}
-			onRemoveContextItem?.(id);
-		},
-		[onToggleScope, onRemoveContextItem],
-	);
+	// Directly trigger summarization prompt for active document
+	const handleSummarizeScope = useCallback(() => {
+		if (!activeScope) return;
+		const chipType = SCOPE_TYPE_TO_CHIP[activeScope.type] ?? "document";
+		const isCanvas = activeScope.notePath?.toLowerCase().endsWith(".canvas");
+		const isExcalidraw = activeScope.notePath
+			?.toLowerCase()
+			.endsWith(".excalidraw");
+		const subtitle = isCanvas
+			? "白板画布"
+			: isExcalidraw
+				? "手绘草图"
+				: (SCOPE_CHIP_LABEL[activeScope.type] ?? "当前上下文");
+
+		const scopeItem: ChatContextItem = {
+			id: `scope_sum_${Date.now()}`,
+			type: chipType,
+			title: activeScope.name,
+			subtitle,
+			notePath: activeScope.notePath,
+			documentId: activeScope.documentId,
+			materialId: activeScope.materialId,
+			folderId: activeScope.folderId,
+		};
+		const prompt = `请帮我全面梳理并总结当前${subtitle}《${activeScope.name}》的核心要点、结构与关键内容。`;
+		onSend([scopeItem], prompt);
+	}, [activeScope, onSend]);
 
 	const canSend =
 		(hasEditorContent ||
 			input.trim().length > 0 ||
-			contextItems.length > 0 ||
-			Boolean(activeScope?.isActive)) &&
+			contextItems.length > 0) &&
 		!isLoading;
 
 	// Bridge inputRef for parent components calling inputRef.current?.focus()
@@ -552,41 +597,8 @@ export const ChatInputArea = memo(function ChatInputArea({
 		const data = inlineEditorRef.current?.getSerializedData();
 		const finalPrompt = data?.fullPrompt ?? input;
 
-		// Collect active scope and inline mentions/skills as extra context items
+		// Collect inline mentions and skills as extra context items
 		const extraItems: ChatContextItem[] = [];
-
-		// Include active scope as context item if active and not already present in contextItems
-		if (activeScope?.isActive) {
-			const chipType = SCOPE_TYPE_TO_CHIP[activeScope.type] ?? "document";
-			const isCanvas = activeScope.notePath?.toLowerCase().endsWith(".canvas");
-			const isExcalidraw = activeScope.notePath?.toLowerCase().endsWith(".excalidraw");
-			const subtitle = isCanvas
-				? "白板画布"
-				: isExcalidraw
-					? "手绘草图"
-					: (SCOPE_CHIP_LABEL[activeScope.type] ?? "当前上下文");
-
-			const alreadyInContext = contextItems.some((ci) => {
-				if (activeScope.type === "note" && ci.type === "note" && ci.notePath === activeScope.notePath) return true;
-				if (activeScope.type === "document" && ci.type === "document" && ci.documentId === activeScope.documentId) return true;
-				if (activeScope.type === "material" && ci.type === "material" && ci.materialId === activeScope.materialId) return true;
-				if (activeScope.type === "folder" && ci.type === "folder" && ci.folderId === activeScope.folderId) return true;
-				return false;
-			});
-
-			if (!alreadyInContext) {
-				extraItems.push({
-					id: `__active_scope__${Date.now()}`,
-					type: chipType,
-					title: activeScope.name,
-					subtitle,
-					notePath: activeScope.notePath,
-					documentId: activeScope.documentId,
-					materialId: activeScope.materialId,
-					folderId: activeScope.folderId,
-				});
-			}
-		}
 
 		if (data?.mentions && data.mentions.length > 0) {
 			for (const m of data.mentions) {
@@ -617,17 +629,14 @@ export const ChatInputArea = memo(function ChatInputArea({
 		setTimeout(() => {
 			onSend(extraItems.length > 0 ? extraItems : undefined, finalPrompt);
 		}, 0);
-	}, [canSend, input, onChangeInput, onSend, activeScope, contextItems]);
+	}, [canSend, input, onChangeInput, onSend]);
 
 	const placeholder = useMemo(() => {
 		if (contextItems.length > 0) {
 			return "对上述引用的上下文提问，或输入要求...";
 		}
-		if (activeScope?.isActive) {
-			return `针对当前${SCOPE_TYPE_LABELS[activeScope.type] || "内容"}提问，输入 / 载入 Skills...`;
-		}
 		return "发消息、拖入文件，输入 / 载入 Skills...";
-	}, [contextItems.length, activeScope]);
+	}, [contextItems.length]);
 
 	return (
 		<div className="p-3 bg-surface/50 backdrop-blur-xs shrink-0 flex flex-col gap-2 relative z-10">
@@ -648,6 +657,17 @@ export const ChatInputArea = memo(function ChatInputArea({
 				onOpenHistory={onOpenHistory}
 				onNewChat={onNewChat}
 			/>
+
+			{/* Context Sensor Bar (Ambient sensing: senses active note/doc without forcefully hijacking input area) */}
+			{activeScope && !isSensorDismissed && (
+				<ChatContextSensorBar
+					scope={activeScope}
+					isAlreadyAttached={isScopeAlreadyAttached}
+					onAttach={handleAttachScopeToContext}
+					onSummarize={handleSummarizeScope}
+					onDismiss={() => setIsSensorDismissed(true)}
+				/>
+			)}
 
 			{/* Main Input Card: Droppable Zone with Context Bar, Rich Inline Editor, and Bottom Bar */}
 			<section
@@ -674,12 +694,12 @@ export const ChatInputArea = memo(function ChatInputArea({
 					</div>
 				)}
 
-				{/* Injected Context Attachment Chips（内建 scope chip + 书签/文件夹/图片/文件/笔记） */}
-				{mergedContextItems.length > 0 && (
+				{/* Injected Context Attachment Chips（用户主动拖拽/加入的附件卡片） */}
+				{contextItems.length > 0 && (
 					<div className="mb-1 pb-1">
 						<ChatContextBar
-							items={mergedContextItems}
-							onRemove={handleRemoveContextItem}
+							items={contextItems}
+							onRemove={onRemoveContextItem}
 							onNavigateToFolder={onNavigateToFolder}
 						/>
 					</div>
