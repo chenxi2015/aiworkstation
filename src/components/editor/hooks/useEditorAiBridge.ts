@@ -122,6 +122,21 @@ export function useEditorAiBridge({
 		};
 	}, [activeDocId, activeDocTitle, registerPageBridge]);
 
+	// Synchronize active document to global workbench context store
+	useEffect(() => {
+		if (activeDoc) {
+			workbenchContextActions.setActiveDocument({
+				id: activeDoc.id,
+				title: activeDoc.title,
+			});
+		} else {
+			workbenchContextActions.setActiveDocument(null);
+		}
+		return () => {
+			workbenchContextActions.setActiveDocument(null);
+		};
+	}, [activeDoc]);
+
 	// 2. Consume cross-module pending actions after PageBridge registration:
 	// a confirmed proposal card navigates here and expects the action to run
 	// once the target document is open (single-slot, one-time consume, 60s TTL).

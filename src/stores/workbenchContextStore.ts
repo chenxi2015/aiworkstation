@@ -15,6 +15,15 @@ export interface ActiveFolderContext {
 	name: string;
 }
 
+export interface ActiveBookmarkContext {
+	id: number | string;
+	title: string;
+	url?: string;
+	icon?: string;
+	folderId?: number | null;
+	folderName?: string;
+}
+
 export interface ActiveNoteContext {
 	path: string;
 	title: string;
@@ -50,6 +59,8 @@ export interface WorkbenchContextState {
 	activeMaterial: ActiveMaterialContext | null;
 	/** Currently active bookmark folder */
 	activeFolder: ActiveFolderContext | null;
+	/** Currently active bookmark item */
+	activeBookmark: ActiveBookmarkContext | null;
 	/** Currently active obsidian note */
 	activeNote: ActiveNoteContext | null;
 	/** When set to a document id, this document is detached from the chat prompt context */
@@ -90,6 +101,7 @@ const initialState: WorkbenchContextState = {
 	activeDocument: null,
 	activeMaterial: null,
 	activeFolder: null,
+	activeBookmark: null,
 	activeNote: null,
 	detachedDocumentId: null,
 	detachedMaterialId: null,
@@ -209,6 +221,20 @@ export const workbenchContextActions = {
 		workbenchContextStore.setState((prev) => ({
 			...prev,
 			activeFolder: folder,
+		}));
+	},
+
+	setActiveBookmark(bookmark: ActiveBookmarkContext | null) {
+		const current = workbenchContextStore.state.activeBookmark;
+		if (
+			current?.id === bookmark?.id &&
+			current?.title === bookmark?.title &&
+			current?.url === bookmark?.url
+		)
+			return;
+		workbenchContextStore.setState((prev) => ({
+			...prev,
+			activeBookmark: bookmark,
 		}));
 	},
 

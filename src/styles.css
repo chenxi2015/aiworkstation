@@ -1536,4 +1536,43 @@ html.electron-mac .workbench-top-nav {
 	font-weight: 600;
 }
 
+/* AI Agent Thinking Text Shimmer Effect */
+@keyframes thinking-shimmer-move {
+	0% {
+		background-position: 100% 0;
+	}
+	100% {
+		background-position: -100% 0;
+	}
+}
+
+.thinking-shimmer-text {
+	background-size: 200% 100%;
+	-webkit-background-clip: text;
+	background-clip: text;
+	-webkit-text-fill-color: transparent;
+	color: transparent;
+	animation: thinking-shimmer-move 2.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+	background-image: linear-gradient(
+		90deg,
+		#71717a 0%,
+		#71717a 25%,
+		#18181b 50%,
+		#71717a 75%,
+		#71717a 100%
+	);
+}
+
+.dark .thinking-shimmer-text {
+	background-image: linear-gradient(
+		90deg,
+		#a1a1aa 0%,
+		#a1a1aa 25%,
+		#ffffff 50%,
+		#a1a1aa 75%,
+		#a1a1aa 100%
+	);
+}
+
+
 

@@ -7,6 +7,7 @@ import { AiMarkdownRenderer } from "../../shared/AiMarkdownRenderer";
 import { AgentStepTimeline } from "../AgentStepTimeline";
 import { ArtifactCardList } from "./ArtifactCardList";
 import { AssistantActionBar } from "./AssistantActionBar";
+import { AssistantThinkingIndicator } from "./AssistantThinkingIndicator";
 import { MessageReferencesPanel } from "./MessageReferencesPanel";
 
 export interface AssistantMessageBubbleProps {
@@ -54,14 +55,28 @@ export const AssistantMessageBubble = memo(function AssistantMessageBubble({
 	onNavigateToFolder,
 }: AssistantMessageBubbleProps) {
 	const currentReferences = msg.references || [];
+	const isActivelyStreaming = Boolean(msg.isStreaming);
+	const hasContent = Boolean(
+		msg.content ||
+			(msg.parts && msg.parts.length > 0) ||
+			(msg.steps && msg.steps.length > 0),
+	);
+	const hasRunningStep = Boolean(
+		msg.steps?.some((s) => s.status === "running") ||
+			msg.parts?.some(
+				(p) =>
+					p.type === "step_group" &&
+					p.steps.some((s) => s.status === "running"),
+			),
+	);
 
 	return (
 		<div className="w-full flex flex-col gap-1.5 group relative pt-1 my-2">
 			{/* Assistant brand header */}
 			<div className="flex items-center gap-1.5 text-xs font-semibold text-neutral-800 dark:text-neutral-200 select-none pb-0.5">
-				<div className="w-4 h-4 rounded-full bg-gradient-to-tr from-accent to-primary flex items-center justify-center text-white text-[9px] shadow-2xs shrink-0">
-					<Sparkles className="w-2.5 h-2.5 text-white" />
-				</div>
+				<span className="w-4 h-4 rounded-full bg-gradient-to-tr from-violet-500 via-indigo-500 to-fuchsia-500 flex items-center justify-center text-white shrink-0 shadow-2xs">
+					<Sparkles className="w-2.5 h-2.5" />
+				</span>
 				<span>AI 助手</span>
 				{msg.timestamp && (
 					<span className="text-[10.5px] text-neutral-400 font-normal">
@@ -131,16 +146,13 @@ export const AssistantMessageBubble = memo(function AssistantMessageBubble({
 				</>
 			)}
 
-			{/* Initial planning indicator (only before any parts, steps, or text arrive) */}
-			{msg.isStreaming &&
-				(!msg.parts || msg.parts.length === 0) &&
-				(!msg.steps || msg.steps.length === 0) &&
-				!msg.content && (
-					<div className="flex items-center gap-2 text-muted py-2">
-						<span className="inline-block w-2 h-2 rounded-full bg-accent animate-ping" />
-						<span className="text-xs">Agent 正在思考规划...</span>
-					</div>
-				)}
+			{/* Active thinking or loading indicator during ongoing streaming execution */}
+			{isActivelyStreaming && (
+				<AssistantThinkingIndicator
+					hasContent={hasContent}
+					hasRunningStep={hasRunningStep}
+				/>
+			)}
 
 			{/* Artifact result cards (headless creations) — prominent entry at message level */}
 			{!msg.isStreaming && <ArtifactCardList steps={msg.steps} />}

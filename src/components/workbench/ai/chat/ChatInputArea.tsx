@@ -79,12 +79,14 @@ const SCOPE_TYPE_TO_CHIP: Record<string, ChatContextItem["type"]> = {
 	note: "note",
 	material: "material",
 	folder: "folder",
+	bookmark: "bookmark",
 };
 const SCOPE_CHIP_LABEL: Record<string, string> = {
 	document: "当前文档",
 	note: "当前笔记",
 	material: "当前素材",
 	folder: "当前文件夹",
+	bookmark: "当前书签",
 };
 
 /**
@@ -209,26 +211,39 @@ export const ChatInputArea = memo(function ChatInputArea({
 				ci.folderId === activeScope.folderId
 			)
 				return true;
+			if (
+				activeScope.type === "bookmark" &&
+				ci.type === "bookmark" &&
+				(ci.id === `bookmark_${activeScope.bookmarkId}` ||
+					(activeScope.url && ci.url === activeScope.url))
+			)
+				return true;
 			return false;
 		});
 	}, [activeScope, contextItems]);
 
-	// Attach current document into one-shot chat input context
+	// Attach current document/bookmark/material into one-shot chat input context
 	const handleAttachScopeToContext = useCallback(() => {
 		if (!activeScope) return;
 		const chipType = SCOPE_TYPE_TO_CHIP[activeScope.type] ?? "document";
-		const isCanvas = activeScope.notePath?.toLowerCase().endsWith(".canvas");
-		const isExcalidraw = activeScope.notePath
-			?.toLowerCase()
-			.endsWith(".excalidraw");
-		const subtitle = isCanvas
-			? "白板画布"
-			: isExcalidraw
-				? "手绘草图"
-				: (SCOPE_CHIP_LABEL[activeScope.type] ?? "当前上下文");
+		let subtitle = SCOPE_CHIP_LABEL[activeScope.type] ?? "当前上下文";
+		if (activeScope.type === "note") {
+			const isCanvas = activeScope.notePath?.toLowerCase().endsWith(".canvas");
+			const isExcalidraw = activeScope.notePath
+				?.toLowerCase()
+				.endsWith(".excalidraw");
+			subtitle = isCanvas ? "白板画布" : isExcalidraw ? "手绘草图" : "当前笔记";
+		} else if (activeScope.type === "bookmark" && activeScope.url) {
+			try {
+				subtitle = new URL(activeScope.url).hostname;
+			} catch {}
+		}
 
 		const scopeItem: ChatContextItem = {
-			id: `scope_${Date.now()}`,
+			id:
+				activeScope.type === "bookmark"
+					? `bookmark_${activeScope.bookmarkId ?? Date.now()}`
+					: `scope_${Date.now()}`,
 			type: chipType,
 			title: activeScope.name,
 			subtitle,
@@ -236,26 +251,34 @@ export const ChatInputArea = memo(function ChatInputArea({
 			documentId: activeScope.documentId,
 			materialId: activeScope.materialId,
 			folderId: activeScope.folderId,
+			url: activeScope.url,
+			icon: activeScope.iconUrl,
 		};
 		attachSingleItem(scopeItem);
 	}, [activeScope, attachSingleItem]);
 
-	// Directly trigger summarization prompt for active document
+	// Directly trigger summarization prompt for active scope
 	const handleSummarizeScope = useCallback(() => {
 		if (!activeScope) return;
 		const chipType = SCOPE_TYPE_TO_CHIP[activeScope.type] ?? "document";
-		const isCanvas = activeScope.notePath?.toLowerCase().endsWith(".canvas");
-		const isExcalidraw = activeScope.notePath
-			?.toLowerCase()
-			.endsWith(".excalidraw");
-		const subtitle = isCanvas
-			? "白板画布"
-			: isExcalidraw
-				? "手绘草图"
-				: (SCOPE_CHIP_LABEL[activeScope.type] ?? "当前上下文");
+		let subtitle = SCOPE_CHIP_LABEL[activeScope.type] ?? "当前上下文";
+		if (activeScope.type === "note") {
+			const isCanvas = activeScope.notePath?.toLowerCase().endsWith(".canvas");
+			const isExcalidraw = activeScope.notePath
+				?.toLowerCase()
+				.endsWith(".excalidraw");
+			subtitle = isCanvas ? "白板画布" : isExcalidraw ? "手绘草图" : "当前笔记";
+		} else if (activeScope.type === "bookmark" && activeScope.url) {
+			try {
+				subtitle = new URL(activeScope.url).hostname;
+			} catch {}
+		}
 
 		const scopeItem: ChatContextItem = {
-			id: `scope_sum_${Date.now()}`,
+			id:
+				activeScope.type === "bookmark"
+					? `bookmark_${activeScope.bookmarkId ?? Date.now()}`
+					: `scope_sum_${Date.now()}`,
 			type: chipType,
 			title: activeScope.name,
 			subtitle,
@@ -263,8 +286,19 @@ export const ChatInputArea = memo(function ChatInputArea({
 			documentId: activeScope.documentId,
 			materialId: activeScope.materialId,
 			folderId: activeScope.folderId,
+			url: activeScope.url,
+			icon: activeScope.iconUrl,
 		};
-		const prompt = `请帮我全面梳理并总结当前${subtitle}《${activeScope.name}》的核心要点、结构与关键内容。`;
+
+		let prompt = `请帮我全面梳理并总结当前${subtitle}《${activeScope.name}》的核心要点、结构与关键内容。`;
+		if (activeScope.type === "bookmark") {
+			prompt = `请深度总结与分析书签《${activeScope.name}》${activeScope.url ? `（链接: ${activeScope.url}）` : ""}的核心内容、亮点特性与适用场景。`;
+		} else if (activeScope.type === "folder") {
+			prompt = `请深度盘点并总结「${activeScope.name}」文件夹中的书签资源，梳理分类亮点、推荐工具与使用建议。`;
+		} else if (activeScope.type === "material") {
+			prompt = `请分析并提炼素材《${activeScope.name}》的内容特征、适用场景与二创/剪辑应用建议。`;
+		}
+
 		onSend([scopeItem], prompt);
 	}, [activeScope, onSend]);
 
@@ -680,7 +714,7 @@ export const ChatInputArea = memo(function ChatInputArea({
 				onDragLeave={() => setIsNativeDragOver(false)}
 				onDrop={handleNativeDrop}
 				onPaste={handlePaste}
-				className={`relative flex flex-col bg-surface border rounded-2xl px-3 py-2 transition-all shadow-xs group ${
+				className={`relative flex flex-col bg-surface border rounded-2xl p-2 transition-all shadow-xs group ${
 					isDropTargetActive
 						? "border-dashed border-blue-500 ring-2 ring-blue-500/30 bg-blue-500/5 scale-[1.005]"
 						: "border-border/80 focus-within:border-blue-500/50 focus-within:ring-2 focus-within:ring-blue-500/15"

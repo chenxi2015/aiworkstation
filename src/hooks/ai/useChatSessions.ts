@@ -230,7 +230,7 @@ export function useChatSessions<
 		(session: ChatSession<TMessage>) => {
 			setCurrentSessionId(session.id);
 			onSessionLoadedRef.current?.(session.messages || []);
-			toast.success(`已载入「${session.title || "历史对话"}」`);
+			// toast.success(`已载入「${session.title || "历史对话"}」`);
 		},
 		[setCurrentSessionId],
 	);

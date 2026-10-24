@@ -12,6 +12,7 @@ import {
 import type React from "react";
 import { memo, useState } from "react";
 import { extractDomain } from "../../../lib/url";
+import { workbenchContextActions } from "../../../stores/workbenchContextStore";
 import { FolderAssignMenu } from "../folder/FolderAssignMenu";
 import { ItemFavicon } from "../ItemFavicon";
 import { type Folder, ITEM_TYPES, type WorkbenchItem } from "../types";
@@ -55,7 +56,19 @@ export const WorkbenchItemCard = memo(function WorkbenchItemCard({
 	};
 	const domain = extractDomain(item.url);
 
+	const handleSelectAsActiveBookmark = () => {
+		workbenchContextActions.setActiveBookmark({
+			id: item.id ?? item.url ?? Date.now(),
+			title: item.name,
+			url: item.url,
+			icon: item.favicon,
+			folderId: item.folderId,
+			folderName: item.folderName,
+		});
+	};
+
 	const handleOpenLink = (url?: string) => {
+		handleSelectAsActiveBookmark();
 		if (url) {
 			window.open(url, "_blank", "noopener,noreferrer");
 		}
@@ -71,7 +84,8 @@ export const WorkbenchItemCard = memo(function WorkbenchItemCard({
 	if (compact) {
 		return (
 			<div
-				className={`group/item relative flex items-center justify-between px-2.5 py-1.5 rounded-xl border transition-all overflow-hidden ${
+				onClick={handleSelectAsActiveBookmark}
+				className={`group/item relative flex items-center justify-between px-2.5 py-1.5 rounded-xl border transition-all overflow-hidden cursor-pointer ${
 					isAssignMenuOpen
 						? "bg-surface-secondary border-accent/40 shadow-xs"
 						: "hover:bg-surface-secondary/70 border-transparent hover:border-border/60"
@@ -221,7 +235,8 @@ export const WorkbenchItemCard = memo(function WorkbenchItemCard({
 
 	return (
 		<Card
-			className={`group/card p-3 rounded-xl bg-surface hover:bg-surface border transition-all duration-150 flex flex-col justify-between h-full ${
+			onClick={handleSelectAsActiveBookmark}
+			className={`group/card p-3 rounded-xl bg-surface hover:bg-surface border transition-all duration-150 flex flex-col justify-between h-full cursor-pointer ${
 				isCardMenuOpen
 					? "border-accent/50 shadow-md ring-1 ring-accent/20"
 					: "border-border/80 hover:border-accent/40 shadow-xs hover:shadow-md"

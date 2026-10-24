@@ -186,7 +186,7 @@ export function useAiChat(options?: UseAiChatOptions) {
 	const loadSession = useCallback((session: ChatSession<ChatItem>) => {
 		agentSessionActions.ensureSession(session.id, session.title, session.messages);
 		agentSessionActions.setActiveSessionId(session.id);
-		toast.success(`已载入「${session.title || "历史对话"}」`);
+		// toast.success(`已载入「${session.title || "历史对话"}」`);
 	}, []);
 
 	// Delete a single historical session

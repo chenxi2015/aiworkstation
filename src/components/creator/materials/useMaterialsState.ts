@@ -1,5 +1,6 @@
 import { toast } from "@heroui/react";
 import { useCallback, useEffect, useState } from "react";
+import { workbenchContextActions } from "../../../stores/workbenchContextStore";
 import {
 	batchDeleteMaterialsRpc,
 	createDocumentFromMaterialRpc,
@@ -86,6 +87,24 @@ export function useMaterialsState({
 		},
 		[],
 	);
+
+	// Synchronize active material to global workbench context for AI assistant sensor bar
+	useEffect(() => {
+		const targetMaterial =
+			previewingMaterial ||
+			playingMaterial ||
+			(selectedIds.size === 1
+				? materials.find((m) => selectedIds.has(m.id))
+				: null);
+		if (targetMaterial) {
+			workbenchContextActions.setActiveMaterial({
+				id: targetMaterial.id,
+				title: targetMaterial.title || "未命名素材",
+			});
+		} else {
+			workbenchContextActions.setActiveMaterial(null);
+		}
+	}, [previewingMaterial, playingMaterial, selectedIds, materials]);
 
 	const closeImageModal = useCallback(() => {
 		setPreviewingMaterial(null);

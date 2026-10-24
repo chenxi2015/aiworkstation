@@ -6,7 +6,7 @@ import type { ComponentType } from "react";
  * isActive 时合成 chip，× 掉即 detach。
  */
 export interface ActiveChatScope {
-	type: "folder" | "document" | "material" | "note" | string;
+	type: "folder" | "document" | "material" | "note" | "bookmark" | string;
 	name: string;
 	isActive: boolean;
 	icon?: ComponentType<{ className?: string }>;
@@ -18,4 +18,10 @@ export interface ActiveChatScope {
 	materialId?: number;
 	/** Folder ID when type === 'folder' */
 	folderId?: number;
+	/** Bookmark ID when type === 'bookmark' */
+	bookmarkId?: number | string;
+	/** Web URL when type === 'bookmark' */
+	url?: string;
+	/** Favicon or custom icon URL */
+	iconUrl?: string;
 }

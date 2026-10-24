@@ -49,6 +49,7 @@ export interface ChatAssistantViewRef {
 			contextItems?: ChatContextItem[];
 			module?: string;
 			activeDocumentId?: number | null;
+			activeMaterialId?: number | null;
 			activeNotePath?: string | null;
 		},
 	) => void;
@@ -168,13 +169,15 @@ export const ChatAssistantView = forwardRef<
 		};
 	}, []);
 
+	const resolvedModule = pageBridge?.module ?? activeModule;
+
 	// Contextual scope management (global ⇄ scoped folder)
 	const {
 		activeScope,
 		toggleScope: handleToggleScope,
 		isFolderScoped,
 	} = useChatScope({
-		activeModule,
+		activeModule: resolvedModule,
 		selectedFolder,
 		scopeMode,
 		onToggleFolderScope: () =>
@@ -281,6 +284,7 @@ export const ChatAssistantView = forwardRef<
 			contextItems?: ChatContextItem[];
 			module?: string;
 			activeDocumentId?: number | null;
+			activeMaterialId?: number | null;
 			activeNotePath?: string | null;
 		},
 	) => {
@@ -367,12 +371,32 @@ export const ChatAssistantView = forwardRef<
 			pageBridge?.activeDocumentId ?? storeState.activeDocument?.id;
 		const isDocDetached =
 			rawDocId != null && storeState.detachedDocumentId === rawDocId;
+		const hasDocItem = (options?.contextItems ?? contextItems).some(
+			(ci) => ci.type === "document" || Boolean(ci.documentId),
+		);
 		const effectiveDocId =
 			options?.activeDocumentId !== undefined
 				? options.activeDocumentId
 				: isDocDetached
 					? undefined
-					: (rawDocId ?? undefined);
+					: hasDocItem
+						? (rawDocId ?? undefined)
+						: undefined;
+
+		const rawMaterialId = storeState.activeMaterial?.id;
+		const isMaterialDetached =
+			rawMaterialId != null && storeState.detachedMaterialId === rawMaterialId;
+		const hasMaterialItem = (options?.contextItems ?? contextItems).some(
+			(ci) => ci.type === "material" || Boolean(ci.materialId),
+		);
+		const effectiveMaterialId =
+			options?.activeMaterialId !== undefined
+				? options.activeMaterialId
+				: isMaterialDetached
+					? undefined
+					: hasMaterialItem
+						? (rawMaterialId ?? undefined)
+						: undefined;
 
 		const rawNotePath =
 			pageBridge?.activeNotePath ?? storeState.activeNote?.path;
@@ -404,6 +428,7 @@ export const ChatAssistantView = forwardRef<
 			...folderScope,
 			module: effectiveModule,
 			activeDocumentId: effectiveDocId,
+			activeMaterialId: effectiveMaterialId,
 			activeNotePath: effectiveNotePath,
 			...options,
 		});
@@ -513,7 +538,6 @@ export const ChatAssistantView = forwardRef<
 		}
 	};
 
-	const resolvedModule = pageBridge?.module ?? activeModule;
 	const moduleContribution = getAiContribution(resolvedModule);
 
 	// Expose methods for parent components

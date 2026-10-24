@@ -283,7 +283,7 @@ export const ChatInputBottomBar = memo(function ChatInputBottomBar({
 								variant="secondary"
 								size="sm"
 								isIconOnly
-								className="h-7 w-7 rounded-xl border border-danger/30 bg-danger/10 hover:bg-danger/20 text-danger flex items-center justify-center cursor-pointer shadow-2xs group transition-all"
+								className="h-7 w-7 rounded-full border border-danger/30 bg-danger/10 hover:bg-danger/20 text-danger flex items-center justify-center cursor-pointer shadow-2xs group transition-all"
 								onPress={onStop}
 								aria-label="停止回答"
 							>

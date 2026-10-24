@@ -55,24 +55,49 @@ const MODULE_SCOPE_RESOLVERS: Record<string, ScopeResolver> = {
 		};
 	},
 	creator: (state) => {
+		// 1. In creator studio (Editor), prioritize active writing document
+		const rawDoc = state.activeDocument;
+		if (rawDoc) {
+			const isDetached = state.detachedDocumentId === rawDoc.id;
+			return {
+				scope: {
+					type: "document",
+					name: rawDoc.title || "未命名文档",
+					isActive: !isDetached,
+					documentId: rawDoc.id,
+				},
+				toggle: () => {
+					if (isDetached) {
+						workbenchContextActions.attachDocumentContext();
+					} else {
+						workbenchContextActions.detachDocumentContext(rawDoc.id);
+					}
+				},
+			};
+		}
+
+		// 2. In creator materials, fall back to active material
 		const rawMaterial = state.activeMaterial;
-		if (!rawMaterial) return { scope: null, toggle: () => {} };
-		const isDetached = state.detachedMaterialId === rawMaterial.id;
-		return {
-			scope: {
-				type: "material",
-				name: rawMaterial.title || "未命名素材",
-				isActive: !isDetached,
-				materialId: rawMaterial.id,
-			},
-			toggle: () => {
-				if (isDetached) {
-					workbenchContextActions.attachMaterialContext();
-				} else {
-					workbenchContextActions.detachMaterialContext(rawMaterial.id);
-				}
-			},
-		};
+		if (rawMaterial) {
+			const isDetached = state.detachedMaterialId === rawMaterial.id;
+			return {
+				scope: {
+					type: "material",
+					name: rawMaterial.title || "未命名素材",
+					isActive: !isDetached,
+					materialId: rawMaterial.id,
+				},
+				toggle: () => {
+					if (isDetached) {
+						workbenchContextActions.attachMaterialContext();
+					} else {
+						workbenchContextActions.detachMaterialContext(rawMaterial.id);
+					}
+				},
+			};
+		}
+
+		return { scope: null, toggle: () => {} };
 	},
 	obsidian: (state) => {
 		const rawNote = state.activeNote;
@@ -97,6 +122,44 @@ const MODULE_SCOPE_RESOLVERS: Record<string, ScopeResolver> = {
 			},
 		};
 	},
+	workbench: (state) => {
+		// 1. If a specific bookmark item is active
+		const rawBookmark = state.activeBookmark;
+		if (rawBookmark) {
+			return {
+				scope: {
+					type: "bookmark",
+					name: rawBookmark.title || "未命名书签",
+					isActive: true,
+					bookmarkId: rawBookmark.id,
+					url: rawBookmark.url,
+					iconUrl: rawBookmark.icon,
+					folderId: rawBookmark.folderId ?? undefined,
+				},
+				toggle: () => {
+					workbenchContextActions.setActiveBookmark(null);
+				},
+			};
+		}
+
+		// 2. If an active folder is set in store
+		const rawFolder = state.activeFolder;
+		if (rawFolder) {
+			return {
+				scope: {
+					type: "folder",
+					name: rawFolder.name,
+					isActive: true,
+					folderId: rawFolder.id,
+				},
+				toggle: () => {
+					workbenchContextActions.setActiveFolder(null);
+				},
+			};
+		}
+
+		return { scope: null, toggle: () => {} };
+	},
 };
 
 const SCOPE_TYPE_NAMES: Record<string, string> = {
@@ -104,6 +167,7 @@ const SCOPE_TYPE_NAMES: Record<string, string> = {
 	material: "素材",
 	folder: "文件夹",
 	note: "笔记",
+	bookmark: "书签",
 };
 
 /**
@@ -124,6 +188,27 @@ export function useChatScope({
 		if (resolver) {
 			const res = resolver(contextState);
 			if (res.scope) return res;
+		}
+
+		// Fallback to active document if open
+		if (contextState.activeDocument) {
+			const rawDoc = contextState.activeDocument;
+			const isDetached = contextState.detachedDocumentId === rawDoc.id;
+			return {
+				scope: {
+					type: "document",
+					name: rawDoc.title || "未命名文档",
+					isActive: !isDetached,
+					documentId: rawDoc.id,
+				},
+				toggle: () => {
+					if (isDetached) {
+						workbenchContextActions.attachDocumentContext();
+					} else {
+						workbenchContextActions.detachDocumentContext(rawDoc.id);
+					}
+				},
+			};
 		}
 
 		// Fallback to selected folder if present

@@ -3,6 +3,7 @@ import { useCallback, useEffect } from "react";
 import { useGlobalShortcuts } from "../../../hooks/useGlobalShortcuts";
 import { isElectronApp } from "../../../lib/platform";
 import { ExtensionBridgeService } from "../../../services/extensionBridge";
+import { workbenchContextActions } from "../../../stores/workbenchContextStore";
 import { useAiPanel } from "../../shell/AppShell";
 import type { WorkbenchDragData } from "../dnd/WorkbenchDnd";
 import type { Folder, WorkbenchItem, WorkbenchSettings } from "../types";
@@ -148,13 +149,25 @@ export function useWorkbenchAiBridge({
 		},
 	});
 
-	// Sync browsing scope (selected folder & active category) to AI panel
+	// Sync browsing scope (selected folder & active category) to AI panel and global store
 	useEffect(() => {
 		aiPanel.setScope({
 			selectedFolder: isUnclassified ? null : selectedFolder,
 			activeCategory,
 		});
-		return () => aiPanel.setScope({ selectedFolder: null });
+		if (selectedFolder && !isUnclassified) {
+			workbenchContextActions.setActiveFolder({
+				id: selectedFolder.id,
+				name: selectedFolder.name,
+			});
+			workbenchContextActions.setActiveBookmark(null);
+		} else {
+			workbenchContextActions.setActiveFolder(null);
+		}
+		return () => {
+			aiPanel.setScope({ selectedFolder: null });
+			workbenchContextActions.setActiveFolder(null);
+		};
 	}, [aiPanel, isUnclassified, selectedFolder, activeCategory]);
 
 	// Sync active page data to AI panel; fallback to root data when unmounting
