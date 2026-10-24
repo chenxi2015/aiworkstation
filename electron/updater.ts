@@ -90,16 +90,212 @@ function normalizeReleaseNotes(notes: unknown): string | undefined {
 }
 
 /**
- * Whether autoUpdater.quitAndInstall can actually replace the app on this machine.
- * - Windows NSIS: works unsigned.
- * - macOS: Squirrel/ShipIt requires a Developer ID signature; adhoc/unsigned builds fail.
+ * Checks whether the current macOS application bundle can be replaced in-place.
  */
-function resolveCanAutoInstall(): Promise<boolean> {
-	if (process.platform === "win32") return Promise.resolve(true);
-	if (process.platform !== "darwin" || !app.isPackaged) return Promise.resolve(false);
+function canMacInPlaceUpdate(appBundlePath: string): boolean {
+	if (process.platform !== "darwin" || !app.isPackaged) return false;
+	if (!appBundlePath.endsWith(".app")) return false;
+	try {
+		fs.accessSync(path.dirname(appBundlePath), fs.constants.W_OK);
+		fs.accessSync(appBundlePath, fs.constants.W_OK);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * Unmount all stale /Volumes/AI Workstation* volumes left behind by previous updates.
+ */
+async function cleanupMountedVolumes(): Promise<void> {
+	if (process.platform !== "darwin") return;
+	try {
+		const child = spawn("hdiutil", ["info"]);
+		let output = "";
+		child.stdout.on("data", (chunk) => {
+			output += chunk;
+		});
+		await new Promise<void>((resolve) => {
+			child.on("close", () => resolve());
+			child.on("error", () => resolve());
+		});
+
+		const lines = output.split("\n");
+		let currentImageIsOurs = false;
+		for (const line of lines) {
+			if (line.startsWith("image-path")) {
+				const lower = line.toLowerCase();
+				currentImageIsOurs =
+					lower.includes("ai-workstation") || lower.includes("aiworkstation");
+			} else if (currentImageIsOurs && line.includes("/Volumes/")) {
+				const match = line.match(/(\/Volumes\/[^\r\n]+)/);
+				if (match?.[1]) {
+					const mountPath = match[1].trim();
+					try {
+						const detachChild = spawn("hdiutil", ["detach", mountPath, "-force"]);
+						detachChild.on("error", () => {});
+					} catch {}
+				}
+			} else if (line.startsWith("===")) {
+				currentImageIsOurs = false;
+			}
+		}
+
+		if (fs.existsSync("/Volumes")) {
+			const entries = fs.readdirSync("/Volumes");
+			for (const entry of entries) {
+				if (entry.startsWith("AI Workstation")) {
+					const mountPath = path.join("/Volumes", entry);
+					try {
+						const detachChild = spawn("hdiutil", ["detach", mountPath, "-force"]);
+						detachChild.on("error", () => {});
+					} catch {}
+				}
+			}
+		}
+	} catch (err) {
+		console.warn("[updater] cleanupMountedVolumes error:", err);
+	}
+}
+
+/**
+ * Ensure only the active installer package exists in the updates directory.
+ * Removes historical installers so that only a single version remains on disk.
+ */
+function pruneOldUpdateFiles(updatesDir: string, currentKeepFile?: string): void {
+	try {
+		if (!fs.existsSync(updatesDir)) return;
+		const files = fs.readdirSync(updatesDir);
+		for (const file of files) {
+			if (currentKeepFile && file === currentKeepFile) continue;
+			if (
+				file.endsWith(".dmg") ||
+				file.endsWith(".zip") ||
+				file.endsWith(".blockmap")
+			) {
+				try {
+					fs.rmSync(path.join(updatesDir, file), { force: true });
+				} catch {}
+			}
+		}
+	} catch (err) {
+		console.warn("[updater] pruneOldUpdateFiles failed:", err);
+	}
+}
+
+/**
+ * Installs downloaded DMG in-place without manual drag-and-drop.
+ * Mounts DMG invisibly (-nobrowse), atomically replaces the .app bundle,
+ * removes quarantine attribute, detaches mount, and relaunches the new app.
+ */
+async function performMacInPlaceInstall(dmgPath: string): Promise<boolean> {
+	const currentAppPath = path.resolve(app.getPath("exe"), "..", "..", "..");
+	if (!canMacInPlaceUpdate(currentAppPath)) {
+		return false;
+	}
+
+	const tempMount = path.join(app.getPath("temp"), `aiw-mount-${Date.now()}`);
+	try {
+		fs.mkdirSync(tempMount, { recursive: true });
+	} catch {
+		return false;
+	}
+
+	const attachSuccess = await new Promise<boolean>((resolve) => {
+		const attachChild = spawn("hdiutil", [
+			"attach",
+			dmgPath,
+			"-nobrowse",
+			"-readonly",
+			"-mountpoint",
+			tempMount,
+		]);
+		attachChild.on("close", (code) => resolve(code === 0));
+		attachChild.on("error", () => resolve(false));
+	});
+
+	if (!attachSuccess) {
+		try {
+			fs.rmSync(tempMount, { recursive: true, force: true });
+		} catch {}
+		return false;
+	}
+
+	let sourceAppPath = path.join(tempMount, "AI Workstation.app");
+	if (!fs.existsSync(sourceAppPath)) {
+		try {
+			const entries = fs.readdirSync(tempMount);
+			const appEntry = entries.find((e) => e.endsWith(".app"));
+			if (appEntry) {
+				sourceAppPath = path.join(tempMount, appEntry);
+			}
+		} catch {}
+	}
+
+	if (!fs.existsSync(sourceAppPath)) {
+		spawn("hdiutil", ["detach", tempMount, "-force"]);
+		try {
+			fs.rmSync(tempMount, { recursive: true, force: true });
+		} catch {}
+		return false;
+	}
+
+	const pid = process.pid;
+	const scriptPath = path.join(
+		app.getPath("temp"),
+		`aiw-update-helper-${Date.now()}.sh`,
+	);
+	const script = `#!/bin/bash
+while kill -0 ${pid} 2>/dev/null; do
+  sleep 0.2
+done
+
+rm -rf "${currentAppPath}"
+cp -R "${sourceAppPath}" "${currentAppPath}"
+xattr -dr com.apple.quarantine "${currentAppPath}" 2>/dev/null || true
+
+hdiutil detach "${tempMount}" -force 2>/dev/null || true
+rm -rf "${tempMount}" 2>/dev/null || true
+rm -f "${dmgPath}" 2>/dev/null || true
+
+open "${currentAppPath}"
+rm -f "$0" 2>/dev/null || true
+`;
+
+	try {
+		fs.writeFileSync(scriptPath, script, { mode: 0o755 });
+		const helper = spawn("/bin/bash", [scriptPath], {
+			detached: true,
+			stdio: "ignore",
+		});
+		helper.unref();
+
+		setTimeout(() => {
+			app.quit();
+		}, 500);
+		return true;
+	} catch (err) {
+		console.warn("[updater] in-place install script creation failed:", err);
+		spawn("hdiutil", ["detach", tempMount, "-force"]);
+		return false;
+	}
+}
+
+/**
+ * Whether the application can be updated automatically without manual user steps.
+ * - Windows NSIS: works out of the box.
+ * - macOS: works via in-place update script or Apple Developer ID codesign.
+ */
+async function resolveCanAutoInstall(): Promise<boolean> {
+	if (process.platform === "win32") return true;
+	if (process.platform !== "darwin" || !app.isPackaged) return false;
+
+	const bundlePath = path.resolve(app.getPath("exe"), "..", "..", "..");
+	if (canMacInPlaceUpdate(bundlePath)) {
+		return true;
+	}
 
 	return new Promise((resolve) => {
-		const bundlePath = path.resolve(app.getPath("exe"), "..", "..", "..");
 		const child = spawn("codesign", ["-dv", "--verbose=4", bundlePath]);
 		let output = "";
 		child.stdout.on("data", (chunk) => {
@@ -197,8 +393,8 @@ async function runDownload(): Promise<UpdateState> {
 	setState({ status: "downloading", progress: 0, error: undefined });
 
 	try {
-		if (state.canAutoInstall) {
-			// Windows NSIS / signed macOS: electron-updater downloads to its cache;
+		if (state.canAutoInstall && process.platform === "win32") {
+			// Windows NSIS: electron-updater downloads to its cache;
 			// progress + update-downloaded events drive the state machine.
 			await autoUpdater.downloadUpdate();
 		} else if (process.platform === "darwin") {
@@ -228,6 +424,8 @@ async function downloadDmgManually(): Promise<void> {
 	const url = `https://github.com/${REPO_CONFIG.REPO}/releases/download/v${state.latestVersion}/${encodeURIComponent(fileName)}`;
 	const destDir = path.join(app.getPath("userData"), "updates");
 	fs.mkdirSync(destDir, { recursive: true });
+	// Clean up historical installers so only one version remains on disk
+	pruneOldUpdateFiles(destDir, fileName);
 	const destPath = path.join(destDir, fileName);
 
 	const response = await net.fetch(url, { redirect: "follow" });
@@ -338,13 +536,13 @@ export function setupAutoUpdater(): void {
 			};
 		}
 
-		if (state.canAutoInstall) {
+		if (state.canAutoInstall && process.platform === "win32") {
 			setState({ status: "installing" });
 			setImmediate(() => autoUpdater.quitAndInstall(false, true));
 			return { status: "installing" };
 		}
 
-		// Unsigned macOS: open the local DMG and quit so the user can drag-replace.
+		// Handle local installer package (DMG on macOS)
 		const file = state.downloadedFile;
 		if (file && fs.existsSync(file)) {
 			// Re-verify integrity right before installing — a stale/corrupt local
@@ -364,6 +562,18 @@ export function setupAutoUpdater(): void {
 					};
 				}
 			}
+
+			// macOS: attempt seamless in-place install first
+			if (process.platform === "darwin") {
+				setState({ status: "installing" });
+				const inPlaceSuccess = await performMacInPlaceInstall(file);
+				if (inPlaceSuccess) {
+					return { status: "installing" };
+				}
+			}
+
+			// Fallback: cleanup old volumes before manual drag-replace
+			await cleanupMountedVolumes();
 			const openError = await shell.openPath(file);
 			if (!openError) {
 				setTimeout(() => app.quit(), 1500);
@@ -378,6 +588,7 @@ export function setupAutoUpdater(): void {
 		demoteIfInstallerMissing();
 		const file = state.downloadedFile;
 		if (file && fs.existsSync(file)) {
+			await cleanupMountedVolumes();
 			const openError = await shell.openPath(file);
 			if (openError) {
 				shell.showItemInFolder(file);
@@ -404,6 +615,12 @@ export function setupAutoUpdater(): void {
 }
 
 async function initializeUpdater(): Promise<void> {
+	// Clean up stale mounted DMG volumes and old installers from previous updates
+	if (process.platform === "darwin") {
+		await cleanupMountedVolumes();
+	}
+	pruneOldUpdateFiles(path.join(app.getPath("userData"), "updates"));
+
 	const canAutoInstall = await resolveCanAutoInstall();
 	console.log(
 		`[updater] platform=${process.platform} canAutoInstall=${canAutoInstall}`,
