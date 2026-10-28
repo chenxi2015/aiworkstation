@@ -95,7 +95,7 @@ export const AgentStepItem = memo(function AgentStepItem({
 						<button
 							type="button"
 							onClick={handleStopCurrentStep}
-							className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium text-danger hover:text-white bg-danger/10 hover:bg-danger border border-danger/25 transition-all cursor-pointer shadow-2xs"
+							className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium text-danger transition-all cursor-pointer shadow-2xs"
 							title="终止当前命令/操作"
 						>
 							<Square className="w-2 h-2 fill-current" />
