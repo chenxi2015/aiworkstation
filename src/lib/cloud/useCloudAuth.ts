@@ -27,10 +27,18 @@ export function useCloudAuth() {
 			cloudClient
 				.getMe()
 				.then((freshUser) => setUser(freshUser))
-				.catch(() => {
-					// Token might be invalid or expired; clear session
-					cloudClient.clearSession();
-					setUser(null);
+				.catch((err) => {
+					// Only clear session if token is explicitly invalid, not on offline/network errors
+					const rawMsg = err instanceof Error ? err.message : String(err);
+					const isNetworkError =
+						rawMsg.includes("Failed to fetch") ||
+						rawMsg.includes("NetworkError") ||
+						rawMsg.includes("fetch failed");
+
+					if (!isNetworkError) {
+						cloudClient.clearSession();
+						setUser(null);
+					}
 				})
 				.finally(() => {
 					setIsLoading(false);

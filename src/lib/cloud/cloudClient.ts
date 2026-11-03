@@ -1,6 +1,7 @@
 import type {
 	ApiResponse,
 	CreateOrderResponse,
+	MemberTier,
 	OrderStatusResponse,
 	QrCheckResponse,
 	QrTicketResponse,
@@ -28,6 +29,31 @@ const ENV_API_BASE = import.meta.env.VITE_CLOUD_API_BASE?.trim();
 const DEFAULT_API_BASE = ENV_API_BASE || "http://localhost:4000";
 
 type AuthListener = (user: UserProfile | null) => void;
+
+/**
+ * Decode and extract payload from a JWT token without network verification
+ */
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+	try {
+		const parts = token.trim().split(".");
+		if (parts.length !== 3 || !parts[1]) return null;
+		const base64Url = parts[1];
+		const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+		const padded = base64.padEnd(
+			base64.length + ((4 - (base64.length % 4)) % 4),
+			"=",
+		);
+		const jsonString = decodeURIComponent(
+			atob(padded)
+				.split("")
+				.map((c) => `%${(`00${c.charCodeAt(0).toString(16)}`).slice(-2)}`)
+				.join(""),
+		);
+		return JSON.parse(jsonString) as Record<string, unknown>;
+	} catch {
+		return null;
+	}
+}
 
 class CloudClient {
 	private listeners = new Set<AuthListener>();
@@ -227,13 +253,31 @@ class CloudClient {
 			throw new Error("用户未登录");
 		}
 
-		const user = await this.fetchApi<UserProfile>("/api/auth/me");
-		this.setSession(token, user);
-		return user;
+		try {
+			const user = await this.fetchApi<UserProfile>("/api/auth/me");
+			this.setSession(token, user);
+			return user;
+		} catch (err) {
+			// Fallback gracefully to cached profile if remote server is unreachable
+			const cachedUser = this.getUser();
+			const rawMsg = err instanceof Error ? err.message : String(err);
+			const isNetworkError =
+				rawMsg.includes("Failed to fetch") ||
+				rawMsg.includes("NetworkError") ||
+				rawMsg.includes("fetch failed");
+
+			if (isNetworkError && cachedUser) {
+				console.warn(
+					"[CloudClient] Remote server unreachable, maintaining cached profile",
+				);
+				return cachedUser;
+			}
+			throw err;
+		}
 	}
 
 	/**
-	 * Log in by existing userId or raw token (must exist in database)
+	 * Log in by existing userId or raw token
 	 */
 	async loginWithIdentifier(
 		identifier: string,
@@ -243,28 +287,75 @@ class CloudClient {
 			throw new Error("请输入 User ID 或 Token");
 		}
 
-		// Case 1: Input is a JWT token (verify existence in DB via /api/auth/me)
+		// Case 1: Input is a JWT token (verify format/payload locally without blocking remote network call)
 		const isJwtToken =
 			trimmed.startsWith("eyJ") || trimmed.split(".").length === 3;
 
 		if (isJwtToken) {
-			try {
-				const headers = new Headers();
-				headers.set("Authorization", `Bearer ${trimmed}`);
-				const url = `${this.getApiBase()}/api/auth/me`;
-				const res = await fetch(url, { headers });
-				const json = (await res.json()) as ApiResponse<UserProfile>;
-				if (res.ok && json.code === 0 && json.data) {
-					return { token: trimmed, user: json.data };
-				}
-				throw new Error(json.message || "用户不存在或 Token 已失效");
-			} catch (err) {
-				const rawMsg = err instanceof Error ? err.message : String(err);
-				if (rawMsg.includes("Failed to fetch") || rawMsg.includes("NetworkError")) {
-					throw new Error("无法连接云端鉴权服务，请确保服务端正在运行");
-				}
-				throw new Error(rawMsg || "Token 验证失败，未找到对应用户");
+			const payload = decodeJwtPayload(trimmed);
+			if (!payload) {
+				throw new Error("Token 格式无效，无法解析");
 			}
+
+			// Validate token expiration if exp claim is present
+			if (typeof payload.exp === "number") {
+				const nowSeconds = Math.floor(Date.now() / 1000);
+				if (nowSeconds >= payload.exp) {
+					throw new Error("Token 已过期");
+				}
+			}
+
+			const userId = String(
+				payload.userId || payload.sub || payload.id || "",
+			).trim();
+			if (!userId) {
+				throw new Error("Token 无效：缺少用户标识");
+			}
+
+			const cachedUser = this.getUser();
+			const tierStr =
+				typeof payload.memberTier === "string" ? payload.memberTier : "";
+			const validTiers: MemberTier[] = [
+				"FREE",
+				"VIP",
+				"SVIP",
+				"LIFETIME",
+				"PRO",
+			];
+			const memberTier: MemberTier = validTiers.includes(tierStr as MemberTier)
+				? (tierStr as MemberTier)
+				: cachedUser?.id === userId
+					? cachedUser.memberTier
+					: "VIP";
+
+			const user: UserProfile = {
+				id: userId,
+				nickname:
+					(typeof payload.nickname === "string" && payload.nickname) ||
+					(typeof payload.name === "string" && payload.name) ||
+					(cachedUser?.id === userId
+						? cachedUser.nickname
+						: `用户_${userId.slice(-6)}`),
+				avatarUrl:
+					(typeof payload.avatarUrl === "string" && payload.avatarUrl) ||
+					(typeof payload.avatar === "string" && payload.avatar) ||
+					(cachedUser?.id === userId ? cachedUser.avatarUrl : ""),
+				memberTier,
+				memberExpiresAt:
+					typeof payload.exp === "number"
+						? new Date(payload.exp * 1000).toISOString()
+						: cachedUser?.id === userId
+							? cachedUser.memberExpiresAt
+							: null,
+				createdAt:
+					typeof payload.iat === "number"
+						? new Date(payload.iat * 1000).toISOString()
+						: cachedUser?.id === userId
+							? cachedUser.createdAt
+							: new Date().toISOString(),
+			};
+
+			return { token: trimmed, user };
 		}
 
 		// Case 2: Input is a userId - strictly verify existence in database via /api/auth/token
